@@ -4,17 +4,17 @@
 //! refused for a full square; only the sanity limit stops it.
 
 use crate::support::worlds;
-use f4x_core::game::{Command, Event, LossCause};
 use f4x_core::map::Position;
 use f4x_core::unit::TILE_SANITY_LIMIT;
+use f4x_core::world::{Command, Event, LossCause};
 
-fn wizard_and_city(g: &f4x_core::game::Game) -> (f4x_core::player::PlayerId, Position) {
-    let wizard = g
+fn wizard_and_city(w: &f4x_core::world::World) -> (f4x_core::player::PlayerId, Position) {
+    let wizard = w
         .player_ids()
         .into_iter()
-        .find(|&p| g.wizard(p).is_some())
+        .find(|&p| w.wizard(p).is_some())
         .expect("a wizard");
-    let at = g
+    let at = w
         .economy()
         .cities()
         .into_iter()
@@ -27,13 +27,13 @@ fn wizard_and_city(g: &f4x_core::game::Game) -> (f4x_core::player::PlayerId, Pos
 /// Units that appear on a square are let in past the walking limit, up to the sanity limit.
 #[test]
 fn units_put_on_a_square_are_not_refused_for_the_walking_limit() {
-    let (_, mut g) = worlds().remove(0);
-    let (wizard, at) = wizard_and_city(&g);
-    let unit = f4x_core::rules::UnitId::new(g.content().rules.units.defs()[0].num);
-    let walking = g.tile_limit(at);
-    let before = g.units().units_at(at).len();
+    let (_, mut w) = worlds().remove(0);
+    let (wizard, at) = wizard_and_city(&w);
+    let unit = f4x_core::rules::UnitId::new(w.content().rules.units.defs()[0].num);
+    let walking = w.tile_limit(at);
+    let before = w.units().units_at(at).len();
     for _ in 0..(walking + 5) {
-        let events = g.apply(Command::CreateUnit {
+        let events = w.apply(Command::CreateUnit {
             owner: wizard,
             pos: at,
             unit,
@@ -43,17 +43,17 @@ fn units_put_on_a_square_are_not_refused_for_the_walking_limit() {
             "{events:?}"
         );
     }
-    assert_eq!(g.units().units_at(at).len(), before + walking + 5);
-    assert!(f4x_core::check::world_problems(&g).is_empty());
+    assert_eq!(w.units().units_at(at).len(), before + walking + 5);
+    assert!(f4x_core::check::world_problems(&w).is_empty());
 }
 
 /// Past the sanity limit the cheapest units go, with a message each, and the square is back at the
 /// limit.
 #[test]
 fn the_sanity_limit_disbands_the_cheapest_unit() {
-    let (_, mut g) = worlds().remove(0);
-    let (wizard, at) = wizard_and_city(&g);
-    let mut kinds: Vec<_> = g
+    let (_, mut w) = worlds().remove(0);
+    let (wizard, at) = wizard_and_city(&w);
+    let mut kinds: Vec<_> = w
         .content()
         .rules
         .units
@@ -71,17 +71,17 @@ fn the_sanity_limit_disbands_the_cheapest_unit() {
         f4x_core::rules::UnitId::new(cheap.num),
         f4x_core::rules::UnitId::new(dear.num),
     );
-    let room = TILE_SANITY_LIMIT.saturating_sub(g.units().units_at(at).len());
+    let room = TILE_SANITY_LIMIT.saturating_sub(w.units().units_at(at).len());
     // Fill the square with dear units, then add cheap ones past the limit one at a time.
     for _ in 0..room {
-        g.apply(Command::CreateUnit {
+        w.apply(Command::CreateUnit {
             owner: wizard,
             pos: at,
             unit: dear,
         });
     }
-    assert_eq!(g.units().units_at(at).len(), TILE_SANITY_LIMIT);
-    let events = g.apply(Command::CreateUnit {
+    assert_eq!(w.units().units_at(at).len(), TILE_SANITY_LIMIT);
+    let events = w.apply(Command::CreateUnit {
         owner: wizard,
         pos: at,
         unit: cheap,
@@ -98,22 +98,22 @@ fn the_sanity_limit_disbands_the_cheapest_unit() {
         })
         .collect();
     assert_eq!(lost, vec![(wizard, cheap)], "{events:?}");
-    assert_eq!(g.units().units_at(at).len(), TILE_SANITY_LIMIT);
-    assert!(f4x_core::check::world_problems(&g).is_empty());
+    assert_eq!(w.units().units_at(at).len(), TILE_SANITY_LIMIT);
+    assert!(f4x_core::check::world_problems(&w).is_empty());
 }
 
 /// A tower takes twice the walking limit of any other square; no other square does.
 #[test]
 fn a_tower_takes_twice_the_walking_limit() {
-    let (_, g) = worlds().remove(0);
-    let map = g.map().expect("a map");
-    let (w, h) = (map.width(), map.height());
+    let (_, w) = worlds().remove(0);
+    let map = w.map().expect("a map");
+    let (width, h) = (map.width(), map.height());
     let mut seen = std::collections::BTreeMap::<usize, usize>::new();
     for plane in [f4x_core::map::Plane::Arcanus, f4x_core::map::Plane::Myrror] {
         for y in 0..h {
-            for x in 0..w {
+            for x in 0..width {
                 *seen
-                    .entry(g.tile_limit(Position { x, y, plane }))
+                    .entry(w.tile_limit(Position { x, y, plane }))
                     .or_default() += 1;
             }
         }
@@ -121,7 +121,7 @@ fn a_tower_takes_twice_the_walking_limit() {
     let limits: Vec<usize> = seen.keys().copied().collect();
     assert_eq!(
         limits,
-        vec![g.max_tile(), 2 * g.max_tile()],
+        vec![w.max_tile(), 2 * w.max_tile()],
         "the limits that are in use: {seen:?}"
     );
 }
@@ -132,29 +132,29 @@ fn a_tower_takes_twice_the_walking_limit() {
 #[test]
 fn no_command_leaves_a_square_over_the_sanity_limit() {
     use crate::support::{busy_round, commands};
-    for (name, mut g) in worlds().into_iter().step_by(2) {
+    for (name, mut w) in worlds().into_iter().step_by(2) {
         // Crowd a square close to the limit, so that what the commands put there tips it over.
-        let (wizard, at) = wizard_and_city(&g);
-        let unit = f4x_core::rules::UnitId::new(g.content().rules.units.defs()[0].num);
-        while g.units().units_at(at).len() < TILE_SANITY_LIMIT {
-            g.apply(Command::CreateUnit {
+        let (wizard, at) = wizard_and_city(&w);
+        let unit = f4x_core::rules::UnitId::new(w.content().rules.units.defs()[0].num);
+        while w.units().units_at(at).len() < TILE_SANITY_LIMIT {
+            w.apply(Command::CreateUnit {
                 owner: wizard,
                 pos: at,
                 unit,
             });
         }
-        for command in commands(&g) {
+        for command in commands(&w) {
             let label = format!("{command:?}");
-            g.apply(command);
+            w.apply(command);
             assert!(
-                g.crowded_anywhere().is_empty(),
+                w.crowded_anywhere().is_empty(),
                 "{name}: after {label}: {:?}",
-                g.crowded_anywhere()
+                w.crowded_anywhere()
             );
         }
         for _ in 0..5 {
-            busy_round(&mut g, 200);
-            assert!(g.crowded_anywhere().is_empty(), "{name}");
+            busy_round(&mut w, 200);
+            assert!(w.crowded_anywhere().is_empty(), "{name}");
         }
     }
 }
@@ -162,15 +162,15 @@ fn no_command_leaves_a_square_over_the_sanity_limit() {
 /// A save with a crowded square (written by hand) is put right by the first command.
 #[test]
 fn a_crowded_save_is_put_right_by_the_next_command() {
-    let (_, mut g) = worlds().remove(0);
-    let (wizard, at) = wizard_and_city(&g);
-    let unit = f4x_core::rules::UnitId::new(g.content().rules.units.defs()[0].num);
+    let (_, mut w) = worlds().remove(0);
+    let (wizard, at) = wizard_and_city(&w);
+    let unit = f4x_core::rules::UnitId::new(w.content().rules.units.defs()[0].num);
     // Over the limit without a command (a scenario step), then saved and loaded.
     for _ in 0..TILE_SANITY_LIMIT + 3 {
-        g.spawn_unit(wizard, at, unit);
+        w.spawn_unit(wizard, at, unit);
     }
-    let text = crate::support::text(&g);
-    let mut loaded = f4x_core::game::save::Snapshot::from_text(&text)
+    let text = crate::support::text(&w);
+    let mut loaded = f4x_core::world::save::Snapshot::from_text(&text)
         .expect("reads")
         .restore(crate::support::content())
         .expect("loads");
@@ -187,11 +187,11 @@ fn a_crowded_save_is_put_right_by_the_next_command() {
 #[test]
 fn a_freed_prisoner_stands_on_the_square_of_the_lair() {
     use crate::support::around;
-    use f4x_core::game::testutil::battle_policy;
+    use f4x_core::world::testutil::battle_policy;
     let mut freed = 0;
-    for (w, seed) in crate::support::WORLDS {
-        let name = format!("{w} wizards, seed {seed}");
-        let base = f4x_core::game::testutil::fresh(w, seed).expect("a fresh game");
+    for (wizards, seed) in crate::support::WORLDS {
+        let name = format!("{wizards} wizards, seed {seed}");
+        let base = f4x_core::world::testutil::fresh(wizards, seed).expect("a fresh game");
         let (wizard, _) = wizard_and_city(&base);
         let strong = {
             let mut defs: Vec<_> = base
@@ -206,28 +206,28 @@ fn a_freed_prisoner_stands_on_the_square_of_the_lair() {
             f4x_core::rules::UnitId::new(defs[0].num)
         };
         for lair in base.economy().lairs().into_iter().filter(|l| l.prisoner) {
-            let mut g = f4x_core::game::testutil::fresh(w, seed).expect("a fresh game");
-            let Some(from) = around(&g, lair.pos).into_iter().next() else {
+            let mut w = f4x_core::world::testutil::fresh(wizards, seed).expect("a fresh game");
+            let Some(from) = around(&w, lair.pos).into_iter().next() else {
                 continue;
             };
-            let side = g.max_battle_side();
+            let side = w.max_battle_side();
             for _ in 0..side + 1 {
-                g.apply(Command::CreateUnit {
+                w.apply(Command::CreateUnit {
                     owner: wizard,
                     pos: from,
                     unit: strong,
                 });
             }
-            let stack = g.units().units_at(from);
-            let heroes = g.units().hero_units(wizard).len();
-            let mut events = g.apply(Command::EnterSite {
+            let stack = w.units().units_at(from);
+            let heroes = w.units().hero_units(wizard).len();
+            let mut events = w.apply(Command::EnterSite {
                 units: stack,
                 to: lair.pos,
             });
             let mut steps = 0;
-            while g.battle().is_some() && steps < 5000 {
-                let Some(c) = battle_policy(&g) else { break };
-                events.extend(g.apply(Command::Battle(c)));
+            while w.battle().is_some() && steps < 5000 {
+                let Some(c) = battle_policy(&w) else { break };
+                events.extend(w.apply(Command::Battle(c)));
                 steps += 1;
             }
             let loot = events.iter().find_map(|e| match e {
@@ -236,15 +236,15 @@ fn a_freed_prisoner_stands_on_the_square_of_the_lair() {
             });
             if loot.is_some_and(|l| l.prisoner) {
                 freed += 1;
-                let here = g.units().units_at(lair.pos);
+                let here = w.units().units_at(lair.pos);
                 assert_eq!(
-                    g.units().hero_units(wizard).len(),
+                    w.units().hero_units(wizard).len(),
                     heroes + 1,
                     "{name}: the hero serves the winner"
                 );
                 assert!(
                     here.iter()
-                        .any(|&u| g.units().hero_units(wizard).contains(&u)),
+                        .any(|&u| w.units().hero_units(wizard).contains(&u)),
                     "{name}: the hero stands on the lair's square"
                 );
             }

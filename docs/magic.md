@@ -1,6 +1,6 @@
 # Wizards, mana, research and spells
 
-How the magic layer works. Code: `crates/f4x-core/src/{wizard/magic,wizard/magic_game,spell/cast}.rs` (`wizard/magic.rs` is the wizard's own state and rules, `wizard/magic_game.rs` what needs the world: power, upkeep, commands, the turn; `archive/architecture-plan.md`); screen:
+How the magic layer works. Code: `crates/f4x-core/src/{wizard/magic,wizard/magic_world,spell/cast}.rs` (`wizard/magic.rs` is the wizard's own state and rules, `wizard/magic_world.rs` what needs the world: power, upkeep, commands, the turn; `archive/architecture-plan.md`); screen:
 `crates/f4x-client/src/magic_screen.rs`. Formulas follow the original game's code (read from the
 ReMoM source) unless noted. For where wizard state sits in the game, see
 [`ecs-structure.md`](ecs-structure.md); for the turn order, [`game-flow.md`](game-flow.md) §4.
@@ -32,7 +32,7 @@ Only some retorts have effects so far: Alchemy, Archmage, Artificer, Conjurer, S
 Runemaster, Mana Focusing and the three realm masteries (research and cost). The rest are stored
 and saved but do nothing yet.
 
-`Game::init_wizard(player, books, retorts)` sets one up.
+`World::init_wizard(player, books, retorts)` sets one up.
 
 ## 2. Casting skill
 
@@ -141,7 +141,7 @@ spell instance in a casting state, owned by the casting wizard.
 ## 7. What a spell does
 
 `resolve_cast` runs the spell's `OnCast` effects through the effect executor against a real
-effect host over the ECS (`GameHost` in `spell/cast.rs`): damage and healing of units, summoning,
+effect host over the ECS (`WorldHost` in `spell/cast.rs`): damage and healing of units, summoning,
 terrain and feature changes, resources, dispelling. A spell that lasts (the original has no timed spells) is
 a spell instance (`spell/instance.rs`) on its target: a city, a unit or the world; its passive effects then apply as stat modifiers. A spell whose effects are
 only the `unimplemented` hook is cast, costs mana and reports `SpellHasNoEffectYet` (none ships
@@ -170,7 +170,7 @@ production cost, a spell's casting mana), then the newest (`EnchantmentLapsed`,
 applies the same rule itself (`f4x-ai/src/shortfall.rs`). The upkeep is paid at the turn end,
 after the mana income and before casting.
 
-**The human's choice.** Before the turn ends, the client asks `Game::upkeep_shortfall(player)`:
+**The human's choice.** Before the turn ends, the client asks `World::upkeep_shortfall(player)`:
 the reserve plus this turn's mana income against the upkeep (`player/upkeep.rs`). If it is short, a prompt
 lists every item that costs mana with its price, pre-marks what the default would give up, and lets
 the player mark others (space or click; Enter confirms, Esc goes back). The marked items are
@@ -233,7 +233,7 @@ cities) and, while banished, `Banishment`; a defeated one has no fortress and th
 - **Move Fortress** moves the fortress and the circle to another own city; **Summoning Circle**
   moves only the circle. Both are instant city-targeted spells that run engine hooks
   (`move_fortress`, `move_summoning_circle`); the importer maps the original spells to them.
-- **Capture:** `Game::capture_city(city, winner)` (for the combat layer to call) changes the
+- **Capture:** `World::capture_city(city, winner)` (for the combat layer to call) changes the
   owner. Taking the fortress city **banishes** the wizard: fortress and circle are gone, the
   winner gets 5 fame and half the loser's mana, and the loser starts casting the **Spell of
   Return** (cost from the spell data). While casting it the wizard gets no power, mana, research
@@ -254,13 +254,13 @@ cities) and, while banished, `Banishment`; a defeated one has no fortress and th
 - **Return:** when the spell is paid it asks for one of the wizard's cities; that city becomes the
   fortress and circle and its race the capital race (`return_to_fortress`). It cannot be cast any
   other way.
-- **Destroying:** `Game::destroy_city` refuses a fortress city and leaves it with at least one
+- **Destroying:** `World::destroy_city` refuses a fortress city and leaves it with at least one
   citizen, as in the original, and a city with no owner or no square. A city that must go anyway
   (a lost outpost, a taken city with no citizens, a city a horde razes) goes through
-  `Game::remove_city`, which keeps the fortress and removes the others, so none stays as a ghost.
+  `World::remove_city`, which keeps the fortress and removes the others, so none stays as a ghost.
 - Spell targets are checked before mana is paid.
 
-Defeat is done in `game/endgame.rs` (`aftermath`) as in the original's `Resolve_Wizard_Conquest`:
+Defeat is done in `world/endgame.rs` (`aftermath`) as in the original's `Resolve_Wizard_Conquest`:
 the loser's remaining units and heroes go, their enchantments come off every city and unit, their
 global spells and cast stop, their nodes are freed, the winner takes half their gold, and their
 cities turn neutral. A wizard banished with casting skill under 40 or no mana is defeated at once, the human included
@@ -272,7 +272,7 @@ Creating a wizard spawns a player entity and a wizard entity together and links 
 rules stay in `wizard/mod.rs`; `WizardBuild` fills the wizard's components. The computer wizards are
 built the same way (`f4x-newgame/src/computer_wizard.rs`).
 
-`wizard/mod.rs` holds the pick rules and `Game::create_wizard`; `crates/f4x-def/content/wizards.ron` lists the
+`wizard/mod.rs` holds the pick rules and `World::create_wizard`; `crates/f4x-def/content/wizards.ron` lists the
 ready-made wizards' books and retorts (game rules, committed); their names are in `crates/f4x-lang/content/text/en/name/wizard.ron` and their help text is the topic named by `help` in
 `crates/f4x-lang/content/text/en/help/help.ron` (ours). Eleven picks buy books (one each) and
 retorts (one; two for Warlord, Channeler, Divine Power, Famous, Infernal Power; three for

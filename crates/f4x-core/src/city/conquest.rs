@@ -17,17 +17,17 @@
 //!   fame penalty of the size, a tenth of the cost of each building as gold, and the
 //!   city is gone. The wizard whose fortress it was is banished either way.
 //!
-//! [`Command::RazeCity`]: crate::game::Command::RazeCity
+//! [`Command::RazeCity`]: crate::world::Command::RazeCity
 //!
 //! Tests: in city/conquest/tests.rs.
 
 use crate::city::economy::{Buildings, Economy, Population};
 use crate::city::production::{Production, ProductionItem};
 use crate::city::City;
-use crate::game::rng::GameRng;
-use crate::game::{Event, Game};
 use crate::player::PlayerId;
 use crate::rules::BuildingId;
+use crate::world::rng::GameRng;
+use crate::world::{Event, World};
 use f4x_def::half_int::HalfInt;
 
 /// Marks a city taken this turn by the player it holds, who may still raze it.
@@ -126,21 +126,21 @@ pub enum DestroyError {
 /// Destroy a building, unless another that is built needs it (also down a chain), or it is not
 /// there.
 pub(crate) fn destroy_building(
-    world: &mut hecs::World,
+    ecs: &mut hecs::World,
     map: Option<&crate::map::Map>,
     content: &f4x_def::content::Content,
     city: hecs::Entity,
     building: BuildingId,
 ) -> Result<(), DestroyError> {
-    match world.get::<&Buildings>(city) {
+    match ecs.get::<&Buildings>(city) {
         Err(_) => return Err(DestroyError::NotACity),
         Ok(b) if !b.0.contains(&building) => return Err(DestroyError::NotBuilt),
         Ok(_) => {}
     }
-    if let Some(by) = Economy::new(world, map, content).first_dependant(city, building) {
+    if let Some(by) = Economy::new(ecs, map, content).first_dependant(city, building) {
         return Err(DestroyError::NeededBy(by));
     }
-    let mut b = world
+    let mut b = ecs
         .get::<&mut Buildings>(city)
         .map_err(|_| DestroyError::NotACity)?;
     b.0.retain(|&x| x != building);
@@ -149,7 +149,7 @@ pub(crate) fn destroy_building(
 
 impl Economy<'_> {
     pub fn citizens(&self, city: hecs::Entity) -> u32 {
-        self.world.get::<&Population>(city).map_or(0, |p| p.figures)
+        self.ecs.get::<&Population>(city).map_or(0, |p| p.figures)
     }
 
     /// How much gold taking `city` loots from its owner: the owner's gold in proportion to the
@@ -164,13 +164,13 @@ impl Economy<'_> {
             .filter(|(_, c, _)| c.owner == owner)
             .map(|(e, ..)| self.citizens(e))
             .sum();
-        let gold = crate::player::component::<crate::player::Treasury>(self.world, owner)
+        let gold = crate::player::component::<crate::player::Treasury>(self.ecs, owner)
             .map_or(HalfInt::ZERO, |t| t.gold);
         loot_share(gold, self.citizens(city), all)
     }
 }
 
-impl Game {
+impl World {
     /// `winner` takes `city` after the fighting, which did `city_damage` to it.
     pub fn conquer_city(
         &mut self,
@@ -212,21 +212,21 @@ impl Game {
 
         // The fighting kills citizens and wrecks buildings.
         let built: Vec<_> = self
-            .world
+            .ecs
             .get::<&Buildings>(city)
             .map(|b| b.0.clone())
             .unwrap_or_default();
         let mut lost = Vec::new();
         let toll = fighting_toll(citizens, city_damage, &built, &mut self.rng, |b| {
             // The fight spares a building that holds up another, and skips one that is gone.
-            let gone = destroy_building(&mut self.world, self.map.as_ref(), &self.content, city, b)
-                .is_ok();
+            let gone =
+                destroy_building(&mut self.ecs, self.map.as_ref(), &self.content, city, b).is_ok();
             if gone {
                 lost.push(b);
             }
             gone
         });
-        if let Ok(mut pop) = self.world.get::<&mut Population>(city) {
+        if let Ok(mut pop) = self.ecs.get::<&mut Population>(city) {
             pop.figures -= toll.citizens_lost;
         }
 
@@ -262,7 +262,7 @@ impl Game {
         building: BuildingId,
     ) -> Result<(), DestroyError> {
         destroy_building(
-            &mut self.world,
+            &mut self.ecs,
             self.map.as_ref(),
             &self.content,
             city,
@@ -273,21 +273,21 @@ impl Game {
     /// The winner razes the city they have just taken: more fame lost, a tenth of the
     /// buildings' cost looted, and the city is gone.
     pub fn raze_city(&mut self, player: PlayerId, city: hecs::Entity) -> Vec<Event> {
-        let Some(Conquered(by)) = self.world.get::<&Conquered>(city).ok().map(|c| *c) else {
-            return vec![Event::Rejected(crate::game::Rejection::Raze(
+        let Some(Conquered(by)) = self.ecs.get::<&Conquered>(city).ok().map(|c| *c) else {
+            return vec![Event::Rejected(crate::world::Rejection::Raze(
                 RazeError::NotJustTaken,
             ))];
         };
         if self.player_entity(player) != Some(by) || self.economy().city_owner(city) != Some(player)
         {
-            return vec![Event::Rejected(crate::game::Rejection::Raze(
+            return vec![Event::Rejected(crate::world::Rejection::Raze(
                 RazeError::NotJustTaken,
             ))];
         }
         let size = city_size_class(&self.content.rules, self.economy().citizens(city)) as i32;
         let rules = &self.content.rules;
         let loot = self
-            .world
+            .ecs
             .get::<&Buildings>(city)
             .map(|b| razing_loot(b.0.iter().map(|&b| rules.buildings.get(b).cost)))
             .unwrap_or(0);
@@ -312,7 +312,7 @@ impl Game {
             return;
         };
         let marked: Vec<hecs::Entity> = self
-            .world
+            .ecs
             .query::<(&City, &Conquered)>()
             .iter()
             .filter(|(_, (_, c))| c.0 == taker)

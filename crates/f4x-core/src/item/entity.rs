@@ -3,15 +3,15 @@
 //! that nobody holds is despawned. The holders are a hero's three slots, the fortress vault, the
 //! award list, an item being crafted and an item on offer.
 //!
-//! Tests: in item/armory.rs and hero/game.rs.
+//! Tests: in item/armory.rs and hero/world.rs.
 
 use hecs::Entity;
 
 use super::armory::Armory;
 use super::{HeroItems, Item, ItemView};
-use crate::game::serial::Serial;
-use crate::game::Game;
 use crate::player::PlayerId;
+use crate::world::serial::Serial;
+use crate::world::World;
 
 /// Who holds an item.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -39,9 +39,8 @@ impl HeldBy {
 }
 
 /// The item a player's crafting spell is making, with its entity.
-pub(crate) fn crafting_of(world: &hecs::World, player: PlayerId) -> Option<(Entity, Item)> {
-    world
-        .query::<(&Item, &HeldBy)>()
+pub(crate) fn crafting_of(ecs: &hecs::World, player: PlayerId) -> Option<(Entity, Item)> {
+    ecs.query::<(&Item, &HeldBy)>()
         .iter()
         .find(|(_, (_, h))| **h == HeldBy::Crafting(player))
         .map(|(e, (i, _))| (e, i.clone()))
@@ -50,23 +49,23 @@ pub(crate) fn crafting_of(world: &hecs::World, player: PlayerId) -> Option<(Enti
 impl<'a> ItemView<'a> {
     /// The item the player's Enchant Item or Create Artifact is making.
     pub fn crafting(&self, player: PlayerId) -> Option<Item> {
-        crafting_of(self.world, player).map(|(_, i)| i)
+        crafting_of(self.ecs, player).map(|(_, i)| i)
     }
 
     /// The item an entity is.
     pub fn item(&self, entity: Entity) -> Option<Item> {
-        self.world.get::<&Item>(entity).ok().map(|i| (*i).clone())
+        self.ecs.get::<&Item>(entity).ok().map(|i| (*i).clone())
     }
 
     /// Who holds the item.
     pub fn held_by(&self, entity: Entity) -> Option<HeldBy> {
-        self.world.get::<&HeldBy>(entity).ok().map(|h| *h)
+        self.ecs.get::<&HeldBy>(entity).ok().map(|h| *h)
     }
 
     /// The items `by` selects, oldest first.
     pub fn held(&self, by: impl Fn(HeldBy) -> bool) -> Vec<(Entity, Item)> {
         let mut found: Vec<(Serial, Entity, Item)> = self
-            .world
+            .ecs
             .query::<(&Item, &HeldBy, &Serial)>()
             .iter()
             .filter(|(_, (_, h, _))| by(**h))
@@ -110,7 +109,7 @@ impl<'a> ItemView<'a> {
     }
 
     fn all_held_by_hero(&self, unit: Entity) -> Vec<(Entity, Item, HeldBy)> {
-        self.world
+        self.ecs
             .query::<(&Item, &HeldBy)>()
             .iter()
             .filter(|(_, (_, h))| matches!(h, HeldBy::Hero(u, _) if *u == unit))
@@ -121,7 +120,7 @@ impl<'a> ItemView<'a> {
     /// The vault and the award list of a player, as one value.
     pub fn armory(&self, player: PlayerId) -> Armory {
         let mut armory = Armory::default();
-        for (_, (item, by)) in self.world.query::<(&Item, &HeldBy)>().iter() {
+        for (_, (item, by)) in self.ecs.query::<(&Item, &HeldBy)>().iter() {
             if let HeldBy::Vault(p, slot) = by {
                 if *p == player {
                     let slot = *slot as usize;
@@ -142,7 +141,7 @@ impl<'a> ItemView<'a> {
 
     /// How many items `by` selects.
     pub fn count_held(&self, by: impl Fn(HeldBy) -> bool) -> usize {
-        self.world
+        self.ecs
             .query::<&HeldBy>()
             .iter()
             .filter(|(_, h)| by(**h))
@@ -150,16 +149,16 @@ impl<'a> ItemView<'a> {
     }
 }
 
-impl Game {
+impl World {
     /// Make an item held by `by`.
     pub(crate) fn spawn_item(&mut self, item: Item, by: HeldBy) -> Entity {
         let serial = self.take_serial();
         self.spawn_item_with(serial, item, by)
     }
 
-    /// [`Game::spawn_item`] with a creation number already taken (a load).
+    /// [`World::spawn_item`] with a creation number already taken (a load).
     pub(crate) fn spawn_item_with(&mut self, serial: Serial, item: Item, by: HeldBy) -> Entity {
-        self.world.spawn((item, by, serial))
+        self.ecs.spawn((item, by, serial))
     }
 
     /// Put items in a hero's slots (for tests that build a hero already armed).
@@ -178,7 +177,7 @@ impl Game {
     /// order in which items were put on it.
     pub(crate) fn hold_item(&mut self, item: Entity, by: HeldBy) {
         if matches!(by, HeldBy::Award(_))
-            && self.world.get::<&HeldBy>(item).map_or(true, |h| *h != by)
+            && self.ecs.get::<&HeldBy>(item).map_or(true, |h| *h != by)
         {
             let serial = self.take_serial();
             self.put(item, serial);
@@ -188,13 +187,13 @@ impl Game {
 
     /// The item is gone from the game.
     pub(crate) fn despawn_item(&mut self, item: Entity) {
-        let _ = self.world.despawn(item);
+        let _ = self.ecs.despawn(item);
     }
 
     /// Despawn every item a hero still holds (the hero is gone, or the items were lost).
     pub(crate) fn despawn_items_of(&mut self, unit: Entity) {
         let held: Vec<Entity> = self
-            .world
+            .ecs
             .query::<&HeldBy>()
             .iter()
             .filter(|(_, h)| matches!(h, HeldBy::Hero(u, _) if *u == unit))

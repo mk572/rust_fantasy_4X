@@ -65,7 +65,7 @@ impl App {
     }
 
     fn enqueue_global_cast(&mut self, player: PlayerId, spell: SpellId, started: Option<f64>) {
-        let id = &self.game.content().rules.spells.get(spell).id;
+        let id = &self.world.content().rules.spells.get(spell).id;
         let Some(picture) = self.art.spell_picture(id, &Role::Global) else {
             return;
         };
@@ -86,7 +86,7 @@ impl App {
 
     /// For screenshots: show `id` cast by player `by`, `seconds` into the animation.
     pub fn open_test_global(&mut self, id: u16, by: u8, seconds: f64) {
-        let Some(spell) = self.game.content().rules.spells.id_numbered(id) else {
+        let Some(spell) = self.world.content().rules.spells.id_numbered(id) else {
             eprintln!("unknown spell {id}");
             return;
         };
@@ -113,7 +113,7 @@ impl App {
     fn draw_mirror(&mut self, lay: &Layout, cast: &GlobalCast, stage: usize, animated: bool) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let (x, y) = MIRROR;
-        let slot = self.game.wizard(cast.player).map_or(0, |w| w.portrait());
+        let slot = self.world.wizard(cast.player).map_or(0, |w| w.portrait());
         let face = self.art.wizard(slot).mirror;
         let words = if cast.player == crate::view::HUMAN {
             self.text("spell.you_completed")
@@ -244,7 +244,7 @@ mod tests {
     use f4x_def::testdir::TestResult;
 
     fn spell(app: &App) -> Result<SpellId, &'static str> {
-        app.game
+        app.world
             .content()
             .rules
             .spells

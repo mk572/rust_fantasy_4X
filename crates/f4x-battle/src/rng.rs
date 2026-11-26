@@ -1,7 +1,7 @@
 //! The game's random numbers: one seeded generator that counts what it hands out.
 //!
 //! All randomness in the rules comes from a [`GameRng`] (the base rule in `design.md`: logic takes
-//! the pieces it needs). It is a struct of its own, a field of `Game`, so a domain can take
+//! the pieces it needs). It is a struct of its own, a field of `World`, so a domain can take
 //! `&mut GameRng` next to other borrows of the game. The count of draws is what a save keeps: a
 //! loaded game replays that many values from the seed to resume the stream
 //! ([`GameRng::resume`]).

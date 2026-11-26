@@ -5,10 +5,10 @@
 //! Tests: in map/survey/tests.rs.
 
 use crate::city::FoundCityError;
-use crate::game::Game;
 use crate::map::terrain::TerrainClass;
 use crate::map::Position;
 use crate::player::PlayerId;
+use crate::world::World;
 use f4x_def::half_int::HalfInt;
 use f4x_def::quarter_int::QuarterInt;
 
@@ -27,7 +27,7 @@ pub struct SiteSurvey {
     pub unexplored: bool,
 }
 
-impl Game {
+impl World {
     /// The survey of `at` for `player`; land the player has not explored counts for nothing.
     pub fn site_survey(&self, player: PlayerId, at: Position) -> SiteSurvey {
         let blocked = self.can_found_city(at).err();

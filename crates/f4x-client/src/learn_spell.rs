@@ -142,7 +142,7 @@ impl App {
     /// The realm of the wizard's strongest books, the first of nature, sorcery, chaos, life and
     /// death on a tie (`Prim_Realm`): it colours the familiar.
     pub(crate) fn primary_realm(&self) -> usize {
-        let books = |r: RealmId| self.game.wizard(HUMAN).map_or(0, |m| m.books_in(r));
+        let books = |r: RealmId| self.world.wizard(HUMAN).map_or(0, |m| m.books_in(r));
         strongest(
             &f4x_def::rules::BOOK_REALMS
                 .iter()
@@ -156,7 +156,7 @@ impl App {
     /// and the blue column.
     fn draw_lab(&mut self, lay: &Layout, t: f64) {
         clear_background(BLACK);
-        let slot = self.game.wizard(HUMAN).map_or(0, |w| w.portrait());
+        let slot = self.world.wizard(HUMAN).map_or(0, |w| w.portrait());
         let wizard = self.art.wizard(slot).lab;
         let familiar = 14 + self.primary_realm();
         let frames = self.art.frames("wizlab", familiar).max(1);
@@ -175,7 +175,7 @@ impl App {
     fn learned_box(&mut self, spell: SpellId, input: &Input) -> bool {
         let name_term = self
             .names
-            .spell_term(self.game.content().rules.spells.get(spell).num);
+            .spell_term(self.world.content().rules.spells.get(spell).num);
         let lay = Layout::new();
         let text = self.text_with(
             "spell.mastered",
@@ -197,7 +197,7 @@ impl App {
 impl App {
     /// For screenshots: announce a spell as learned, the animation `seconds` in.
     pub fn open_test_learn(&mut self, id: u16, seconds: f64) {
-        let Some(spell) = self.game.content().rules.spells.id_numbered(id) else {
+        let Some(spell) = self.world.content().rules.spells.id_numbered(id) else {
             eprintln!("unknown spell {id}");
             return;
         };

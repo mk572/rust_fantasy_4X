@@ -6,13 +6,13 @@ Non-obvious findings, one rule up front in bold. General lessons (shell, tools) 
 
 ## Tests
 
-- **Run a domain's tests on a real `Game`, never on a fake world.** The diplomacy tests ran on a
+- **Run a domain's tests on a real `World`, never on a fake world.** The diplomacy tests ran on a
   fake view until task 336; on the real game a test failed because two players were at war at random,
   a state the fake had hidden. A test that needs a fixed relation sets it (`set_rel`,
   `diplomacy/tests.rs`).
-- **A crate above core cannot be used by core's unit tests** (task 458). `f4x-newgame` builds a `Game`,
+- **A crate above core cannot be used by core's unit tests** (task 458). `f4x-newgame` builds a `World`,
   so it sits above `f4x-core`; a unit test in core that depended on it would see two copies of every
-  type. Core tests that need a whole new game load a saved one (`game::testutil::fresh`,
+  type. Core tests that need a whole new game load a saved one (`world::testutil::fresh`,
   `crates/f4x-core/tests/saves/fresh_w*_s*.save`); the test `fixtures` in `f4x-newgame` fails when a file
   no longer equals what `new_game` makes. After an intended change to the setup or the generator,
   refresh the files (the command is in the failure message) and look at the core tests that depend on a
@@ -26,14 +26,14 @@ Non-obvious findings, one rule up front in bold. General lessons (shell, tools) 
 
 - **A player is not always a wizard.** The neutral players of the races (100 plus the race number) and the monsters' player
   (`MONSTERS`, 255) have `Neutral` and no `WizardLink`; the monsters' player is in no player list
-  (`Game::has_player` is false). Handles answer for a missing wizard (`banner` is `NEUTRAL_BANNER`,
+  (`World::has_player` is false). Handles answer for a missing wizard (`banner` is `NEUTRAL_BANNER`,
   `portrait` 0, `treasury` 0/0). Keep a fallback wherever an id might be unknown (console input, a
   defeated neutral player).
-- **A handle borrows the `Game`.** A `Player<'_>` or `Wizard<'_>` held across a `&mut self` call does
+- **A handle borrows the `World`.** A `Player<'_>` or `Wizard<'_>` held across a `&mut self` call does
   not compile; read what the screen needs into locals first.
-- **Lending state to a domain.** `Game::with_diplomacy` takes the state and the RNG out of the game,
-  runs the rules over `&Game`, puts both back and applies the outcomes: the domain never sees
-  `&mut Game`, and the RNG draw order stays what saves replay.
+- **Lending state to a domain.** `World::with_diplomacy` takes the state and the RNG out of the game,
+  runs the rules over `&World`, puts both back and applies the outcomes: the domain never sees
+  `&mut World`, and the RNG draw order stays what saves replay.
 - **Saved numbers keep their meaning unless a conversion says otherwise.** `HalfInt` is written as the
   amount (`1.5`). A field that older saves held as a raw half count uses
   `#[serde(with = "f4x_def::half_int::raw")]`, so no `save::UPGRADES` entry is needed; use `UPGRADES`
@@ -43,16 +43,16 @@ Non-obvious findings, one rule up front in bold. General lessons (shell, tools) 
   chosen on one turn and resolved later is checked at both times. A caller of a function with two
   failure causes must not answer both with the same fallback (`destroy_city` callers despawned the city
   on any error). A made-up fallback value is worse than a refusal. Where a rule decides a city is
-  gone, call `Game::remove_city`, not `destroy_city`.
+  gone, call `World::remove_city`, not `destroy_city`.
 - **A battle can be won without its command saying so.** `Battle::winner` is set by `check_winner`;
   `Ended` is only in the events of the command that set it, and a cast or end-of-turn effect can settle
-  it earlier. `Game::finish_if_over` closes any battle with a winner after every battle command and
+  it earlier. `World::finish_if_over` closes any battle with a winner after every battle command and
   after `auto_resolve`.
 - **A rebellion makes a city independent without any event in an all-AI game** (`EventKind::Rebellion`
   calls `make_city_neutral`; the notice is pushed only when a human hears of it), so the soak's tally
   cannot count the loss and `founded_cities_account_for_the_cities_a_wizard_ends_with` fails on a seed
   where one happens. The test pins seed 4; an AI change that rolls the dice differently may need another.
-- **Guard.** `f4x-tools game-methods` reports files with more than 12 methods on `Game`. It is a tool,
+- **Guard.** `f4x-tools world-methods` reports files with more than 12 methods on `World`. It is a tool,
   not a test; the singular-name rule has no test on purpose.
 
 ## Orders that stop (tasks 515, 555)
@@ -61,7 +61,7 @@ Non-obvious findings, one rule up front in bold. General lessons (shell, tools) 
   step with `path.clear()` and no event, so units waited for hundreds of turns while the AI believed
   they were on their way. It now raises `Event::OrderFailed` (units, squares, reason), which the soak
   counts as a refused order; running out of moves stays silent because the order goes on.
-- **A command can be accepted and still not go.** `Game::apply(GoTo)` gives no `Rejected` when the
+- **A command can be accepted and still not go.** `World::apply(GoTo)` gives no `Rejected` when the
   order is taken, and the first step can fail at once. `Ai::send` reports that as `SendError::Stopped`;
   a caller that sends several units to one square stops at the first refusal for want of room. When a
   soak counts refused orders, look at the sources first: one loop was two thirds of 13,888.
@@ -73,14 +73,14 @@ Non-obvious findings, one rule up front in bold. General lessons (shell, tools) 
   100 ms. `reachable_squares` and `find_path` take a unit's `StepProfile` once. Hash maps keyed by
   `Position` or `Entity` on a hot path use `crate::fast` (`FastMap`, `FastSet`).
 - **A computer wizard's vision is counted once per turn and patched** (`map/vision.rs`).
-  `Ai::play_turn` calls `Game::keep_for_turn`; `PlayerView::sees` reads a `VisionGrid` of counts.
-  `Game::execute` calls `vision_after` with the command's `VisionEffect`: `None` for commands that
+  `Ai::play_turn` calls `World::keep_for_turn`; `PlayerView::sees` reads a `VisionGrid` of counts.
+  `World::execute` calls `vision_after` with the command's `VisionEffect`: `None` for commands that
   cannot touch a unit, city or spell, `Walk` for `MoveStack` and `GoTo` (moved units are lifted and
   put down; the rest stays), `Recount` for everything else and for any command whose events are not all
   harmless. **A new command is a `Recount` until it is named.** Anything that changes the game outside
-  `Game::apply` during the turn breaks this.
+  `World::apply` during the turn breaks this.
 - **A unit's modifiers and abilities are kept for the same turn too** (`unit/kept.rs`, a thread-local
-  cache armed by `keep_for_turn`). `Game::execute` empties it after every `Recount`; a command that
+  cache armed by `keep_for_turn`). `World::execute` empties it after every `Recount`; a command that
   changes what a unit is made of must therefore be one.
 - **Prove a speedup by the games it plays.** Games are deterministic: build the commit before into a
   second worktree (`git worktree add DIR HEAD`, `CARGO_TARGET_DIR=OTHER cargo build --release -p
@@ -140,9 +140,9 @@ Non-obvious findings, one rule up front in bold. General lessons (shell, tools) 
 - **Most forwarding functions have a purpose; look before removing.** The audit of call chains (task 725,
   20 November 2026, `scripts/find_wrappers.py --chains`) found few real needless layers. Of the 125 chains the
   script lists, nearly all were name matches (`find`, `new`, `any`) or one of: the `PlayerView` forwarders
-  (the boundary that keeps the AI off `&Game`), a method that binds the player's own id (`income`,
-  `treaty_with`), a method that wraps private data (`Game::treaty` over `Diplomacy`), or a ladder that fixes a
+  (the boundary that keeps the AI off `&World`), a method that binds the player's own id (`income`,
+  `treaty_with`), a method that wraps private data (`World::treaty` over `Diplomacy`), or a ladder that fixes a
   default (`red_button` to `red_button_face` to `red_button_face_sized`). What was removed: the free functions
-  `grant_ability`/`remove_ability` under `Game::grant_temp_ability`/`remove_temp_ability` and
+  `grant_ability`/`remove_ability` under `World::grant_temp_ability`/`remove_temp_ability` and
   `App::open_diplomacy` over `try_open_diplomacy`. The rule is in `docs/rust_coding_rules.md` (Layers of calls).
 - **A saved game taken in the middle of a battle before commit d13e885c does not load.** That commit made a battle unit keep only real state (the `Sheet` the game hands over, what it lost, spent and used) and work its numbers out when asked, so the old saved units have no sheet. Saves taken since load; `restore_battle` refuses a battle that disagrees with the world with a reason (`LoadError`), and `a_saved_battle_that_disagrees_with_the_world_is_refused_with_the_reason` covers each way. Saves taken between battles are not affected.

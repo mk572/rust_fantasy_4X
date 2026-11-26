@@ -5,16 +5,16 @@
 //! the rules that care ask it: the city's mana asks which moon shines, the wizard's power asks
 //! whether mana is short. This module is that table. It holds no handlers: the rules read it
 //! through [`Events`], and what an event does to the world when it happens is done by
-//! `world_event/game.rs`, which draws one each turn and plays it out.
+//! `world_event/world.rs`, which draws one each turn and plays it out.
 //!
 //! Tests: in world_event/tests.rs.
 
-pub(crate) mod game;
+pub(crate) mod world;
 
-use crate::game::serial::Serial;
-use crate::game::setting::EventFrequency;
 use crate::player::PlayerId;
 use crate::rules::RealmId;
+use crate::world::serial::Serial;
+use crate::world::setting::EventFrequency;
 
 /// The eighteen events, numbered as in `EVENTS.LBX`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, strum::EnumIter)]

@@ -1,41 +1,41 @@
 //! What the tests share: the fresh games the matrix runs over.
 
-use f4x_core::game::testutil::fresh;
-use f4x_core::game::Game;
 use f4x_core::item::armory::{ItemSpot, Spot};
 use f4x_core::item::crafting::{Craft, ItemDesign};
+use f4x_core::world::testutil::fresh;
+use f4x_core::world::World;
 use f4x_def::rules::ItemKind;
 
 /// The saved fresh games: (computer wizards, seed). The files are `tests/saves/fresh_w*_s*.save`.
 pub const WORLDS: [(u8, u64); 4] = [(2, 7), (3, 3), (3, 7), (3, 11)];
 
 /// Every fresh game of the matrix, with its name for a failure message.
-pub fn worlds() -> Vec<(String, Game)> {
+pub fn worlds() -> Vec<(String, World)> {
     WORLDS
         .iter()
         .map(|&(w, s)| {
-            let game = fresh(w, s).unwrap_or_else(|e| panic!("{e}"));
-            (format!("{w} wizards, seed {s}"), game)
+            let world = fresh(w, s).unwrap_or_else(|e| panic!("{e}"));
+            (format!("{w} wizards, seed {s}"), world)
         })
         .collect()
 }
 
-use f4x_core::game::{Command, Event};
 use f4x_core::map::Position;
+use f4x_core::world::{Command, Event};
 
 /// The content the games are loaded and restored against.
 pub fn content() -> f4x_def::content::Content {
-    f4x_core::game::testutil::shipped()
+    f4x_core::world::testutil::shipped()
 }
 
 /// The text of a game: what a save would write (the checksum line aside, which only follows from it).
-pub fn text(g: &Game) -> String {
-    g.snapshot().to_text().expect("a game writes as text")
+pub fn text(w: &World) -> String {
+    w.snapshot().to_text().expect("a game writes as text")
 }
 
 /// The eight squares round `at`, east and west wrapping, those off the top or bottom left out.
-pub fn around(g: &Game, at: Position) -> Vec<Position> {
-    let map = g.map().expect("a map");
+pub fn around(w: &World, at: Position) -> Vec<Position> {
+    let map = w.map().expect("a map");
     let mut out = Vec::new();
     for dy in -1i32..=1 {
         for dx in -1i32..=1 {
@@ -56,14 +56,14 @@ pub fn around(g: &Game, at: Position) -> Vec<Position> {
 /// neighbouring square (the first the game accepts), then the turn ends. The events come back, so two
 /// games played the same way can be compared. A scripted walk, not a player: it explores, draws
 /// random numbers and fights, which is what the persistence tests need to have happened.
-pub fn busy_round(g: &mut Game, limit: usize) -> Vec<Event> {
+pub fn busy_round(w: &mut World, limit: usize) -> Vec<Event> {
     let mut events = Vec::new();
-    for u in g.units().all_units().into_iter().take(limit) {
-        let Some(at) = g.units().unit_position(u) else {
+    for u in w.units().all_units().into_iter().take(limit) {
+        let Some(at) = w.units().unit_position(u) else {
             continue;
         };
-        for to in around(g, at) {
-            let out = g.apply(Command::MoveStack { units: vec![u], to });
+        for to in around(w, at) {
+            let out = w.apply(Command::MoveStack { units: vec![u], to });
             let refused = out.iter().any(|e| matches!(e, Event::Rejected(_)));
             events.extend(out);
             if !refused {
@@ -71,7 +71,7 @@ pub fn busy_round(g: &mut Game, limit: usize) -> Vec<Event> {
             }
         }
     }
-    events.extend(g.apply(Command::EndTurn));
+    events.extend(w.apply(Command::EndTurn));
     events
 }
 
@@ -112,22 +112,22 @@ use f4x_core::rules::{BuildingId, SpellId, UnitId};
 
 /// The commands of a game, in a fixed order that does not depend on its entity handles, so the
 /// same list is made again from a game that was restored.
-pub fn commands(g: &Game) -> Vec<Command> {
-    let rules = &g.content().rules;
+pub fn commands(w: &World) -> Vec<Command> {
+    let rules = &w.content().rules;
     let mut out = Vec::new();
 
-    let mut players: Vec<PlayerId> = g.player_ids();
+    let mut players: Vec<PlayerId> = w.player_ids();
     players.push(PlayerId(250));
     let wizard = players
         .iter()
         .copied()
-        .find(|&p| !g.is_neutral_player(p) && g.wizard(p).is_some())
+        .find(|&p| !w.is_neutral_player(p) && w.wizard(p).is_some())
         .expect("a wizard");
 
-    let all = g.units().all_units();
+    let all = w.units().all_units();
     let step = (all.len() / 5).max(1);
     let units: Vec<_> = all.iter().copied().step_by(step).take(6).collect();
-    let cities: Vec<_> = g
+    let cities: Vec<_> = w
         .economy()
         .cities()
         .into_iter()
@@ -135,7 +135,7 @@ pub fn commands(g: &Game) -> Vec<Command> {
         .take(4)
         .collect();
 
-    let map = g.map().expect("a map");
+    let map = w.map().expect("a map");
     let mut squares: Vec<Position> = Vec::new();
     // The squares that are not an ordinary neighbour come first, so that cutting the list keeps them:
     // a corner, a square off the east edge, one off the south edge.
@@ -155,9 +155,9 @@ pub fn commands(g: &Game) -> Vec<Command> {
         plane: Plane::Myrror,
     });
     for &u in &units {
-        if let Some(at) = g.units().unit_position(u) {
+        if let Some(at) = w.units().unit_position(u) {
             squares.push(at);
-            squares.extend(crate::support::around(g, at).into_iter().take(3));
+            squares.extend(crate::support::around(w, at).into_iter().take(3));
             squares.push(Position {
                 plane: if at.plane == Plane::Arcanus {
                     Plane::Myrror
@@ -435,7 +435,7 @@ pub fn commands(g: &Game) -> Vec<Command> {
         let parties: Vec<PlayerId> = players
             .iter()
             .copied()
-            .filter(|&p| p == PlayerId(250) || (!g.is_neutral_player(p) && g.wizard(p).is_some()))
+            .filter(|&p| p == PlayerId(250) || (!w.is_neutral_player(p) && w.wizard(p).is_some()))
             .collect();
         for &a in &parties {
             for &b in &parties {
@@ -557,12 +557,12 @@ pub fn commands(g: &Game) -> Vec<Command> {
 
 /// A city of `owner` on the first square near their first city that the game lets one be founded on.
 pub fn another_city(
-    g: &mut Game,
+    w: &mut World,
     owner: f4x_core::player::PlayerId,
     population: u32,
 ) -> Option<hecs::Entity> {
-    let (first, at) = g.economy().cities_of(owner).first().copied()?;
-    let race = g.economy().city_race(first);
+    let (first, at) = w.economy().cities_of(owner).first().copied()?;
+    let race = w.economy().city_race(first);
     for dx in -6i32..=6 {
         for dy in -6i32..=6 {
             let (x, y) = (at.x as i32 + dx, at.y as i32 + dy);
@@ -574,7 +574,7 @@ pub fn another_city(
                 y: y as u32,
                 plane: at.plane,
             };
-            let events = g.apply(Command::FoundCity {
+            let events = w.apply(Command::FoundCity {
                 owner,
                 pos,
                 name: "Another".to_owned(),
@@ -582,7 +582,7 @@ pub fn another_city(
                 population,
             });
             if events.iter().all(|e| !matches!(e, Event::Rejected(_))) {
-                return g.economy().city_at(pos);
+                return w.economy().city_at(pos);
             }
         }
     }

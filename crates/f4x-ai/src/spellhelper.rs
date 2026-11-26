@@ -216,8 +216,8 @@ mod tests {
     #[test]
     fn a_summon_is_rated_by_the_strength_it_brings_for_its_mana(
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let g = fresh_game()?;
-        let view = PlayerView::new(&g, P1);
+        let w = fresh_game()?;
+        let view = PlayerView::new(&w, P1);
         let mut rated: Vec<(f32, i32, String)> = view
             .content()
             .rules
@@ -250,52 +250,52 @@ mod tests {
 
     #[test]
     fn spells_add_strength_only_with_a_battle_spell_and_mana_to_cast_it() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        spawn(&mut g, P0, at(5, 5), 113 /* high_men_paladins */, 3);
-        set_mana(&mut g, 200)?;
-        assert_eq!(spell_power(&PlayerView::new(&g, P0)), 0.0, "no spell known");
-        learn_a_battle_spell(&mut g)?;
-        let rich = spell_power(&PlayerView::new(&g, P0));
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        spawn(&mut w, P0, at(5, 5), 113 /* high_men_paladins */, 3);
+        set_mana(&mut w, 200)?;
+        assert_eq!(spell_power(&PlayerView::new(&w, P0)), 0.0, "no spell known");
+        learn_a_battle_spell(&mut w)?;
+        let rich = spell_power(&PlayerView::new(&w, P0));
         assert!(rich > 0.0);
-        set_mana(&mut g, 0)?;
-        assert_eq!(spell_power(&PlayerView::new(&g, P0)), 0.0, "no mana");
+        set_mana(&mut w, 0)?;
+        assert_eq!(spell_power(&PlayerView::new(&w, P0)), 0.0, "no mana");
         Ok(())
     }
 
     #[test]
     fn a_tower_the_soldiers_cannot_take_alone_is_a_goal_for_mana() -> TestResult {
-        let mut g = game_rival_across(COAST_CITY, 8 /* high_men */);
-        g.turn = 400; // the end of the game: not a build-up
-        spawn(&mut g, P0, at(10, 6), 113 /* high_men_paladins */, 1);
-        crate::testworld::spawn_tower(&mut g, at(33, 9), true)?;
-        g.reveal_map(P0);
+        let mut w = game_rival_across(COAST_CITY, 8 /* high_men */);
+        w.turn = 400; // the end of the game: not a build-up
+        spawn(&mut w, P0, at(10, 6), 113 /* high_men_paladins */, 1);
+        crate::testworld::spawn_tower(&mut w, at(33, 9), true)?;
+        w.reveal_map(P0);
         assert_eq!(
-            mana_goal(&PlayerView::new(&g, P0), &[]),
+            mana_goal(&PlayerView::new(&w, P0), &[]),
             0,
             "no battle spell"
         );
-        learn_a_battle_spell(&mut g)?;
-        let goal = mana_goal(&PlayerView::new(&g, P0), &[]);
+        learn_a_battle_spell(&mut w)?;
+        let goal = mana_goal(&PlayerView::new(&w, P0), &[]);
         assert!(
             goal > 0,
             "one soldier is short of a tower's guess of guards"
         );
         // The goal is spells for the shortfall only: a tenth soldier more and it shrinks.
-        spawn(&mut g, P0, at(10, 6), 113 /* high_men_paladins */, 4);
-        assert!(mana_goal(&PlayerView::new(&g, P0), &[]) < goal);
+        spawn(&mut w, P0, at(10, 6), 113 /* high_men_paladins */, 4);
+        assert!(mana_goal(&PlayerView::new(&w, P0), &[]) < goal);
         Ok(())
     }
 
     #[test]
     fn a_party_with_mana_for_spells_is_enough_for_a_tower_it_could_not_take_without() -> TestResult
     {
-        let mut g = game_rival_across(COAST_CITY, 8 /* high_men */);
-        let paladins = spawn(&mut g, P0, at(10, 6), 113 /* high_men_paladins */, 1);
-        crate::testworld::spawn_tower(&mut g, at(33, 9), true)?;
-        g.reveal_map(P0);
-        learn_a_battle_spell(&mut g)?;
-        set_mana(&mut g, 200)?;
-        let view = PlayerView::new(&g, P0);
+        let mut w = game_rival_across(COAST_CITY, 8 /* high_men */);
+        let paladins = spawn(&mut w, P0, at(10, 6), 113 /* high_men_paladins */, 1);
+        crate::testworld::spawn_tower(&mut w, at(33, 9), true)?;
+        w.reveal_map(P0);
+        learn_a_battle_spell(&mut w)?;
+        set_mana(&mut w, 200)?;
+        let view = PlayerView::new(&w, P0);
         let soldiers = crate::view::stack_strength(&view, &paladins);
         let with = soldiers + spell_power(&view);
         let near = |s| crate::site::sites_near(&view, at(10, 6), s, 0.0, &[]);

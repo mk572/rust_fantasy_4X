@@ -439,7 +439,7 @@ All rows **present** or **n/a** but the Artificer treasure above: fleeing withou
 | Quit Without Saving | **new**: Ctrl+Q asks, then ends the program with no auto-save (`QuitAsk`) |
 | Default Item Editor | **left** by the user (modding tools) |
 | Find Next / Previous Army, Next / Previous City | **new**: F, Shift+F, V, Shift+V; the view steps in reading order and wraps, nothing is selected (`step_view.rs`, tests in `view.rs`) |
-| Save / Recall Location, eight places kept with the game | **new**: K or L, then 1 to 8; `Game::save_location`, `Game::locations`, saved in the save file (test `the_saved_map_locations_survive_a_save_and_are_limited_to_eight_squares_on_the_map`) |
+| Save / Recall Location, eight places kept with the game | **new**: K or L, then 1 to 8; `World::save_location`, `World::locations`, saved in the save file (test `the_saved_map_locations_survive_a_save_and_are_limited_to_eight_squares_on_the_map`) |
 | Scroll Map Up/Down/Left/Right | **present**: `scroll_*` |
 | Edge scrolling (and its delay, 1.60 settings 3) | **new**: a client preference, off by default, 0.4 s delay (`edge_scroll.rs`) |
 | Next / Previous Control (Tab) | **left** as task 615 |

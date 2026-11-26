@@ -13,12 +13,12 @@ use std::sync::{Arc, Mutex};
 use f4x_ai::battle::cast::next_command;
 use f4x_battle::battle::BattleEvent;
 use f4x_battle::map::BattleMap;
-use f4x_core::game::rng::GameRng;
-use f4x_core::game::{Command, Event, Game};
 use f4x_core::hero::kind::roll_one;
 use f4x_core::map::{Grid, Map, Plane, Position};
 use f4x_core::player::PlayerId;
 use f4x_core::rules::UnitKind;
+use f4x_core::world::rng::GameRng;
+use f4x_core::world::{Command, Event, World};
 use f4x_def::content::Content;
 use f4x_def::names::NameBundle;
 
@@ -49,8 +49,8 @@ const MOST: u8 = 9;
 
 /// The rules the ladder fights by: 1.3, whose death and magic immunity exceptions are on (the
 /// original has them; the shipped default has them off, `docs/game-settings.md`).
-fn settings(g: &mut Game) {
-    g.scenario_change_settings(|s| {
+fn settings(w: &mut World) {
+    w.scenario_change_settings(|s| {
         s.rules.death_immunity_exceptions = true;
         s.rules.magic_immunity_exceptions = true;
     });
@@ -87,7 +87,7 @@ pub fn path_index(content: &Content, num: u16, level: usize) -> Option<usize> {
 /// levels the game gives its owner (the Warlord retort and the Crusade spell). A unit that does not
 /// level is left as it is.
 pub fn give_level(
-    game: &mut Game,
+    world: &mut World,
     content: &Content,
     unit: f4x_core::Entity,
     owner: PlayerId,
@@ -111,14 +111,14 @@ pub fn give_level(
     };
     let top = path.levels.len().saturating_sub(1);
     let xp = path.levels[index.min(top)].xp;
-    game.scenario_set_experience(unit, xp);
-    game.scenario_level_bonus(owner, index.saturating_sub(top));
+    world.scenario_set_experience(unit, xp);
+    world.scenario_level_bonus(owner, index.saturating_sub(top));
 }
 
 /// A small game on open ground for a duel: two islands, a city of each of two players (the
 /// attacker P0 in the west, the defender P1 in the east), the 1.3 rules (`settings`). The dice
 /// come from `seed`.
-pub fn base_game(content: &Arc<Content>, seed: u64) -> Result<Game, String> {
+pub fn base_game(content: &Arc<Content>, seed: u64) -> Result<World, String> {
     let ocean = content.terrains.id_numbered(8).ok_or("no ocean")?;
     let grass = content.terrains.id_numbered(4).ok_or("no grassland")?;
     let race = content.rules.races.id_numbered(7).ok_or("no race 7")?;
@@ -131,14 +131,14 @@ pub fn base_game(content: &Arc<Content>, seed: u64) -> Result<Game, String> {
         }
         g
     };
-    let mut game = Game::new(seed);
-    game.set_content(Arc::clone(content));
-    settings(&mut game);
-    game.set_map(Map::new(grid(), grid()));
-    game.add_player(P0, "West");
-    game.add_player(P1, "East");
+    let mut world = World::new(seed);
+    world.set_content(Arc::clone(content));
+    settings(&mut world);
+    world.set_map(Map::new(grid(), grid()));
+    world.add_player(P0, "West");
+    world.add_player(P1, "East");
     for (owner, x, name) in [(P0, 10, "Westport"), (P1, 28, "Eastport")] {
-        game.apply(Command::FoundCity {
+        world.apply(Command::FoundCity {
             owner,
             pos: Position {
                 plane: Plane::Arcanus,
@@ -150,7 +150,7 @@ pub fn base_game(content: &Arc<Content>, seed: u64) -> Result<Game, String> {
             population: 8,
         });
     }
-    Ok(game)
+    Ok(world)
 }
 
 /// One fight: `na` units of A against `nb` units of B on open ground. `a_attacks` says who is the
@@ -163,7 +163,7 @@ pub fn fight(
     a_attacks: bool,
     seed: u64,
 ) -> Result<Outcome, String> {
-    let mut game = base_game(content, seed)?;
+    let mut world = base_game(content, seed)?;
     // The attacker is P0, the defender P1.
     let (west, east) = if a_attacks {
         ((a, na, levels.0), (b, nb, levels.1))
@@ -188,21 +188,21 @@ pub fn fight(
             // A hero is rolled anew for every fight (its random abilities and spells, no items).
             let unit =
                 match rolled_hero(content, num, mix(&[seed, u64::from(owner.0), copy.into()])) {
-                    Some(hero) => game
+                    Some(hero) => world
                         .scenario_spawn_hero_copy(owner, at, hero)
                         .map_err(|e| format!("{e:?}"))?,
-                    None => game.spawn_unit(owner, at, id),
+                    None => world.spawn_unit(owner, at, id),
                 };
-            give_level(&mut game, content, unit, owner, num, level);
+            give_level(&mut world, content, unit, owner, num, level);
             sides[i].push(unit);
         }
     }
     let [attackers, defenders] = sides;
-    game.apply(Command::BeginBattle {
+    world.apply(Command::BeginBattle {
         attackers,
         defenders,
     });
-    play_out(&mut game).map(|winner| match winner {
+    play_out(&mut world).map(|winner| match winner {
         None => Outcome::Draw,
         Some(w) if w == (if a_attacks { P0 } else { P1 }) => Outcome::A,
         Some(_) => Outcome::B,
@@ -230,17 +230,17 @@ fn rolled_hero(content: &Content, num: u16, seed: u64) -> Option<f4x_core::hero:
 /// Play the battle that has just begun in `game` to its end on open ground, the battle AI with
 /// the units' own spells (no wizard casts). The winner, or `None` when the turn limit ran out
 /// with both sides standing.
-pub fn play_out(game: &mut Game) -> Result<Option<PlayerId>, String> {
-    if game.battle().is_none() {
+pub fn play_out(world: &mut World) -> Result<Option<PlayerId>, String> {
+    if world.battle().is_none() {
         return Err("no battle began".into());
     }
-    game.scenario_edit_battle(|b| b.map = BattleMap::open());
+    world.scenario_edit_battle(|b| b.map = BattleMap::open());
     let mut exhausted = false;
     for _ in 0..MAX_COMMANDS {
-        let Some(command) = next_command(game) else {
+        let Some(command) = next_command(world) else {
             break;
         };
-        let events = game.apply(Command::Battle(command.clone()));
+        let events = world.apply(Command::Battle(command.clone()));
         for event in &events {
             match event {
                 Event::Rejected(why) => return Err(format!("{command:?} refused: {why:?}")),

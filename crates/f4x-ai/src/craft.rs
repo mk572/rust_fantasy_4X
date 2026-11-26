@@ -4,9 +4,9 @@
 //! worth), and starts casting it. The finished item goes to the armory, and `offer::equip` puts it
 //! on the hero.
 
-use f4x_core::game::{Command, Event, Game};
 use f4x_core::item::crafting::{self, Craft, ItemDesign};
 use f4x_core::player::view::PlayerView;
+use f4x_core::world::{Command, Event, World};
 use f4x_def::rules::{ItemKind, PowerBonus, SlotKind};
 
 use crate::Ai;
@@ -38,14 +38,14 @@ fn useful(bonus: Option<PowerBonus>) -> bool {
 
 /// The item to make for an empty slot, for at most `budget` mana of value.
 fn design(
-    game: &Game,
+    world: &World,
     me: f4x_core::player::PlayerId,
     craft: Craft,
     slot: SlotKind,
     budget: i32,
 ) -> Option<ItemDesign> {
-    let rules = &game.content().rules;
-    let magic = game.wizard(me)?;
+    let rules = &world.content().rules;
+    let magic = world.wizard(me)?;
     let kind = kind_for(slot);
     let mut powers = crafting::available_powers(kind, craft, &magic, rules);
     powers.retain(|p| !p.holds_spell && useful(p.bonus.map(|b| b.0)));
@@ -81,17 +81,17 @@ fn design(
 }
 
 /// Start an item for a hero that has an empty slot, if the armory has nothing for it.
-pub fn run(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
+pub fn run(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
     let me = ai.player;
     let choice = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         let Some(magic) = view.wizard() else {
             return;
         };
         if magic.casting().is_some() {
             return;
         }
-        let rules = &game.content().rules;
+        let rules = &world.content().rules;
         // Create Artifact takes any power; Enchant Item the cheap ones.
         let Some(craft) = [Craft::CreateArtifact, Craft::EnchantItem]
             .into_iter()
@@ -119,11 +119,11 @@ pub fn run(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         let Some(&slot) = slots.get(waiting) else {
             return;
         };
-        design(game, me, craft, slot, budget).map(|d| (craft, d))
+        design(world, me, craft, slot, budget).map(|d| (craft, d))
     };
     if let Some((craft, design)) = choice {
         ai.order(
-            game,
+            world,
             Command::CraftItem {
                 player: me,
                 craft,
@@ -142,8 +142,8 @@ mod tests {
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-    fn rich(g: &mut Game) -> TestResult {
-        let t = g.treasury_mut(P1).ok_or("player 1 has a treasury")?;
+    fn rich(w: &mut World) -> TestResult {
+        let t = w.treasury_mut(P1).ok_or("player 1 has a treasury")?;
         t.gold = f4x_def::half_int::HalfInt::from_int(50_000);
         t.mana = f4x_def::half_int::HalfInt::from_int(5_000);
         Ok(())
@@ -152,27 +152,27 @@ mod tests {
     #[test]
     fn a_wizard_that_knows_create_artifact_makes_an_item_for_a_hero_with_an_empty_slot(
     ) -> TestResult {
-        let mut g = fresh_game()?;
+        let mut w = fresh_game()?;
         let ai = Ai::new(P1);
-        rich(&mut g)?;
-        g.hire_hero(P1, 1).map_err(|e| format!("{e:?}"))?;
-        let items = |g: &Game| {
-            let armory = PlayerView::new(g, P1).armory();
+        rich(&mut w)?;
+        w.hire_hero(P1, 1).map_err(|e| format!("{e:?}"))?;
+        let items = |w: &World| {
+            let armory = PlayerView::new(w, P1).armory();
             armory.vault.iter().flatten().count() + armory.awards.len()
         };
         // Not known: nothing.
         let mut events = Vec::new();
-        run(&ai, &mut g, &mut events);
-        assert_eq!(items(&g), 0, "{events:?}");
-        g.cheat_learn_spell(P1, Craft::CreateArtifact.spell());
-        run(&ai, &mut g, &mut events);
-        let begun = g
+        run(&ai, &mut w, &mut events);
+        assert_eq!(items(&w), 0, "{events:?}");
+        w.cheat_learn_spell(P1, Craft::CreateArtifact.spell());
+        run(&ai, &mut w, &mut events);
+        let begun = w
             .wizard(P1)
             .ok_or("a wizard")?
             .casting()
             .is_some_and(|c| c.spell == Craft::CreateArtifact.spell());
         assert!(
-            begun || items(&g) > 0,
+            begun || items(&w) > 0,
             "an item is made or begun: {events:?}"
         );
         Ok(())

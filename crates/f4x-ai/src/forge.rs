@@ -153,15 +153,15 @@ mod tests {
 
     #[test]
     fn a_young_game_has_no_forge_cities() -> TestResult {
-        let g = game(COAST_CITY, 8 /* high_men */);
-        assert!(forges(&PlayerView::new(&g, P0)).is_empty());
+        let w = game(COAST_CITY, 8 /* high_men */);
+        assert!(forges(&PlayerView::new(&w, P0)).is_empty());
         Ok(())
     }
 
     #[test]
     fn a_city_without_barracks_builds_toward_the_top_unit() -> TestResult {
-        let g = game(COAST_CITY, 8 /* high_men */);
-        let view = PlayerView::new(&g, P0);
+        let w = game(COAST_CITY, 8 /* high_men */);
+        let view = PlayerView::new(&w, P0);
         let (city, _) = view.my_cities()[0];
         let rules = &view.content().rules;
         let top = top_unit(&view, city).ok_or("no top unit")?;

@@ -12,7 +12,7 @@ use crate::page::Page;
 use crate::text::Args;
 use crate::ui;
 use f4x_battle::battle::Battle;
-use f4x_core::game::Command;
+use f4x_core::world::Command;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;
@@ -121,7 +121,7 @@ impl App {
     /// test battle when one is on. `spell` is put on the unit first (cast by you), and `ask`
     /// clicks its line so the question to turn it off is open.
     pub fn open_test_sheet(&mut self, n: usize, spell: Option<&str>, ask: bool) {
-        if self.game.battle().is_some() {
+        if self.world.battle().is_some() {
             // In a battle the sheet lies over the fight, as it does for a player.
             let kind = ["sheet", &n.to_string()].join("-");
             self.set_test_effects(&kind);
@@ -135,10 +135,10 @@ impl App {
         };
         // `hero`: the first hero joins the stack, and its sheet is shown.
         let unit = if spell == Some("hero") {
-            let Some(at) = self.game.units().unit_position(unit) else {
+            let Some(at) = self.world.units().unit_position(unit) else {
                 return;
             };
-            match self.game.spawn_hero(crate::view::HUMAN, at, 0) {
+            match self.world.spawn_hero(crate::view::HUMAN, at, 0) {
                 Ok(hero) => hero,
                 Err(e) => {
                     eprintln!("cannot bring in a hero: {e:?}");
@@ -148,10 +148,12 @@ impl App {
         } else {
             unit
         };
-        let spell = spell.and_then(|id| crate::alias::id_of(&self.game.content().rules.spells, id));
+        let spell =
+            spell.and_then(|id| crate::alias::id_of(&self.world.content().rules.spells, id));
         if let Some(spell) = spell {
             let who = f4x_core::rules::exec::Target::Unit(unit);
-            self.game.attach_enchantment(who, spell, crate::view::HUMAN);
+            self.world
+                .attach_enchantment(who, spell, crate::view::HUMAN);
         }
         let Some(sheet) = self.overland_sheet(unit) else {
             return;
@@ -161,8 +163,8 @@ impl App {
                 spell,
                 name: self
                     .names
-                    .spell_term(self.game.content().rules.spells.get(spell).num),
-                drowned: self.game.drowned_if_off(unit, spell),
+                    .spell_term(self.world.content().rules.spells.get(spell).num),
+                drowned: self.world.drowned_if_off(unit, spell),
             }),
             _ => None,
         };
@@ -385,12 +387,12 @@ impl App {
             {
                 let line = lay.rect((x - 1.0, y - 1.0, 105.0, 17.0));
                 if ui::hit(line, true, input).clicked() {
-                    let drowned = self.game.drowned_if_off(unit, spell);
+                    let drowned = self.world.drowned_if_off(unit, spell);
                     panel.turn_off = Some(TurnOff {
                         spell,
                         name: self
                             .names
-                            .spell_term(self.game.content().rules.spells.get(spell).num),
+                            .spell_term(self.world.content().rules.spells.get(spell).num),
                         drowned,
                     });
                 }
@@ -607,7 +609,7 @@ impl SheetUi {
         match app.confirmation_box(lay, &text, input) {
             Some(true) => {
                 if let Source::Overland(unit) = sheet.source {
-                    let events = app.game.apply(Command::DismissUnit { unit });
+                    let events = app.world.apply(Command::DismissUnit { unit });
                     app.note(events);
                     app.selection.retain(|&u| u != unit);
                 }
@@ -637,7 +639,7 @@ impl SheetUi {
         }
         match app.confirmation_box(lay, &text, input) {
             Some(true) => {
-                let events = app.game.apply(Command::TurnOffUnitSpell {
+                let events = app.world.apply(Command::TurnOffUnitSpell {
                     player: crate::view::HUMAN,
                     unit,
                     spell: ask.spell,
@@ -645,7 +647,7 @@ impl SheetUi {
                 app.note(events);
                 self.panel.turn_off = None;
                 // The unit may be gone; otherwise the sheet is drawn again without the line.
-                if app.game.units().unit_position(unit).is_none() {
+                if app.world.units().unit_position(unit).is_none() {
                     app.selection.retain(|&u| u != unit);
                     self.close_sheet(app);
                 } else if let Some(fresh) = app.overland_sheet(unit) {

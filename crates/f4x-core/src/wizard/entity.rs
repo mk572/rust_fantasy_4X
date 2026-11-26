@@ -1,5 +1,5 @@
 //! The wizard entity: what the creation screen makes (name, picture, banner) and the race of the
-//! first city. Each wizard and its player are made together (`Game::add_player`) and point at each
+//! first city. Each wizard and its player are made together (`World::add_player`) and point at each
 //! other with [`PlayerLink`] and [`crate::player::WizardLink`]. A player without a wizard (the
 //! monsters' owner, an independent city's player) has no [`WizardLink`](crate::player::WizardLink).
 //!
@@ -34,9 +34,9 @@ pub struct CapitalRace(pub Option<RaceId>);
 pub struct PlayerLink(pub hecs::Entity);
 
 /// The id of the player a wizard entity plays as.
-pub(crate) fn player_id_of(world: &hecs::World, wizard: hecs::Entity) -> Option<PlayerId> {
-    let player = world.get::<&PlayerLink>(wizard).ok()?.0;
-    world.get::<&PlayerId>(player).ok().map(|p| *p)
+pub(crate) fn player_id_of(ecs: &hecs::World, wizard: hecs::Entity) -> Option<PlayerId> {
+    let player = ecs.get::<&PlayerLink>(wizard).ok()?.0;
+    ecs.get::<&PlayerId>(player).ok().map(|p| *p)
 }
 
 /// The components of a new wizard.
@@ -57,9 +57,9 @@ pub(crate) type WizardBundle = (
 );
 
 /// The components a new wizard starts with; banner and picture default to the player's place.
-/// The sheet (books, retorts, skill and the rest) is empty until [`Game::init_wizard`] fills it.
+/// The sheet (books, retorts, skill and the rest) is empty until [`World::init_wizard`] fills it.
 ///
-/// [`Game::init_wizard`]: crate::game::Game::init_wizard
+/// [`World::init_wizard`]: crate::world::World::init_wizard
 pub(crate) fn bundle(id: PlayerId, name: String, player: hecs::Entity) -> WizardBundle {
     let (books, retorts, skill, split, research, spells, candidates, fame) = sheet::bundle();
     (
@@ -82,64 +82,64 @@ pub(crate) fn bundle(id: PlayerId, name: String, player: hecs::Entity) -> Wizard
 /// A read handle on one wizard.
 #[derive(Clone, Copy)]
 pub struct Wizard<'a> {
-    world: &'a hecs::World,
+    ecs: &'a hecs::World,
     entity: hecs::Entity,
 }
 
 impl<'a> Wizard<'a> {
-    pub(crate) fn new(world: &'a hecs::World, entity: hecs::Entity) -> Self {
-        Self { world, entity }
+    pub(crate) fn new(ecs: &'a hecs::World, entity: hecs::Entity) -> Self {
+        Self { ecs, entity }
     }
 
     pub fn entity(&self) -> hecs::Entity {
         self.entity
     }
 
-    pub(crate) fn world(&self) -> &'a hecs::World {
-        self.world
+    pub(crate) fn ecs(&self) -> &'a hecs::World {
+        self.ecs
     }
 
     /// A component of the wizard.
     pub(crate) fn component<T: hecs::Component>(&self) -> Option<hecs::Ref<'a, T>> {
-        self.world.get::<&T>(self.entity).ok()
+        self.ecs.get::<&T>(self.entity).ok()
     }
 
     pub fn name(&self) -> String {
-        self.world
+        self.ecs
             .get::<&Name>(self.entity)
             .map(|n| n.0.clone())
             .unwrap_or_default()
     }
 
     pub fn gender(&self) -> f4x_def::text::Gender {
-        self.world
+        self.ecs
             .get::<&f4x_def::text::Gender>(self.entity)
             .map_or_else(|_| f4x_def::text::Gender::default(), |g| *g)
     }
 
     pub fn portrait(&self) -> u8 {
-        self.world.get::<&Portrait>(self.entity).map_or(0, |p| p.0)
+        self.ecs.get::<&Portrait>(self.entity).map_or(0, |p| p.0)
     }
 
     pub fn banner(&self) -> u8 {
-        self.world
+        self.ecs
             .get::<&Banner>(self.entity)
             .map_or(crate::player::NEUTRAL_BANNER, |b| b.0)
     }
 
     pub fn capital_race(&self) -> Option<RaceId> {
-        self.world.get::<&CapitalRace>(self.entity).ok()?.0
+        self.ecs.get::<&CapitalRace>(self.entity).ok()?.0
     }
 
     /// The lasting spells the wizard keeps going on the whole world, oldest first, with the
     /// creation number of each.
-    pub fn global_instances(&self) -> Vec<(crate::rules::SpellId, crate::game::serial::Serial)> {
-        let spells = crate::spell::instance::Spells::new(self.world);
+    pub fn global_instances(&self) -> Vec<(crate::rules::SpellId, crate::world::serial::Serial)> {
+        let spells = crate::spell::instance::Spells::new(self.ecs);
         spells
             .globals_of(self.entity)
             .into_iter()
             .filter_map(|i| {
-                let serial = *self.world.get::<&crate::game::serial::Serial>(i).ok()?;
+                let serial = *self.ecs.get::<&crate::world::serial::Serial>(i).ok()?;
                 Some((spells.def(i)?, serial))
             })
             .collect()
@@ -147,49 +147,48 @@ impl<'a> Wizard<'a> {
 
     /// Whether a lasting spell on the whole world that the wizard keeps going satisfies `wanted`.
     pub fn any_global(&self, wanted: impl Fn(crate::rules::SpellId) -> bool) -> bool {
-        crate::spell::instance::Spells::new(self.world).any_global_of(self.entity, wanted)
+        crate::spell::instance::Spells::new(self.ecs).any_global_of(self.entity, wanted)
     }
 
     /// The player this wizard plays as.
     pub fn player(&self) -> Option<hecs::Entity> {
-        Some(self.world.get::<&PlayerLink>(self.entity).ok()?.0)
+        Some(self.ecs.get::<&PlayerLink>(self.entity).ok()?.0)
     }
 }
 
 /// The wizard entity of a player.
-pub fn of_player(world: &hecs::World, player: hecs::Entity) -> Option<hecs::Entity> {
-    Some(world.get::<&crate::player::WizardLink>(player).ok()?.0)
+pub fn of_player(ecs: &hecs::World, player: hecs::Entity) -> Option<hecs::Entity> {
+    Some(ecs.get::<&crate::player::WizardLink>(player).ok()?.0)
 }
 
 /// The wizard of the player with this id, if it has one.
-pub fn find(world: &hecs::World, id: PlayerId) -> Option<Wizard<'_>> {
-    let player = crate::player::find_entity(world, id)?;
-    Some(Wizard::new(world, of_player(world, player)?))
+pub fn find(ecs: &hecs::World, id: PlayerId) -> Option<Wizard<'_>> {
+    let player = crate::player::find_entity(ecs, id)?;
+    Some(Wizard::new(ecs, of_player(ecs, player)?))
 }
 
 /// How a player is called: the wizard's name, or for an independent city's player the name of
 /// its (oldest) city.
-pub fn player_name(world: &hecs::World, id: PlayerId) -> String {
-    if let Some(w) = find(world, id) {
+pub fn player_name(ecs: &hecs::World, id: PlayerId) -> String {
+    if let Some(w) = find(ecs, id) {
         return w.name();
     }
-    world
-        .query::<(
-            &crate::city::City,
-            &crate::player::Owner,
-            &crate::game::serial::Serial,
-        )>()
-        .iter()
-        .filter(|(_, (_, o, _))| crate::player::id_of(world, o.0) == Some(id))
-        .min_by_key(|(_, (_, _, s))| s.0)
-        .map(|(_, (c, _, _))| c.name.clone())
-        .unwrap_or_default()
+    ecs.query::<(
+        &crate::city::City,
+        &crate::player::Owner,
+        &crate::world::serial::Serial,
+    )>()
+    .iter()
+    .filter(|(_, (_, o, _))| crate::player::id_of(ecs, o.0) == Some(id))
+    .min_by_key(|(_, (_, _, s))| s.0)
+    .map(|(_, (c, _, _))| c.name.clone())
+    .unwrap_or_default()
 }
 
 /// Every wizard, in the order of the players.
-pub fn all(world: &hecs::World) -> Vec<Wizard<'_>> {
-    crate::player::ids(world)
+pub fn all(ecs: &hecs::World) -> Vec<Wizard<'_>> {
+    crate::player::ids(ecs)
         .into_iter()
-        .filter_map(|id| find(world, id))
+        .filter_map(|id| find(ecs, id))
         .collect()
 }

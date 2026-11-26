@@ -6,9 +6,9 @@
 //!
 //! Tests: in player/race_player/tests.rs.
 
-use crate::game::Game;
 use crate::player::{PlayerId, MONSTERS};
 use crate::rules::RaceId;
+use crate::world::World;
 
 /// The number of the neutral player of the race with number 0; the others follow. Wizards have
 /// numbers below this.
@@ -23,7 +23,7 @@ pub fn race_player_id(race: RaceId) -> PlayerId {
     )
 }
 
-impl Game {
+impl World {
     /// The race whose neutral player `id` is, if it is one (not a wizard, not the monsters).
     pub fn race_of_player(&self, id: PlayerId) -> Option<RaceId> {
         (id != MONSTERS && id.0 >= FIRST_RACE_PLAYER && self.is_neutral_player(id))

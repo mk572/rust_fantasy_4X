@@ -1,19 +1,19 @@
 //! The budget: what a player takes in and pays out at the turn change, and who is
 //! let go when the gold or the food runs short. The sums are plain functions over figures
-//! ([`Budget::compute`], [`settle`]), so they run in a test without a game; the `Game` side
+//! ([`Budget::compute`], [`settle`]), so they run in a test without a game; the `World` side
 //! gathers the figures from the cities and the troops and applies the result. The taxes and
 //! farmers that balance an independent city's books are here too.
 //!
 //! Tests: in player/finance/tests.rs.
 
 use crate::city::economy::{Farmers, Population};
-use crate::game::{Event, Game};
 use crate::player::{PlayerId, Tax};
 use crate::rules::Ability;
 use crate::rules::UnitKind;
+use crate::world::{Event, World};
 use f4x_def::half_int::HalfInt;
 
-/// The figures a kept budget is made of: see [`Game::kept_budget`].
+/// The figures a kept budget is made of: see [`World::kept_budget`].
 pub(crate) struct BudgetParts {
     pub(crate) owner: PlayerId,
     cities: Vec<(hecs::Entity, CityYield)>,
@@ -174,7 +174,7 @@ pub fn settle(t: &Budget, gold: HalfInt, fame: i32, troops: &[Troop]) -> Settlem
     }
 }
 
-impl Game {
+impl World {
     /// Set the tax rate to the lowest that leaves the treasury no worse off each turn, or to the
     /// best there is when none does. How an independent city is run; wizards choose their own.
     pub(crate) fn balance_taxes(&mut self, player: PlayerId) {
@@ -233,8 +233,8 @@ impl Game {
             more: Option<HalfInt>,
             excess: HalfInt,
         }
-        let judge = |g: &Game, slot: &mut Slot, farmers: u32| {
-            let eco = g.economy();
+        let judge = |w: &World, slot: &mut Slot, farmers: u32| {
+            let eco = w.economy();
             let now = slot.basis.as_ref().map(|b| eco.food_at(b, farmers));
             slot.more = slot
                 .basis
@@ -250,8 +250,8 @@ impl Game {
         let mut slots: Vec<Slot> = mine
             .iter()
             .map(|&c| {
-                let farmers = self.world.get::<&Farmers>(c).map_or(0, |f| f.0);
-                let figures = self.world.get::<&Population>(c).map_or(0, |p| p.figures);
+                let farmers = self.ecs.get::<&Farmers>(c).map_or(0, |f| f.0);
+                let figures = self.ecs.get::<&Population>(c).map_or(0, |p| p.figures);
                 let mut slot = Slot {
                     city: c,
                     basis: self.economy().food_basis(c),
@@ -339,10 +339,10 @@ impl Game {
         Budget::compute(&cities, &self.troops(player), fame)
     }
 
-    /// [`Game::budget`] while a player's cities build (`turn.rs`), asked for the sake of the
+    /// [`World::budget`] while a player's cities build (`turn.rs`), asked for the sake of the
     /// auto-builder of `city`. The figures it is made of are kept from one asking to the next;
     /// what a completed item changes is the city that completed it (flagged by
-    /// [`Game::mark_budget_dirty`]) and one more unit, so a budget costs the economy of the
+    /// [`World::mark_budget_dirty`]) and one more unit, so a budget costs the economy of the
     /// cities that changed and the upkeep of the new units, not the whole empire's.
     /// `F4X_CHECK_BUDGET` works the budget out afresh each time and compares (slow).
     pub(crate) fn kept_budget(&self, player: PlayerId, city: hecs::Entity) -> Budget {
@@ -403,16 +403,16 @@ impl Game {
     /// Keep the budget while a player plans what its cities build (the computer wizard's round of
     /// cities, which sets each city's auto-builder in turn): the net gold the auto-builder asks
     /// for is patched for the cities whose item changed, not worked out afresh in every city.
-    /// Pair it with [`Game::end_kept_budget`]; nothing but the commands that set what a city
+    /// Pair it with [`World::end_kept_budget`]; nothing but the commands that set what a city
     /// builds may be given in between (they flag the city, `note_production_change`).
     pub fn begin_kept_budget(&self) {
-        self.net_gold_memo.set(crate::game::NetGoldMemo::Empty);
+        self.net_gold_memo.set(crate::world::NetGoldMemo::Empty);
         *self.budget_parts.borrow_mut() = None;
     }
 
-    /// The end of [`Game::begin_kept_budget`]: nothing is kept.
+    /// The end of [`World::begin_kept_budget`]: nothing is kept.
     pub fn end_kept_budget(&self) {
-        self.net_gold_memo.set(crate::game::NetGoldMemo::Off);
+        self.net_gold_memo.set(crate::world::NetGoldMemo::Off);
         *self.budget_parts.borrow_mut() = None;
     }
 
@@ -421,10 +421,10 @@ impl Game {
     /// worked out again at the next asking, as a fresh budget would have them. Called wherever
     /// the auto-builder is about to ask for the net gold after such a change.
     pub(crate) fn note_production_change(&self, city: hecs::Entity) {
-        if matches!(self.net_gold_memo.get(), crate::game::NetGoldMemo::Off) {
+        if matches!(self.net_gold_memo.get(), crate::world::NetGoldMemo::Off) {
             return;
         }
-        self.net_gold_memo.set(crate::game::NetGoldMemo::Empty);
+        self.net_gold_memo.set(crate::world::NetGoldMemo::Empty);
         if let Some(owner) = self.economy().city_owner(city) {
             self.mark_budget_dirty(owner, city);
         }
@@ -452,24 +452,24 @@ impl Game {
         let settled = settle(&t, treasury.gold, fame, &troops);
         treasury.gold = settled.gold;
         let mut events = Vec::new();
-        let short = |cause: crate::game::LossCause| Event::Shortage {
+        let short = |cause: crate::world::LossCause| Event::Shortage {
             player,
             what: match cause {
-                crate::game::LossCause::Food => crate::game::Shortage::Food,
-                _ => crate::game::Shortage::Gold,
+                crate::world::LossCause::Food => crate::world::Shortage::Food,
+                _ => crate::world::Shortage::Gold,
             },
         };
         if settled.for_food > 0 {
-            events.push(short(crate::game::LossCause::Food));
+            events.push(short(crate::world::LossCause::Food));
         }
         if settled.disbanded.len() > settled.for_food {
-            events.push(short(crate::game::LossCause::Gold));
+            events.push(short(crate::world::LossCause::Gold));
         }
         for (i, unit) in settled.disbanded.iter().enumerate() {
             let cause = if i < settled.for_food {
-                crate::game::LossCause::Food
+                crate::world::LossCause::Food
             } else {
-                crate::game::LossCause::Gold
+                crate::world::LossCause::Gold
             };
             events.extend(self.release_one(player, *unit, cause));
         }

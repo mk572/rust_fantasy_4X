@@ -14,8 +14,8 @@ Do not drop a result with `let _ =` or `.ok();`, and do not answer a failure wit
 several things can go wrong: return an error that says which (`MoveError`, `MarchError`, `ItemError`, an event such
 as `Event::OrderFailed`), and let the caller choose what to do with it (try the next, give up the plan, tell the
 player, `Ai::note_failure`). A caller that wants only yes or no says so with `.is_ok()` and a comment. In the
-engine, components are given with `Game::put` / `put_bundle` and taken off with `Game::strip` (`put_in`, `strip_in`
-for a bare `World`): a component that is not there is fine, an entity that is gone stops a debug build. (Silent
+engine, components are given with `World::put` / `put_bundle` and taken off with `World::strip` (`put_in`, `strip_in`
+for a bare `hecs::World`): a component that is not there is fine, an entity that is gone stops a debug build. (Silent
 error audit, tasks 546 to 559.)
 
 Clippy's `unwrap_used` and `expect_used` lints keep unwraps out of production code; tests may allow
@@ -47,7 +47,7 @@ A function gets its information at the source. A function between a caller and t
 purpose, which the doc comment states when it is not plain: it **wraps private data** (the caller may not see
 the field), **converts** (a type, a unit), **binds** a default, a constant or the caller's own identity
 (`PlayerView::income` binds `me`; `red_button` binds the face), **caches**, or **enforces a rule** (the
-`PlayerView` forwarders are the boundary that keeps the AI from holding a `&Game`: it reads only what a human
+`PlayerView` forwarders are the boundary that keeps the AI from holding a `&World`: it reads only what a human
 sees). A function that only passes its arguments on, renames the call, drops a result, or exists because it
 once did something else is removed and its callers go to the source. `python3 scripts/find_wrappers.py`
 lists the wrappers and `--chains` the wrappers of wrappers (it matches by name: read the hits).
@@ -61,7 +61,7 @@ no other game crate); `f4x-battle` depends on `f4x-def`; `f4x-core` on `f4x-batt
 `f4x-newgame` (the map generator, the setup of a new game) sits above core and uses only its public API,
 so core never calls it; `f4x-console` depends on def, core, newgame and ai; `f4x-learn` on def, core and
 newgame; `f4x-client` and `f4x-tools` on all of these (`f4x-tools` also on `f4x-ai-ref`). A crate loads the data it holds: `f4x-def` loads the
-definitions (`f4x_def::load`). `f4x-core` reads and writes save files only (`game/save/file.rs`); it is deterministic otherwise.
+definitions (`f4x_def::load`). `f4x-core` reads and writes save files only (`world/save/file.rs`); it is deterministic otherwise.
 
 ## Rules engine
 
@@ -163,15 +163,15 @@ wrong reason.
   content if its rules are wrong. A test of the content validator may break a copy on purpose, and so may a test of a
   function that takes the registry as its input and needs a case the shipped content lacks. These are
   the tests that still do, each with its reason (`docs/test-review-log.md`, tasks 461 and 484):
-  `hook.rs` (validator), `game/save/tests.rs` (a save naming a unit the content lacks),
+  `hook.rs` (validator), `world/save/tests.rs` (a save naming a unit the content lacks),
   `f4x-newgame/src/computer_wizard/tests.rs` (ready-made wizards with a composition the shipped ones lack: opposed realms,
   a set of Myrran ones) and `f4x-console` (no ready-made wizards, so the fallback names show).
   Where a result depends on a roll, cast or fight again until it happens (`cast_until`) or give the
   caster the means, rather than raising a number in the rules. Tests that only set a game setting or a
   config value (`g.settings.rules.x`, `rules.config.x`) are not rule sets.
 - **A test never carries a number of the game's rules of its own.** How many units a square holds,
-  how many fight in a battle, a price, a limit: read it from the game (`g.max_tile()`,
-  `g.max_battle_side()`, the shipped content), never a literal (`0..12`) and never the setting's
+  how many fight in a battle, a price, a limit: read it from the game (`w.max_tile()`,
+  `w.max_battle_side()`, the shipped content), never a literal (`0..12`) and never the setting's
   upper bound (`MAX_TILE_LIMIT`, `MAX_STACK`), which is not the limit of any game in play.
   `scripts/imaginary_tests.py` flags the constants.
 - Build only situations the game can reach (a unit always has a real player as owner; see
@@ -189,13 +189,13 @@ wrong reason.
   belongs to the test that needs it, with the reason, not to a shared `world()`.
 - A test whose subject needs content (spells, units) must fail when the content is missing. An empty
   registry that makes the test skip its assertions is a bug.
-- A unit test inside `f4x-core/src/` calls `game::testutil::shipped()`, which is
+- A unit test inside `f4x-core/src/` calls `world::testutil::shipped()`, which is
   `f4x_def::load::load_content` on the `crates/f4x-def/content/` folder (the same loader and checks as the game),
   run once per test process. The integration tests in `f4x-core/tests/it/` use
   `f4x_def::load::load_content` itself (`tests/it/world.rs`).
   Do not hand-build units, spells, buildings or terrains in either.
 - A unit test in `f4x-core/src/` that needs a whole new game (a real map, wizards, cities) cannot call
-  `new_game` (the crate that has it sits above core): it loads one with `game::testutil::fresh(wizards, seed)`,
+  `new_game` (the crate that has it sits above core): it loads one with `world::testutil::fresh(wizards, seed)`,
   a saved game in `crates/f4x-core/tests/saves/fresh_w<wizards>_s<seed>.save`. The test `fixtures` of
   `f4x-newgame` keeps the files equal to what `new_game` makes; when it fails, refresh them with
   `F4X_REFRESH_FIXTURES=1 cargo test -p f4x-newgame --test it fixtures` and run the tests of core again
@@ -253,7 +253,7 @@ what it reaches. `python3 scripts/classify_core_tests.py` counts the `f4x-core` 
 game or content.
 
 - **An integration test in `f4x-core/tests/it/`** when the situation can be built and the result read
-  through the public API: `Command`s, `cheat_*` and the `scenario_*` setters of `game/access.rs` (add
+  through the public API: `Command`s, `cheat_*` and the `scenario_*` setters of `world/access.rs` (add
   a `scenario_*` setter when one is missing; do not widen a field). This is the first choice for a
   rule that crosses modules (movement, gates, battles through `Command`s), and for new tests.
   `tests/it/world.rs` holds the shipped content and `flat_game`.
@@ -288,7 +288,7 @@ A test fails when it panics or when it returns `Err`; both are fine. Choose by w
   refactor does not break the test.
 - **Deterministic.** Seed every random generator; no wall-clock time; files only in a `TestDir`.
 - **Fast.** A unit test runs in milliseconds. Build the world once per test (not once per loop
-  iteration) and borrow rather than clone large entities (`Game`, `Content`, saves). A slow test is
+  iteration) and borrow rather than clone large entities (`World`, `Content`, saves). A slow test is
   marked `#[ignore]` and run on request.
 - **Every test asserts something that can fail.** Mutation testing (`cargo mutants -p <crate>`) finds
   tests that pass without protecting anything; task 408 tracks this.

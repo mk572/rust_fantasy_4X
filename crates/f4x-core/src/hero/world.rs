@@ -11,7 +11,6 @@
 //! else can hire it), dead (any wizard may raise it) or gone for good. When the body goes the unit
 //! components and the owner are removed and the entity stays (`release_body`).
 
-use crate::game::serial::Serial;
 use crate::hero::kind::{self, Class, Standing};
 use crate::hero::Hero;
 use crate::hero::HeroError;
@@ -19,27 +18,27 @@ use crate::hero::{Fate, HeroState};
 use crate::map::Position;
 use crate::player::{Owner, PlayerId};
 use crate::unit::{Experience, Hurt, MovesLeft, Unit, UnitView};
+use crate::world::serial::Serial;
 
-use crate::game::{Event, Game};
 use crate::rules::RealmId;
+use crate::world::{Event, World};
 
 impl UnitView<'_> {
     /// Every hero of the game, in the order of the hero types.
     pub fn all_heroes(&self) -> Vec<hecs::Entity> {
-        let mut out: Vec<hecs::Entity> =
-            self.world.query::<&Hero>().iter().map(|(e, _)| e).collect();
-        out.sort_by_key(|&e| self.world.get::<&Hero>(e).map_or(usize::MAX, |h| h.kind));
+        let mut out: Vec<hecs::Entity> = self.ecs.query::<&Hero>().iter().map(|(e, _)| e).collect();
+        out.sort_by_key(|&e| self.ecs.get::<&Hero>(e).map_or(usize::MAX, |h| h.kind));
         out
     }
 
     /// The heroes in the wizard's service, in the order of the hero types.
     pub fn heroes(&self, player: PlayerId) -> Vec<hecs::Entity> {
-        let Some(player) = crate::player::find_entity(self.world, player) else {
+        let Some(player) = crate::player::find_entity(self.ecs, player) else {
             return Vec::new();
         };
         self.all_heroes()
             .into_iter()
-            .filter(|&e| self.world.get::<&Owner>(e).is_ok_and(|o| o.0 == player))
+            .filter(|&e| self.ecs.get::<&Owner>(e).is_ok_and(|o| o.0 == player))
             .collect()
     }
 
@@ -47,19 +46,19 @@ impl UnitView<'_> {
     pub fn hero_entity(&self, kind: usize) -> Option<hecs::Entity> {
         self.all_heroes()
             .into_iter()
-            .find(|&e| self.world.get::<&Hero>(e).is_ok_and(|h| h.kind == kind))
+            .find(|&e| self.ecs.get::<&Hero>(e).is_ok_and(|h| h.kind == kind))
     }
 
     /// Where a hero is.
     pub fn hero_state(&self, hero: hecs::Entity) -> Option<HeroState> {
-        self.world.get::<&HeroState>(hero).ok().map(|s| *s)
+        self.ecs.get::<&HeroState>(hero).ok().map(|s| *s)
     }
 
     /// The state of each hero type, in order.
     pub fn hero_states(&self) -> Vec<HeroState> {
         let mut states = vec![HeroState::Gone; self.content.rules.hero_templates.len()];
         for e in self.all_heroes() {
-            if let (Ok(h), Some(state)) = (self.world.get::<&Hero>(e), self.hero_state(e)) {
+            if let (Ok(h), Some(state)) = (self.ecs.get::<&Hero>(e), self.hero_state(e)) {
                 if let Some(slot) = states.get_mut(h.kind) {
                     *slot = state;
                 }
@@ -70,7 +69,7 @@ impl UnitView<'_> {
 
     /// The experience a hero keeps while it is free or dead.
     pub fn hero_xp(&self, hero: hecs::Entity) -> u32 {
-        self.world.get::<&Experience>(hero).map_or(0, |x| x.0)
+        self.ecs.get::<&Experience>(hero).map_or(0, |x| x.0)
     }
 
     /// The name of the hero of this type.
@@ -82,7 +81,7 @@ impl UnitView<'_> {
     pub fn hero_units(&self, player: PlayerId) -> Vec<hecs::Entity> {
         self.heroes(player)
             .into_iter()
-            .filter(|&h| self.world.get::<&Unit>(h).is_ok())
+            .filter(|&h| self.ecs.get::<&Unit>(h).is_ok())
             .collect()
     }
 
@@ -90,7 +89,7 @@ impl UnitView<'_> {
     /// the spell skill of its items when it has any mana. 0 for a hero with no casting skill
     /// and for a unit that is no hero.
     pub fn hero_mana(&self, unit: hecs::Entity) -> i32 {
-        let Ok(hero) = self.world.get::<&Hero>(unit) else {
+        let Ok(hero) = self.ecs.get::<&Hero>(unit) else {
             return 0;
         };
         if hero.casting_skill == 0 {
@@ -112,7 +111,7 @@ impl UnitView<'_> {
 
     /// A hero's own name (what the wizard called it).
     pub fn hero_name(&self, unit: hecs::Entity) -> Option<String> {
-        self.world.get::<&Hero>(unit).ok().map(|h| h.name.clone())
+        self.ecs.get::<&Hero>(unit).ok().map(|h| h.name.clone())
     }
 
     /// The gender of a hero, from its type (`heroes.ron`).
@@ -124,7 +123,7 @@ impl UnitView<'_> {
 
     /// The hero type of a hero entity.
     pub fn hero_kind(&self, hero: hecs::Entity) -> Option<usize> {
-        self.world.get::<&Hero>(hero).ok().map(|h| h.kind)
+        self.ecs.get::<&Hero>(hero).ok().map(|h| h.kind)
     }
 
     /// What `kind::pick` asks of the wizard: fame and the books that unlock some heroes.
@@ -165,7 +164,7 @@ impl UnitView<'_> {
     }
 }
 
-impl Game {
+impl World {
     /// Casting skill the wizard's heroes add (`Player_Hero_Casting_Skill`): half the mana of each
     /// hero standing on the fortress square. It pays for a spell over turns, on top of the
     /// wizard's own skill.
@@ -204,7 +203,7 @@ impl Game {
         self.make_hero_with(serial, hero, state, xp)
     }
 
-    /// Like [`Game::make_hero`], with the serial it was saved with.
+    /// Like [`World::make_hero`], with the serial it was saved with.
     pub(crate) fn make_hero_with(
         &mut self,
         serial: Serial,
@@ -212,7 +211,7 @@ impl Game {
         state: HeroState,
         xp: u32,
     ) -> hecs::Entity {
-        self.world.spawn((serial, hero, state, Experience(xp)))
+        self.ecs.spawn((serial, hero, state, Experience(xp)))
     }
 
     /// A random hero type the wizard can be offered or summon (`Pick_Random_Hero`). `None` has
@@ -251,7 +250,7 @@ impl Game {
         }
         self.serve_hero(entity, player, pos)?;
         // Nobody else is offered this hero now.
-        for (_, offers) in self.world.query::<&mut crate::player::Offers>().iter() {
+        for (_, offers) in self.ecs.query::<&mut crate::player::Offers>().iter() {
             offers.0.retain(
                 |o| !matches!(o, crate::player::offer::Offer::Hero { kind: k, .. } if *k == kind),
             );
@@ -261,7 +260,7 @@ impl Game {
 
     /// Scenario setup: a hero rolled elsewhere (`hero::kind::roll_one`) enters `player`'s army at
     /// `pos` as one more body of its type, so that a battle can hold several of the same kind
-    /// (the ladder's four against four). Unlike [`Game::spawn_hero`] it takes no free hero.
+    /// (the ladder's four against four). Unlike [`World::spawn_hero`] it takes no free hero.
     pub fn scenario_spawn_hero_copy(
         &mut self,
         player: PlayerId,
@@ -281,7 +280,7 @@ impl Game {
         pos: Position,
     ) -> Result<(), HeroError> {
         let kind = self
-            .world
+            .ecs
             .get::<&Hero>(entity)
             .map_err(|_| HeroError::Unknown)?
             .kind;
@@ -300,15 +299,15 @@ impl Game {
     /// rolled, experience) and gets the state the way it left gives. It is no one's now.
     fn release_body(&mut self, hero: hecs::Entity, state: HeroState) {
         let kept = (
-            self.world.get::<&Serial>(hero).map(|s| *s),
-            self.world.get::<&Hero>(hero).map(|h| (*h).clone()),
-            self.world.get::<&Experience>(hero).map(|x| *x),
+            self.ecs.get::<&Serial>(hero).map(|s| *s),
+            self.ecs.get::<&Hero>(hero).map(|h| (*h).clone()),
+            self.ecs.get::<&Experience>(hero).map(|x| *x),
         );
         let (Ok(serial), Ok(data), Ok(xp)) = kept else {
             return;
         };
-        let _ = self.world.despawn(hero);
-        self.world.spawn_at(hero, (serial, data, state, xp));
+        let _ = self.ecs.despawn(hero);
+        self.ecs.spawn_at(hero, (serial, data, state, xp));
     }
 
     /// Take a unit out of the game for good: the one way to do it, so that a hero's entity
@@ -322,7 +321,7 @@ impl Game {
         self.remove_unit_to(unit, fate, None);
     }
 
-    /// Like [`Game::remove_unit`], with the wizard that takes the items of a slain hero: the
+    /// Like [`World::remove_unit`], with the wizard that takes the items of a slain hero: the
     /// winner of the battle it fell in. A neutral winner takes nothing, so the items are
     /// destroyed; without an heir they go to the hero's own wizard.
     pub(crate) fn remove_unit_to(
@@ -332,7 +331,7 @@ impl Game {
         heir: Option<PlayerId>,
     ) {
         let owner = self.units().unit_owner(unit);
-        if self.world.get::<&Hero>(unit).is_err() {
+        if self.ecs.get::<&Hero>(unit).is_err() {
             self.despawn_with_spells(unit);
             return;
         }
@@ -341,7 +340,7 @@ impl Game {
         // back), which is the original's repeated death of a unit that is already dead
         // (1.50 note 148).
         if self
-            .world
+            .ecs
             .get::<&HeroState>(unit)
             .is_ok_and(|state| *state != HeroState::Serving)
         {
@@ -379,7 +378,7 @@ impl Game {
     pub(crate) fn drain_item_awards(&mut self) -> Vec<Event> {
         let mut events: Vec<Event> = Vec::new();
         for (player, name, kept) in std::mem::take(&mut self.item_awards) {
-            let Some(player) = crate::player::id_of(&self.world, player) else {
+            let Some(player) = crate::player::id_of(&self.ecs, player) else {
                 continue;
             };
             let found = events.iter_mut().find_map(|e| match e {

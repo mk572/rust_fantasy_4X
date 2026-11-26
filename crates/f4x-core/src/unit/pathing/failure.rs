@@ -4,8 +4,8 @@
 //!
 //! Tests: at the bottom of this file, on the shipped rules.
 
-use crate::game::Game;
 use crate::map::Position;
+use crate::world::World;
 
 /// What keeps a stack out of a square.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -129,7 +129,7 @@ impl std::fmt::Display for NoPath {
     }
 }
 
-impl Game {
+impl World {
     /// What keeps the stack out of `at`, or `None` when it can step in.
     pub fn blocker_at(&self, units: &[hecs::Entity], at: Position) -> Option<Blocker> {
         let economy = self.economy();
@@ -162,7 +162,7 @@ impl Game {
         })
     }
 
-    /// Why [`Game::find_path`] found no way for the stack to `to`.
+    /// Why [`World::find_path`] found no way for the stack to `to`.
     pub fn why_no_path(&self, units: &[hecs::Entity], to: Position) -> NoPath {
         let Some(start) = units.first().and_then(|&u| self.units().unit_position(u)) else {
             return NoPath::NoUnits;

@@ -17,7 +17,6 @@
 
 use rand::RngCore;
 
-use crate::game::{DispelSite, Event, Game};
 use crate::map::Position;
 use crate::player::PlayerId;
 use crate::rules::exec::Target;
@@ -25,13 +24,14 @@ use crate::rules::SpellId;
 use crate::spell::instance::SpellTarget;
 use crate::spell::target_error::TargetError;
 use crate::wizard::magic::MagicError;
+use crate::world::{DispelSite, Event, World};
 pub use f4x_battle::resistance::dispel_roll;
 pub use f4x_def::rules::counter_effect::{CounterEffect, COUNTER_EFFECT};
 
 /// Enchantments with the wizard who cast each.
 pub(crate) type Spells = Vec<(SpellId, PlayerId)>;
 
-impl Game {
+impl World {
     /// A wizard turns off one of their own spells on a city (the city screen's list of
     /// enchantments): it ends, and so does its upkeep.
     pub fn turn_off_city_spell(
@@ -59,9 +59,9 @@ impl Game {
             .into_iter()
             .filter(|&i| self.spells().def(i) == Some(spell))
             .collect();
-        crate::spell::instance::set_listed(&mut self.world, unit, &held, false);
+        crate::spell::instance::set_listed(&mut self.ecs, unit, &held, false);
         let lost = self.economy().stranded().len();
-        crate::spell::instance::set_listed(&mut self.world, unit, &held, true);
+        crate::spell::instance::set_listed(&mut self.ecs, unit, &held, true);
         lost
     }
 
@@ -284,10 +284,7 @@ impl Game {
             return 0;
         };
         if node.warped && dispel_roll(strength, warp, rng) {
-            if let Ok(mut n) = self
-                .world
-                .get::<&mut crate::feature::node::Node>(node.entity)
-            {
+            if let Ok(mut n) = self.ecs.get::<&mut crate::feature::node::Node>(node.entity) {
                 n.warped = false;
             }
             return 1;

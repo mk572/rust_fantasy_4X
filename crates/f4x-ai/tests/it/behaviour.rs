@@ -3,9 +3,9 @@
 //! `cargo test -p f4x-ai --test it behaviour -- --ignored` when the AI changes.
 
 use f4x_ai::{play_round, Ai};
-use f4x_core::game::endgame::EndKind;
-use f4x_core::game::Game;
 use f4x_core::player::PlayerId;
+use f4x_core::world::endgame::EndKind;
+use f4x_core::world::World;
 use f4x_def::content::Content;
 use f4x_newgame::setup::{new_game, NewGame};
 
@@ -18,7 +18,7 @@ fn content() -> Result<Content, Box<dyn std::error::Error>> {
     Ok(f4x_def::testdir::shipped().clone())
 }
 
-fn game(seed: u64) -> Result<Game, Box<dyn std::error::Error>> {
+fn game(seed: u64) -> Result<World, Box<dyn std::error::Error>> {
     Ok(new_game(
         &content()?,
         &NewGame {
@@ -29,22 +29,22 @@ fn game(seed: u64) -> Result<Game, Box<dyn std::error::Error>> {
     )?)
 }
 
-fn play(game: &mut Game, turns: u32) {
+fn play(world: &mut World, turns: u32) {
     let mut ais = vec![Ai::new(P0), Ai::new(P1)];
     for _ in 0..turns {
-        if game.game_over.is_some() {
+        if world.game_over.is_some() {
             break;
         }
-        play_round(game, &mut ais);
+        play_round(world, &mut ais);
     }
 }
 
 #[test]
 #[ignore = "plays whole games; run with --ignored when the AI changes"]
 fn scouts_find_far_more_of_the_map_than_the_garrison_walks() -> TestResult {
-    let mut g = game(1)?;
-    play(&mut g, 60);
-    let seen = g.explored_squares(P0);
+    let mut w = game(1)?;
+    play(&mut w, 60);
+    let seen = w.explored_squares(P0);
     assert!(seen > 200, "explored only {seen} squares in 60 turns");
     Ok(())
 }
@@ -52,9 +52,9 @@ fn scouts_find_far_more_of_the_map_than_the_garrison_walks() -> TestResult {
 #[test]
 #[ignore = "plays whole games; run with --ignored when the AI changes"]
 fn cities_stop_making_settlers_once_there_are_enough_cities() -> TestResult {
-    let mut g = game(1)?;
-    play(&mut g, 120);
-    let cities = g
+    let mut w = game(1)?;
+    play(&mut w, 120);
+    let cities = w
         .economy()
         .cities()
         .iter()
@@ -67,22 +67,23 @@ fn cities_stop_making_settlers_once_there_are_enough_cities() -> TestResult {
 #[test]
 #[ignore = "plays whole games; run with --ignored when the AI changes"]
 fn a_wizard_that_knows_the_spell_of_mastery_casts_it_and_wins() -> TestResult {
-    let mut g = game(1)?;
-    let mastery = g
+    let mut w = game(1)?;
+    let mastery = w
         .content()
         .rules
         .spells
         .id_numbered(213)
         .ok_or("spell_of_mastery is shipped")?;
-    let mut w = g.wizard_mut(P0).ok_or("player 0 is a wizard")?;
-    w.get_mut::<f4x_core::wizard::sheet::KnownSpells>()
+    let mut wizard = w.wizard_mut(P0).ok_or("player 0 is a wizard")?;
+    wizard
+        .get_mut::<f4x_core::wizard::sheet::KnownSpells>()
         .known
         .insert(mastery);
-    w.get_mut::<f4x_core::wizard::sheet::Skill>().points = 5000;
-    g.treasury_mut(P0).ok_or("player 0 has a treasury")?.mana =
+    wizard.get_mut::<f4x_core::wizard::sheet::Skill>().points = 5000;
+    w.treasury_mut(P0).ok_or("player 0 has a treasury")?.mana =
         f4x_def::half_int::HalfInt::from_int(20_000);
-    play(&mut g, 80);
-    let over = g.game_over.ok_or("the game ended")?;
+    play(&mut w, 80);
+    let over = w.game_over.ok_or("the game ended")?;
     assert_eq!(over.winner, P0);
     assert_eq!(over.kind, EndKind::SpellOfMastery);
     Ok(())
@@ -92,24 +93,25 @@ fn a_wizard_that_knows_the_spell_of_mastery_casts_it_and_wins() -> TestResult {
 #[ignore = "plays whole games; run with --ignored when the AI changes"]
 fn a_wizard_that_knows_earth_lore_casts_it_and_sees_far_more() -> TestResult {
     let explored_after = |lore: bool| -> Result<_, Box<dyn std::error::Error>> {
-        let mut g = game(1)?;
+        let mut w = game(1)?;
         if lore {
-            let spell = g
+            let spell = w
                 .content()
                 .rules
                 .spells
                 .id_numbered(10)
                 .ok_or("earth_lore is shipped")?;
-            let mut w = g.wizard_mut(P0).ok_or("player 0 is a wizard")?;
-            w.get_mut::<f4x_core::wizard::sheet::KnownSpells>()
+            let mut wizard = w.wizard_mut(P0).ok_or("player 0 is a wizard")?;
+            wizard
+                .get_mut::<f4x_core::wizard::sheet::KnownSpells>()
                 .known
                 .insert(spell);
-            w.get_mut::<f4x_core::wizard::sheet::Skill>().points = 400;
-            g.treasury_mut(P0).ok_or("player 0 has a treasury")?.mana =
+            wizard.get_mut::<f4x_core::wizard::sheet::Skill>().points = 400;
+            w.treasury_mut(P0).ok_or("player 0 has a treasury")?.mana =
                 f4x_def::half_int::HalfInt::from_int(2000);
         }
-        play(&mut g, 6);
-        Ok(g.explored_squares(P0))
+        play(&mut w, 6);
+        Ok(w.explored_squares(P0))
     };
     let (with, without) = (explored_after(true)?, explored_after(false)?);
     assert!(
@@ -123,9 +125,9 @@ fn a_wizard_that_knows_earth_lore_casts_it_and_sees_far_more() -> TestResult {
 #[ignore = "plays whole games; run with --ignored when the AI changes"]
 fn a_wizard_alone_on_an_island_builds_a_ship_and_finds_the_world() -> TestResult {
     // Seed 2 puts the first wizard on a small island: walking shows it 55 squares in all.
-    let mut g = game(2)?;
-    play(&mut g, 110);
-    let seen = g.explored_squares(P0);
+    let mut w = game(2)?;
+    play(&mut w, 110);
+    let seen = w.explored_squares(P0);
     assert!(seen > 300, "explored only {seen} squares in 110 turns");
     Ok(())
 }

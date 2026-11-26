@@ -12,7 +12,7 @@
 
 use f4x_core::battle::spell::LegalCast;
 use f4x_core::battle::{Battle, BattleCommand, Side};
-use f4x_core::game::Game;
+use f4x_core::world::World;
 
 use crate::act::{self, WizardOptions};
 use crate::env::BattleEnv;
@@ -55,13 +55,13 @@ pub enum Next {
 /// The next step for `side` in the battle of `game`, played by the agent: the wizard's decision
 /// once a turn (`wizard_turn` remembers the turn of the last one), then the units'.
 pub fn next_for_agent(
-    game: &Game,
+    world: &World,
     spec: &ObsSpec,
     side: Side,
     brief: Brief,
     wizard_turn: &mut [u32; 2],
 ) -> Result<Next, String> {
-    let battle = game.battle().ok_or("no battle")?;
+    let battle = world.battle().ok_or("no battle")?;
     let turn = battle.turn;
     // A new battle starts again from turn 1.
     if wizard_turn.iter().any(|&t| t > turn) {
@@ -69,8 +69,8 @@ pub fn next_for_agent(
     }
     if wizard_turn[side.index()] != turn {
         wizard_turn[side.index()] = turn;
-        let obs = spec.observe(game, side, brief).ok_or("no observation")?;
-        let casts = game.legal_battle_casts();
+        let obs = spec.observe(world, side, brief).ok_or("no observation")?;
+        let casts = world.legal_battle_casts();
         let options = act::wizard_options(&casts, brief.may_flee, &obs);
         if options.any() {
             return Ok(Next::Ask(Box::new(Pending {
@@ -91,7 +91,7 @@ pub fn next_for_agent(
         | BattleCommand::Done { unit } => *unit,
         other => return Err(format!("the scripted AI gave {other:?}")),
     };
-    let obs = spec.observe(game, side, brief).ok_or("no observation")?;
+    let obs = spec.observe(world, side, brief).ok_or("no observation")?;
     let legal = battle.legal_commands();
     let mask = act::unit_mask(&legal, unit, &obs);
     let slot = (0..crate::obs::MAX_UNITS)
@@ -133,7 +133,7 @@ impl<'a> Driver<'a> {
     pub fn set_brief(&mut self, side: Side, brief: Brief) {
         self.briefs[side.index()] = brief;
         self.env
-            .game
+            .world
             .set_battle_mana_budget(side, brief.mana_budget);
     }
 
@@ -158,7 +158,7 @@ impl<'a> Driver<'a> {
                 continue;
             }
             match next_for_agent(
-                &self.env.game,
+                &self.env.world,
                 self.spec,
                 side,
                 self.briefs[side.index()],

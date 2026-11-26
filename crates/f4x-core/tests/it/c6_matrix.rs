@@ -6,8 +6,8 @@
 
 use crate::support::{busy_round, commands, content, text, worlds};
 use f4x_core::check::world_problems;
-use f4x_core::game::save::Snapshot;
-use f4x_core::game::{Event, Game};
+use f4x_core::world::save::Snapshot;
+use f4x_core::world::{Event, World};
 use f4x_def::testdir::{deep, sample};
 
 /// The `rules: (...)` line of a save, as its pairs `(name, value)`.
@@ -132,30 +132,30 @@ fn refused(events: &[Event]) -> bool {
 
 /// Play the game under its settings: rounds with the world checked after each, the commands of the
 /// sweep with each refusal changing nothing, a save and load that returns the same game.
-fn play(mut g: Game, at: &str) {
+fn play(mut w: World, at: &str) {
     // A game made under the setting has no city above the cap; this one was made under another.
-    let cap = g.economy().max_city_size();
-    for (city, _, _) in g.economy().cities() {
-        let size = g.city_population(city).figures;
+    let cap = w.economy().max_city_size();
+    for (city, _, _) in w.economy().cities() {
+        let size = w.city_population(city).figures;
         if size > cap {
-            g.scenario_set_citizens(city, cap);
+            w.scenario_set_citizens(city, cap);
         }
     }
     for round in 0..sample(4, 2) {
-        busy_round(&mut g, 6);
-        let bad = world_problems(&g);
+        busy_round(&mut w, 6);
+        let bad = world_problems(&w);
         assert!(bad.is_empty(), "{at}, after round {round}: {bad:#?}");
     }
-    for command in commands(&g)
+    for command in commands(&w)
         .into_iter()
         .step_by(if deep() { 2 } else { 25 })
     {
         let label: String = format!("{command:?}").chars().take(100).collect();
-        let before = text(&g);
-        let events = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| g.apply(command)))
+        let before = text(&w);
+        let events = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| w.apply(command)))
             .unwrap_or_else(|_| panic!("{at}: {label} panicked"));
         if refused(&events) {
-            let after = text(&g);
+            let after = text(&w);
             if after != before {
                 for (x, y) in before
                     .lines()
@@ -173,19 +173,19 @@ fn play(mut g: Game, at: &str) {
             );
         }
     }
-    let bad = world_problems(&g);
+    let bad = world_problems(&w);
     assert!(bad.is_empty(), "{at}, after the commands: {bad:#?}");
-    let back = Snapshot::from_text(&text(&g))
+    let back = Snapshot::from_text(&text(&w))
         .expect("reads")
         .restore(content())
         .unwrap_or_else(|e| panic!("{at}: the game does not load again: {e}"));
-    assert_eq!(text(&back), text(&g), "{at}: a loaded game differs");
+    assert_eq!(text(&back), text(&w), "{at}: a loaded game differs");
 }
 
 #[test]
 fn the_game_holds_under_every_value_of_every_rule_setting() {
-    let (_, g) = worlds().remove(0);
-    let full = text(&g);
+    let (_, w) = worlds().remove(0);
+    let full = text(&w);
     let (line, pairs) = rule_pairs(&full);
     assert!(pairs.len() > 30, "only {} settings were read", pairs.len());
     let choices = choices();
@@ -201,18 +201,18 @@ fn the_game_holds_under_every_value_of_every_rule_setting() {
                 Snapshot::from_text(&edited).and_then(|s| s.restore(content()))
             })
             .unwrap_or_else(|_| panic!("loading panicked with {name}: {other}"));
-            if let Ok(game) = loaded {
-                ok.push((other, game));
+            if let Ok(world) = loaded {
+                ok.push((other, world));
             }
         }
         let accepted = ok.len();
         // The ends of what the game accepts, in the normal run; every value in the deep run.
         let last = ok.len().saturating_sub(1);
-        for (i, (other, game)) in ok.into_iter().enumerate() {
+        for (i, (other, world)) in ok.into_iter().enumerate() {
             if deep() || i == 0 || i == last {
                 played += 1;
                 play(
-                    game,
+                    world,
                     &format!(
                         "{name}: {other} (F4X_DEEP=1 tries every value, to find where it breaks)"
                     ),

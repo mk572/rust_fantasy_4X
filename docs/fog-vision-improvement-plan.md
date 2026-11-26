@@ -42,7 +42,7 @@ The AI already keeps this cache for the duration of its turn. `VisionEffect::{No
 `f4x-client/src/view.rs::App::draw_map()` currently calls:
 
 ```rust
-let visible = self.game.economy().visibility(HUMAN, self.plane);
+let visible = self.world.economy().visibility(HUMAN, self.plane);
 ```
 
 That call builds a new grid and converts its counters into a fresh `Vec<bool>`. `draw_map()` runs every frame, although visibility normally changes only when relevant game state changes. The resulting flags are used by `draw_units()` to decide whether enemy stacks can be shown.
@@ -170,7 +170,7 @@ fn refresh_human_visibility(&mut self) {
         return;
     }
 
-    let economy = self.game.economy();
+    let economy = self.world.economy();
     self.human_visibility.replace([
         economy.visibility(HUMAN, Plane::Arcanus),
         economy.visibility(HUMAN, Plane::Myrror),
@@ -454,7 +454,7 @@ Choose Plan B only if simplifying the overall model and removing incremental boo
 
 - `crates/f4x-core/src/map/fog.rs` — explored state and fog-edge rendering.
 - `crates/f4x-core/src/map/vision.rs` — current visibility, overlap counts, AI cache and invalidation effects.
-- `crates/f4x-core/src/game/save.rs` — `FogSave`, byte packing and restoration.
+- `crates/f4x-core/src/world/save.rs` — `FogSave`, byte packing and restoration.
 - `crates/f4x-client/src/view.rs` — map drawing and unit visibility.
 - `crates/f4x-client/src/surveyor.rs` — current visibility query for lair guards.
 - Task **476** — client query caching and explicit invalidation.

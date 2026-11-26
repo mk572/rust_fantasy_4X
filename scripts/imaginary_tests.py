@@ -67,7 +67,7 @@ COMPILED = [(re.compile(p), label) for p, label in MADE_UP + HAND_BUILT]
 # values it needs (agreed with the user), as long as it is the real structure.
 NAMED_EXCEPTIONS = {
     "crates/f4x-core/src/hook.rs": "validator test",
-    "crates/f4x-core/src/game/save/tests.rs": "a save naming a unit the content lacks",
+    "crates/f4x-core/src/world/save/tests.rs": "a save naming a unit the content lacks",
 }
 
 FN_RE = re.compile(r"(?:^|\n)[ \t]*((?:#\[[^\]]*\]\s*)*)(?:pub(?:\([a-z]+\))?\s+)?(?:async\s+)?fn\s+(\w+)")

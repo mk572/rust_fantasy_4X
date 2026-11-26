@@ -38,7 +38,7 @@ gives the values; it holds no sentence. This is what makes a second language pos
 - `count` picks a form by the plural rule of the language (`text::plural`: zero, one, few, many,
   other; `other` is required, `zero` wins for 0 when given).
 - `gender` picks a form by the gender of the named argument (`Args::named`). A hero's gender is
-  `heroes.ron` (`Game::hero_gender`), a wizard's is `wizards.ron`, `text/en/name/rival.ron` or the choice
+  `heroes.ron` (`World::hero_gender`), a wizard's is `wizards.ron`, `text/en/name/rival.ron` or the choice
   on the creation screen (Tab on the name step).
 - `pick` takes one of several `lines` by the number named in `pick` (a wizard's own way of saying
   the same thing): `(pick: "salt", lines: ["Hello.", "Greetings."])`.

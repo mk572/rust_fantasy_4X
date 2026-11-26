@@ -8,14 +8,14 @@ use crate::map::{Plane, Position, TerrainId};
 use crate::player::PlayerId;
 
 use crate::city::economy::Buildings;
-use crate::game::{Event, Game};
 use crate::rules::{BuildingId, RealmId, SpellId};
 use crate::wizard::magic::Retort;
+use crate::world::{Event, World};
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::player::MONSTERS;
 
-impl Game {
+impl World {
     /// Note that an override command changed the game.
     pub fn record_override(&mut self, line: &str) {
         self.override_log
@@ -35,14 +35,14 @@ impl Game {
 
     /// Remove a unit from the game.
     pub fn cheat_remove_unit(&mut self, unit: hecs::Entity) -> bool {
-        let there = self.world.contains(unit);
+        let there = self.ecs.contains(unit);
         self.remove_unit(unit, crate::hero::Fate::Released);
         there
     }
 
     /// Kill a unit as a battle would: a hero is then dead and can be raised.
     pub fn cheat_slay_unit(&mut self, unit: hecs::Entity) -> bool {
-        let there = self.world.contains(unit);
+        let there = self.ecs.contains(unit);
         self.remove_unit(unit, crate::hero::Fate::Slain);
         there
     }
@@ -54,7 +54,7 @@ impl Game {
         spell: SpellId,
         caster: PlayerId,
     ) -> bool {
-        if !self.world.contains(unit) {
+        if !self.ecs.contains(unit) {
             return false;
         }
         self.attach_enchantment(crate::rules::exec::Target::Unit(unit), spell, caster);
@@ -63,10 +63,7 @@ impl Game {
 
     /// Set a city's citizens (the whole number; the fraction is kept).
     pub fn cheat_set_citizens(&mut self, city: hecs::Entity, citizens: u32) -> bool {
-        match self
-            .world
-            .get::<&mut crate::city::economy::Population>(city)
-        {
+        match self.ecs.get::<&mut crate::city::economy::Population>(city) {
             Ok(mut p) => {
                 p.figures = citizens;
                 true
@@ -78,8 +75,8 @@ impl Game {
     /// Heal a unit completely and give it all its moves back.
     pub fn cheat_restore_unit(&mut self, unit: hecs::Entity) {
         let moves = self.units().unit_max_moves(unit);
-        let _ = self.world.insert_one(unit, crate::unit::Hurt(0));
-        let _ = self.world.insert_one(unit, crate::unit::MovesLeft(moves));
+        let _ = self.ecs.insert_one(unit, crate::unit::Hurt(0));
+        let _ = self.ecs.insert_one(unit, crate::unit::MovesLeft(moves));
     }
 
     /// Put a unit on a square, wherever it stands and whatever is there.
@@ -177,14 +174,14 @@ impl Game {
             return false;
         }
         let mut list = self
-            .world
+            .ecs
             .get::<&Buildings>(city)
             .map(|b| b.0.clone())
             .unwrap_or_default();
         if !list.contains(&building) {
             list.push(building);
         }
-        self.world.insert_one(city, Buildings(list)).is_ok()
+        self.ecs.insert_one(city, Buildings(list)).is_ok()
     }
 
     /// Teach a wizard a spell.
@@ -230,11 +227,11 @@ impl Game {
         let Some(entity) = self
             .player_index
             .get(&player)
-            .and_then(|&e| crate::wizard::entity::of_player(&self.world, e))
+            .and_then(|&e| crate::wizard::entity::of_player(&self.ecs, e))
         else {
             return false;
         };
-        let mut w = crate::wizard::sheet::WizardMut::new(&mut self.world, entity);
+        let mut w = crate::wizard::sheet::WizardMut::new(&mut self.ecs, entity);
         let (mut books, mut retorts) = (w.view().books(), w.view().retorts());
         if !change(&mut books, &mut retorts) {
             return false;
@@ -378,7 +375,7 @@ impl Game {
             return false;
         };
         if !self
-            .world
+            .ecs
             .satisfies::<&crate::feature::lair::Lair>(site)
             .unwrap_or(false)
         {
@@ -423,7 +420,7 @@ impl Game {
     pub fn cheat_reroll_hero(&mut self, kind: usize) -> Result<(), String> {
         let hero = self.units().hero_entity(kind).ok_or("no such hero")?;
         let name = self
-            .world
+            .ecs
             .get::<&crate::hero::Hero>(hero)
             .map_err(|_| "no such hero")?
             .name

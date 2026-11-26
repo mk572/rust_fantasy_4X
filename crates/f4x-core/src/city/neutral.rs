@@ -20,12 +20,12 @@ use crate::city::production::{Production, ProductionItem};
 use crate::map::terrain::TerrainClass;
 use crate::map::{Plane, Position};
 
-use crate::game::Game;
 use crate::rules::RaceId;
+use crate::world::World;
 
 // What a city's population gives it is `starting_buildings` of `rules.ron`.
 
-impl Game {
+impl World {
     /// The landmass a square is on (0 for sea); two squares are on the same land when the
     /// numbers match. Walks the whole plane, so ask for events, not for every square.
     pub fn landmass_of(&self, at: Position) -> u32 {
@@ -198,7 +198,7 @@ impl Game {
     ) -> (Option<crate::rules::UnitId>, Option<crate::rules::UnitId>) {
         let rules = &self.content.rules;
         let Ok(race) = self
-            .world
+            .ecs
             .get::<&crate::city::economy::CityRace>(city)
             .map(|r| r.0)
         else {
@@ -223,7 +223,7 @@ impl Game {
                 .get(&crate::rules::Stat::Ranged)
                 .map_or(0, |v| v.floor())
                 > 0
-                && crate::battle::game::weapon_shot_of(&def.abilities, rules)
+                && crate::battle::world::weapon_shot_of(&def.abilities, rules)
                     != Some(crate::battle::RangedKind::Short);
             if shoots {
                 ranged = Some(id);

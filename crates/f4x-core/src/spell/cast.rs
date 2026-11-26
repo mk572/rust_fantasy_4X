@@ -1,12 +1,10 @@
 //! Casting overland spells: targets, the effect host over the ECS, and lasting spells.
 //!
-//! Tests: in rules/exec/tests.rs, wizard/magic_game/tests.rs and spell/wizard/tests.rs.
+//! Tests: in rules/exec/tests.rs, wizard/magic_world/tests.rs and spell/wizard/tests.rs.
 
 use crate::rules::Ability;
 use rand::RngCore;
 
-use crate::game::rng::GameRng;
-use crate::game::{Event, Game};
 use crate::map::Position;
 use crate::player::PlayerId;
 use crate::rules::damage_type::DamageTypes;
@@ -17,6 +15,8 @@ use crate::spell::instance::SpellTarget as Placed;
 use crate::spell::target_error::TargetError;
 use crate::unit::Hurt;
 use crate::wizard::magic::MagicError;
+use crate::world::rng::GameRng;
+use crate::world::{Event, World};
 use f4x_def::rules::realm::Realm;
 
 /// Something a wizard pays mana for every turn.
@@ -38,9 +38,9 @@ pub(crate) struct UpkeepItem {
 }
 
 /// The real world, as the effect executor sees it.
-struct GameHost<'a> {
-    game: &'a mut Game,
-    /// The game's generator, lent to the host for the resolution (`Game::resolve_cast`), so the
+struct WorldHost<'a> {
+    world: &'a mut World,
+    /// The game's generator, lent to the host for the resolution (`World::resolve_cast`), so the
     /// executor and the hooks draw from one stream.
     rng: GameRng,
     /// What hooks and other changes report back to the event log.
@@ -55,7 +55,7 @@ struct GameHost<'a> {
     recall_to: Option<Position>,
 }
 
-impl GameHost<'_> {
+impl WorldHost<'_> {
     /// What a spell with the `terrain_effect` hook does to the square.
     fn terrain_effect(
         &mut self,
@@ -65,18 +65,18 @@ impl GameHost<'_> {
     ) {
         use crate::spell::terraform::TerrainEffect as T;
         let events = match effect {
-            T::RaiseVolcano => self.game.raise_volcano(owner, at, &mut self.rng),
-            T::ChangeTerrain => self.game.change_terrain_spell(at),
-            T::EnchantRoad => self.game.enchant_roads(at),
-            T::Corruption => self.game.corrupt(at),
-            T::WarpNode => self.game.warp_node(at),
-            T::Transmute => self.game.transmute(at),
+            T::RaiseVolcano => self.world.raise_volcano(owner, at, &mut self.rng),
+            T::ChangeTerrain => self.world.change_terrain_spell(at),
+            T::EnchantRoad => self.world.enchant_roads(at),
+            T::Corruption => self.world.corrupt(at),
+            T::WarpNode => self.world.warp_node(at),
+            T::Transmute => self.world.transmute(at),
             T::FloatingIsland => {
-                self.game.floating_island(owner, at);
+                self.world.floating_island(owner, at);
                 return;
             }
             T::EarthLore => {
-                self.game.earth_lore(owner, at);
+                self.world.earth_lore(owner, at);
                 return;
             }
         };
@@ -84,15 +84,15 @@ impl GameHost<'_> {
     }
 }
 
-impl EffectHost for GameHost<'_> {
+impl EffectHost for WorldHost<'_> {
     fn facts(&self, who: Target) -> Facts {
-        let g = &*self.game;
+        let w = &*self.world;
         let mut facts = Facts::default();
         if let Target::Unit(u) = who {
-            if let Some(def) = g.units().unit_def(u) {
-                facts.abilities = g.units().unit_abilities(u);
-                facts.realm = g.units().unit_realm(u);
-                facts.kind = Some(if g.units().unit_is_undead(u) {
+            if let Some(def) = w.units().unit_def(u) {
+                facts.abilities = w.units().unit_abilities(u);
+                facts.realm = w.units().unit_realm(u);
+                facts.kind = Some(if w.units().unit_is_undead(u) {
                     crate::rules::UnitKind::Summoned
                 } else {
                     def.kind
@@ -104,57 +104,57 @@ impl EffectHost for GameHost<'_> {
 
     fn position(&self, who: Target) -> Option<Position> {
         match who {
-            Target::Unit(u) | Target::UnitAt(u, _) => self.game.units().unit_position(u),
+            Target::Unit(u) | Target::UnitAt(u, _) => self.world.units().unit_position(u),
             Target::City(c) | Target::CityRealm(c, _) => {
-                self.game.world.get::<&Position>(c).ok().map(|p| *p)
+                self.world.ecs.get::<&Position>(c).ok().map(|p| *p)
             }
             Target::Tile(p) => Some(p),
             // A wizard is "at" their summoning circle.
-            Target::Player(p) => self.game.summon_point(p),
+            Target::Player(p) => self.world.summon_point(p),
             Target::Spell(i) => self
-                .game
+                .world
                 .spells()
                 .caster_player(i)
-                .and_then(|p| self.game.summon_point(p)),
+                .and_then(|p| self.world.summon_point(p)),
             Target::Hero(_) | Target::HeroAt(..) => None,
         }
     }
 
     fn owner_of(&self, who: Target) -> Option<PlayerId> {
         match who {
-            Target::Unit(u) | Target::UnitAt(u, _) => self.game.units().unit_owner(u),
-            Target::City(c) | Target::CityRealm(c, _) => self.game.economy().city_owner(c),
+            Target::Unit(u) | Target::UnitAt(u, _) => self.world.units().unit_owner(u),
+            Target::City(c) | Target::CityRealm(c, _) => self.world.economy().city_owner(c),
             Target::Player(p) => Some(p),
-            Target::Spell(i) => self.game.spells().caster_player(i),
+            Target::Spell(i) => self.world.spells().caster_player(i),
             Target::Tile(_) | Target::Hero(_) | Target::HeroAt(..) => None,
         }
     }
 
     fn units(&self) -> Vec<hecs::Entity> {
-        self.game.units().all_units()
+        self.world.units().all_units()
     }
 
     fn city_at(&self, pos: Position) -> Option<hecs::Entity> {
-        self.game.economy().city_at(pos)
+        self.world.economy().city_at(pos)
     }
 
     fn stat(&self, who: Target, stat: Stat) -> i32 {
         match who {
-            Target::Unit(u) => self.game.units().unit_stat(u, stat),
+            Target::Unit(u) => self.world.units().unit_stat(u, stat),
             _ => 0,
         }
     }
 
     fn resistance_against(&self, who: Target, realm: Option<Realm>) -> i32 {
         match who {
-            Target::Unit(u) => self.game.units().unit_resistance_against(u, realm),
+            Target::Unit(u) => self.world.units().unit_resistance_against(u, realm),
             _ => 0,
         }
     }
 
     fn protected_from(&self, who: Target, realm: Option<Realm>) -> bool {
         match who {
-            Target::Unit(u) => self.game.units().unit_protected_from(u, realm),
+            Target::Unit(u) => self.world.units().unit_protected_from(u, realm),
             _ => false,
         }
     }
@@ -162,7 +162,7 @@ impl EffectHost for GameHost<'_> {
     /// Bare modifiers and abilities from instant spells and rules go to the bearer's
     /// temporary effects (`spell/temp_effect.rs`); lasting spells use enchantments instead.
     fn add_modifier(&mut self, who: Target, modifier: Modifier) {
-        self.game.add_temp_modifier(who, modifier);
+        self.world.add_temp_modifier(who, modifier);
     }
 
     fn immune_to(&self, who: Target, types: DamageTypes) -> bool {
@@ -170,27 +170,27 @@ impl EffectHost for GameHost<'_> {
             return false;
         };
         f4x_def::rules::immunity::Immunities::of(
-            &self.game.units().unit_abilities(u),
-            &self.game.units().unit_enchantment_ids(u),
-            &self.game.content.rules,
+            &self.world.units().unit_abilities(u),
+            &self.world.units().unit_enchantment_ids(u),
+            &self.world.content.rules,
         )
         .stops(types)
     }
 
     fn grant_ability(&mut self, who: Target, ability: Ability) {
-        self.game.grant_temp_ability(who, ability);
+        self.world.grant_temp_ability(who, ability);
     }
 
     fn damage(&mut self, who: Target, amount: i32, _types: DamageTypes) -> i32 {
         let Target::Unit(u) = who else {
             return 0;
         };
-        let (left, _) = self.game.units().unit_hits(u);
+        let (left, _) = self.world.units().unit_hits(u);
         let dealt = amount.max(0).min(left as i32);
-        let hurt = self.game.world.get::<&Hurt>(u).map_or(0, |h| h.0);
-        self.game.put(u, Hurt(hurt + dealt as u32));
+        let hurt = self.world.ecs.get::<&Hurt>(u).map_or(0, |h| h.0);
+        self.world.put(u, Hurt(hurt + dealt as u32));
         if dealt as u32 >= left {
-            self.game.remove_unit(u, crate::hero::Fate::Slain);
+            self.world.remove_unit(u, crate::hero::Fate::Slain);
         }
         dealt
     }
@@ -213,37 +213,37 @@ impl EffectHost for GameHost<'_> {
             types,
             armor_piercing: traits.armor_piercing,
         };
-        let before = self.game.units().unit_hits(u).0 as i32;
+        let before = self.world.units().unit_hits(u).0 as i32;
         if self
-            .game
+            .world
             .spell_hit_overland_unit(u, strength, traits, nature, &mut self.rng)
         {
             self.slain += 1;
             return before;
         }
-        before - self.game.units().unit_hits(u).0 as i32
+        before - self.world.units().unit_hits(u).0 as i32
     }
 
     fn heal(&mut self, who: Target, amount: i32) -> i32 {
         let Target::Unit(u) = who else {
             return 0;
         };
-        let hurt = self.game.world.get::<&Hurt>(u).map_or(0, |h| h.0);
+        let hurt = self.world.ecs.get::<&Hurt>(u).map_or(0, |h| h.0);
         let healed = amount.max(0).min(hurt as i32);
-        self.game.put(u, Hurt(hurt - healed as u32));
+        self.world.put(u, Hurt(hurt - healed as u32));
         healed
     }
 
     fn summon(&mut self, owner: PlayerId, at: Position, id: UnitId, count: u8) {
         // Summoned creatures appear at the summoning circle (the one aimed at, when there are several);
         // without one, where aimed.
-        let at = if self.game.summon_circles(owner).contains(&at) {
+        let at = if self.world.summon_circles(owner).contains(&at) {
             at
         } else {
-            self.game.summon_point(owner).unwrap_or(at)
+            self.world.summon_point(owner).unwrap_or(at)
         };
         for _ in 0..count {
-            self.game.spawn_unit(owner, at, id);
+            self.world.spawn_unit(owner, at, id);
         }
     }
 
@@ -255,7 +255,7 @@ impl EffectHost for GameHost<'_> {
         // The hooks several spells share. Most are carried out by the engine wherever the
         // wizard's global spells are consulted.
         if hook == crate::item::crafting::CRAFT_ITEM {
-            let events = self.game.complete_crafting(ctx.owner);
+            let events = self.world.complete_crafting(ctx.owner);
             self.events.extend(events);
         }
         if hook == crate::spell::special::RECALL
@@ -265,7 +265,7 @@ impl EffectHost for GameHost<'_> {
         {
             if let Target::Unit(unit) = who {
                 // `resolve_cast` checked the circle just before: a failure here is a bug.
-                let sent = self.game.word_of_recall(ctx.owner, unit, self.recall_to);
+                let sent = self.world.word_of_recall(ctx.owner, unit, self.recall_to);
                 debug_assert!(
                     sent.is_ok(),
                     "Word of Recall failed after its check: {sent:?}"
@@ -274,7 +274,7 @@ impl EffectHost for GameHost<'_> {
         }
         if hook == crate::spell::special::PLANE_SHIFT {
             if let Target::Unit(unit) = who {
-                let shifted = self.game.plane_shift(ctx.owner, unit);
+                let shifted = self.world.plane_shift(ctx.owner, unit);
                 self.events.extend(shifted);
             }
         }
@@ -284,20 +284,20 @@ impl EffectHost for GameHost<'_> {
                     .iter()
                     .any(|a| a == crate::spell::special::MOVE_FORTRESS)
                 {
-                    self.game.move_fortress(ctx.owner, city)
+                    self.world.move_fortress(ctx.owner, city)
                 } else {
-                    self.game.move_summoning_circle(ctx.owner, city)
+                    self.world.move_summoning_circle(ctx.owner, city)
                 };
                 self.building_moved(result);
             }
         }
         if hook == crate::spell::special::SPELL_OF_MASTERY {
-            let events = self.game.win_by_mastery(ctx.owner);
+            let events = self.world.win_by_mastery(ctx.owner);
             self.events.extend(events);
         }
         if hook == crate::spell::special::SPELL_OF_RETURN {
             if let Target::City(city) = who {
-                let result = self.game.return_to_fortress(ctx.owner, city);
+                let result = self.world.return_to_fortress(ctx.owner, city);
                 self.building_moved(result);
             }
         }
@@ -313,7 +313,7 @@ impl EffectHost for GameHost<'_> {
         }
         if hook == crate::spell::hero::SUMMON_HERO {
             if let Source::Spell(spell) = ctx.source {
-                if let Some(events) = self.game.hero_hook(spell, ctx.owner, who, &mut self.rng) {
+                if let Some(events) = self.world.hero_hook(spell, ctx.owner, who, &mut self.rng) {
                     self.events.extend(events);
                 }
             }
@@ -337,7 +337,7 @@ impl EffectHost for GameHost<'_> {
         }
         if hook == crate::hook::WALL && args.iter().any(|a| a == "stone") {
             if let Target::City(city) = who {
-                let events = self.game.wall_of_stone(city);
+                let events = self.world.wall_of_stone(city);
                 self.events.extend(events);
             }
         }
@@ -353,14 +353,14 @@ impl EffectHost for GameHost<'_> {
     }
 }
 
-impl GameHost<'_> {
+impl WorldHost<'_> {
     /// Other wizards' enchantments on the target are removed with chance
     /// `strength / (strength + difficulty)` (see `spell/dispel.rs`).
     fn dispel(&mut self, who: Target, strength: u32, by: PlayerId) -> u32 {
-        let strength = (strength + self.boost) * self.game.dispel_power(by);
+        let strength = (strength + self.boost) * self.world.dispel_power(by);
         let mut gone = Vec::new();
         let removed = self
-            .game
+            .world
             .dispel_target(who, strength, by, &mut self.rng, &mut gone);
         self.events.extend(gone);
         removed
@@ -384,17 +384,17 @@ impl GameHost<'_> {
             match CityStrike::named(name) {
                 Some(CityStrike::Earthquake) => {
                     // `who` was checked to be a city when the spell was chosen.
-                    self.game
+                    self.world
                         .earthquake(city, &mut self.rng)
                         .into_iter()
                         .collect()
                 }
                 Some(CityStrike::CallTheVoid) => {
                     let (units_lost, buildings_lost, population_lost) =
-                        self.game.call_the_void(city, &mut self.rng);
+                        self.world.call_the_void(city, &mut self.rng);
                     vec![Event::WorldSpellStruck {
                         spell,
-                        victim: self.game.economy().city_owner(city),
+                        victim: self.world.economy().city_owner(city),
                         units_lost,
                         buildings_lost,
                         population_lost,
@@ -404,8 +404,8 @@ impl GameHost<'_> {
             }
         } else {
             let count = match WorldKill::named(name) {
-                Some(WorldKill::GreatUnsummoning) => self.game.great_unsummoning(&mut self.rng),
-                Some(WorldKill::DeathWish) => self.game.death_wish(player, &mut self.rng),
+                Some(WorldKill::GreatUnsummoning) => self.world.great_unsummoning(&mut self.rng),
+                Some(WorldKill::DeathWish) => self.world.death_wish(player, &mut self.rng),
                 None => return,
             };
             vec![Event::UnitsSlain {
@@ -421,7 +421,7 @@ impl GameHost<'_> {
     /// at. Counter Magic is a battle spell and is carried out there.
     fn counter_effect(&mut self, spell: SpellId, who: Target, by: PlayerId) {
         use crate::spell::dispel::{global_attack_events, CounterEffect as C};
-        let def = self.game.content.rules.spells.get(spell);
+        let def = self.world.content.rules.spells.get(spell);
         let Some((effect, number)) = C::of(def) else {
             return;
         };
@@ -439,15 +439,19 @@ impl GameHost<'_> {
                 let Target::Spell(instance) = who else {
                     return;
                 };
-                let spells = self.game.spells();
+                let spells = self.world.spells();
                 let (Some(victim), Some(attacked)) =
                     (spells.caster_player(instance), spells.def(instance))
                 else {
                     return;
                 };
                 // Disjunction (not Spell Binding) is a Runemaster's dispel, twice as strong.
-                let power = if steal { 1 } else { self.game.dispel_power(by) };
-                let result = self.game.attack_global(
+                let power = if steal {
+                    1
+                } else {
+                    self.world.dispel_power(by)
+                };
+                let result = self.world.attack_global(
                     by,
                     instance,
                     cost * number.max(1) * power,
@@ -474,24 +478,24 @@ impl GameHost<'_> {
             return;
         };
         match effect {
-            U::NaturesCures => self.game.natures_cures(unit),
+            U::NaturesCures => self.world.natures_cures(unit),
             U::BlackWind => {
-                if self.game.black_wind_unit(unit, &mut self.rng) {
+                if self.world.black_wind_unit(unit, &mut self.rng) {
                     self.slain += 1;
                 }
             }
             U::Lycanthropy => {
-                if let Some((from, to)) = self.game.lycanthropy(unit) {
+                if let Some((from, to)) = self.world.lycanthropy(unit) {
                     self.events.push(Event::UnitTransformed { unit, from, to });
                 }
             }
             U::ChaosChannels => {
-                if let Some(mutation) = self.game.mutate(unit, &mut self.rng) {
+                if let Some(mutation) = self.world.mutate(unit, &mut self.rng) {
                     self.events.push(Event::UnitMutated { unit, mutation });
                 }
             }
             U::Stasis => {
-                self.game.put_in_stasis(unit, player);
+                self.world.put_in_stasis(unit, player);
             }
             _ => {}
         }
@@ -508,7 +512,7 @@ impl GameHost<'_> {
         use crate::spell::wizard::WizardEffect as W;
         let events = match effect {
             W::DrainPower => {
-                let amount = self.game.drain_power(victim, &mut self.rng);
+                let amount = self.world.drain_power(victim, &mut self.rng);
                 vec![Event::PowerDrained {
                     player,
                     victim,
@@ -516,14 +520,14 @@ impl GameHost<'_> {
                 }]
             }
             W::CruelUnminding => {
-                let amount = self.game.cruel_unminding(victim, &mut self.rng);
+                let amount = self.world.cruel_unminding(victim, &mut self.rng);
                 vec![Event::SkillDestroyed {
                     player,
                     victim,
                     amount,
                 }]
             }
-            W::SpellBlast => match self.game.spell_blast(player, victim) {
+            W::SpellBlast => match self.world.spell_blast(player, victim) {
                 Some((spell, mana)) => vec![Event::SpellBlasted {
                     player,
                     victim,
@@ -546,12 +550,12 @@ impl GameHost<'_> {
             Ok(events) => self.events.extend(events),
             Err(e) => self
                 .events
-                .push(Event::Rejected(crate::game::Rejection::Fortress(e))),
+                .push(Event::Rejected(crate::world::Rejection::Fortress(e))),
         }
     }
 }
 
-impl Game {
+impl World {
     /// Does the spell run the named hook?
     pub fn spell_has_hook(&self, spell: SpellId, hook: &str) -> bool {
         self.content.rules.spells.get(spell).has_hook(hook)
@@ -671,7 +675,7 @@ impl Game {
             if self.economy().city_owner(c) != Some(player) {
                 return Err(MagicError::Target(TargetError::NotYourCity));
             }
-            let here = self.world.get::<&Position>(c).ok().map(|x| *x);
+            let here = self.ecs.get::<&Position>(c).ok().map(|x| *x);
             let refused = match building {
                 None /* spell_of_return */ => {
                     (!w.is_banished()).then_some(TargetError::NotBanished)
@@ -958,7 +962,7 @@ impl Game {
         extra: i32,
     ) -> Vec<Event> {
         // A crafting spell is resisted at the mana its item costs (patch 1.50, note 270).
-        let crafted = crate::item::entity::crafting_of(&self.world, player)
+        let crafted = crate::item::entity::crafting_of(&self.ecs, player)
             .filter(|_| self.spell_has_hook(spell, crate::item::crafting::CRAFT_ITEM))
             .map(|(_, item)| self.crafting_price(player, spell, item.cost).max(0) as u32);
         // A spell that takes extra mana is resisted at its cost and the extra, as a counter in a
@@ -1057,8 +1061,8 @@ impl Game {
         // The host needs the game and the generator at once, so the generator is lent to it for
         // the resolution (`GameRng::lent` stands in the game meanwhile) and taken back after.
         let rng = std::mem::replace(&mut self.rng, GameRng::lent());
-        let mut host = GameHost {
-            game: self,
+        let mut host = WorldHost {
+            world: self,
             rng,
             events: Vec::new(),
             slain: 0,
@@ -1067,7 +1071,7 @@ impl Game {
             recall_to,
         };
         let outcomes = run_rules(&def.effects, Trigger::OnCast, &ctx, &mut host);
-        let GameHost {
+        let WorldHost {
             rng,
             events: hook_events,
             slain,
@@ -1213,7 +1217,7 @@ impl Game {
                 let lost = self.units().unit_kind_id(u).map(|unit| Event::UnitLost {
                     player,
                     unit,
-                    cause: crate::game::LossCause::Mana,
+                    cause: crate::world::LossCause::Mana,
                 });
                 self.remove_unit(u, crate::hero::Fate::Released);
                 lost.into_iter()

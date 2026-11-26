@@ -15,9 +15,9 @@ mod sea_raid;
 
 use serde::{Deserialize, Serialize};
 
-use crate::game::{Event, Game};
 use crate::map::terrain::TerrainClass;
 use crate::map::{Plane, Position};
+use crate::world::{Event, World};
 
 /// The clocks of the two threats. Each grows by a roll of 1 to the difficulty plus one every turn
 /// and starts its threat when it reaches its limit (30 for the raiders, 50 less 5 for each
@@ -28,7 +28,7 @@ pub struct Threat {
     pub monster_clock: u32,
 }
 
-impl Game {
+impl World {
     /// Once a turn, at the turn change.
     pub(crate) fn process_threats(&mut self) -> Vec<Event> {
         let mut events = Vec::new();
@@ -55,7 +55,7 @@ impl Game {
         }
     }
 
-    /// The landmass a square is on, from [`Game::all_landmasses`]; 0 for sea.
+    /// The landmass a square is on, from [`World::all_landmasses`]; 0 for sea.
     fn landmass_at(&self, lands: &[Vec<u32>; 2], at: Position) -> u32 {
         let Some(map) = self.map.as_ref() else {
             return 0;

@@ -437,10 +437,10 @@ mod tests {
     use f4x_def::half_int::HalfInt;
 
     /// The west island, explored by its wizard.
-    fn explored_island() -> f4x_core::game::Game {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.explore(P0, at(7, 6), HalfInt::from_int(4));
-        g
+    fn explored_island() -> f4x_core::world::World {
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.explore(P0, at(7, 6), HalfInt::from_int(4));
+        w
     }
 
     /// The AI keeps the game's least distance between cities, not a number of its own.
@@ -452,9 +452,9 @@ mod tests {
             *MIN_CITY_DISTANCE_RANGE.start(),
             *MIN_CITY_DISTANCE_RANGE.end(),
         ] {
-            let mut g = explored_island();
-            g.scenario_change_settings(|s| s.rules.min_city_distance = least);
-            let view = PlayerView::new(&g, P0);
+            let mut w = explored_island();
+            w.scenario_change_settings(|s| s.rules.min_city_distance = least);
+            let view = PlayerView::new(&w, P0);
             let list = scan(&view);
             let capital = at(COAST_CITY.0, COAST_CITY.1);
             for (i, a) in list.iter().enumerate() {
@@ -479,12 +479,12 @@ mod tests {
 
     #[test]
     fn the_list_is_ranked_and_keeps_every_site_apart_from_the_others_and_from_cities() {
-        let g = explored_island();
-        let view = PlayerView::new(&g, P0);
+        let w = explored_island();
+        let view = PlayerView::new(&w, P0);
         let list = scan(&view);
         assert!(!list.is_empty(), "the explored island has room");
         assert!(
-            list.windows(2).all(|w| w[0].score >= w[1].score),
+            list.windows(2).all(|pair| pair[0].score >= pair[1].score),
             "best first: {list:?}"
         );
         let capital = at(COAST_CITY.0, COAST_CITY.1);
@@ -505,20 +505,20 @@ mod tests {
 
     #[test]
     fn sites_on_the_home_island_are_reached_by_land() {
-        let g = explored_island();
-        let list = scan(&PlayerView::new(&g, P0));
+        let w = explored_island();
+        let list = scan(&PlayerView::new(&w, P0));
         assert!(list.iter().all(|s| s.reach == Reach::Land), "{list:?}");
     }
 
     #[test]
     fn sites_over_the_sea_rank_below_every_site_on_the_home_island() {
-        let mut g = explored_island();
+        let mut w = explored_island();
         // Explore the water to the east island, and the island: sites there are over the sea.
         for x in [16, 22, 26, 30] {
-            g.explore(P0, at(x, 6), HalfInt::from_int(3));
+            w.explore(P0, at(x, 6), HalfInt::from_int(3));
         }
-        g.explore(P0, at(31, 6), HalfInt::from_int(6));
-        let view = PlayerView::new(&g, P0);
+        w.explore(P0, at(31, 6), HalfInt::from_int(6));
+        let view = PlayerView::new(&w, P0);
         let list = scan(&view);
         let over: Vec<&Site> = list.iter().filter(|s| s.reach == Reach::Sea).collect();
         let home: Vec<&Site> = list.iter().filter(|s| s.reach == Reach::Land).collect();
@@ -534,15 +534,15 @@ mod tests {
     /// left for a settler that can walk, instead of an order that fails every turn.
     #[test]
     fn a_land_site_is_not_given_to_a_settler_that_cannot_walk_to_it() {
-        let mut g = explored_island();
+        let mut w = explored_island();
         let units = spawn(
-            &mut g,
+            &mut w,
             P0,
             at(COAST_CITY.0, COAST_CITY.1),
             111, /* high_men_settlers */
             1,
         );
-        let view = PlayerView::new(&g, P0);
+        let view = PlayerView::new(&w, P0);
         let list = scan(&view);
         assert!(list.iter().any(|s| s.reach == Reach::Land), "{list:?}");
         let land: Vec<Site> = list
@@ -559,8 +559,8 @@ mod tests {
 
     #[test]
     fn the_nearest_settler_gets_the_best_site_and_the_next_one_the_next_site() {
-        let g = explored_island();
-        let view = PlayerView::new(&g, P0);
+        let w = explored_island();
+        let view = PlayerView::new(&w, P0);
         let list = scan(&view);
         assert!(list.len() >= 2, "{list:?}");
         // Two settlers: one at the best site, one far from it (at the other end of the island).
@@ -573,15 +573,15 @@ mod tests {
         let Some(far) = far else {
             panic!("a second site: {list:?}");
         };
-        let mut g = explored_island();
+        let mut w = explored_island();
         let units = spawn(
-            &mut g,
+            &mut w,
             P0,
             at(COAST_CITY.0, COAST_CITY.1),
             111, /* high_men_settlers */
             2,
         );
-        let view = PlayerView::new(&g, P0);
+        let view = PlayerView::new(&w, P0);
         let reach_all: f4x_core::fast::FastSet<Position> = list.iter().map(|s| s.at).collect();
         let free = vec![
             Free {
@@ -608,15 +608,15 @@ mod tests {
 
     #[test]
     fn a_site_a_settler_already_holds_is_not_given_again() {
-        let mut g = explored_island();
+        let mut w = explored_island();
         let units = spawn(
-            &mut g,
+            &mut w,
             P0,
             at(COAST_CITY.0, COAST_CITY.1),
             111, /* high_men_settlers */
             1,
         );
-        let view = PlayerView::new(&g, P0);
+        let view = PlayerView::new(&w, P0);
         let list = scan(&view);
         let free = vec![Free {
             unit: units[0],
@@ -632,34 +632,34 @@ mod tests {
 
     #[test]
     fn an_enemy_on_the_site_that_the_wizard_sees_blocks_it_until_the_enemy_is_gone() {
-        let mut g = explored_island();
-        let best = scan(&PlayerView::new(&g, P0))[0].at;
+        let mut w = explored_island();
+        let best = scan(&PlayerView::new(&w, P0))[0].at;
         // A rival's soldier on the best site, seen by the wizard (the squares are in sight of a unit).
-        let _watch = spawn(&mut g, P0, best, 111 /* high_men_settlers */, 1);
-        let enemy = spawn(&mut g, P1, best, 111 /* high_men_settlers */, 1);
-        g.declare_war(P0, P1);
-        let view = PlayerView::new(&g, P0);
+        let _watch = spawn(&mut w, P0, best, 111 /* high_men_settlers */, 1);
+        let enemy = spawn(&mut w, P1, best, 111 /* high_men_settlers */, 1);
+        w.declare_war(P0, P1);
+        let view = PlayerView::new(&w, P0);
         assert!(
             enemy_near(&view, best),
             "the enemy beside the wizard's own unit is seen"
         );
-        g.cheat_remove_unit(enemy[0]);
+        w.cheat_remove_unit(enemy[0]);
         assert!(
-            !enemy_near(&PlayerView::new(&g, P0), best),
+            !enemy_near(&PlayerView::new(&w, P0), best),
             "gone, so the site is open again"
         );
     }
 
     #[test]
     fn a_full_island_offers_only_sites_over_the_sea_and_a_plane_without_a_city_none() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.explore(P0, at(COAST_CITY.0, COAST_CITY.1), HalfInt::from_int(12));
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.explore(P0, at(COAST_CITY.0, COAST_CITY.1), HalfInt::from_int(12));
         for x in [16, 22, 26, 30] {
-            g.explore(P0, at(x, 6), HalfInt::from_int(3));
+            w.explore(P0, at(x, 6), HalfInt::from_int(3));
         }
-        g.explore(P0, at(ENEMY_CITY.0 + 4, ENEMY_CITY.1), HalfInt::from_int(3));
-        crate::testworld::fill_west(&mut g);
-        let list = scan(&PlayerView::new(&g, P0));
+        w.explore(P0, at(ENEMY_CITY.0 + 4, ENEMY_CITY.1), HalfInt::from_int(3));
+        crate::testworld::fill_west(&mut w);
+        let list = scan(&PlayerView::new(&w, P0));
         assert!(!list.is_empty(), "the east island has room");
         assert!(
             list.iter().all(|s| s.reach == Reach::Sea && s.at.x >= 28),
@@ -672,36 +672,36 @@ mod tests {
     /// a settler that swims (a lizardman) or has flight from a spell crosses the water itself.
     #[test]
     fn only_a_walking_settler_is_flagged_as_needing_a_ship_for_a_site_over_the_sea() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.explore(P0, at(COAST_CITY.0, COAST_CITY.1), HalfInt::from_int(12));
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.explore(P0, at(COAST_CITY.0, COAST_CITY.1), HalfInt::from_int(12));
         for x in [16, 22, 26, 30] {
-            g.explore(P0, at(x, 6), HalfInt::from_int(3));
+            w.explore(P0, at(x, 6), HalfInt::from_int(3));
         }
-        g.explore(P0, at(ENEMY_CITY.0 + 4, ENEMY_CITY.1), HalfInt::from_int(3));
-        crate::testworld::fill_west(&mut g);
+        w.explore(P0, at(ENEMY_CITY.0 + 4, ENEMY_CITY.1), HalfInt::from_int(3));
+        crate::testworld::fill_west(&mut w);
         let walker = spawn(
-            &mut g,
+            &mut w,
             P0,
             at(COAST_CITY.0, COAST_CITY.1),
             111, /* high_men_settlers */
             1,
         )[0];
         let swimmer = spawn(
-            &mut g,
+            &mut w,
             P0,
             at(COAST_CITY.0, COAST_CITY.1),
             125, /* lizardman_settlers */
             1,
         )[0];
         let flier = spawn(
-            &mut g,
+            &mut w,
             P0,
             at(COAST_CITY.0, COAST_CITY.1),
             111, /* high_men_settlers */
             1,
         )[0];
-        g.scenario_enchant_unit(flier, f4x_def::rules::SpellId::new(56 /* flight */), P0);
-        let view = PlayerView::new(&g, P0);
+        w.scenario_enchant_unit(flier, f4x_def::rules::SpellId::new(56 /* flight */), P0);
+        let view = PlayerView::new(&w, P0);
         let list = scan(&view);
         assert!(list.iter().all(|s| s.reach == Reach::Sea), "{list:?}");
         let free = |u| {
@@ -730,16 +730,16 @@ mod tests {
     #[test]
     fn land_not_seen_from_any_water_the_wizard_has_explored_is_no_site() {
         // Nothing but the west island explored: the east island has no site on the list.
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.explore(P0, at(7, 6), HalfInt::from_int(4));
-        crate::testworld::fill_west(&mut g);
-        let list = scan(&PlayerView::new(&g, P0));
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.explore(P0, at(7, 6), HalfInt::from_int(4));
+        crate::testworld::fill_west(&mut w);
+        let list = scan(&PlayerView::new(&w, P0));
         assert!(list.is_empty(), "{list:?}");
     }
 
     /// The weights the tests read: the shipped ones.
-    fn weights(g: &f4x_core::game::Game) -> f4x_def::rules::ai_site::SiteRules {
-        g.content().rules.ai_sites.clone()
+    fn weights(w: &f4x_core::world::World) -> f4x_def::rules::ai_site::SiteRules {
+        w.content().rules.ai_sites.clone()
     }
 
     const SITE: (u32, u32) = (6, 6);
@@ -758,15 +758,15 @@ mod tests {
 
     #[test]
     fn a_site_next_to_an_own_city_beats_one_further_out() {
-        let g = explored_island();
-        let (view, w) = (PlayerView::new(&g, P0), weights(&g));
+        let w = explored_island();
+        let (view, knobs) = (PlayerView::new(&w, P0), weights(&w));
         let here = at(SITE.0, SITE.1);
         let city = at(COAST_CITY.0, COAST_CITY.1);
         let alone = score(&view, here, Reach::Land, &[], &[], &[]);
         let near = score(&view, here, Reach::Land, &[city], &[], &[]);
         let d = view.distance(city, here).expect("one plane") as f32;
         assert!(near > alone, "{near} {alone}");
-        assert!((near - alone - (w.near_own - d * w.near_own_step).max(0.0)).abs() < 1e-4);
+        assert!((near - alone - (knobs.near_own - d * knobs.near_own_step).max(0.0)).abs() < 1e-4);
         // One square further from the city gives a step less.
         let farther = at(SITE.0 - 1, SITE.1);
         let gain = |p: Position| {
@@ -778,8 +778,8 @@ mod tests {
 
     #[test]
     fn squares_another_city_works_too_count_for_their_share() {
-        let g = explored_island();
-        let (view, w) = (PlayerView::new(&g, P0), weights(&g));
+        let w = explored_island();
+        let (view, knobs) = (PlayerView::new(&w, P0), weights(&w));
         let here = at(SITE.0, SITE.1);
         let city = at(COAST_CITY.0, COAST_CITY.1);
         let free = score(&view, here, Reach::Land, &[], &[], &[]);
@@ -787,34 +787,34 @@ mod tests {
         assert!(shared < free, "{shared} {free}");
         // The squares within two of the city (here the one square the two areas have in common
         // at most) lose the rest of their value: never more than the land's whole value.
-        assert!(free - shared <= free * (1.0 - w.shared_share) + 1e-4);
+        assert!(free - shared <= free * (1.0 - knobs.shared_share) + 1e-4);
     }
 
     #[test]
     fn a_site_over_the_sea_costs_the_sea_weight() {
-        let g = explored_island();
-        let (view, w) = (PlayerView::new(&g, P0), weights(&g));
+        let w = explored_island();
+        let (view, knobs) = (PlayerView::new(&w, P0), weights(&w));
         let here = at(SITE.0, SITE.1);
         let land = score(&view, here, Reach::Land, &[], &[], &[]);
         let sea = score(&view, here, Reach::Sea, &[], &[], &[]);
-        assert!((land - sea - w.sea_cost).abs() < 1e-4, "{land} {sea}");
+        assert!((land - sea - knobs.sea_cost).abs() < 1e-4, "{land} {sea}");
     }
 
     #[test]
     fn a_rivals_city_lowers_a_site_and_one_at_war_lowers_it_more() {
-        let g = explored_island();
-        let (view, w) = (PlayerView::new(&g, P0), weights(&g));
+        let w = explored_island();
+        let (view, knobs) = (PlayerView::new(&w, P0), weights(&w));
         let here = at(SITE.0, SITE.1);
         let rival = at(SITE.0 + 2, SITE.1);
         let none = score(&view, here, Reach::Land, &[], &[], &[]);
         let peace = score(&view, here, Reach::Land, &[], &[(rival, false)], &[]);
         let war = score(&view, here, Reach::Land, &[], &[(rival, true)], &[]);
-        let nearer = (w.enemy_range - 2) as f32;
-        assert!((none - peace - nearer * w.enemy_peace).abs() < 1e-4);
-        assert!((none - war - nearer * w.enemy_war).abs() < 1e-4);
+        let nearer = (knobs.enemy_range - 2) as f32;
+        assert!((none - peace - nearer * knobs.enemy_peace).abs() < 1e-4);
+        assert!((none - war - nearer * knobs.enemy_war).abs() < 1e-4);
         assert!(war < peace);
         // Out of range, nothing.
-        let far = at(SITE.0 + w.enemy_range, SITE.1);
+        let far = at(SITE.0 + knobs.enemy_range, SITE.1);
         assert_eq!(
             score(&view, here, Reach::Land, &[], &[(far, true)], &[]),
             none
@@ -823,15 +823,16 @@ mod tests {
 
     #[test]
     fn the_land_values_follow_the_terrain_of_the_rules() {
-        let g = explored_island();
-        let w = weights(&g);
-        for (class, value) in &w.land_values {
-            assert_eq!(w.land_value(Some(*class)), *value);
+        let w = explored_island();
+        let knobs = weights(&w);
+        for (class, value) in &knobs.land_values {
+            assert_eq!(knobs.land_value(Some(*class)), *value);
         }
-        assert_eq!(w.land_value(None), 0.0);
+        assert_eq!(knobs.land_value(None), 0.0);
         // Grass beats desert: a city wants food.
         assert!(
-            w.land_value(Some(TerrainClass::Grassland)) > w.land_value(Some(TerrainClass::Desert))
+            knobs.land_value(Some(TerrainClass::Grassland))
+                > knobs.land_value(Some(TerrainClass::Desert))
         );
     }
 }

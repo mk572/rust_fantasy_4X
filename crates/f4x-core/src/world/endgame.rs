@@ -7,8 +7,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::game::{Event, Game};
 use crate::player::PlayerId;
+use crate::world::{Event, World};
 
 /// The neutral player and monsters are not wizards.
 
@@ -87,7 +87,7 @@ pub fn scale_for_difficulty(score: i32, level: u8) -> i32 {
     }
 }
 
-impl Game {
+impl World {
     /// Wizards that have not been defeated.
     pub fn living_wizards(&self) -> Vec<PlayerId> {
         self.player_ids()
@@ -129,21 +129,23 @@ impl Game {
             .iter()
             .filter(|(_, c, _)| c.owner == player)
             .map(|(e, ..)| {
-                self.world
+                self.ecs
                     .get::<&crate::city::economy::Population>(*e)
                     .map_or(0, |pop| pop.figures)
             })
             .sum();
         let conquests = self.banished_wizards(player).len();
-        let time = if self.wizard(player).is_some_and(|w| w.fortress().is_some())
-            && mastery_by.is_none_or(|w| w == player)
+        let time = if self
+            .wizard(player)
+            .is_some_and(|wizard| wizard.fortress().is_some())
+            && mastery_by.is_none_or(|id| id == player)
         {
             2000 - self.turn as i32 * 2
         } else {
             0
         };
         Score {
-            spells: self.wizard(player).map_or(0, |w| w.known().len()) as i32,
+            spells: self.wizard(player).map_or(0, |wizard| wizard.known().len()) as i32,
             townsfolk: (townsfolk / 2) as i32,
             people: townsfolk as i32,
             conquests: conquests as i32 * 50,
@@ -240,7 +242,7 @@ impl Game {
 
     /// Clear away a defeated wizard's holdings: their heroes, creatures and remaining
     /// units go, their enchantments come off every city and unit, their spells stop, their
-    /// nodes are freed, and (the conqueror's loot is `Game::take_loot`, taken in `defeat`).
+    /// nodes are freed, and (the conqueror's loot is `World::take_loot`, taken in `defeat`).
     pub(crate) fn aftermath(&mut self, loser: PlayerId) {
         // A defeated wizard has no city left, so none of their units is garrisoned: they are all
         // dismissed. A hero that served them is free again, with its experience, for the others to
@@ -251,10 +253,7 @@ impl Game {
         for node in self.economy().nodes() {
             if node.owner == Some(loser) {
                 self.strip::<crate::player::Owner>(node.entity);
-                if let Ok(mut n) = self
-                    .world
-                    .get::<&mut crate::feature::node::Node>(node.entity)
-                {
+                if let Ok(mut n) = self.ecs.get::<&mut crate::feature::node::Node>(node.entity) {
                     n.guardian = false;
                 }
             }

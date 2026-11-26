@@ -1,14 +1,12 @@
 //! Getting heroes into the army: hiring with gold, and the four spells that bring a
 //! hero in: Summon Hero, Summon Champion, Incarnation and Resurrection. A hero always appears at
 //! the wizard's summoning circle. The hero types and the entities are in `hero/kind.rs` and
-//! `hero/game.rs`.
+//! `hero/world.rs`.
 //!
 //! Resurrection needs the wizard to choose which dead hero returns: the hero is the spell's
 //! target (`Target::Hero`), given with the cast when it takes effect at once, or when the cost
 //! has been paid over turns (`Command::ResolveCast`), as for any spell that wants a target.
 
-use crate::game::rng::GameRng;
-use crate::game::{Event, Game};
 use crate::hero::kind::{self, Class, Standing, HEROES};
 use crate::hero::{HeroError, HeroState};
 use crate::map::Position;
@@ -16,6 +14,8 @@ use crate::player::offer::Offer;
 use crate::player::PlayerId;
 use crate::rules::SpellId;
 use crate::unit::UnitView;
+use crate::world::rng::GameRng;
+use crate::world::{Event, World};
 use f4x_def::half_int::HalfInt;
 
 /// The hook of the spells that bring a free hero in: Summon Hero, Summon Champion, Incarnation.
@@ -81,8 +81,7 @@ impl UnitView<'_> {
     /// circle, or nobody to bring (Incarnation: Torin is already serving or
     /// gone). `Resurrection` is checked against the hero chosen, not here.
     pub fn hero_spell_blocked(&self, player: PlayerId, spell: SpellId) -> Option<HeroError> {
-        if crate::wizard::entity::find(self.world, player)
-            .is_none_or(|w| w.summon_point().is_none())
+        if crate::wizard::entity::find(self.ecs, player).is_none_or(|w| w.summon_point().is_none())
         {
             return Some(HeroError::NoCircle);
         }
@@ -108,7 +107,7 @@ impl UnitView<'_> {
     }
 }
 
-impl Game {
+impl World {
     /// Hire the free hero `kind` for gold: it joins at the summoning circle.
     pub fn hire_hero(&mut self, player: PlayerId, kind: usize) -> Result<hecs::Entity, HeroError> {
         self.hire_hero_at(player, kind, None)

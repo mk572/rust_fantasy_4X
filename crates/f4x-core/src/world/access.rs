@@ -1,10 +1,10 @@
 //! What the other crates (the client, the console, the AI, the learning code, the tools) may ask
 //! of the game and set up in it, in one place.
 //!
-//! `Game`'s state (`world`, `map`, `fog`, `content`, `players`) is private to the core, so
+//! `World`'s state (`ecs`, `map`, `fog`, `content`, `player_index`) is private to the core, so
 //! that its shape can change without the callers noticing. Outside the core a game
 //! is *read* through these queries and the many `unit_*`, `city_*` and `player` ones next to
-//! them, *played* through [`Game::apply`], and *set up by hand* (a test, a scenario, a tool)
+//! them, *played* through [`World::apply`], and *set up by hand* (a test, a scenario, a tool)
 //! through the setters at the end, which the rules never use.
 //!
 //! Tests: below.
@@ -15,11 +15,11 @@ use crate::player::PlayerId;
 use f4x_def::content::Content;
 use f4x_def::half_int::HalfInt;
 
-use crate::game::Game;
 use crate::rules::{BuildingId, RaceId, SpellId};
 use crate::unit::{Experience, Hurt, Order};
+use crate::world::World;
 
-impl Game {
+impl World {
     // ---- reading -----------------------------------------------------------------
 
     /// The definitions of the game (public rules data: units, spells, terrain...).
@@ -56,7 +56,7 @@ impl Game {
 
     /// A city's name.
     pub fn city_name(&self, city: hecs::Entity) -> Option<String> {
-        self.world
+        self.ecs
             .get::<&crate::city::City>(city)
             .map(|c| c.name.clone())
             .ok()
@@ -64,13 +64,13 @@ impl Game {
 
     /// The race of a city's citizens.
     pub fn city_race(&self, city: hecs::Entity) -> Option<RaceId> {
-        self.world.get::<&CityRace>(city).map(|r| r.0).ok()
+        self.ecs.get::<&CityRace>(city).map(|r| r.0).ok()
     }
 
     /// A city's people: whole citizens and tens of people toward the next (zero citizens is an
     /// outpost).
     pub fn city_population(&self, city: hecs::Entity) -> Population {
-        self.world
+        self.ecs
             .get::<&Population>(city)
             .map(|p| *p)
             .unwrap_or_default()
@@ -78,24 +78,24 @@ impl Game {
 
     /// Has the city just been taken, so that its new owner may still raze it?
     pub fn city_conquered(&self, city: hecs::Entity) -> bool {
-        self.world
+        self.ecs
             .get::<&crate::city::conquest::Conquered>(city)
             .is_ok()
     }
 
     /// How many of a city's citizens farm.
     pub fn city_farmers(&self, city: hecs::Entity) -> u32 {
-        self.world.get::<&Farmers>(city).map_or(0, |f| f.0)
+        self.ecs.get::<&Farmers>(city).map_or(0, |f| f.0)
     }
 
     /// Where a city stands.
     pub fn city_position(&self, city: hecs::Entity) -> Option<Position> {
-        self.world.get::<&Position>(city).map(|p| *p).ok()
+        self.ecs.get::<&Position>(city).map(|p| *p).ok()
     }
 
     /// What is built in a city, in build order (replaced buildings included).
     pub fn city_buildings(&self, city: hecs::Entity) -> Vec<BuildingId> {
-        self.world
+        self.ecs
             .get::<&Buildings>(city)
             .map(|b| b.0.clone())
             .unwrap_or_default()
@@ -103,19 +103,19 @@ impl Game {
 
     /// Has the unit a standing order (a path it is walking)?
     pub fn unit_has_order(&self, unit: hecs::Entity) -> bool {
-        self.world.get::<&Order>(unit).is_ok()
+        self.ecs.get::<&Order>(unit).is_ok()
     }
 
     /// The square the unit's standing order walks to: the end of its path.
     pub fn unit_destination(&self, unit: hecs::Entity) -> Option<crate::map::Position> {
-        match &*self.world.get::<&Order>(unit).ok()? {
+        match &*self.ecs.get::<&Order>(unit).ok()? {
             Order::GoTo(path) => path.last().copied(),
         }
     }
 
     /// Is the unit (an engineer) building a road?
     pub fn unit_building_road(&self, unit: hecs::Entity) -> bool {
-        self.world.get::<&crate::map::road::RoadWork>(unit).is_ok()
+        self.ecs.get::<&crate::map::road::RoadWork>(unit).is_ok()
     }
 
     /// Is the unit waiting for orders: moves left, and not on standby, walking a path or
@@ -123,8 +123,8 @@ impl Game {
     pub fn unit_is_idle(&self, unit: hecs::Entity) -> bool {
         self.units().unit_moves_left(unit) > 0
             && self.units().unit_standby(unit).is_none()
-            && self.world.get::<&Order>(unit).is_err()
-            && self.world.get::<&crate::map::road::RoadWork>(unit).is_err()
+            && self.ecs.get::<&Order>(unit).is_err()
+            && self.ecs.get::<&crate::map::road::RoadWork>(unit).is_err()
     }
 
     // ---- for tests and tools --------------------------------------------------------
@@ -134,19 +134,19 @@ impl Game {
     /// and the `unit_*` and `city_*` ones.
     #[doc(hidden)]
     pub fn component<T: hecs::Component>(&self, entity: hecs::Entity) -> Option<hecs::Ref<'_, T>> {
-        self.world.get::<&T>(entity).ok()
+        self.ecs.get::<&T>(entity).ok()
     }
 
     /// Does the entity (a unit or a city) still exist?
     #[doc(hidden)]
     pub fn entity_exists(&self, entity: hecs::Entity) -> bool {
-        self.world.contains(entity)
+        self.ecs.contains(entity)
     }
 
     /// How many entities (units and cities) there are.
     #[doc(hidden)]
     pub fn entity_count(&self) -> usize {
-        self.world.len() as usize
+        self.ecs.len() as usize
     }
 
     // ---- setting up by hand ------------------------------------------------------
@@ -200,20 +200,20 @@ impl Game {
     /// settings applied to the content, and the map's features spawned. No players yet.
     pub fn begin_world(
         seed: u64,
-        settings: crate::game::setting::GameSettings,
+        settings: crate::world::setting::GameSettings,
         content: &Content,
         names: f4x_def::names::NameBundle,
         map: Map,
         placements: Vec<crate::feature::entity::Placement>,
-    ) -> Game {
-        let mut game = Game::new(seed);
-        game.set_content(std::sync::Arc::new(content.clone()));
-        game.settings = settings;
-        game.apply_content_settings();
-        game.names = names;
-        game.set_map(map);
-        game.spawn_features(placements);
-        game
+    ) -> World {
+        let mut world = World::new(seed);
+        world.set_content(std::sync::Arc::new(content.clone()));
+        world.settings = settings;
+        world.apply_content_settings();
+        world.names = names;
+        world.set_map(map);
+        world.spawn_features(placements);
+        world
     }
 
     /// Make what `player` has explored only the land within `radius` of `centre`.
@@ -279,7 +279,7 @@ impl Game {
     /// Scenario setup: change the game's settings (a test world is made with the defaults).
     pub fn scenario_change_settings(
         &mut self,
-        change: impl FnOnce(&mut crate::game::setting::GameSettings),
+        change: impl FnOnce(&mut crate::world::setting::GameSettings),
     ) {
         change(&mut self.settings);
     }
@@ -298,7 +298,7 @@ impl Game {
 
     /// Set the number of citizens of a city, as a scenario sets it up.
     pub fn scenario_set_citizens(&mut self, city: hecs::Entity, figures: u32) {
-        if let Ok(mut p) = self.world.get::<&mut Population>(city) {
+        if let Ok(mut p) = self.ecs.get::<&mut Population>(city) {
             p.figures = figures;
         }
     }
@@ -328,7 +328,7 @@ impl Game {
         self.begin_casting(player, spell, owed);
     }
 
-    /// [`Game::scenario_casting`] for a spell with `extra` mana put into it (a dispel's strength).
+    /// [`World::scenario_casting`] for a spell with `extra` mana put into it (a dispel's strength).
     pub fn scenario_casting_with(
         &mut self,
         player: PlayerId,
@@ -353,7 +353,7 @@ impl Game {
 
     /// Make fleeing from a battle safe or risky for everyone (the `safe_flee` setting).
     pub fn scenario_set_safe_flee(&mut self, safe: bool) {
-        self.settings.rules.safe_flee = crate::game::setting::Split::both(safe);
+        self.settings.rules.safe_flee = crate::world::setting::Split::both(safe);
     }
 
     /// Start a lasting event (a moon, a conjunction, mana short) that falls on nobody, as a
@@ -411,7 +411,7 @@ impl Game {
     /// Put a building in a city, or take it out, as a scenario sets it up (no cost, no
     /// requirements).
     pub fn scenario_set_building(&mut self, city: hecs::Entity, building: BuildingId, built: bool) {
-        if let Ok(mut b) = self.world.get::<&mut Buildings>(city) {
+        if let Ok(mut b) = self.ecs.get::<&mut Buildings>(city) {
             b.0.retain(|&x| x != building);
             if built {
                 b.0.push(building);

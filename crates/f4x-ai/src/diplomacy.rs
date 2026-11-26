@@ -1,21 +1,21 @@
 //! The AI's side of the talk: it answers the proposals made to it (`diplo_b_talk::rate`).
 
 use f4x_core::diplomacy::{DiplomacyCommand, ProposalKind};
-use f4x_core::game::{Command, Event, Game};
 use f4x_core::player::view::PlayerView;
+use f4x_core::world::{Command, Event, World};
 
 use crate::Ai;
 
 /// Answer every proposal other wizards have made to this one. A proposal nobody answers lapses
 /// as refused when the turn ends.
-pub(crate) fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
-    let pending = PlayerView::new(game, ai.player).proposals_to_me();
+pub(crate) fn answer(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
+    let pending = PlayerView::new(world, ai.player).proposals_to_me();
     for proposal in pending {
         if matches!(proposal.kind, ProposalKind::Trade { .. }) {
-            match crate::trade::respond(game, &ai.minds(), ai.player, proposal) {
+            match crate::trade::respond(world, &ai.minds(), ai.player, proposal) {
                 crate::trade::Reply::Counter(kind) => {
                     let sent = ai.send(
-                        game,
+                        world,
                         Command::Diplomacy(DiplomacyCommand::Counter {
                             player: ai.player,
                             from: proposal.from,
@@ -29,7 +29,7 @@ pub(crate) fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 }
                 reply => {
                     ai.order(
-                        game,
+                        world,
                         Command::Diplomacy(DiplomacyCommand::Answer {
                             player: ai.player,
                             from: proposal.from,
@@ -41,11 +41,15 @@ pub(crate) fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 }
             }
         }
-        let accept =
-            crate::diplo_b_talk::rate(game, proposal.from, proposal.to, proposal.kind, &ai.minds())
-                == Verdict::Accepted;
+        let accept = crate::diplo_b_talk::rate(
+            world,
+            proposal.from,
+            proposal.to,
+            proposal.kind,
+            &ai.minds(),
+        ) == Verdict::Accepted;
         ai.order(
-            game,
+            world,
             Command::Diplomacy(DiplomacyCommand::Answer {
                 player: ai.player,
                 from: proposal.from,

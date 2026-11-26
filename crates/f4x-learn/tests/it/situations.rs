@@ -11,19 +11,20 @@ fn fights_end(spot: Spot, hero: bool) {
     let mut fought = 0;
     for seed in 0..4u64 {
         let scenario = generate_raw(&content, seed);
-        let Ok(mut game) = build_at(&content, &scenario, &spot, seed as usize, hero) else {
+        let Ok(mut world) = build_at(&content, &scenario, &spot, seed as usize, hero) else {
             continue;
         };
         fought += 1;
         let mut steps = 0;
-        while game.in_battle() && steps < 5_000 {
-            let command = game.next_battle_command().expect("a battle has a command");
-            game.battle_command(command)
+        while world.in_battle() && steps < 5_000 {
+            let command = world.next_battle_command().expect("a battle has a command");
+            world
+                .battle_command(command)
                 .unwrap_or_else(|e| panic!("{spot:?} seed {seed}: refused {e:?}"));
             steps += 1;
         }
         assert!(
-            !game.in_battle(),
+            !world.in_battle(),
             "{spot:?} seed {seed}: no end in {steps} commands"
         );
     }

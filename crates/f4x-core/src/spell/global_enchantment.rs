@@ -4,7 +4,6 @@
 //! from the spell's own passive rules (with a condition such as "normal units"); the rest is
 //! recognised by spell id.
 
-use crate::game::Game;
 use crate::player::PlayerId;
 use crate::rules::effects::{Effect, Trigger};
 use crate::rules::exec::{eval, Facts};
@@ -12,6 +11,7 @@ use crate::rules::{Modifier, Source, SpellId};
 use crate::spell::instance::SpellTarget;
 use crate::unit::{Hurt, UnitView};
 use crate::wizard::magic::MagicError;
+use crate::world::World;
 
 /// Does this wizard keep the global spell with this id going?
 pub(crate) fn magic_has_global(wizard: &crate::wizard::entity::Wizard<'_>, id: SpellId) -> bool {
@@ -29,7 +29,7 @@ pub(crate) fn magic_has_effect(
     wizard.any_global(|s| effect.is_in(rules.spells.get(s)))
 }
 
-impl Game {
+impl World {
     /// A lasting spell starts on the whole world, cast by `player`'s wizard; it is there once.
     pub(crate) fn add_global(&mut self, player: PlayerId, spell: SpellId) {
         self.add_enchantment(SpellTarget::Global, spell, player);
@@ -193,7 +193,7 @@ impl Game {
 
     /// Once a turn: Herb Mastery heals every unit, and the revealing spells look again.
     pub(crate) fn process_globals(&mut self) {
-        let ids: Vec<PlayerId> = crate::player::ids(&self.world);
+        let ids: Vec<PlayerId> = crate::player::ids(&self.ecs);
         for player in ids {
             if self.has_global_effect(player, GlobalEffect::HerbMastery) {
                 for unit in self.units().player_units(player) {

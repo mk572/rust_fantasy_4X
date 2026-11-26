@@ -233,7 +233,7 @@ mod tests {
             "buildings_s",
         ];
         for kind in EventKind::all() {
-            // The voices the game gives each kind: see `world_event::game`.
+            // The voices the game gives each kind: see `world_event::world`.
             let voices: &[Voice] = if kind == EventKind::Disjunction {
                 &[Voice::Happened]
             } else if kind.is_world() {

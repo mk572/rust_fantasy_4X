@@ -6,12 +6,12 @@
 //!
 //! Tests: in map/road/tests.rs.
 
-use crate::game::{Event, Game};
 use crate::map::terrain::TerrainClass;
 use crate::map::Position;
 use crate::rules::Stat;
 use crate::spell::target_error::TargetError;
 use crate::unit::movement::MoveError;
+use crate::world::{Event, World};
 
 /// Turns a river adds to the road on its square: the bridge.
 pub const RIVER_BRIDGE_TURNS: u8 = 2;
@@ -51,7 +51,7 @@ impl RoadError {
     }
 }
 
-impl Game {
+impl World {
     /// Turns one worker needs for a road on `at`: 0 if it already has one, `None` on water.
     pub fn turns_to_build_road(&self, at: Position) -> Option<u8> {
         let map = self.map.as_ref()?;
@@ -174,7 +174,7 @@ impl Game {
     /// One turn of road work for every engineer stack.
     pub(crate) fn process_road_work(&mut self, player: crate::player::PlayerId) -> Vec<Event> {
         let mut workers: Vec<hecs::Entity> = self
-            .world
+            .ecs
             .query::<&RoadWork>()
             .iter()
             .map(|(e, _)| e)
@@ -193,8 +193,8 @@ impl Game {
                 .copied()
                 .filter(|&w| {
                     self.units().unit_position(w) == self.units().unit_position(u)
-                        && self.world.get::<&RoadWork>(w).ok().map(|x| (*x).clone())
-                            == self.world.get::<&RoadWork>(u).ok().map(|x| (*x).clone())
+                        && self.ecs.get::<&RoadWork>(w).ok().map(|x| (*x).clone())
+                            == self.ecs.get::<&RoadWork>(u).ok().map(|x| (*x).clone())
                 })
                 .collect();
             done.extend(group.iter().copied());
@@ -213,7 +213,7 @@ impl Game {
         let Some(&lead) = group.first() else {
             return events;
         };
-        let Some(mut work) = self.world.get::<&RoadWork>(lead).ok().map(|w| (*w).clone()) else {
+        let Some(mut work) = self.ecs.get::<&RoadWork>(lead).ok().map(|w| (*w).clone()) else {
             return events;
         };
         let pos = self.units().unit_position(lead);

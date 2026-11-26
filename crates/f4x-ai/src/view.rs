@@ -151,10 +151,10 @@ mod tests {
 
     #[test]
     fn a_stronger_unit_has_a_bigger_strength_and_a_stack_adds_up() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let spear = spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 1)[0];
-        let paladin = spawn(&mut g, P0, city(), 113 /* high_men_paladins */, 1)[0];
-        let view = PlayerView::new(&g, P0);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let spear = spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 1)[0];
+        let paladin = spawn(&mut w, P0, city(), 113 /* high_men_paladins */, 1)[0];
+        let view = PlayerView::new(&w, P0);
         let (spear_s, paladin_s) = (unit_strength(&view, spear), unit_strength(&view, paladin));
         assert!(
             spear_s > 0.0 && paladin_s > spear_s,
@@ -169,16 +169,16 @@ mod tests {
 
     #[test]
     fn a_party_is_the_strongest_nine_of_a_stack_and_never_more() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let mut stack = spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 10);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let mut stack = spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 10);
         stack.extend(spawn(
-            &mut g,
+            &mut w,
             P0,
             city(),
             113, /* high_men_paladins */
             2,
         ));
-        let view = PlayerView::new(&g, P0);
+        let view = PlayerView::new(&w, P0);
         let band = party(&view, &stack);
         assert_eq!(band.len(), view.max_battle_side());
         assert!(
@@ -198,9 +198,9 @@ mod tests {
 
     #[test]
     fn a_stack_fights_with_its_strongest_nine() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let stack = spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 12);
-        let view = PlayerView::new(&g, P0);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let stack = spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 12);
+        let view = PlayerView::new(&w, P0);
         let one = unit_strength(&view, stack[0]);
         let near = |a: f32, b: f32| (a - b).abs() <= 1e-4 * b;
         assert!(near(fighting_strength(&view, &stack[..3]), 3.0 * one));
@@ -215,11 +215,11 @@ mod tests {
 
     #[test]
     fn only_a_unit_that_fights_on_land_is_a_fighter_and_only_a_carrier_that_sails_is_a_ship() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let spear = spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 1)[0];
-        let galley = spawn(&mut g, P0, city(), 36 /* galley */, 1)[0];
-        let settlers = spawn(&mut g, P0, city(), 111 /* high_men_settlers */, 1)[0];
-        let view = PlayerView::new(&g, P0);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let spear = spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 1)[0];
+        let galley = spawn(&mut w, P0, city(), 36 /* galley */, 1)[0];
+        let settlers = spawn(&mut w, P0, city(), 111 /* high_men_settlers */, 1)[0];
+        let view = PlayerView::new(&w, P0);
         assert!(is_fighter(&view, spear) && !is_ship(&view, spear));
         assert!(is_ship(&view, galley) && !is_fighter(&view, galley));
         assert!(!is_fighter(&view, settlers) && !is_ship(&view, settlers));
@@ -227,10 +227,10 @@ mod tests {
 
     #[test]
     fn the_cache_gives_the_answer_of_a_search_for_each_stack_and_keeps_one_per_kind() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let spears = spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 3);
-        let galley = spawn(&mut g, P0, city(), 36 /* galley */, 1)[0];
-        let view = PlayerView::new(&g, P0);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let spears = spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 3);
+        let galley = spawn(&mut w, P0, city(), 36 /* galley */, 1)[0];
+        let view = PlayerView::new(&w, P0);
         let mut cache = ReachCache::default();
         let inland = at(INLAND_CITY.0, INLAND_CITY.1);
         let squares = [inland, city(), at(0, 0), at(5, 5)];
@@ -263,10 +263,10 @@ mod tests {
 
     #[test]
     fn the_region_of_a_failed_search_is_what_the_stack_can_walk_to() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let spears = spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 2);
-        let galley = spawn(&mut g, P0, city(), 36 /* galley */, 1)[0];
-        let view = PlayerView::new(&g, P0);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let spears = spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 2);
+        let galley = spawn(&mut w, P0, city(), 36 /* galley */, 1)[0];
+        let view = PlayerView::new(&w, P0);
         let squares = [
             at(INLAND_CITY.0, INLAND_CITY.1),
             at(0, 0),
@@ -287,7 +287,7 @@ mod tests {
 
     #[test]
     fn five_hundred_units_on_a_few_squares_cost_a_few_searches() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
         let squares = [
             city(),
             at(INLAND_CITY.0, INLAND_CITY.1),
@@ -298,12 +298,12 @@ mod tests {
         let mut all = Vec::new();
         for &square in &squares {
             all.extend(spawn(
-                &mut g, P0, square, 104, /* high_men_spearmen */
+                &mut w, P0, square, 104, /* high_men_spearmen */
                 100,
             ));
         }
         assert_eq!(all.len(), 500);
-        let view = PlayerView::new(&g, P0);
+        let view = PlayerView::new(&w, P0);
         let mut cache = ReachCache::default();
         let target = at(6, 3);
         let reached = all
@@ -320,21 +320,21 @@ mod tests {
 
     #[test]
     fn a_square_is_coastal_when_the_sea_touches_it() {
-        let g = game(COAST_CITY, 8 /* high_men */);
-        let view = PlayerView::new(&g, P0);
+        let w = game(COAST_CITY, 8 /* high_men */);
+        let view = PlayerView::new(&w, P0);
         assert!(is_coastal(&view, city()));
         assert!(!is_coastal(&view, at(INLAND_CITY.0, INLAND_CITY.1)));
     }
 
     #[test]
     fn a_city_keeps_one_fighter_at_home_and_the_fortress_city_two() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
         let inland = at(INLAND_CITY.0, INLAND_CITY.1);
-        assert_eq!(garrison_wanted(&PlayerView::new(&g, P0), city()), 1);
-        g.wizard_mut(P0)
+        assert_eq!(garrison_wanted(&PlayerView::new(&w, P0), city()), 1);
+        w.wizard_mut(P0)
             .ok_or("player 0 is a wizard")?
             .put(Some(f4x_core::wizard::fortress::Fortress(city())));
-        let view = PlayerView::new(&g, P0);
+        let view = PlayerView::new(&w, P0);
         assert_eq!(garrison_wanted(&view, city()), 2);
         assert_eq!(garrison_wanted(&view, inland), 1);
         Ok(())

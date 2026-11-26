@@ -105,9 +105,9 @@ impl App {
     pub(crate) fn city_choices(&self, spell: SpellId) -> Option<Vec<hecs::Entity>> {
         use f4x_core::spell::special;
         use f4x_def::rules::SpellTarget;
-        let def = self.game.content().rules.spells.get(spell);
-        let summons_to_a_circle = self.game.spell_summons(spell)
-            && self.game.has_several_circles(HUMAN)
+        let def = self.world.content().rules.spells.get(spell);
+        let summons_to_a_circle = self.world.spell_summons(spell)
+            && self.world.has_several_circles(HUMAN)
             && !f4x_core::spell::hero::HeroSummon::Resurrection.is_in(def);
         let by_target = matches!(def.target, SpellTarget::OwnCity | SpellTarget::EnemyCity);
         let by_hook =
@@ -117,16 +117,16 @@ impl App {
         }
         let ward = f4x_core::spell::city::CityEffect::SpellWard.is_in(def);
         Some(
-            self.game
+            self.world
                 .economy()
                 .cities()
                 .into_iter()
                 .filter(|&(c, _, at)| {
-                    let mine = self.game.economy().city_owner(c) == Some(HUMAN);
-                    (mine || self.game.is_explored(HUMAN, at))
-                        && !(ward && self.game.fully_warded(c))
+                    let mine = self.world.economy().city_owner(c) == Some(HUMAN);
+                    (mine || self.world.is_explored(HUMAN, at))
+                        && !(ward && self.world.fully_warded(c))
                         && self
-                            .game
+                            .world
                             .check_target(HUMAN, spell, Some(Target::City(c)))
                             .is_ok()
                 })
@@ -137,18 +137,18 @@ impl App {
 
     /// The cities of the human wizard that hold a summoning circle.
     pub(crate) fn circle_cities(&self) -> Vec<hecs::Entity> {
-        self.game
+        self.world
             .economy()
             .cities_of(HUMAN)
             .into_iter()
             .map(|c| c.0)
-            .filter(|&c| self.game.circle_in(HUMAN, c).is_some())
+            .filter(|&c| self.world.circle_in(HUMAN, c).is_some())
             .collect()
     }
 
     /// Where the summoning circle of `city` stands.
     pub(crate) fn circle_position(&self, city: hecs::Entity) -> Option<f4x_core::map::Position> {
-        self.game.circle_in(HUMAN, city)
+        self.world.circle_in(HUMAN, city)
     }
 
     /// Choose the city for `spell` in the side panel and cast it there once OK is clicked. A Spell
@@ -161,13 +161,13 @@ impl App {
         }
         let term = self
             .names
-            .spell_term(self.game.content().rules.spells.get(t.spell).num);
+            .spell_term(self.world.content().rules.spells.get(t.spell).num);
         let prompt = self.text_with("spell.choose_city", &Args::new().term("spell", term));
         let title = self.text("spell.casting_title");
         self.select_city(title, prompt, cities, move |app, city| match city {
             Some(city)
                 if f4x_core::spell::city::CityEffect::SpellWard
-                    .is_in(app.game.content().rules.spells.get(t.spell)) =>
+                    .is_in(app.world.content().rules.spells.get(t.spell)) =>
             {
                 app.modals.open(crate::view::Ward {
                     spell: t.spell,
@@ -190,7 +190,7 @@ impl App {
         } = pick;
         let lines: Vec<String> = cities
             .iter()
-            .map(|&c| self.game.city_name(c).unwrap_or_default())
+            .map(|&c| self.world.city_name(c).unwrap_or_default())
             .collect();
         let row = row.min(lines.len().saturating_sub(1));
         let (w, h) = (screen_width(), screen_height());

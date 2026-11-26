@@ -7,14 +7,14 @@
 //! a favoured terrain (`home_terrain` in `races.ron`: High Elves forest, Dwarves mountains, ...)
 //! takes the square with the most of that terrain round it, the rest take what is left, in the
 //! order they were rolled; (4) the cities are founded. How one city starts (its player,
-//! population, buildings and garrison) is `Game::found_neutral_city` in core.
+//! population, buildings and garrison) is `World::found_neutral_city` in core.
 //!
 //! Tests: below.
 
-use f4x_core::game::Game;
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::{Plane, Position};
 use f4x_core::rules::RaceId;
+use f4x_core::world::World;
 
 pub use f4x_def::settings::NEUTRAL_CITIES_PER_PLANE;
 
@@ -34,12 +34,12 @@ pub fn range(width: u32, x1: u32, y1: u32, x2: u32, y2: u32) -> u32 {
 
 /// Whether no node, tower or lair on `pos`'s plane is within `distance` (the original's
 /// `Range`).
-pub fn clear_of_sites(game: &Game, pos: Position, distance: u32) -> bool {
-    let Some(width) = game.map().map(|m| m.width()) else {
+pub fn clear_of_sites(world: &World, pos: Position, distance: u32) -> bool {
+    let Some(width) = world.map().map(|m| m.width()) else {
         return false;
     };
     // Towers stand on both planes at the same place.
-    !game
+    !world
         .economy()
         .site_squares()
         .iter()
@@ -90,13 +90,13 @@ pub const FORTRESS_CLEARANCE: u32 = 5;
 /// and of nodes, towers and lairs; `strict` asks for more room all round (the row scan). The
 /// cities of the plane are not founded yet, so `chosen` holds the squares picked so far: the
 /// same spacing applies to them as to cities.
-fn neutral_site_ok(game: &Game, pos: Position, strict: bool, chosen: &[Position]) -> bool {
-    if game.can_found_city(pos).is_err() {
+fn neutral_site_ok(world: &World, pos: Position, strict: bool, chosen: &[Position]) -> bool {
+    if world.can_found_city(pos).is_err() {
         return false;
     }
-    let width = game.map().map_or(1, |m| m.width());
-    let min_distance = u32::from(game.settings().rules.min_city_distance);
-    if game.map().is_some_and(|m| {
+    let width = world.map().map_or(1, |m| m.width());
+    let min_distance = u32::from(world.settings().rules.min_city_distance);
+    if world.map().is_some_and(|m| {
         chosen.iter().any(|c| {
             c.plane == pos.plane
                 && m.plane(pos.plane).chebyshev((c.x, c.y), (pos.x, pos.y)) < min_distance
@@ -110,16 +110,16 @@ fn neutral_site_ok(game: &Game, pos: Position, strict: bool, chosen: &[Position]
     } else {
         (FORTRESS_CLEARANCE, SITE_CLEARANCE)
     };
-    if game
+    if world
         .player_ids()
         .into_iter()
-        .filter_map(|p| game.wizard(p)?.fortress())
+        .filter_map(|p| world.wizard(p)?.fortress())
         .any(|f| near(f.x, f.y, fortress))
     {
         return false;
     }
     if strict
-        && (game
+        && (world
             .economy()
             .cities()
             .iter()
@@ -130,14 +130,14 @@ fn neutral_site_ok(game: &Game, pos: Position, strict: bool, chosen: &[Position]
     {
         return false;
     }
-    clear_of_sites(game, pos, site)
+    clear_of_sites(world, pos, site)
 }
 
 /// The races neutral cities of `plane` may have: the plane's races, one slot each (the
 /// original gave High Men two slots and made the second High Elves where the land was forest;
 /// now a race with a favoured terrain is put where its terrain is, see [`assign_races`]).
-fn neutral_races(game: &Game, plane: Plane) -> Vec<RaceId> {
-    let rules = &game.content().rules;
+fn neutral_races(world: &World, plane: Plane) -> Vec<RaceId> {
+    let rules = &world.content().rules;
     rules
         .races
         .defs()
@@ -149,8 +149,8 @@ fn neutral_races(game: &Game, plane: Plane) -> Vec<RaceId> {
 
 /// How many of the squares a city on `at` works are of `class` (the 21 squares of its area:
 /// five by five without the corners).
-fn terrain_round(game: &Game, at: Position, class: TerrainClass) -> u32 {
-    let Some(grid) = game.map().map(|m| m.plane(at.plane)) else {
+fn terrain_round(world: &World, at: Position, class: TerrainClass) -> u32 {
+    let Some(grid) = world.map().map(|m| m.plane(at.plane)) else {
         return 0;
     };
     let mut count = 0;
@@ -163,7 +163,7 @@ fn terrain_round(game: &Game, at: Position, class: TerrainClass) -> u32 {
             let x = grid.wrap_x(at.x as i32 + dx) as i32;
             if grid
                 .get(x, y)
-                .and_then(|t| game.content().terrains.get(t))
+                .and_then(|t| world.content().terrains.get(t))
                 .is_some_and(|t| t.class == class)
             {
                 count += 1;
@@ -176,11 +176,11 @@ fn terrain_round(game: &Game, at: Position, class: TerrainClass) -> u32 {
 /// With the setting `mix_neutral_races`: every race that has a weight on `plane`, with it.
 /// `None` when the setting is off, or no race has a weight (content without them): the plane's
 /// own races are then rolled, each as likely as the next.
-fn weighted_races(game: &Game, plane: Plane) -> Option<Vec<(RaceId, u32)>> {
-    if !game.settings().rules.mix_neutral_races {
+fn weighted_races(world: &World, plane: Plane) -> Option<Vec<(RaceId, u32)>> {
+    if !world.settings().rules.mix_neutral_races {
         return None;
     }
-    let rules = &game.content().rules;
+    let rules = &world.content().rules;
     let list: Vec<(RaceId, u32)> = rules
         .races
         .defs()
@@ -250,8 +250,8 @@ fn assign_races<T: Copy>(
 
 /// Step 1: the squares of the plane's neutral cities, `target` of them at most (fewer when the
 /// land runs out).
-fn choose_sites(game: &mut Game, plane: Plane, target: u32) -> Vec<Position> {
-    let Some(map) = game.map() else {
+fn choose_sites(world: &mut World, plane: Plane, target: u32) -> Vec<Position> {
+    let Some(map) = world.map() else {
         return Vec::new();
     };
     let (w, h) = (map.width(), map.height());
@@ -259,7 +259,7 @@ fn choose_sites(game: &mut Game, plane: Plane, target: u32) -> Vec<Position> {
     // The land of the custom generator is searched row by row from the equator outward, a row south
     // and then a row north, each from west to east: a city goes on the first square that will do,
     // or a better one within two squares of it. The polar rows are left out.
-    let original = game.settings().basic.original_map_generator;
+    let original = world.settings().basic.original_map_generator;
     let max_tries = crate::mapgen::scaled_count(MAX_TRIES, w, h).max(MAX_TRIES);
     let rows = scan_rows(h);
     let (mut row, mut x, mut tries) = (0, 2, 0);
@@ -272,10 +272,10 @@ fn choose_sites(game: &mut Game, plane: Plane, target: u32) -> Vec<Position> {
                 }
                 let pos = Position {
                     plane,
-                    x: 2 + game.roll(w - 6),
-                    y: 2 + game.roll(h - 6),
+                    x: 2 + world.roll(w - 6),
+                    y: 2 + world.roll(h - 6),
                 };
-                if neutral_site_ok(game, pos, false, &chosen) {
+                if neutral_site_ok(world, pos, false, &chosen) {
                     break pos;
                 }
                 continue;
@@ -289,10 +289,10 @@ fn choose_sites(game: &mut Game, plane: Plane, target: u32) -> Vec<Position> {
             }
             let here = Position { plane, x, y };
             x += 1;
-            if neutral_site_ok(game, here, true, &chosen)
-                && game.economy().site_max_size(here) >= MIN_SITE_SIZE
+            if neutral_site_ok(world, here, true, &chosen)
+                && world.economy().site_max_size(here) >= MIN_SITE_SIZE
             {
-                let best = best_site_near(game, here, h, &chosen);
+                let best = best_site_near(world, here, h, &chosen);
                 x = x.max(best.x + 1);
                 break best;
             }
@@ -303,57 +303,57 @@ fn choose_sites(game: &mut Game, plane: Plane, target: u32) -> Vec<Position> {
 }
 
 /// Place a plane's neutral cities. Returns how many were made.
-pub fn generate_neutral_cities(game: &mut Game, plane: Plane) -> u32 {
-    let Some(map) = game.map() else {
+pub fn generate_neutral_cities(world: &mut World, plane: Plane) -> u32 {
+    let Some(map) = world.map() else {
         return 0;
     };
     let (w, h) = (map.width(), map.height());
     if w < 8 || h < 8 {
         return 0;
     }
-    let races = neutral_races(game, plane);
+    let races = neutral_races(world, plane);
     if races.is_empty() {
         return 0;
     }
-    let target = if game.settings().basic.neutral_cities.is_some() {
-        game.settings().basic.neutral_city_count()
+    let target = if world.settings().basic.neutral_cities.is_some() {
+        world.settings().basic.neutral_city_count()
     } else {
         neutral_city_count(w, h)
     };
     // Step 1: the squares. Step 2: a race rolled for each. Step 3: the races to the squares by
     // their favoured terrain. Step 4: the cities.
-    let sites = choose_sites(game, plane, target);
+    let sites = choose_sites(world, plane, target);
     // With the setting a city on a speck of land gets its island built out, as a start town does.
-    if game.settings().rules.extend_tiny_islands {
+    if world.settings().rules.extend_tiny_islands {
         for &site in &sites {
-            crate::island::build_out(game, site);
+            crate::island::build_out(world, site);
         }
     }
-    let weights = weighted_races(game, plane);
+    let weights = weighted_races(world, plane);
     let rolled: Vec<(RaceId, Vec<TerrainClass>)> = sites
         .iter()
         .map(|_| {
             let race = match &weights {
-                Some(w) => pick_weighted(w, game.roll(w.iter().map(|&(_, n)| n).sum())),
-                None => races[game.roll(races.len() as u32) as usize - 1],
+                Some(w) => pick_weighted(w, world.roll(w.iter().map(|&(_, n)| n).sum())),
+                None => races[world.roll(races.len() as u32) as usize - 1],
             };
-            let home = game.content().rules.races.get(race).home_terrain.clone();
+            let home = world.content().rules.races.get(race).home_terrain.clone();
             (race, home)
         })
         .collect();
     let assigned = assign_races(&rolled, sites.len(), |site, class| {
-        terrain_round(game, sites[site], class)
+        terrain_round(world, sites[site], class)
     });
     for (&pos, &race) in sites.iter().zip(&assigned) {
-        game.found_neutral_city(pos, race);
+        world.found_neutral_city(pos, race);
     }
     sites.len() as u32
 }
 
 /// The site within two squares of `at` (itself included) where the most citizens could live;
 /// `at` unless another is better.
-fn best_site_near(game: &Game, at: Position, height: u32, chosen: &[Position]) -> Position {
-    let mut best = (game.economy().site_max_size(at), at);
+fn best_site_near(world: &World, at: Position, height: u32, chosen: &[Position]) -> Position {
+    let mut best = (world.economy().site_max_size(at), at);
     for dy in -2i32..=2 {
         for dx in -2i32..=2 {
             let (x, y) = (at.x as i32 + dx, at.y as i32 + dy);
@@ -365,8 +365,8 @@ fn best_site_near(game: &Game, at: Position, height: u32, chosen: &[Position]) -
                 y: y as u32,
                 ..at
             };
-            if pos != at && neutral_site_ok(game, pos, true, chosen) {
-                let size = game.economy().site_max_size(pos);
+            if pos != at && neutral_site_ok(world, pos, true, chosen) {
+                let size = world.economy().site_max_size(pos);
                 if size > best.0 {
                     best = (size, pos);
                 }
@@ -384,7 +384,7 @@ mod tests {
     use f4x_def::testdir::shipped;
     use f4x_def::testdir::TestResult;
 
-    fn world(seed: u64) -> Result<Game, NewGameError> {
+    fn world(seed: u64) -> Result<World, NewGameError> {
         new_game(
             shipped(),
             &NewGame {
@@ -427,15 +427,15 @@ mod tests {
 
     #[test]
     fn a_new_world_has_independent_cities_one_player_for_each_race_and_a_garrison() -> TestResult {
-        let g = world(7)?;
-        let neutral: Vec<_> = g
+        let w = world(7)?;
+        let neutral: Vec<_> = w
             .economy()
             .cities()
             .into_iter()
-            .filter(|(_, info, _)| g.is_neutral_player(info.owner))
+            .filter(|(_, info, _)| w.is_neutral_player(info.owner))
             .collect();
-        let (w, h) = g.map().map(|m| (m.width(), m.height())).ok_or("no map")?;
-        let most = 2 * neutral_city_count(w, h) as usize;
+        let (width, h) = w.map().map(|m| (m.width(), m.height())).ok_or("no map")?;
+        let most = 2 * neutral_city_count(width, h) as usize;
         assert!(
             !neutral.is_empty(),
             "a world starts with independent cities"
@@ -446,7 +446,7 @@ mod tests {
         owners.dedup();
         let mut races: Vec<_> = neutral
             .iter()
-            .filter_map(|(e, ..)| g.city_race(*e))
+            .filter_map(|(e, ..)| w.city_race(*e))
             .map(f4x_core::player::race_player::race_player_id)
             .collect();
         races.sort();
@@ -461,11 +461,11 @@ mod tests {
         squares.dedup();
         assert_eq!(squares.len(), neutral.len(), "one city to a square");
         for (_, info, pos) in &neutral {
-            let guards = g.units().units_at(*pos);
+            let guards = w.units().units_at(*pos);
             assert!(
                 guards
                     .iter()
-                    .all(|&u| g.units().unit_owner(u) == Some(info.owner)),
+                    .all(|&u| w.units().unit_owner(u) == Some(info.owner)),
                 "{} has only its own soldiers",
                 info.name
             );
@@ -473,7 +473,7 @@ mod tests {
         assert!(
             neutral
                 .iter()
-                .any(|(_, _, pos)| !g.units().units_at(*pos).is_empty()),
+                .any(|(_, _, pos)| !w.units().units_at(*pos).is_empty()),
             "some city has a garrison"
         );
         Ok(())
@@ -522,9 +522,9 @@ mod tests {
                 "no road with the setting off"
             );
         }
-        let g = make(7, true)?;
-        let map = g.map().ok_or("no map")?;
-        let cities = g.economy().cities();
+        let w = make(7, true)?;
+        let map = w.map().ok_or("no map")?;
+        let cities = w.economy().cities();
         for (_, _, p) in &cities {
             assert!(map.plane(p.plane).has_road(p.x as i32, p.y as i32), "{p:?}");
         }
@@ -558,29 +558,33 @@ mod tests {
         // over a few worlds there are such pairs.
         let mut joined = 0;
         for seed in 1..=6 {
-            let g = make(seed, true)?;
-            let map = g.map().ok_or("no map")?;
-            let cities = g.economy().cities();
+            let w = make(seed, true)?;
+            let map = w.map().ok_or("no map")?;
+            let cities = w.economy().cities();
             for plane in Plane::all() {
-                let land = g.landmasses(plane);
-                let w = map.width();
+                let land = w.landmasses(plane);
+                let width = map.width();
                 let near: Vec<_> = cities
                     .iter()
-                    .filter(|(_, i, p)| p.plane == plane && g.is_neutral_player(i.owner))
+                    .filter(|(_, i, p)| p.plane == plane && w.is_neutral_player(i.owner))
                     .map(|(_, _, p)| *p)
                     .collect();
                 for (i, a) in near.iter().enumerate() {
                     for b in &near[i + 1..] {
-                        let mass = |p: &Position| land[(p.y * w + p.x) as usize];
-                        if mass(a) != mass(b) || range(w, a.x, a.y, b.x, b.y) > 10 {
+                        let mass = |p: &Position| land[(p.y * width + p.x) as usize];
+                        if mass(a) != mass(b) || range(width, a.x, a.y, b.x, b.y) > 10 {
                             continue;
                         }
                         let line = f4x_core::map::start_road::path_wrap(
-                            a.x as i32, a.y as i32, b.x as i32, b.y as i32, w as i32,
+                            a.x as i32,
+                            a.y as i32,
+                            b.x as i32,
+                            b.y as i32,
+                            width as i32,
                         );
                         let steps = &line[..line.len() - 1];
                         let dry = steps.iter().all(|&(x, y)| {
-                            g.economy().terrain_class_at(Position {
+                            w.economy().terrain_class_at(Position {
                                 plane,
                                 x: x as u32,
                                 y: y as u32,
@@ -611,11 +615,11 @@ mod tests {
                 ..Default::default()
             };
             spec.settings.basic.difficulty = 5;
-            let g = new_game(shipped(), &spec)?;
-            for (e, info, pos) in g.economy().cities() {
-                if g.is_neutral_player(info.owner) {
-                    let people = g.city_population(e).figures;
-                    let room = g.economy().site_max_size(pos);
+            let w = new_game(shipped(), &spec)?;
+            for (e, info, pos) in w.economy().cities() {
+                if w.is_neutral_player(info.owner) {
+                    let people = w.city_population(e).figures;
+                    let room = w.economy().site_max_size(pos);
                     assert!(
                         people <= room,
                         "seed {seed}: {} has {people} of {room}",
@@ -658,16 +662,16 @@ mod tests {
         let (mut among, mut chance) = (0.0, 0.0);
         let mut total = 0.0;
         for seed in 1..7u64 {
-            let g = world(seed)?;
-            for (e, info, pos) in g.economy().cities() {
-                let Some(race) = g.city_race(e).filter(|_| g.is_neutral_player(info.owner)) else {
+            let w = world(seed)?;
+            for (e, info, pos) in w.economy().cities() {
+                let Some(race) = w.city_race(e).filter(|_| w.is_neutral_player(info.owner)) else {
                     continue;
                 };
                 let near = |r| {
-                    let home = &g.content().rules.races.get(r).home_terrain;
-                    home.iter().any(|&c| terrain_round(&g, pos, c) > 0)
+                    let home = &w.content().rules.races.get(r).home_terrain;
+                    home.iter().any(|&c| terrain_round(&w, pos, c) > 0)
                 };
-                let races = neutral_races(&g, pos.plane);
+                let races = neutral_races(&w, pos.plane);
                 total += 1.0;
                 among += f64::from(u8::from(near(race)));
                 chance += races.iter().filter(|&&r| near(r)).count() as f64 / races.len() as f64;
@@ -691,7 +695,7 @@ mod tests {
     fn the_races_rolled_from_are_those_with_a_weight_on_the_plane_and_only_with_the_mix_setting(
     ) -> TestResult {
         // `neutral_weight` of each row of `races.ron`.
-        let game = |mix: bool| -> Result<Game, NewGameError> {
+        let game = |mix: bool| -> Result<World, NewGameError> {
             let mut spec = NewGame {
                 seed: 1,
                 all_ai: true,
@@ -700,23 +704,23 @@ mod tests {
             spec.settings.rules.mix_neutral_races = mix;
             new_game(shipped(), &spec)
         };
-        let (off, g) = (game(false)?, game(true)?);
+        let (off, w) = (game(false)?, game(true)?);
         for plane in [Plane::Arcanus, Plane::Myrror] {
             assert_eq!(weighted_races(&off, plane), None);
-            let rules = &g.content().rules;
+            let rules = &w.content().rules;
             let want: Vec<(RaceId, u32)> = rules
                 .races
                 .iter()
                 .filter_map(|(id, r)| {
-                    let w = match plane {
+                    let width = match plane {
                         Plane::Arcanus => r.neutral_weight.arcanus,
                         Plane::Myrror => r.neutral_weight.myrror,
                     };
-                    (w > 0).then_some((id, w))
+                    (width > 0).then_some((id, width))
                 })
                 .collect();
             assert!(!want.is_empty(), "no race has a weight on {plane:?}");
-            assert_eq!(weighted_races(&g, plane), Some(want), "{plane:?}");
+            assert_eq!(weighted_races(&w, plane), Some(want), "{plane:?}");
         }
         Ok(())
     }
@@ -732,14 +736,14 @@ mod tests {
                     ..Default::default()
                 };
                 spec.settings.rules.mix_neutral_races = mix;
-                let g = new_game(shipped(), &spec)?;
-                for (e, info, pos) in g.economy().cities() {
-                    let Some(race) = g.city_race(e).filter(|_| g.is_neutral_player(info.owner))
+                let w = new_game(shipped(), &spec)?;
+                for (e, info, pos) in w.economy().cities() {
+                    let Some(race) = w.city_race(e).filter(|_| w.is_neutral_player(info.owner))
                     else {
                         continue;
                     };
                     let native =
-                        g.content().rules.races.get(race).myrror == (pos.plane == Plane::Myrror);
+                        w.content().rules.races.get(race).myrror == (pos.plane == Plane::Myrror);
                     found += u32::from(!native);
                 }
             }

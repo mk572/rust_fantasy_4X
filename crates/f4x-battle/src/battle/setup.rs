@@ -3,7 +3,7 @@
 //! of the deck), and the settings of the game that change the rules of the fight.
 //!
 //! The world builds the units, picks who fights and works out which ship carries whom and where
-//! the decks lie (`f4x-core`'s `battle/game.rs`); the squares are decided here.
+//! the decks lie (`f4x-core`'s `battle/world.rs`); the squares are decided here.
 //!
 //! Tests: in f4x-core's battle/tests.rs, on real sea and land battles.
 

@@ -9,8 +9,8 @@
 use f4x_core::battle::immunity::Realm;
 use f4x_core::battle::map::{in_city_area, GRID_H, GRID_W};
 use f4x_core::battle::{Battle, RangedKind, Side};
-use f4x_core::game::Game;
 use f4x_core::rules::unit_flag::UnitFlag;
+use f4x_core::world::World;
 use f4x_def::content::Content;
 use f4x_def::rules::defs::SpellTarget;
 
@@ -99,8 +99,8 @@ impl ObsSpec {
     }
 
     /// The observation for `side` (the side to play, usually).
-    pub fn observe(&self, game: &Game, side: Side, brief: Brief) -> Option<Observation> {
-        let b = game.battle()?;
+    pub fn observe(&self, world: &World, side: Side, brief: Brief) -> Option<Observation> {
+        let b = world.battle()?;
         let uf = self.unit_features();
         let mut grid = vec![0.0f32; GRID_CHANNELS * (GRID_H * GRID_W) as usize];
         let at = |c: usize, (x, y): (i32, i32)| {
@@ -205,13 +205,13 @@ impl ObsSpec {
         let mut spells = vec![0.0f32; MAX_SPELLS * SPELL_FEATURES];
         let mut spell_mask = vec![false; MAX_SPELLS];
         let mut spell_ids = Vec::new();
-        for (i, s) in game
+        for (i, s) in world
             .battle_spells(player)
             .into_iter()
             .take(MAX_SPELLS)
             .enumerate()
         {
-            let d = game.content().rules.spells.get(s.spell);
+            let d = world.content().rules.spells.get(s.spell);
             let target = match s.target {
                 SpellTarget::None => 0,
                 SpellTarget::Battlefield => 1,
@@ -238,7 +238,7 @@ impl ObsSpec {
         // counts, only `FLEE_SURVIVAL` of the units that flee gets away, and units below half
         // their hit points count as the reward says.
         let flee_value = {
-            let content = game.content();
+            let content = world.content();
             let sum = |s: Side, f: &dyn Fn(&f4x_core::battle::BattleUnit) -> bool| {
                 b.units
                     .iter()

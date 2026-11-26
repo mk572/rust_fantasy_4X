@@ -490,8 +490,8 @@ mod tests {
 
     #[test]
     fn the_food_to_spare_counts_what_the_workers_could_farm() {
-        let g = game(COAST_CITY, 8 /* high_men */);
-        let view = PlayerView::new(&g, P0);
+        let w = game(COAST_CITY, 8 /* high_men */);
+        let view = PlayerView::new(&w, P0);
         let plain = view.budget().food_surplus - view.food_of(&view.my_units());
         assert!(
             view.farming_headroom() > HalfInt::ZERO,
@@ -502,12 +502,12 @@ mod tests {
 
     #[test]
     fn a_city_with_no_food_to_spare_does_not_build_a_soldier_that_eats() -> TestResult {
-        let g = game(COAST_CITY, 8 /* high_men */);
-        let city = g
+        let w = game(COAST_CITY, 8 /* high_men */);
+        let city = w
             .economy()
             .city_at(at(COAST_CITY.0, COAST_CITY.1))
             .ok_or("a city on the coast")?;
-        let view = PlayerView::new(&g, P0);
+        let view = PlayerView::new(&w, P0);
         let plan = BuildPlan::default();
         let pick = |spare: HalfInt| {
             next_item(
@@ -542,12 +542,12 @@ mod tests {
 
     #[test]
     fn a_city_with_no_defender_builds_the_most_efficient_normal_unit_it_may() -> TestResult {
-        let g = game(COAST_CITY, 8 /* high_men */);
-        let city = g
+        let w = game(COAST_CITY, 8 /* high_men */);
+        let city = w
             .economy()
             .city_at(at(COAST_CITY.0, COAST_CITY.1))
             .ok_or("a city on the coast")?;
-        let view = PlayerView::new(&g, P0);
+        let view = PlayerView::new(&w, P0);
         let need = Need {
             net_gold: HalfInt::from_int(5),
             rival_near: false,
@@ -581,13 +581,13 @@ mod tests {
 
     #[test]
     fn a_garrisoned_city_builds_a_basic_building_before_the_rest_of_the_list() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let city = g
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let city = w
             .economy()
             .city_at(at(COAST_CITY.0, COAST_CITY.1))
             .ok_or("a city on the coast")?;
-        spawn(&mut g, P0, at(COAST_CITY.0, COAST_CITY.1), 104, 2);
-        let view = PlayerView::new(&g, P0);
+        spawn(&mut w, P0, at(COAST_CITY.0, COAST_CITY.1), 104, 2);
+        let view = PlayerView::new(&w, P0);
         let plan = BuildPlan::default();
         let item = next_item(
             &view,
@@ -625,8 +625,8 @@ mod tests {
     #[test]
     fn a_city_with_a_gold_tile_specializes_in_what_adds_gold_and_one_without_does_not() -> TestResult
     {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let city = g
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let city = w
             .economy()
             .city_at(at(COAST_CITY.0, COAST_CITY.1))
             .ok_or("a city on the coast")?;
@@ -637,16 +637,16 @@ mod tests {
             settler_first: false,
             spare_food: HalfInt::from_int(10),
         };
-        assert_eq!(specialty(&PlayerView::new(&g, P0), city, need), None);
-        let gold_ore = g.content().features.id_numbered(10 /* gold_ore */);
-        let mut map = g.map().ok_or("the game has a map")?.clone();
+        assert_eq!(specialty(&PlayerView::new(&w, P0), city, need), None);
+        let gold_ore = w.content().features.id_numbered(10 /* gold_ore */);
+        let mut map = w.map().ok_or("the game has a map")?.clone();
         map.plane_mut(f4x_core::map::Plane::Arcanus).set_mineral(
             COAST_CITY.0,
             COAST_CITY.1 + 2,
             gold_ore,
         );
-        g.set_map(map);
-        let view = PlayerView::new(&g, P0);
+        w.set_map(map);
+        let view = PlayerView::new(&w, P0);
         let b = specialty(&view, city, need).ok_or("a gold tile makes a specialty")?;
         let rules = &view.content().rules;
         let adds_gold = |x: BuildingId| effect_total(&view, x, &[Stat::CityGold]) > 0.0;
@@ -664,12 +664,12 @@ mod tests {
 
     #[test]
     fn a_military_city_builds_toward_the_strongest_unit_and_another_city_does_not() -> TestResult {
-        let g = game(COAST_CITY, 8 /* high_men */);
-        let city = g
+        let w = game(COAST_CITY, 8 /* high_men */);
+        let city = w
             .economy()
             .city_at(at(COAST_CITY.0, COAST_CITY.1))
             .ok_or("a city on the coast")?;
-        let view = PlayerView::new(&g, P0);
+        let view = PlayerView::new(&w, P0);
         let need = Need {
             net_gold: HalfInt::from_int(10),
             rival_near: false,
@@ -702,19 +702,19 @@ mod tests {
     /// A city whose area gets the special `change` puts on the map, and what it specializes in.
     fn specialty_after(
         change: impl Fn(&mut f4x_core::map::Grid, u32, u32),
-    ) -> Result<(Option<BuildingId>, f4x_core::game::Game), Box<dyn std::error::Error>> {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let city = g
+    ) -> Result<(Option<BuildingId>, f4x_core::world::World), Box<dyn std::error::Error>> {
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let city = w
             .economy()
             .city_at(at(COAST_CITY.0, COAST_CITY.1))
             .ok_or("a city on the coast")?;
-        let mut map = g.map().ok_or("the game has a map")?.clone();
+        let mut map = w.map().ok_or("the game has a map")?.clone();
         change(
             map.plane_mut(f4x_core::map::Plane::Arcanus),
             COAST_CITY.0,
             COAST_CITY.1,
         );
-        g.set_map(map);
+        w.set_map(map);
         let need = Need {
             net_gold: HalfInt::from_int(10),
             rival_near: false,
@@ -722,8 +722,8 @@ mod tests {
             settler_first: false,
             spare_food: HalfInt::from_int(10),
         };
-        let b = specialty(&PlayerView::new(&g, P0), city, need);
-        Ok((b, g))
+        let b = specialty(&PlayerView::new(&w, P0), city, need);
+        Ok((b, w))
     }
 
     #[test]
@@ -732,9 +732,9 @@ mod tests {
             .content()
             .features
             .id_numbered(17 /* quork_crystal */);
-        let (b, g) = specialty_after(|grid, x, y| grid.set_mineral(x, y + 2, crystal))?;
+        let (b, w) = specialty_after(|grid, x, y| grid.set_mineral(x, y + 2, crystal))?;
         let b = b.ok_or("a mana tile makes a specialty")?;
-        let view = PlayerView::new(&g, P0);
+        let view = PlayerView::new(&w, P0);
         let rules = &view.content().rules;
         let adds = |x: BuildingId| effect_total(&view, x, &[Stat::CityMana]) > 0.0;
         assert!(
@@ -752,13 +752,13 @@ mod tests {
 
     #[test]
     fn rivers_make_a_city_build_what_adds_food() -> TestResult {
-        let (b, g) = specialty_after(|grid, x, y| {
+        let (b, w) = specialty_after(|grid, x, y| {
             for dx in 0..RIVERS_MIN {
                 grid.set_river(x + dx - 1, y + 1, true);
             }
         })?;
         let b = b.ok_or("rivers make a specialty")?;
-        let view = PlayerView::new(&g, P0);
+        let view = PlayerView::new(&w, P0);
         let rules = &view.content().rules;
         let food = [Stat::CityFood, Stat::CityFoodFlat, Stat::FarmerFood];
         let adds = |x: BuildingId| effect_total(&view, x, &food) > 0.0;

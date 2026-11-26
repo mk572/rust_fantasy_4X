@@ -67,12 +67,12 @@ impl App {
 
     /// What the panel says about `pos`, or `None` for land the player has not explored.
     pub(crate) fn describe_square(&self, pos: Position) -> Option<SquareText> {
-        if !self.game.is_explored(HUMAN, pos) {
+        if !self.world.is_explored(HUMAN, pos) {
             return None;
         }
-        let map = self.game.map()?;
+        let map = self.world.map()?;
         let grid = map.plane(pos.plane);
-        let content = self.game.content();
+        let content = self.world.content();
         let def = grid
             .get(pos.x as i32, pos.y as i32)
             .and_then(|t| content.terrains.get(t))?;
@@ -81,14 +81,14 @@ impl App {
             terrain: self.names.terrain(def.num).to_string(),
             ..Default::default()
         };
-        let survey = self.game.site_survey(HUMAN, pos);
+        let survey = self.world.site_survey(HUMAN, pos);
         let food = self
-            .game
+            .world
             .economy()
             .square_food(grid, pos.x as i32, pos.y as i32);
         text.effects[0] = food_text(self.texts(), QuarterInt::from_half(food.max(HalfInt::ZERO)));
         let production =
-            self.game
+            self.world
                 .economy()
                 .square_production(grid, pos.x as i32, pos.y as i32, false);
         if production != 0 {
@@ -120,8 +120,8 @@ impl App {
             text.effects = [self.text("surveyor.corruption"), String::new()];
         }
 
-        let feature = self.game.economy().feature_at(pos);
-        let city = self.game.economy().city_at(pos);
+        let feature = self.world.economy().feature_at(pos);
+        let city = self.world.economy().city_at(pos);
         if let Some(city) = city {
             let size = self.city_size_term(city);
             text.special = vec![
@@ -159,7 +159,7 @@ impl App {
             text.detail = self.texts().join(&bits);
             match f.kind {
                 FeatureKind::Node => {
-                    if let Some(n) = self.game.economy().node_at(pos) {
+                    if let Some(n) = self.world.economy().node_at(pos) {
                         let realm = self.realm_alias(n.realm);
                         let realm = realm[..1].to_uppercase() + &realm[1..];
                         text.special = vec![
@@ -200,12 +200,15 @@ impl App {
             }
             Some(FoundCityError::TooCloseToCity) => Some(self.text_with(
                 "surveyor.blocked_close",
-                &Args::new().count("n", u32::from(self.game.settings().rules.min_city_distance)),
+                &Args::new().count(
+                    "n",
+                    u32::from(self.world.settings().rules.min_city_distance),
+                ),
             )),
             _ => None,
         };
         if text.blocked.is_none() || city.is_some() {
-            let (size, prod, gold) = match city.and_then(|c| self.game.economy().city_economy(c)) {
+            let (size, prod, gold) = match city.and_then(|c| self.world.economy().city_economy(c)) {
                 Some(e) => (e.max_size, survey.production_percent, survey.gold_percent),
                 None => (
                     survey.max_size,
@@ -221,24 +224,24 @@ impl App {
 
     /// Names of the units guarding a site, when the square is in sight now.
     fn guard_names(&self, pos: Position) -> Vec<String> {
-        let width = self.game.map().map_or(0, |m| m.width());
+        let width = self.world.map().map_or(0, |m| m.width());
         let seen = self
             .cache
-            .visibility(&self.game, HUMAN, pos.plane)
+            .visibility(&self.world, HUMAN, pos.plane)
             .get((pos.y * width + pos.x) as usize)
             .copied()
             .unwrap_or(false);
-        if self.game.economy().lair_at(pos).is_none() {
+        if self.world.economy().lair_at(pos).is_none() {
             return Vec::new();
         }
         if !seen {
             return vec![self.text("ui.unexplored")];
         }
         // The guards are known to whoever has fought for the site once.
-        let Some(guards) = self.game.economy().lair_guards_known_to(pos, HUMAN) else {
+        let Some(guards) = self.world.economy().lair_guards_known_to(pos, HUMAN) else {
             return vec![self.text("surveyor.guards_unknown")];
         };
-        let rules = &self.game.content().rules;
+        let rules = &self.world.content().rules;
         guards
             .iter()
             .take(2)

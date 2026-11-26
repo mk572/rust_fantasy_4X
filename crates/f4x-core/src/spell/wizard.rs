@@ -7,13 +7,13 @@
 //!
 //! Tests: in spell/wizard/tests.rs.
 
-use crate::game::rng::GameRng;
-use crate::game::{Event, Game};
 use crate::player::PlayerId;
 use crate::rules::unit_flag::UnitFlag;
 use crate::rules::UnitKind;
 use crate::spell::target_error::TargetError;
 use crate::wizard::magic::{base_casting_skill, skill_points_for};
+use crate::world::rng::GameRng;
+use crate::world::{Event, World};
 use f4x_battle::resistance::resistance_failure;
 use f4x_def::half_int::HalfInt;
 use f4x_def::rules::realm::Realm;
@@ -51,7 +51,7 @@ crate::hook::effect_enum! {
     DeathWish = "death_wish",
 }
 
-impl Game {
+impl World {
     /// Drain Power: the victim loses 10 to 200 mana (not more than they have); returns what
     /// was taken.
     pub(crate) fn drain_power(&mut self, victim: PlayerId, rng: &mut GameRng) -> HalfInt {
@@ -127,7 +127,7 @@ impl Game {
         modifier: i32,
         rng: &mut GameRng,
         spell: Option<crate::rules::SpellId>,
-        chosen: impl Fn(&Game, hecs::Entity, PlayerId) -> bool,
+        chosen: impl Fn(&World, hecs::Entity, PlayerId) -> bool,
     ) -> u32 {
         let mut slain = 0;
         for (unit, owner) in self.all_units_with_owner() {
@@ -180,7 +180,7 @@ impl Game {
             return true;
         }
         if damage > 0 {
-            let hurt = self.world.get::<&Hurt>(unit).map_or(0, |h| h.0);
+            let hurt = self.ecs.get::<&Hurt>(unit).map_or(0, |h| h.0);
             self.put(unit, Hurt(hurt + damage));
         }
         false
@@ -248,7 +248,7 @@ impl Game {
             .rules
             .units
             .id_numbered(self.content.rules.config.spell_effects.werewolves)?;
-        let from = self.world.get::<&crate::unit::Unit>(unit).ok()?.0;
+        let from = self.ecs.get::<&crate::unit::Unit>(unit).ok()?.0;
         self.put(unit, crate::unit::Unit(to));
         self.strip::<crate::unit::Experience>(unit);
         let (left, _) = self.units().unit_hits(unit);
@@ -282,17 +282,17 @@ impl Game {
             self.content.rules.config.spell_effects.unsummoning_modifier,
             rng,
             spell,
-            |g, u, _| g.units().unit_realm(u).is_some(),
+            |w, u, _| w.units().unit_realm(u).is_some(),
         )
     }
 
     /// Death Wish: every normal unit of the other wizards must resist or die.
     pub(crate) fn death_wish(&mut self, caster: PlayerId, rng: &mut GameRng) -> u32 {
         let spell = self.content.rules.spells.id_numbered(199 /* death_wish */);
-        self.slay_units(Realm::Death, 0, rng, spell, |g, u, owner| {
+        self.slay_units(Realm::Death, 0, rng, spell, |w, u, owner| {
             owner != caster
-                && g.units().unit_realm(u).is_none()
-                && g.units()
+                && w.units().unit_realm(u).is_none()
+                && w.units()
                     .unit_def(u)
                     .is_some_and(|d| d.kind == UnitKind::Normal)
         })
@@ -339,12 +339,12 @@ impl Game {
         rng: &mut GameRng,
     ) -> Result<(u32, u32), ShakeError> {
         let at = self
-            .world
+            .ecs
             .get::<&crate::map::Position>(city)
             .map(|p| *p)
             .map_err(|_| ShakeError::NotACity)?;
         let built: Vec<_> = self
-            .world
+            .ecs
             .get::<&crate::city::economy::Buildings>(city)
             .map(|b| b.0.clone())
             .map_err(|_| ShakeError::NotACity)?;

@@ -1,5 +1,5 @@
-//! The settings a game is played with (the data half; `f4x-core` reads them in `game/setting.rs`): chosen once when the game is made, saved and loaded with
-//! it, and read by the rules through `Game::settings`
+//! The settings a game is played with (the data half; `f4x-core` reads them in `world/setting.rs`): chosen once when the game is made, saved and loaded with
+//! it, and read by the rules through `World::settings`
 //! (`docs/game-settings.md`).
 //!
 //! The figures of the difficulty levels and the defaults of the settings screens are
@@ -53,7 +53,7 @@ pub const SITES_RANGE: std::ops::RangeInclusive<u8> = 0..=100;
 
 /// The default of the `max_tile` setting (the community patch's and the mod's): units that may
 /// walk onto one square. The rule set of v1.31 takes the original's nine (`rules_settings.ron`).
-/// Read the game's own limit with `Game::max_tile()`.
+/// Read the game's own limit with `World::max_tile()`.
 pub const DEFAULT_MAX_TILE: usize = 20;
 
 /// The ceiling of the `max_tile` setting: half the sanity limit, because a tower takes twice the
@@ -62,7 +62,7 @@ pub const MAX_TILE_LIMIT: usize = TILE_SANITY_LIMIT / 2;
 
 /// The most units that may stand on one tile whatever the setting and however they got there (a
 /// hire, a summoning, a prisoner freed, a unit built, a stack moved in). Past it the game disbands
-/// the cheapest unit of the square (`Game::enforce_tile_sanity`). A game played by the rules never
+/// the cheapest unit of the square (`World::enforce_tile_sanity`). A game played by the rules never
 /// gets near it; it keeps a cheat or an AI stuck in a loop from slowing the game down.
 pub const TILE_SANITY_LIMIT: usize = 100;
 
@@ -70,7 +70,7 @@ pub const TILE_SANITY_LIMIT: usize = 100;
 pub const PICKS: u8 = 11;
 
 /// Most units a battle side fights with: the ceiling and the default of the `max_battle_side`
-/// setting (nine in every rule set). Read the game's own limit with `Game::max_battle_side()`.
+/// setting (nine in every rule set). Read the game's own limit with `World::max_battle_side()`.
 pub const MAX_STACK: usize = 9;
 
 /// Land as a share of each plane's tiles for the three sizes.
@@ -1804,7 +1804,7 @@ impl GameSettings {
 
 /// The game as the shipped rules play it: the Average level of `crates/f4x-def/content/rules_settings.ron`
 /// (read at build time, so there is one set of figures). A game made for play picks its level in
-/// `f4x_newgame::setup::new_game`; a bare `Game::new` and a `NewGame::default()` start from this.
+/// `f4x_newgame::setup::new_game`; a bare `World::new` and a `NewGame::default()` start from this.
 impl Default for GameSettings {
     fn default() -> Self {
         static AVERAGE: std::sync::OnceLock<GameSettings> = std::sync::OnceLock::new();

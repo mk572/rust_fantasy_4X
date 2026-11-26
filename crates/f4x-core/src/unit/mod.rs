@@ -5,8 +5,8 @@
 //! the content and the players (for the owner's retorts and global spells), with the queries as
 //! its methods. They are spread over the files of the unit rules (`spell/temp_effect.rs`,
 //! `unit/undead.rs`, `unit/experience.rs`, `spell/global_enchantment.rs`), each an `impl UnitView` block. What changes units
-//! is a function over `&mut World` (`spawn`, `experience::gain_xp`, the temporary effects).
-//! `Game` has thin methods that make a handle and ask it (`Game::units`).
+//! is a function over `&mut hecs::World` (`spawn`, `experience::gain_xp`, the temporary effects).
+//! `World` has thin methods that make a handle and ask it (`World::units`).
 
 pub mod experience;
 pub(crate) mod healing;
@@ -24,16 +24,15 @@ use crate::rules::damage_type::DamageTypes;
 use crate::rules::unit_flag::{UnitFlag, UnitFlags};
 use crate::rules::Ability;
 use f4x_def::half_int::HalfInt;
-use hecs::World;
 
-use crate::game::serial::Serial;
 use crate::map::Position;
 use crate::player::{Owner, PlayerId};
+use crate::world::serial::Serial;
 use f4x_def::content::Content;
 
-use crate::game::{Event, Game};
 use crate::rules::stats::{compute, compute_half, passive_modifiers, Modifier, Source};
 use crate::rules::{LevelPathDef, ModOp, Stat, UnitDef, UnitId, UnitKind};
+use crate::world::{Event, World};
 
 /// Marks an entity as a unit of this definition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,7 +50,7 @@ pub struct Unpaid;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Experience(pub u32);
 
-/// The quality of a unit's weapons, set where it is trained (`Game::city_weapon_quality`):
+/// The quality of a unit's weapons, set where it is trained (`World::city_weapon_quality`):
 /// 0 normal, 1 magic (an alchemists guild or the Alchemy retort), 2 mithril, 3 adamantium.
 /// Mithril and adamantium add to the unit's attacks and defence in battle; every quality above
 /// normal adds a plus to hit and makes the weapons magical.
@@ -86,7 +85,7 @@ pub enum Standby {
 impl UnitView<'_> {
     /// The unit's standby, if it has one.
     pub fn unit_standby(&self, unit: hecs::Entity) -> Option<Standby> {
-        self.world.get::<&Standby>(unit).ok().map(|s| *s)
+        self.ecs.get::<&Standby>(unit).ok().map(|s| *s)
     }
 }
 
@@ -95,18 +94,18 @@ pub use f4x_def::settings::{MAX_STACK, MAX_TILE_LIMIT, TILE_SANITY_LIMIT};
 /// The unit rules' view of the game: the world, the content and the players.
 #[derive(Clone, Copy)]
 pub struct UnitView<'a> {
-    pub(crate) world: &'a World,
+    pub(crate) ecs: &'a hecs::World,
     pub(crate) content: &'a Content,
 }
 
 impl<'a> UnitView<'a> {
-    pub fn new(world: &'a World, content: &'a Content) -> Self {
-        UnitView { world, content }
+    pub fn new(ecs: &'a hecs::World, content: &'a Content) -> Self {
+        UnitView { ecs, content }
     }
 
     /// A player's magic (retorts and global spells), for what the owner adds to its units.
     pub(crate) fn wizard(&self, player: PlayerId) -> Option<crate::wizard::entity::Wizard<'a>> {
-        crate::wizard::entity::find(self.world, player)
+        crate::wizard::entity::find(self.ecs, player)
     }
 
     /// Does `player` keep a global spell with this effect going?
@@ -135,7 +134,7 @@ impl<'a> UnitView<'a> {
             .into_iter()
             .filter_map(|h| {
                 let tier = self
-                    .world
+                    .ecs
                     .get::<&crate::hero::Hero>(h)
                     .ok()?
                     .abilities
@@ -169,12 +168,12 @@ impl<'a> UnitView<'a> {
         {
             return None;
         }
-        let wizards: Vec<PlayerId> = crate::player::ids(self.world)
+        let wizards: Vec<PlayerId> = crate::player::ids(self.ecs)
             .into_iter()
             .filter(|&p| self.wizard(p).is_some())
             .filter(|&p| {
-                crate::player::find_entity(self.world, p)
-                    .is_some_and(|e| self.world.get::<&crate::player::Defeat>(e).is_err())
+                crate::player::find_entity(self.ecs, p)
+                    .is_some_and(|e| self.ecs.get::<&crate::player::Defeat>(e).is_err())
             })
             .collect();
         let count = i32::try_from(wizards.len()).ok().filter(|&n| n > 0)?;
@@ -192,7 +191,7 @@ impl<'a> UnitView<'a> {
         self.hero_units(player)
             .into_iter()
             .filter_map(|h| {
-                let tier = self.world.get::<&crate::hero::Hero>(h).ok()?.abilities.sage;
+                let tier = self.ecs.get::<&crate::hero::Hero>(h).ok()?.abilities.sage;
                 Some(
                     self.content
                         .rules
@@ -204,7 +203,7 @@ impl<'a> UnitView<'a> {
 
     /// The entity with this creation number, if it is still alive.
     pub fn entity_of_serial(&self, serial: Serial) -> Option<hecs::Entity> {
-        self.world
+        self.ecs
             .query::<&Serial>()
             .iter()
             .find(|(_, s)| **s == serial)
@@ -216,7 +215,7 @@ impl<'a> UnitView<'a> {
         &self,
         effect: crate::spell::global_enchantment::GlobalEffect,
     ) -> bool {
-        let spells = crate::spell::instance::Spells::new(self.world);
+        let spells = crate::spell::instance::Spells::new(self.ecs);
         self.content.rules.spells.iter().any(|(id, def)| {
             effect.is_in(def) && spells.has(crate::spell::instance::SpellTarget::Global, id)
         })
@@ -229,7 +228,7 @@ impl<'a> UnitView<'a> {
 
     /// An entity's creation number (entities without one sort first, by id).
     pub fn serial_of(&self, entity: hecs::Entity) -> Serial {
-        self.world.get::<&Serial>(entity).map_or(Serial(0), |s| *s)
+        self.ecs.get::<&Serial>(entity).map_or(Serial(0), |s| *s)
     }
 
     /// Sort entities oldest first.
@@ -239,30 +238,30 @@ impl<'a> UnitView<'a> {
 
     /// The kind of unit this is, as the rules know it.
     pub fn unit_kind_id(&self, unit: hecs::Entity) -> Option<UnitId> {
-        self.world.get::<&Unit>(unit).ok().map(|u| u.0)
+        self.ecs.get::<&Unit>(unit).ok().map(|u| u.0)
     }
 
     pub fn unit_def(&self, unit: hecs::Entity) -> Option<&'a UnitDef> {
-        let id = self.world.get::<&Unit>(unit).ok()?.0;
+        let id = self.ecs.get::<&Unit>(unit).ok()?.0;
         Some(self.content.rules.units.get(id))
     }
 
     /// The quality of the unit's weapons (see [`WeaponQuality`]).
     pub fn unit_weapon_quality(&self, unit: hecs::Entity) -> u8 {
-        self.world.get::<&WeaponQuality>(unit).map_or(0, |w| w.0)
+        self.ecs.get::<&WeaponQuality>(unit).map_or(0, |w| w.0)
     }
 
     pub fn unit_owner(&self, unit: hecs::Entity) -> Option<PlayerId> {
-        crate::player::id_of(self.world, self.unit_owner_entity(unit)?)
+        crate::player::id_of(self.ecs, self.unit_owner_entity(unit)?)
     }
 
     /// The player entity a unit belongs to.
     pub fn unit_owner_entity(&self, unit: hecs::Entity) -> Option<hecs::Entity> {
-        self.world.get::<&Owner>(unit).ok().map(|o| o.0)
+        self.ecs.get::<&Owner>(unit).ok().map(|o| o.0)
     }
 
     pub fn unit_position(&self, unit: hecs::Entity) -> Option<Position> {
-        self.world.get::<&Position>(unit).ok().map(|p| *p)
+        self.ecs.get::<&Position>(unit).ok().map(|p| *p)
     }
 
     pub fn unit_has_ability(&self, unit: hecs::Entity, ability: Ability) -> bool {
@@ -302,13 +301,13 @@ impl<'a> UnitView<'a> {
         let Some(def) = self.unit_def(unit) else {
             return 0;
         };
-        let xp = self.world.get::<&Experience>(unit).map_or(0, |x| x.0);
+        let xp = self.ecs.get::<&Experience>(unit).map_or(0, |x| x.0);
         self.content.rules.xp_level(def, xp)
     }
 
     /// The lasting spells on a unit, with the wizard who cast each.
     pub fn unit_enchantments(&self, unit: hecs::Entity) -> Vec<(crate::rules::SpellId, PlayerId)> {
-        crate::spell::instance::Spells::new(self.world).unit_enchantments(unit)
+        crate::spell::instance::Spells::new(self.ecs).unit_enchantments(unit)
     }
 
     /// Whether the Heroism spell is on the unit.
@@ -371,8 +370,8 @@ impl<'a> UnitView<'a> {
         let (from, to) = (self.level_with(unit, false), self.level_with(unit, true));
         let mut mods = self.level_modifiers(unit, from + 1..to + 1);
         // A hero's abilities grow with its level too; the change is added as a difference.
-        if let Ok(hero) = self.world.get::<&crate::hero::Hero>(unit) {
-            let magic = crate::battle::game::ranged_kind_of(
+        if let Ok(hero) = self.ecs.get::<&crate::hero::Hero>(unit) {
+            let magic = crate::battle::world::ranged_kind_of(
                 &self.unit_abilities(unit),
                 &self.content.rules,
             ) == crate::battle::RangedKind::Magic;
@@ -423,7 +422,7 @@ impl<'a> UnitView<'a> {
     /// Every modifier currently affecting the unit: its abilities and level effects. Shared: kept
     /// for a computer wizard's turn (see `unit::kept`).
     pub(crate) fn modifiers_shared(&self, unit: hecs::Entity) -> std::rc::Rc<Vec<Modifier>> {
-        if let Some(kept) = kept::modifiers(self.world, unit) {
+        if let Some(kept) = kept::modifiers(self.ecs, unit) {
             if kept::checking() {
                 assert_eq!(
                     *kept,
@@ -434,7 +433,7 @@ impl<'a> UnitView<'a> {
             return kept;
         }
         let mods = std::rc::Rc::new(self.compute_modifiers(unit));
-        kept::keep_modifiers(self.world, unit, &mods);
+        kept::keep_modifiers(self.ecs, unit, &mods);
         mods
     }
 
@@ -457,7 +456,7 @@ impl<'a> UnitView<'a> {
     fn spell_modifiers(&self, unit: hecs::Entity) -> Vec<Modifier> {
         let rules = &self.content.rules;
         let mut mods = Vec::new();
-        for (spell, _) in crate::spell::instance::Spells::new(self.world).unit_enchantments(unit) {
+        for (spell, _) in crate::spell::instance::Spells::new(self.ecs).unit_enchantments(unit) {
             if self.unit_spell_superseded(unit, spell) {
                 continue;
             }
@@ -486,8 +485,8 @@ impl<'a> UnitView<'a> {
         let mut mods = Vec::new();
         mods.extend(self.ability_modifiers(unit));
         let level = self.unit_level(unit);
-        if let Ok(hero) = self.world.get::<&crate::hero::Hero>(unit) {
-            let magic = crate::battle::game::ranged_kind_of(
+        if let Ok(hero) = self.ecs.get::<&crate::hero::Hero>(unit) {
+            let magic = crate::battle::world::ranged_kind_of(
                 &self.unit_abilities(unit),
                 &self.content.rules,
             ) == crate::battle::RangedKind::Magic;
@@ -576,7 +575,7 @@ impl<'a> UnitView<'a> {
     }
 
     pub fn unit_moves_left(&self, unit: hecs::Entity) -> HalfInt {
-        self.world
+        self.ecs
             .get::<&MovesLeft>(unit)
             .map_or(HalfInt::ZERO, |m| m.0)
     }
@@ -605,14 +604,14 @@ impl<'a> UnitView<'a> {
 
     /// The unit's experience points.
     pub fn unit_experience(&self, unit: hecs::Entity) -> u32 {
-        self.world.get::<&Experience>(unit).map_or(0, |x| x.0)
+        self.ecs.get::<&Experience>(unit).map_or(0, |x| x.0)
     }
 
     /// `(current, maximum)` hit points over all figures.
     pub fn unit_hits(&self, unit: hecs::Entity) -> (u32, u32) {
         let max = (self.unit_stat(unit, Stat::MaxHp).max(0)
             * self.unit_stat(unit, Stat::Figures).max(0)) as u32;
-        let hurt = self.world.get::<&Hurt>(unit).map_or(0, |h| h.0);
+        let hurt = self.ecs.get::<&Hurt>(unit).map_or(0, |h| h.0);
         (max.saturating_sub(hurt), max)
     }
 
@@ -677,8 +676,8 @@ impl<'a> UnitView<'a> {
         // A hero's rating was measured with the abilities the game rolls for it (task 655), so
         // they are part of the level alone: only items, spells and curses move it from there.
         let mut rolled = Vec::new();
-        if let Ok(hero) = self.world.get::<&crate::hero::Hero>(unit) {
-            let magic = crate::battle::game::ranged_kind_of(
+        if let Ok(hero) = self.ecs.get::<&crate::hero::Hero>(unit) {
+            let magic = crate::battle::world::ranged_kind_of(
                 &self.unit_abilities(unit),
                 &self.content.rules,
             ) == crate::battle::RangedKind::Magic;
@@ -750,7 +749,7 @@ impl<'a> UnitView<'a> {
     /// Units standing on `pos`, in a stable order.
     pub fn units_at(&self, pos: Position) -> Vec<hecs::Entity> {
         let mut out: Vec<_> = self
-            .world
+            .ecs
             .query::<(&Unit, &Position)>()
             .iter()
             .filter(|(_, (_, p))| **p == pos)
@@ -762,12 +761,12 @@ impl<'a> UnitView<'a> {
 
     /// All units, in no particular order (for callers that filter before they sort).
     pub fn unsorted_units(&self) -> Vec<hecs::Entity> {
-        self.world.query::<&Unit>().iter().map(|(e, _)| e).collect()
+        self.ecs.query::<&Unit>().iter().map(|(e, _)| e).collect()
     }
 
     /// All units, in a stable order.
     pub fn all_units(&self) -> Vec<hecs::Entity> {
-        let mut out: Vec<_> = self.world.query::<&Unit>().iter().map(|(e, _)| e).collect();
+        let mut out: Vec<_> = self.ecs.query::<&Unit>().iter().map(|(e, _)| e).collect();
         self.sort_by_serial(&mut out);
         out
     }
@@ -803,7 +802,7 @@ impl<'a> UnitView<'a> {
 
     /// Whether the owner pays nothing for the unit (see [`Unpaid`]).
     pub fn unit_is_unpaid(&self, unit: hecs::Entity) -> bool {
-        self.world.get::<&Unpaid>(unit).is_ok()
+        self.ecs.get::<&Unpaid>(unit).is_ok()
     }
 
     /// Gold a unit costs per turn (heroes with the noble trait cost nothing).
@@ -824,7 +823,7 @@ impl<'a> UnitView<'a> {
         // A computer wizard's difficulty cuts its units' upkeep.
         let cut = self
             .unit_owner(unit)
-            .and_then(|o| crate::player::component::<crate::player::Bonus>(self.world, o))
+            .and_then(|o| crate::player::component::<crate::player::Bonus>(self.ecs, o))
             .map_or(100, |b| b.unit_upkeep);
         crate::player::Bonus::of_half(cut, gold)
     }
@@ -834,7 +833,7 @@ impl<'a> UnitView<'a> {
         // Filter first, then sort: the player's few units, not all of them. The owner is
         // compared as the player entity, found once.
         let Some(entity) = self
-            .world
+            .ecs
             .query::<&PlayerId>()
             .iter()
             .find(|(_, id)| **id == player)
@@ -843,7 +842,7 @@ impl<'a> UnitView<'a> {
             return Vec::new();
         };
         let mut out: Vec<_> = self
-            .world
+            .ecs
             .query::<(&Unit, &Owner)>()
             .iter()
             .filter(|(_, (_, o))| o.0 == entity)
@@ -856,10 +855,10 @@ impl<'a> UnitView<'a> {
     /// How many units a player has (what `player_units` would count, without the list or the
     /// sort).
     pub fn player_unit_count(&self, player: PlayerId) -> usize {
-        let Some(entity) = crate::player::find_entity(self.world, player) else {
+        let Some(entity) = crate::player::find_entity(self.ecs, player) else {
             return 0;
         };
-        self.world
+        self.ecs
             .query::<(&Unit, &Owner)>()
             .iter()
             .filter(|(_, (_, o))| o.0 == entity)
@@ -875,14 +874,14 @@ impl<'a> UnitView<'a> {
 
 /// Create a unit with full moves and health.
 pub(crate) fn spawn(
-    world: &mut World,
+    ecs: &mut hecs::World,
     content: &Content,
     serial: Serial,
     owner: hecs::Entity,
     pos: Position,
     unit: UnitId,
 ) -> hecs::Entity {
-    let e = world.spawn((
+    let e = ecs.spawn((
         serial,
         Unit(unit),
         Owner(owner),
@@ -890,16 +889,16 @@ pub(crate) fn spawn(
         Hurt(0),
         Experience(0),
     ));
-    let moves = UnitView::new(world, content).unit_max_moves(e);
-    crate::game::put_in(world, e, MovesLeft(moves));
+    let moves = UnitView::new(ecs, content).unit_max_moves(e);
+    crate::world::put_in(ecs, e, MovesLeft(moves));
     e
 }
 
-impl Game {
+impl World {
     /// The unit rules' view of the game: the world, the content and the players. The methods
     /// below ask it.
     pub fn units(&self) -> UnitView<'_> {
-        UnitView::new(&self.world, &self.content)
+        UnitView::new(&self.ecs, &self.content)
     }
 
     /// Create a unit with full moves and health, and let its owner see around it.
@@ -908,7 +907,7 @@ impl Game {
         let player = self
             .player_entity(owner)
             .expect("a unit is spawned for a player that exists");
-        let e = spawn(&mut self.world, &self.content, serial, player, pos, unit);
+        let e = spawn(&mut self.ecs, &self.content, serial, player, pos, unit);
         self.watch_tile(pos);
         let sight = self.units().unit_sight(e);
         if owner != crate::player::MONSTERS {

@@ -33,7 +33,7 @@ Decided October 2026, `design.md` section 8.
   summoned, hired, freed, raised, recalled) is now never refused for a full one. Three limits meet
   on a square instead: the battle side (`max_battle_side`, met when a battle starts), the walking
   limit (`max_tile`, met when units walk in, twice as high on a tower: `Economy::tile_limit`) and
-  the sanity limit (`TILE_SANITY_LIMIT`, 100: past it `Game::enforce_tile_sanity` disbands the
+  the sanity limit (`TILE_SANITY_LIMIT`, 100: past it `World::enforce_tile_sanity` disbands the
   cheapest unit of the square after any command and tells the player, `LossCause::Crowded`). The
   original has no such rule: its AI keeps its cities below the limit.
 - **The AI sees only what a human player would (task 181).** What the original does (as
@@ -581,7 +581,7 @@ The original's Lo Pan has five sorcery and five chaos books and the Channeler re
   no fame; the loser loses the fame of fallen heroes (half their level, rounded up) and of a lost
   city (its size), and a human wizard above 20 fame loses one more point for a major defeat.
 - What counts as fame: earned fame, Legendary heroes (task 47), and 10 while Just Cause lasts
-  (`Game::fame`). Fame lowers gold upkeep one for one and raises the chance and the quality of
+  (`World::fame`). Fame lowers gold upkeep one for one and raises the chance and the quality of
   hero, mercenary and merchant offers. Each wizard's own fame is used (section 11).
 
 ## 24. Terrain food, production and invisibility (task 78)
@@ -893,7 +893,7 @@ The original shows only four lines on the first page of a hero's sheet (the thre
 
 ## 42. A flying unit that is also non-corporeal moves as a non-corporeal one
 
-The wiki page on Non-Corporeal (`reference/`) says Flying overrides it on the overland map: such a unit pays one move a tile but may use roads. Ours does the opposite: **non-corporeal comes first**, so a flying non-corporeal unit pays half a move onto any square and no road helps it (`step_entry` in `unit/movement.rs`). Decided by the user on 13 November 2026: a flying, incorporeal unit is treated as incorporeal. The rest follows the wiki: a walking or swimming non-corporeal unit enters water as well as land for half a move (changed 13 November 2026; before, water was refused), and it gets nothing from enchanted roads. A ship made non-corporeal (Wraith Form) crosses land the same way: the wiki's Wraith Form page names no exception for ships (decided by the user, 13 November 2026). **A ship's extra movement modes** (flying, non-corporeal) let it enter land and do not change its being a transport. When the movement ends while the ship is on land (Wraith Form dispelled or run out, the flight lost), **the ship is destroyed and its units stand on that square** (`Game::drown_stranded`, `Event::ShipStranded`); a ship in a city of its owner is never stranded.
+The wiki page on Non-Corporeal (`reference/`) says Flying overrides it on the overland map: such a unit pays one move a tile but may use roads. Ours does the opposite: **non-corporeal comes first**, so a flying non-corporeal unit pays half a move onto any square and no road helps it (`step_entry` in `unit/movement.rs`). Decided by the user on 13 November 2026: a flying, incorporeal unit is treated as incorporeal. The rest follows the wiki: a walking or swimming non-corporeal unit enters water as well as land for half a move (changed 13 November 2026; before, water was refused), and it gets nothing from enchanted roads. A ship made non-corporeal (Wraith Form) crosses land the same way: the wiki's Wraith Form page names no exception for ships (decided by the user, 13 November 2026). **A ship's extra movement modes** (flying, non-corporeal) let it enter land and do not change its being a transport. When the movement ends while the ship is on land (Wraith Form dispelled or run out, the flight lost), **the ship is destroyed and its units stand on that square** (`World::drown_stranded`, `Event::ShipStranded`); a ship in a city of its owner is never stranded.
 
 Two things the wiki calls bugs of the original, which we do not copy (the rule is that a bug the wiki lists is fixed, `design.md` section 11): **Wraith Form gives no shelter** from Call Lightning, Wrack, Flame Strike, Death Spell or Holy Word (tests `wraith_form_is_no_shelter_from_flame_strike_death_spell_and_holy_word`, `call_lightning_strikes_a_unit_under_wraith_form` and the Wrack test in `battle/tests.rs`), and **mud does not slow a non-corporeal unit** in battle (`ignores_mud` in `battle/mod.rs`), where the original's Earth to Mud does, which the wiki calls an oversight.
 
@@ -939,13 +939,13 @@ the 1.50 patch only stops the crash by setting such a unit to one hit point when
 Here the damage a unit has taken stays when its maximum falls, and a unit left with zero or less is
 dead and removed: in a battle at once (`Battle::rebuild_unit`, which a dispel calls, and
 a dispel that kills a unit reports `UnitDied`), overland after every command
-(`Game::remove_units_without_hit_points`, reported as a `UnitLost` with the cause `Wounds`).
+(`World::remove_units_without_hit_points`, reported as a `UnitLost` with the cause `Wounds`).
 The figures of a unit only show its hit points, so the whole unit dies, not a figure. Entering a
 battle still clamps to one hit point (`battle_unit_from`) as a last guard; no unit should reach it.
 
 The end of a battle is the same: the hit points a spell cast in the battle gave (Lionheart) go with
 the battle, the damage taken stays, and a unit that was standing on them is dead (the write-back in
-`battle/game.rs` leaves it with none and the sweep removes it, as `UnitLost` with the cause `Wounds`).
+`battle/world.rs` leaves it with none and the sweep removes it, as `UnitLost` with the cause `Wounds`).
 The 1.50 patch would leave it on one hit point. The extra hit points of life steal were never the
 unit's, so they do not count for or against it.
 

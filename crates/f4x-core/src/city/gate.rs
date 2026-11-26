@@ -15,11 +15,11 @@
 //! Tests: in tests/it/city_gate.rs, on the shipped content.
 
 use crate::city::economy::Economy;
-use crate::game::{Event, Game};
 use crate::map::Position;
 use crate::player::PlayerId;
 use crate::unit::movement::MoveError;
 use crate::unit::MovesLeft;
+use crate::world::{Event, World};
 use f4x_def::half_int::HalfInt;
 
 /// The hook of the gate spells: the effect is read from the city's enchantments, so casting
@@ -32,7 +32,7 @@ pub const ASTRAL_GATE: &str = "astral";
 /// One full move in half-moves.
 const FULL_MOVE: HalfInt = HalfInt::from_int(1);
 
-impl Game {
+impl World {
     /// Whether the stack could teleport through Earth Gates to the city at `to`.
     pub fn can_use_earth_gate(
         &self,
@@ -92,7 +92,7 @@ impl Economy<'_> {
         let Some(city) = self.city_at(pos) else {
             return false;
         };
-        crate::spell::instance::Spells::new(self.world)
+        crate::spell::instance::Spells::new(self.ecs)
             .city_enchantments(city)
             .iter()
             .any(|&(spell, o)| {

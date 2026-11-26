@@ -9,7 +9,7 @@ for later.
 
 **Built so far (16 October 2026):** stage 1 (task 246) and stage 2 (task 247, with the
 settings screen of task 94). The record holds the basic block, the wizard, AI, world, rule, event
-and score groups of the levels; `GameSettings::default()` (the Average level of `rules_settings.ron`) is the default of `NewGame` and `Game::new`,
+and score groups of the levels; `GameSettings::default()` (the Average level of `rules_settings.ron`) is the default of `NewGame` and `World::new`,
 so tests, the soak and the learning AI play the real rules, and the client and the console's
 `new difficulty=...` start from a level. The number of opponents is `settings.basic.opponents`,
 the one place it lives. Not yet read by the rules: `picks.human` (stage 3), the event group
@@ -100,15 +100,15 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 
 | Group | Field | Type / range | Default (Average) | Today |
 |---|---|---|---|---|
-| basic | `difficulty` | 0..=4 (Intro to Impossible) | 2 | `Game::difficulty` |
+| basic | `difficulty` | 0..=4 (Intro to Impossible) | 2 | `World::difficulty` |
 | basic | `opponents` | 1..=9 | 1 in the client | `NewGame` wizard count |
 | basic | `land_percent` | preset 15 / 20 / 30, free 10..=60 | 30 | `GenParams::land_percent` |
 | basic | `original_map_generator` | bool | off | `GenParams::original_generator`: the land from the original's random walks (`f4x-newgame/src/mapgen/original.rs`) and its fortress sites (`game/setup/original.rs`) instead of the noise-based land. `land_percent` is the land without the polar caps in both |
 | content | `half_upkeep` (`enabled`, `units`) | bool, unit ids without the race (`spearmen`) | off (30 October 2026: the AI learns on the original's rules), Spearmen and Swordsmen when on | `UnitView::pays_upkeep` (unit/mod.rs): the basic troops cost half the food and gold (about every second one, by serial number, is free); not saved with the game, it is read from the content |
-| basic | `magic_strength` | 0..=2 (Weak, Normal, Powerful) | 1 | `Game::magic_strength` |
+| basic | `magic_strength` | 0..=2 (Weak, Normal, Powerful) | 1 | `World::magic_strength` |
 | wizards | `picks` | `Split`, 5..=20 | 11 / 11 | `wizard::PICKS` |
-| wizards | `max_books_per_realm` | 5..=13 | 11 | `Game::check_wizard_build`, `create_screen.rs` / `newgame_picks.rs` `set_books`, `f4x-newgame/src/computer_wizard.rs` (`book_cap`: `add_books`, the merge of opposed realms, `fit_books` for a ready-made wizard over it, the refill's total of twelve books), `WizardMut::found`. One value for every wizard. A ready-made wizard over it loses the surplus and its picks are spent again (the computer wizard's by the refill, the human's by hand). The spell library stops at row 11: 12 and 13 books start with the spells of 11 |
-| wizards | `max_books_total` | 12..=65 | 12 | `f4x-core/src/feature/lair.rs` `award_special` (the original's `Book_Count > 12` in `Lair.c`: a wizard with more books than this finds no book in treasure, the reward turns into a retort, so a wizard reaches one over it), `f4x-newgame/src/computer_wizard.rs` `refill` (the original's `(Trait_Value + Book_Count) > 12` in `INITGAME.c`: the fill-up stops at it), `Game::check_wizard_build` (`TooManyBooksInAll`). One value for every wizard; 65 is five realms of 13. The original has no separate figure for the human: its 11 picks are the limit |
+| wizards | `max_books_per_realm` | 5..=13 | 11 | `World::check_wizard_build`, `create_screen.rs` / `newgame_picks.rs` `set_books`, `f4x-newgame/src/computer_wizard.rs` (`book_cap`: `add_books`, the merge of opposed realms, `fit_books` for a ready-made wizard over it, the refill's total of twelve books), `WizardMut::found`. One value for every wizard. A ready-made wizard over it loses the surplus and its picks are spent again (the computer wizard's by the refill, the human's by hand). The spell library stops at row 11: 12 and 13 books start with the spells of 11 |
+| wizards | `max_books_total` | 12..=65 | 12 | `f4x-core/src/feature/lair.rs` `award_special` (the original's `Book_Count > 12` in `Lair.c`: a wizard with more books than this finds no book in treasure, the reward turns into a retort, so a wizard reaches one over it), `f4x-newgame/src/computer_wizard.rs` `refill` (the original's `(Trait_Value + Book_Count) > 12` in `INITGAME.c`: the fill-up stops at it), `World::check_wizard_build` (`TooManyBooksInAll`). One value for every wizard; 65 is five realms of 13. The original has no separate figure for the human: its 11 picks are the limit |
 | wizards | `starting_gold` | `Split`, 0..=2000 | 75 / 150 | `Player::new` (`gold: 100`) |
 | wizards | `starting_mana` | `Split`, 0..=2000 | 0 / 0 | `Player::new` (`mana: 0`) |
 | wizards | `starting_units` | `Split<Vec<StartUnit>>`, at most 12 entries, 20 units | Spearmen, Swordsmen | `f4x-newgame/src/setup.rs::start_player` |
@@ -137,11 +137,11 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 | world | `lair_treasure_percent` | 0..=500 | from preset | `feature/lair.rs`: `loot * 4 / (d + 1)` |
 | world | `neutral_city_size_bonus` | -2..=6 | from preset | `f4x-newgame/src/neutral.rs`, `city/neutral.rs`: `(d + 1) / 3` terms |
 | world | `raider_percent` | 0..=300 | from preset | `threat/raider.rs` (task 376): the party is `troops * raider_percent / 100`, `troops * d / 6` in the original |
-| rules | `max_tile` | `usize`, `max_battle_side`..=50 (`MAX_TILE_LIMIT`, half the sanity limit) | 9 in v1.31 (the original's), 20 in v1.6 and the MK mod (`DEFAULT_MAX_TILE`) | units that may walk onto one square (`Game::max_tile()`, `Game::tile_limit(at)`: twice as much on a tower). Units put on a square (hired, summoned, built, freed, raised, recalled) are never refused for it; `TILE_SANITY_LIMIT` (100) is the one hard ceiling (`unit/sanity.rs`, `divergences.md`). A prisoner freed from a lair stands on the lair's square in the winner's service. |
-| rules | `max_battle_side` | `usize`, 1..=9 | 9 in every rule set | units one side fights with in a battle (`Game::max_battle_side()`, `Battle::max_side`): the strongest of a larger stack fight, the rest are a reserve; summoning stops at it; the AI's parties, garrison sizes of neutral cities and lair guards follow it. `unit::MAX_STACK` is only its ceiling and default. On the Custom screen |
-| rules | `max_city_size` | 5..=40 | 25 | built (18 November 2026): `RuleSettings`, read by `Economy::max_city_size` and `Game` growth; no longer in `rules.ron`; a cap above 25 still wants the check of task 590's text (art, growth tables, balance) |
+| rules | `max_tile` | `usize`, `max_battle_side`..=50 (`MAX_TILE_LIMIT`, half the sanity limit) | 9 in v1.31 (the original's), 20 in v1.6 and the MK mod (`DEFAULT_MAX_TILE`) | units that may walk onto one square (`World::max_tile()`, `World::tile_limit(at)`: twice as much on a tower). Units put on a square (hired, summoned, built, freed, raised, recalled) are never refused for it; `TILE_SANITY_LIMIT` (100) is the one hard ceiling (`unit/sanity.rs`, `divergences.md`). A prisoner freed from a lair stands on the lair's square in the winner's service. |
+| rules | `max_battle_side` | `usize`, 1..=9 | 9 in every rule set | units one side fights with in a battle (`World::max_battle_side()`, `Battle::max_side`): the strongest of a larger stack fight, the rest are a reserve; summoning stops at it; the AI's parties, garrison sizes of neutral cities and lair guards follow it. `unit::MAX_STACK` is only its ceiling and default. On the Custom screen |
+| rules | `max_city_size` | 5..=40 | 25 | built (18 November 2026): `RuleSettings`, read by `Economy::max_city_size` and `World` growth; no longer in `rules.ron`; a cap above 25 still wants the check of task 590's text (art, growth tables, balance) |
 | rules | `min_city_distance` | 1..=8 | 4 | built (18 November 2026): `RuleSettings`, read by `can_found_city`, the neutral-city generator, the surveyor and the AI's site search (`city_site.rs`); no longer in `rules.ron` |
-| rules | `safe_flee` | `Split<bool>` | Intro, Easy: on | `battle/game.rs::overland_aftermath` (4.7) |
+| rules | `safe_flee` | `Split<bool>` | Intro, Easy: on | `battle/world.rs::overland_aftermath` (4.7) |
 | rules | `settlers_cost_citizen` | bool | on | `city/production.rs`: on (the original), a city needs two citizens to build Settlers (`ProductionError::TooSmall`) and loses one when they are done; off, Settlers cost production only. Renamed on 30 October 2026 from `settlers_free` (inverted: on now means the cost applies) |
 | rules | `walls_cover_city` | bool | off (on in v1.6) | `battle/mod.rs` `city_defense_bonus`: off (the original), a unit hit from outside the city area has +3 defence on a standing wall section and +1 elsewhere in a walled city; on (patch 1.40, IW082), +3 anywhere inside the walls |
 | rules | `death_immunity_exceptions` | bool | off | `battle/field.rs` `spares`: label "1.3 Death Immunity exceptions". Off: death immunity stops every Death spell that harms units. On: Black Prayer, Life Drain, Word of Death, Terror, Death Wish and Black Wind (`death_immunity_exception` in `spells.ron`) ignore it, as in the original; Wrack, Death Spell, Weakness, Black Sleep, Possession and raising the dead never do (task 713, `divergences.md` 48) |
@@ -150,7 +150,7 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 | rules | `miners_guild_half_ore` | bool | off (on in v1.6) | `city/economy.rs` `square_economy`: off (the original), a Miner's Guild doubles the unit-cost saving of iron ore and coal (5 to 10 percent, 10 to 20); on (patch 1.50, note 251), it adds half (5 to 7, 10 to 15), as it does to the gold and mana of the other minerals. The ore's saving doubles for a dwarf city first, then the guild's factor applies. |
 | rules | `spell_binding_always_succeeds` | bool | off (on in v1.6) | `spell/dispel.rs` `attack_global`: off (the original), Spell Binding is a dispel roll of twenty times the spell's cost (20,000) against the enchantment's difficulty, so it almost always takes the enchantment but can fail; on (patch 1.50, note 269), it never fails |
 | rules | `lair_full_heal` | bool | on (v1.31 and v1.6) | `feature/lair.rs` `enter_site`, `finish_site_battle`, `keep_lair_wounds`, `heal_lairs` (turn.rs, on the monsters' turn): on (the original, `Lair_Make_Guardians`), every assault meets the lair's full guard, made anew for the fight. Off, the guards that die in an assault that does not clear the site stay dead, the living keep the hit points they lost (`Lair::hurt`, one number a guard), come back wounded into the next fight and mend a tenth of their hit points each turn (at least one), as a garrison does, so that an assault in waves wears a lair down. Custom screen `custom.lair_full_heal` |
-| rules | `cavalry_halberdier_abilities` | bool | off (every rule set) | `game/setting.rs` `apply_content_settings` (called when a game is made or loaded): on, every unit of `targets.cavalry_units` (`rules.ron`) gets First Strike (23) and every unit of `targets.halberdier_units` gets Negate First Strike (48) added to its abilities in the game's own copy of the content, so battle, the unit screens and the AI's ratings all read it. Off: the shipped rows (the orc cavalry lacks First Strike; the beastmen, draconian, dwarven, high elf, Klackon and orc halberdiers lack Negate First Strike). The setting only adds; it never takes an ability away. Label "Cavalry have First Strike and halberdiers Negate First Strike (all races)"; see `docs/divergences.md` section 50. |
+| rules | `cavalry_halberdier_abilities` | bool | off (every rule set) | `world/setting.rs` `apply_content_settings` (called when a game is made or loaded): on, every unit of `targets.cavalry_units` (`rules.ron`) gets First Strike (23) and every unit of `targets.halberdier_units` gets Negate First Strike (48) added to its abilities in the game's own copy of the content, so battle, the unit screens and the AI's ratings all read it. Off: the shipped rows (the orc cavalry lacks First Strike; the beastmen, draconian, dwarven, high elf, Klackon and orc halberdiers lack Negate First Strike). The setting only adds; it never takes an ability away. Label "Cavalry have First Strike and halberdiers Negate First Strike (all races)"; see `docs/divergences.md` section 50. |
 | rules | `multiple_summoning_circles` | bool | off (every rule set) | `wizard/fortress.rs` (`put_circle`, `move_fortress_to`), `spell/cast.rs` (`spell_needs_target`, `check_target`), `spell/hero.rs`: on, the Summoning Circle spell and Move Fortress add a circle and keep the old ones (a captured or destroyed city loses only its own), and a wizard with more than one circle gives the city (`Target::City`) when casting a summoning spell, every creation at a circle: a creature or hero summon (`Target::City`), Resurrection (`Target::HeroAt`), a hero or mercenaries hired from an offer (`Command::AcceptOffer.at`, refused with `OfferError::Circle` when not given); Word of Recall (`Target::UnitAt`, in battle `SpellAim::UnitTo`, which Recall Hero uses too; the circle where the fight is is not offered) sends the unit to the circle named. The text console: `accept` and `resurrect` take `at=x,y`, `bcast` takes `unit:N@x,y`, a `cast` target `unit:N@x,y`; the cheat `hire <hero> [player] [x,y[,plane]]` takes any square of the map. The AI picks the circle with the most enemy stacks near it (`f4x-ai` `wizardry.rs` `summon_circle`). Off: one circle, replaced by the next. |
 | rules | `farmer_food`, `worker_production` | `HalfInt`, 0 to 10 | 2 each | `Economy::farmer_food` and `worker_production` (`city/economy.rs`): the base food of a farmer and production of a worker, for a city of a race that names no value of its own in `races.ron` (`farmer_food`, `worker_production` are `Option`; halfling farmers 3, dwarf and klackon workers 3) and for a city with no race. |
 | rules | `roads_at_start` | bool | on (v1.31 and v1.6) | `f4x-core/src/map/start_road.rs` `lay_start_roads`, called by `f4x-newgame/src/setup.rs` once for each plane after the neutral cities: on (the original, `Generate_Roads`), two neutral cities on one landmass at a range of 10 or less (the longer side plus half the shorter, the short way round the wrap) are joined by a straight line of roads plotted as `Path_Wrap` does, unless a square of it before the last is ocean; the roads between cities on Myrror are enchanted; every city stands on a road (plain, on both planes). Off, the new world has no road (a road an engineer finishes beside a town still makes a road under that town, whatever the setting says: `map/road.rs` `road_under_towns_beside`). The original's range has no wrap (ReMoM: OGBUG) and its enchanted road under a Myrran city lands on the wrong square; both are done as meant |
@@ -158,18 +158,18 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 | rules | `defeat_loot` | bool | on (v1.31 and v1.6) | `wizard/fortress.rs` `take_spoils`, the one place for what a winner takes: fame, mana, gold and spells (patch 1.52 notes 771 and 105): on (the original, `Conquer_Player`), the victor who takes a wizard's fortress or last city gets half the loser's mana, and half their gold when the wizard is defeated (a banished wizard who then gives up loses half of what mana is left again, as in `Resolve_Wizard_Conquest`); off, the victor gets neither and the reserves are lost with the wizard. The 5 fame stays either way. |
 | rules | `extend_tiny_islands` | bool | off (off in v1.31 and v1.6) | `f4x-newgame/src/island.rs`, called by `mapgen.rs` `generate` (towers and nodes, either generator) `setup.rs` `build_out_start_island` (each wizard's start town, once it is placed) and `neutral.rs` `generate_neutral_cities` (each neutral city, once its site is chosen): off, the land stays as the generator left it and a wizard, a neutral city, a tower or a node can stand on a speck of land; on, the land mass of each is built out, a square at a time beside the land (towns first within their work radius), to `MIN_LAND` (12) squares and `MIN_NEAR` (4) squares of land to work within two squares of a town; no land bridge to another landmass is made (ships carry units across) |
 | rules | `mix_neutral_races` | bool | off | `f4x-newgame/src/neutral.rs` `generate_neutral_cities`: off (the original's way), each independent city rolls its race among the races of its plane, all equally likely; on, among all 14 races by `neutral_weight` in `races.ron` (Arcanus and Myrror weights, 70 in total on each plane and 10 for each race: the Myrran races mostly on Myrror, High Men, High Elf and Halfling mostly on Arcanus) |
-| rules | `adamant_alchemy` | bool | off (off in v1.6) | `game/setting.rs` `apply_content_settings` (Alchemy costs two picks in the game's rules: the creation screen, computer wizards and treasure read it there; the creation screen's own `newgame_picks.rs` `retort_cost` does the same before a game exists) and `city/production.rs` `new_unit_start` (community patch, Adamant Alchemy): off (the original), Alchemy costs one pick, gives every unit its wizard builds at least magic weapons, and Mithril and Adamantium ore work only in a city with an Alchemists' Guild; on, it costs two picks and the ore works for an Alchemy wizard's cities without the guild |
-| rules | `two_pick_myrran` | bool | off (off in v1.6) | `game/setting.rs` `apply_content_settings` (community patch, 2-Pick Myrran): off (the original), Myrran costs three picks and a fortress on Myrror adds five to the power base (`rules_settings.ron` `myrror_fortress_power`, read in `wizard/magic_income.rs`); on, it costs two picks and the fortress adds nothing. The in-game help of the retort (topic 700) still tells the original's numbers |
+| rules | `adamant_alchemy` | bool | off (off in v1.6) | `world/setting.rs` `apply_content_settings` (Alchemy costs two picks in the game's rules: the creation screen, computer wizards and treasure read it there; the creation screen's own `newgame_picks.rs` `retort_cost` does the same before a game exists) and `city/production.rs` `new_unit_start` (community patch, Adamant Alchemy): off (the original), Alchemy costs one pick, gives every unit its wizard builds at least magic weapons, and Mithril and Adamantium ore work only in a city with an Alchemists' Guild; on, it costs two picks and the ore works for an Alchemy wizard's cities without the guild |
+| rules | `two_pick_myrran` | bool | off (off in v1.6) | `world/setting.rs` `apply_content_settings` (community patch, 2-Pick Myrran): off (the original), Myrran costs three picks and a fortress on Myrror adds five to the power base (`rules_settings.ron` `myrror_fortress_power`, read in `wizard/magic_income.rs`); on, it costs two picks and the fortress adds nothing. The in-game help of the retort (topic 700) still tells the original's numbers |
 | rules | `color_wheel_relations` | bool | off (off in v1.6) | `diplomacy/mod.rs` `start_relation`, `wheel_affinity`: off (the original, `Init_Diplomatic_Relations`), relations start from the books (Life against Death hostile, Chaos a penalty, shared realms a bonus); on, the colour wheel Chaos, Nature, Life, Sorcery, Death, back to Chaos: for every pair of books (one from each wizard) the smaller count times +2 for the same realm, +1 for the two next to it (allies), -3 for the other two (opposed), at least -90. Our own rule; the community patch's 1.50 formula (Life and Nature good, Death and Chaos evil) is not offered. |
 | rules | `stronger_lairs` | bool | off (off in v1.6) | `f4x-newgame/src/lair.rs`, `f4x-core/src/feature/lair/create.rs`: off (the original), the budgets, divisors (primary 1 to 4, secondary 10 minus the first kind), eight of the first kind and the creature costs of version 1.31, the guards at 25 to 125 percent by level (`world.lair_guard_percent`); on (patch 1.50, notes 001, 013, 015), the budgets of `lairs.ron` `patch_150` (towers 700 to 3,050, weak sites 30 to 600 and 900, strong sites 300 to 4,250 and 4,750), a primary divisor of 1 to 6 and at most six of the first kind, nine less the first kind for the second, the patch's creature costs, and the guards at 25, 50, 75, 100, 125 and 150 percent by level (the setting's percent is not read). `docs/lairs.md`, "Patch 1.50". Nodes keep their budget |
 | rules | `treasure_patch_150` | bool | off (off in v1.6) | `feature/lair/create.rs` `fill_hoard_150`: off (the original), the hoard's value is the first guards' cost plus half the second's, times the difficulty's treasure percent (`world.lair_treasure_percent`) and a random share of the plane (50 to 125 percent on Arcanus, 76 to 175 on Myrror), at least 50; on (patch 1.50, notes 016 to 025), the guards' full cost (no half, no reverse of the difficulty, no random) times 100 percent on Arcanus and 125 on Myrror, plus 75, a table of 3 gold, 3 mana, 3 items, 1 prisoner, 4 spells and 1 book or retort of 15 (the patch: 44 percent of the books are thrown back), gold and mana of 50 to 1,000 and 40 to 800 that cost exactly what they give, items of 200 to 5,100 kept at 120 percent, a prisoner for 400, spells at 150 times the rarity squared, one book or retort for 800 (two from 2,000) that no longer clears the rest, and a tower that must qualify for its spell. `docs/lairs.md`, "Patch 1.50" |
 | rules | `suppress_spares_return` | bool | off (on in v1.6) | `spell/dispel.rs` `suppressed_by`: off (the original), an enemy's Suppress Magic can counter the Spell of Return like any spell; on (patch 1.40, IW114), it never does |
 | rules | `limit_ai_races` | bool | off (off in v1.31 and v1.6; changed from on on 15 November 2026) | `f4x-newgame/src/setup.rs` race pick: on (the original, `Generate_Home_Cities`), above Normal difficulty an Arcanus computer wizard is Halfling, High Elf, High Men, Klackon or Nomad; off, any Arcanus race. Myrror and the human are never limited; independent cities are not affected (task 379) |
 | rules | `ban_life_and_death` | bool | on (v1.31 and v1.6) | `f4x-client/src/newgame_picks.rs` `set_books` (the new-wizard screen refuses the second of Life and Death) and `f4x-newgame/src/computer_wizard.rs` (`refill` and `balance_planes` never give a computer wizard both); off, a wizard may have both. Nothing else enforces the pair: no save check, and the opposition rules (resistance, retort pairs) work with both realms already (task 451) |
-| rules | `combat_forecast` | bool | off | `f4x-client/src/attack_prompt.rs` `forecast_line`: the question before an attack adds a line ("The enemy is slightly stronger.", "You are completely outmatched.") from `Game::combat_forecast` (`battle/forecast.rs`): the sum of the combat ratings (`unit_ratings.ron`, `docs/combat-rating.md`) of the strongest `max_battle_side` units of each side, compared by the shares `rules.ron` `forecast.bands_pct` (33, 60 and 85 percent, and those turned over: 3.0, 1.7 and 1.2 times). Walls, terrain, spells and skill are not in it. Custom screen row `custom.combat_forecast`; in the Game settings list |
+| rules | `combat_forecast` | bool | off | `f4x-client/src/attack_prompt.rs` `forecast_line`: the question before an attack adds a line ("The enemy is slightly stronger.", "You are completely outmatched.") from `World::combat_forecast` (`battle/forecast.rs`): the sum of the combat ratings (`unit_ratings.ron`, `docs/combat-rating.md`) of the strongest `max_battle_side` units of each side, compared by the shares `rules.ron` `forecast.bands_pct` (33, 60 and 85 percent, and those turned over: 3.0, 1.7 and 1.2 times). Walls, terrain, spells and skill are not in it. Custom screen row `custom.combat_forecast`; in the Game settings list |
 | rules | `melee_vs_fliers` | `zero` / `half` / `full` | zero | `battle/mod.rs` `Battle::fighter`: a unit that does not fly deals no melee damage to a flier (`zero`, the original), half strength rounded up (`half`, a planned mod, what the game did before) or its full strength (`full`, the rule is off); the flier hits back in full, thrown and breath attacks are unchanged. The battle AI's `expected_damage` follows it |
-| rules | `spell_of_mastery` | `all` / `human_only` / `off` (`SpellAccess`) | all | built (task 584): `Game::mastery_open_to`; `wizard/sheet.rs` `refill_research` does not offer the spell last in research to a wizard it is closed to, and `start_cast_with` refuses it; the Custom screen has a row; `soak --mastery all\|human\|off`. A soak has no human wizard, so `human` there is the same as `off` |
-| rules | `spell_of_return` | `all` / `human_only` / `off` (`SpellAccess`) | all | built (task 585): `Game::return_open_to`; `wizard/fortress.rs` `banish` defeats a banished wizard it is closed to, at once (its cities turn neutral); the Custom screen has a row; `soak --return all\|human\|off` |
+| rules | `spell_of_mastery` | `all` / `human_only` / `off` (`SpellAccess`) | all | built (task 584): `World::mastery_open_to`; `wizard/sheet.rs` `refill_research` does not offer the spell last in research to a wizard it is closed to, and `start_cast_with` refuses it; the Custom screen has a row; `soak --mastery all\|human\|off`. A soak has no human wizard, so `human` there is the same as `off` |
+| rules | `spell_of_return` | `all` / `human_only` / `off` (`SpellAccess`) | all | built (task 585): `World::return_open_to`; `wizard/fortress.rs` `banish` defeats a banished wizard it is closed to, at once (its cities turn neutral); the Custom screen has a row; `soak --return all\|human\|off` |
 | victory | `hardcore` | bool | off | task 790 |
 | events | `random_events` | on / off | on | task 68 |
 | events | `event_frequency` | `Half` / `Normal` / `Double` | `Normal` | task 68 |
@@ -183,7 +183,7 @@ in the `ai` group are AI-only by nature, as in the original; a custom switch, `a
 (off by default), gives the human the same multipliers.
 
 `rules.ron` keeps the base values as the defaults of the ruleset; the settings **override** them
-(`max_city_size` and `min_city_distance` are read through `game.settings()` instead of
+(`max_city_size` and `min_city_distance` are read through `world.settings()` instead of
 `content.rules`). Combat constants (`to_hit_percent`, `block_percent`) and tax tables are left as
 ruleset data on purpose: changing them changes what every unit and spell means, which is modding
 (task 788), not a game setting.
@@ -267,9 +267,9 @@ Notes:
 
 ### 3.3 Where it lives and how it is saved
 
-- `Game` gets `settings: GameSettings` (read through `Game::settings()`; the old public
+- `World` gets `settings: GameSettings` (read through `World::settings()`; the old public
   `difficulty` and `magic_strength` fields are gone, callers read `settings.basic`).
-- `Snapshot` (`game/save.rs`) holds `#[serde(default)] settings: GameSettings`. **Old saves are not
+- `Snapshot` (`world/save.rs`) holds `#[serde(default)] settings: GameSettings`. **Old saves are not
   migrated**: the two old fields `difficulty` and `magic_strength` are no longer written or read,
   and a save without the record reads as the defaults. Out-of-range values are clamped on load.
   - Settings that took effect at creation (`picks`, `starting_gold`, map size) are saved too, for
@@ -292,13 +292,13 @@ Today the values travel in separate places: `setup::NewGame` (difficulty, magic,
 
 1. `setup::NewGame` carries one `GameSettings` instead of loose fields; `GenParams` is built from
    it by `GameSettings::gen_params()`.
-2. `Game::with_generated_map` takes the settings and stores them before any rule runs (setup
+2. `World::with_generated_map` takes the settings and stores them before any rule runs (setup
    already uses `difficulty` at creation).
 3. The wizard builder (`wizard/mod.rs`) takes `picks` and `max_books_per_realm` from settings; the
    custom-wizard screen shows "picks left" from the same source.
 4. The console's `new` command takes `key=value` pairs for every field (it already takes `land=`,
    `difficulty=` and `magic=`), so tests and the soak can set them without a screen.
-5. `f4x-ai` reads the stack limit through `game.max_stack()` instead of `MAX_STACK`
+5. `f4x-ai` reads the stack limit through `world.max_stack()` instead of `MAX_STACK`
    (`military.rs` chunks of nine, `naval.rs` loads) and checks the Mastery and Return settings
    before planning for them.
 
@@ -363,7 +363,7 @@ The default list is today's start, so nothing changes unless the player edits it
 - **Scout** is a **free starting Magic Spirit** (`magic_spirit` in `units.ron`), the same for every
   race and wizard. It is not a Summon spell cast: the unit is simply given at the start. Its data
   gives it an upkeep of 1 mana a turn (`upkeep: (mana: 1)`), so the wizard must really get at
-  least one mana a turn. **What the code does today** (`wizard/magic_game.rs::process_magic`,
+  least one mana a turn. **What the code does today** (`wizard/magic_world.rs::process_magic`,
   `wizard/magic.rs::upkeep_plan`, `wizard/magic_income.rs`):
   1. Each turn the mana share of the power is added to the reserve first, then the upkeep is
      paid from the reserve. If the reserve cannot pay, **the newest upkeep items are given up**,
@@ -401,7 +401,7 @@ the capital's size (four citizens), starting fame (10 for Famous), the starting 
 
 `MAX_STACK = 9` is read in movement, gates, special spells, transport, the neutral-city garrison,
 the lair garrison, the AI's gathering, and the battle code (`MAX_SIDE_UNITS` in `battle/casting.rs`
-is a second copy of the same 9, and `battle/game.rs` caps the raised dead by `MAX_STACK`).
+is a second copy of the same 9, and `battle/world.rs` caps the raised dead by `MAX_STACK`).
 
 - `max_stack` replaces both constants, and **lowering it (1 to 8) is a stage 3 setting**: it only
   makes the existing code stricter.
@@ -420,7 +420,7 @@ is a second copy of the same 9, and `battle/game.rs` caps the raised dead by `MA
 the text below says `victory.spell_of_mastery = false` it is "nobody".)
 
 Today the Spell of Mastery is always in the spell pool (the research list offers it last, see
-`wizard/magic.rs`; `game/endgame.rs` ends the game when it is cast). With `victory.spell_of_mastery = false`:
+`wizard/magic.rs`; `world/endgame.rs` ends the game when it is cast). With `victory.spell_of_mastery = false`:
 
 - the spell is **not offered in research** and cannot be cast (the cast refuses with a clear
   reason, for saves of games that had it started);
@@ -502,8 +502,8 @@ chance: **50%, or 25% for a hero** (the attacker's branch writes it as a surviva
   always lost** when their side flees, whatever the roll.
 - The rolls happen after the battle, per unit, in the order of the original's battle list.
 
-Ours (`battle/game.rs::overland_aftermath`) has all three since task 250: the 50% and 25% rolls,
-the sure loss, and the safe flee on Intro and Easy. The safe flee reads `Game::difficulty <= 1`
+Ours (`battle/world.rs::overland_aftermath`) has all three since task 250: the 50% and 25% rolls,
+the sure loss, and the safe flee on Intro and Easy. The safe flee reads `World::difficulty <= 1`
 and the attacker side (a battle starts on its mover's turn) directly; stage 2 replaces that test
 with the `rules.safe_flee` setting. A Web holds the unit only while it has hit points
 left (`docs/combat.md` section 8); a broken one no longer does.
@@ -772,8 +772,8 @@ the same spirit as `game.magic_strength = self.magic_strength.min(2)` today.
 
 ## 9. Stages
 
-1. **Wireframe, save, load, default difficulty.** `game/setting.rs` with `GameSettings` holding the
-   basic block and the groups as empty or default structs; `Game::settings()`; the snapshot field
+1. **Wireframe, save, load, default difficulty.** `world/setting.rs` with `GameSettings` holding the
+   basic block and the groups as empty or default structs; `World::settings()`; the snapshot field
    (old saves are not migrated: a save without the record reads as the defaults);
    `validate`; presets as functions that so far return the same numbers as the code uses today;
    the new-game path takes a `GameSettings`; the console `new` and `settings` commands. **No

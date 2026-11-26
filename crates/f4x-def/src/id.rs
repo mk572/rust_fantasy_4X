@@ -14,6 +14,6 @@ pub struct PlayerId(pub u8);
 /// raised for the monsters stay). It is no wizard and has no treasury of its own.
 pub const MONSTERS: PlayerId = PlayerId(u8::MAX);
 
-/// The creation number of a unit, kept for a stable order (see `f4x-core`'s `game::serial`).
+/// The creation number of a unit, kept for a stable order (see `f4x-core`'s `world::serial`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Serial(pub u64);

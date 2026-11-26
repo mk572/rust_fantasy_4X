@@ -5,11 +5,11 @@
 //!
 //! Tests: in battle/tests.rs.
 
-use crate::game::Game;
+use crate::world::World;
 
 pub use f4x_def::rules::forecast::Forecast;
 
-impl Game {
+impl World {
     /// What the units of one side are worth in a battle, by their combat ratings: the strongest
     /// `max_battle_side` of them added. A unit with no rating (a settler) adds nothing.
     pub fn side_worth(&self, units: &[hecs::Entity]) -> f32 {

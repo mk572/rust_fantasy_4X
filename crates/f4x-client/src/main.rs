@@ -1062,10 +1062,10 @@ async fn main() {
     }
     if let Some(kind) = &options.dispelled {
         app.open_test_dispelled(match kind.as_str() {
-            "unit" => f4x_core::game::DispelSite::Unit,
-            "battle" => f4x_core::game::DispelSite::BattleUnit,
-            "field" => f4x_core::game::DispelSite::Field,
-            _ => f4x_core::game::DispelSite::City,
+            "unit" => f4x_core::world::DispelSite::Unit,
+            "battle" => f4x_core::world::DispelSite::BattleUnit,
+            "field" => f4x_core::world::DispelSite::Field,
+            _ => f4x_core::world::DispelSite::City,
         });
     }
     if options.mastery {
@@ -1124,7 +1124,7 @@ async fn main() {
     if let Some((x, y)) = options.survey_at {
         app.start_surveyor();
         app.survey_probe = if x == u32::MAX {
-            app.game.economy().cities().first().map(|c| c.2)
+            app.world.economy().cities().first().map(|c| c.2)
         } else {
             Some(f4x_core::map::Position {
                 plane: f4x_core::map::Plane::Arcanus,
@@ -1188,7 +1188,7 @@ async fn main() {
                 app.issue_dialog = None;
                 if let (issue_screen::Then::LoadAnyway(path), true) = (then, button == 1) {
                     if let Err(e) =
-                        app.load_checked(&path, f4x_core::game::save::ContentCheck::Ignore)
+                        app.load_checked(&path, f4x_core::world::save::ContentCheck::Ignore)
                     {
                         eprintln!("could not load {}: {e}", path.display());
                     }
@@ -1229,7 +1229,7 @@ async fn main() {
 /// The number of the spell with this alias, for the command-line flags that open a screen on one
 /// (a developer aid: the alias is typed by hand, the game itself refers to spells by number).
 fn spell_num(app: &App, alias: &str) -> Option<u16> {
-    let spells = &app.game.content().rules.spells;
+    let spells = &app.world.content().rules.spells;
     spells
         .iter()
         .find(|(_, d)| d.id == alias)
@@ -1238,7 +1238,7 @@ fn spell_num(app: &App, alias: &str) -> Option<u16> {
 
 /// [`spell_num`] for a building.
 fn building_num(app: &App, alias: &str) -> Option<u16> {
-    let buildings = &app.game.content().rules.buildings;
+    let buildings = &app.world.content().rules.buildings;
     buildings
         .iter()
         .find(|(_, d)| d.id == alias)

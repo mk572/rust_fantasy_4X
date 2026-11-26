@@ -13,7 +13,6 @@
 use f4x_def::half_int::HalfInt;
 use serde::{Deserialize, Serialize};
 
-use crate::game::{Event, Game};
 use crate::hero::kind::Class;
 use crate::hero::HeroError;
 use crate::item::armory::Placed;
@@ -23,6 +22,7 @@ use crate::map::Position;
 use crate::player::{Offers, PlayerId};
 use crate::rules::{MovementType, Rules, Stat, UnitDef, UnitId, UnitKind};
 use crate::unit::Experience;
+use crate::world::{Event, World};
 
 use f4x_def::rules::OfferRules;
 
@@ -217,7 +217,7 @@ pub fn mercenary_pool(rules: &Rules, arcanus: bool, myrror: bool) -> Vec<&UnitDe
         .collect()
 }
 
-impl Game {
+impl World {
     /// What a wizard has been offered this turn and not answered.
     pub fn offers(&self, player: PlayerId) -> Vec<Offer> {
         self.player_component::<Offers>(player)
@@ -495,7 +495,7 @@ impl Game {
                     .filter(|&h| self.units().hero_state(h) == Some(crate::hero::HeroState::Free))
                     .ok_or(OfferError::Hero(crate::hero::HeroError::NotAvailable))?;
                 if let Some(name) = name.filter(|n| !n.trim().is_empty()) {
-                    if let Ok(mut h) = self.world.get::<&mut crate::hero::Hero>(hero) {
+                    if let Ok(mut h) = self.ecs.get::<&mut crate::hero::Hero>(hero) {
                         h.name = name;
                     }
                 }
@@ -611,9 +611,9 @@ impl Game {
             treasury.gold += price;
         }
         let shown = item.clone();
-        let plane_of = |g: &Game, p: PlayerId| g.summon_point(p).map(|at| at.plane);
+        let plane_of = |w: &World, p: PlayerId| w.summon_point(p).map(|at| at.plane);
         let mine = plane_of(self, player);
-        let ids: Vec<PlayerId> = crate::player::ids(&self.world);
+        let ids: Vec<PlayerId> = crate::player::ids(&self.ecs);
         let start = ids.iter().position(|&p| p == player).unwrap_or(0);
         let others: Vec<PlayerId> = (1..ids.len())
             .map(|n| ids[(start + n) % ids.len()])

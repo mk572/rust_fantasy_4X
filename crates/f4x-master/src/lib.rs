@@ -19,8 +19,8 @@
 //!
 //! Tests: in tests/it.
 
-use f4x_core::game::{Command, Event, Game};
 use f4x_core::player::PlayerId;
+use f4x_core::world::{Command, Event, World};
 use serde::{Deserialize, Serialize};
 
 /// What a controller reports after it was asked to play.
@@ -37,11 +37,11 @@ pub enum Status {
 pub trait Controller {
     /// Play or go on playing the turn of the seat's `players` (one wizard, or all the neutral
     /// players). Events are appended to `events`.
-    fn play(&mut self, game: &mut Game, players: &[PlayerId], events: &mut Vec<Event>) -> Status;
+    fn play(&mut self, world: &mut World, players: &[PlayerId], events: &mut Vec<Event>) -> Status;
 
     /// What the controller has in mind, as text to keep in a save, with the player each is for
     /// (the plans of the computer players it plays). The master collects these at every checkpoint
-    /// ([`Master::checkpoints`]) and gives them to the game ([`Game::set_plans`]). The default
+    /// ([`Master::checkpoints`]) and gives them to the game ([`World::set_plans`]). The default
     /// is nothing to keep.
     fn plans(&self) -> Vec<(PlayerId, String)> {
         Vec::new()
@@ -51,7 +51,7 @@ pub trait Controller {
     /// played it. A computer wizard keeps what concerns it (it fought a battle on another
     /// wizard's turn, a city of it was taken) as a human's screen shows them. The default ignores
     /// them.
-    fn notice(&mut self, _game: &Game, _events: &[Event]) {}
+    fn notice(&mut self, _world: &World, _events: &[Event]) {}
 }
 
 /// A controller that plays nothing and finishes at once: for a seat the host does not drive
@@ -59,7 +59,7 @@ pub trait Controller {
 pub struct Pass;
 
 impl Controller for Pass {
-    fn play(&mut self, _: &mut Game, _: &[PlayerId], _: &mut Vec<Event>) -> Status {
+    fn play(&mut self, _: &mut World, _: &[PlayerId], _: &mut Vec<Event>) -> Status {
         Status::Done
     }
 }
@@ -120,7 +120,7 @@ pub enum Phase {
     Over,
 }
 
-/// The master's saved state: with the game's own round counter (`Game::turn`) it says exactly
+/// The master's saved state: with the game's own round counter (`World::turn`) it says exactly
 /// where to go on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct State {
@@ -128,7 +128,7 @@ pub struct State {
 }
 
 impl State {
-    /// The state as text, for [`Game::set_flow`].
+    /// The state as text, for [`World::set_flow`].
     pub fn to_text(self) -> String {
         // A plain enum in a struct cannot fail to serialize.
         ron::to_string(&self).unwrap_or_default()
@@ -239,11 +239,11 @@ impl<'a> Master<'a> {
         }
     }
 
-    /// A master that goes on from where the game was saved (`Game::flow`, which the master
+    /// A master that goes on from where the game was saved (`World::flow`, which the master
     /// writes after every step). A game without a flow was saved on the first seat's turn: the
     /// human's, the seat the client plays and saves on. The state must fit the table.
-    pub fn from_game(seats: Vec<Seat<'a>>, game: &Game) -> Result<Self, FlowError> {
-        let state = match game.flow() {
+    pub fn from_game(seats: Vec<Seat<'a>>, world: &World) -> Result<Self, FlowError> {
+        let state = match world.flow() {
             Some(text) => State::from_text(text)?,
             None => State {
                 phase: Phase::Acting(0),
@@ -302,7 +302,7 @@ impl<'a> Master<'a> {
     /// for the actor (a command naming another player's unit or city is refused).
     pub fn apply(
         &self,
-        game: &mut Game,
+        world: &mut World,
         actor: PlayerId,
         command: Command,
     ) -> Result<Vec<Event>, Refused> {
@@ -310,28 +310,29 @@ impl<'a> Master<'a> {
             return Err(Refused::UseLifecycle);
         }
         let seat = self.active_seat().ok_or(Refused::NobodyActing)?;
-        let players = self.players_of(game, seat);
+        let players = self.players_of(world, seat);
         if !players.contains(&actor) {
             return Err(Refused::NotYourTurn {
                 active: players.first().copied().unwrap_or(actor),
                 actor,
             });
         }
-        if let Some(named) = game.command_actor(&command) {
+        if let Some(named) = world.command_actor(&command) {
             if !players.contains(&named) {
                 return Err(Refused::ForAnotherPlayer { actor, named });
             }
         }
-        Ok(game.apply(command))
+        Ok(world.apply(command))
     }
 
     /// The players a seat plays now: its own, or for the neutral seat every independent city's
     /// player and the monsters' owner that exist.
-    pub fn players_of(&self, game: &Game, seat: usize) -> Vec<PlayerId> {
+    pub fn players_of(&self, world: &World, seat: usize) -> Vec<PlayerId> {
         if self.seats[seat].neutral {
-            game.turn_players()
+            world
+                .turn_players()
                 .into_iter()
-                .filter(|&p| game.is_neutral_player(p))
+                .filter(|&p| world.is_neutral_player(p))
                 .collect()
         } else {
             self.seats[seat].players.clone()
@@ -339,62 +340,62 @@ impl<'a> Master<'a> {
     }
 
     /// Whether the seat can take a turn: some player of it is still in the game.
-    fn eligible(&self, game: &Game, seat: usize) -> bool {
+    fn eligible(&self, world: &World, seat: usize) -> bool {
         self.seats[seat].neutral
             || self.seats[seat]
                 .players
                 .iter()
-                .any(|&p| game.player(p).is_some_and(|pl| !pl.is_defeated()))
+                .any(|&p| world.player(p).is_some_and(|pl| !pl.is_defeated()))
     }
 
     /// The first seat from `from` that can take a turn.
-    fn next_eligible(&self, game: &Game, from: usize) -> Option<usize> {
-        (from..self.seats.len()).find(|&i| self.eligible(game, i))
+    fn next_eligible(&self, world: &World, from: usize) -> Option<usize> {
+        (from..self.seats.len()).find(|&i| self.eligible(world, i))
     }
 
     /// Make one step: one boundary operation, or one call to a controller.
-    pub fn step(&mut self, game: &mut Game) -> Progress {
+    pub fn step(&mut self, world: &mut World) -> Progress {
         let mut events = Vec::new();
         let mut stopped = Stopped::Ready;
-        if game.game_over.is_some() {
+        if world.game_over.is_some() {
             self.state.phase = Phase::Over;
         }
         match self.state.phase {
             Phase::Over => stopped = Stopped::Over,
             Phase::RoundStart => {
-                events.extend(game.apply(Command::StartRound));
-                self.state.phase = match self.next_eligible(game, 0) {
+                events.extend(world.apply(Command::StartRound));
+                self.state.phase = match self.next_eligible(world, 0) {
                     Some(i) => Phase::TurnStart(i),
                     None => Phase::Over,
                 };
             }
             Phase::TurnStart(i) => {
-                for p in self.players_of(game, i) {
-                    events.extend(game.apply(Command::StartPlayerTurn { player: p }));
+                for p in self.players_of(world, i) {
+                    events.extend(world.apply(Command::StartPlayerTurn { player: p }));
                 }
                 self.state.phase = Phase::Acting(i);
             }
             Phase::Acting(i) => {
-                let players = self.players_of(game, i);
-                match self.seats[i].controller.play(game, &players, &mut events) {
+                let players = self.players_of(world, i);
+                match self.seats[i].controller.play(world, &players, &mut events) {
                     Status::Done => self.state.phase = Phase::TurnEnd(i),
                     Status::Waiting => stopped = Stopped::Waiting(i),
                 }
             }
             Phase::TurnEnd(i) => {
-                for p in self.players_of(game, i) {
-                    events.extend(game.apply(Command::EndPlayerTurn { player: p }));
+                for p in self.players_of(world, i) {
+                    events.extend(world.apply(Command::EndPlayerTurn { player: p }));
                 }
                 // A player may have been defeated during the turn; the next one to play is the
                 // next seat that is still in the game.
-                self.state.phase = match self.next_eligible(game, i + 1) {
+                self.state.phase = match self.next_eligible(world, i + 1) {
                     Some(next) => Phase::TurnStart(next),
                     None => Phase::RoundEnd,
                 };
             }
             Phase::RoundEnd => {
-                events.extend(game.apply(Command::EndRound));
-                self.state.phase = if game.game_over.is_some() {
+                events.extend(world.apply(Command::EndRound));
+                self.state.phase = if world.game_over.is_some() {
                     Phase::Over
                 } else {
                     Phase::RoundStart
@@ -407,7 +408,7 @@ impl<'a> Master<'a> {
                         .flat_map(|s| s.controller.plans())
                         .collect();
                     if !plans.is_empty() {
-                        game.set_plans(plans);
+                        world.set_plans(plans);
                     }
                 }
             }
@@ -416,29 +417,29 @@ impl<'a> Master<'a> {
             stopped = Stopped::Over;
         }
         // Whatever saves the game now saves where it is in its round.
-        game.set_flow(Some(self.state.to_text()));
-        self.tell(game, &events);
+        world.set_flow(Some(self.state.to_text()));
+        self.tell(world, &events);
         Progress { events, stopped }
     }
 
     /// Tell every seat what happened. A host that changes the game outside the master (a human's
     /// commands on the client) tells it the events they caused with this.
-    pub fn tell(&mut self, game: &Game, events: &[Event]) {
+    pub fn tell(&mut self, world: &World, events: &[Event]) {
         if events.is_empty() {
             return;
         }
         for seat in &mut self.seats {
-            seat.controller.notice(game, events);
+            seat.controller.notice(world, events);
         }
     }
 
     /// Step until the stop condition, collecting the events.
-    pub fn run(&mut self, game: &mut Game, until: Until) -> Progress {
+    pub fn run(&mut self, world: &mut World, until: Until) -> Progress {
         let mut events = Vec::new();
         let mut begun = 0;
         loop {
             let starting = self.state.phase == Phase::RoundStart;
-            let p = self.step(game);
+            let p = self.step(world);
             events.extend(p.events);
             if starting {
                 begun += 1;

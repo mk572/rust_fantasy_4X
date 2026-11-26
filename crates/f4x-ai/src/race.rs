@@ -3,9 +3,9 @@
 //! otherwise declares war on the caster and sends its armies after that wizard's cities.
 
 use f4x_core::diplomacy::{DiplomacyCommand, Treaty};
-use f4x_core::game::{Command, Event, Game};
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
+use f4x_core::world::{Command, Event, World};
 use f4x_def::rules::SpellId;
 
 use crate::Ai;
@@ -53,28 +53,28 @@ fn rival_turns(left: i32, seen: Option<Sighting>, now: u32, own_rate: f32) -> f3
 }
 
 /// Weigh the race and answer it, once a turn before the wizard's own casting.
-pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+pub(crate) fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     let me = ai.player;
-    let now = game.turn;
-    let casters = PlayerView::new(game, me).rival_mastery_casters();
+    let now = world.turn;
+    let casters = PlayerView::new(world, me).rival_mastery_casters();
     // Forget wizards that stopped (or finished) casting.
     ai.mastery_seen
         .retain(|p, _| casters.iter().any(|&(c, _)| c == *p));
     // A banished wizard casts the Spell of Return and starts no war (the game refuses it).
-    let banished = game.wizard(me).is_some_and(|w| w.is_banished());
+    let banished = world.wizard(me).is_some_and(|w| w.is_banished());
     if casters.is_empty() || banished {
         ai.racing = false;
         ai.war_on = None;
         return;
     }
     let Some(mastery) = f4x_core::hook::spell_with_hook(
-        &game.content().rules,
+        &world.content().rules,
         f4x_core::spell::special::SPELL_OF_MASTERY,
     ) else {
         return;
     };
     let (mine, own_rate, casting_other) = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         let rate = view.wizard().map_or(1.0, |m| {
             m.casting_skill(&view.content().rules).max(1) as f32
         });
@@ -105,18 +105,18 @@ pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     if ai.racing {
         ai.war_on = None;
         // Drop whatever else is being cast: the next step casts the Spell of Mastery.
-        let knows = PlayerView::new(game, me)
+        let knows = PlayerView::new(world, me)
             .wizard()
             .is_some_and(|m| m.knows(mastery));
         if casting_other && knows {
-            ai.order(game, Command::CancelCast { player: me }, events);
+            ai.order(world, Command::CancelCast { player: me }, events);
         }
         return;
     }
     ai.war_on = Some(rival);
-    if game.treaty(me, rival) != Treaty::War && game.have_met(me, rival) {
+    if world.treaty(me, rival) != Treaty::War && world.have_met(me, rival) {
         ai.order(
-            game,
+            world,
             Command::Diplomacy(DiplomacyCommand::DeclareWar {
                 player: me,
                 on: rival,
@@ -159,39 +159,39 @@ mod tests {
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-    fn world() -> Result<(Game, SpellId), Box<dyn std::error::Error>> {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.make_contact(P0, P1);
-        let mastery = g
+    fn world() -> Result<(World, SpellId), Box<dyn std::error::Error>> {
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.make_contact(P0, P1);
+        let mastery = w
             .content()
             .rules
             .spells
             .id_numbered(213)
             .ok_or("spell_of_mastery is shipped")?;
-        Ok((g, mastery))
+        Ok((w, mastery))
     }
 
-    fn casts(g: &mut Game, who: PlayerId, spell: SpellId, left: i32) {
-        g.scenario_casting(who, spell, left);
+    fn casts(w: &mut World, who: PlayerId, spell: SpellId, left: i32) {
+        w.scenario_casting(who, spell, left);
     }
 
     #[test]
     fn a_wizard_that_cannot_win_the_race_declares_war_and_aims_at_the_caster() -> TestResult {
-        let (mut g, mastery) = world()?;
-        casts(&mut g, P1, mastery, 5000);
+        let (mut w, mastery) = world()?;
+        casts(&mut w, P1, mastery, 5000);
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();
-        run(&mut ai, &mut g, &mut events);
+        run(&mut ai, &mut w, &mut events);
         assert!(!ai.racing);
         assert_eq!(war_target(&ai), Some(P1));
-        assert_eq!(g.treaty(P0, P1), Treaty::War);
+        assert_eq!(w.treaty(P0, P1), Treaty::War);
         Ok(())
     }
 
     #[test]
     fn a_wizard_that_knows_the_spell_races_and_drops_its_other_casting() -> TestResult {
-        let (mut g, mastery) = world()?;
-        let other = g
+        let (mut w, mastery) = world()?;
+        let other = w
             .content()
             .rules
             .spells
@@ -200,25 +200,25 @@ mod tests {
             .find(|&id| id != mastery)
             .ok_or("the content has a second spell")?;
         {
-            let mut w = g.wizard_mut(P0).ok_or("player 0 is a wizard")?;
-            let mut spells = w.get_mut::<f4x_core::wizard::sheet::KnownSpells>();
+            let mut wizard = w.wizard_mut(P0).ok_or("player 0 is a wizard")?;
+            let mut spells = wizard.get_mut::<f4x_core::wizard::sheet::KnownSpells>();
             spells.known.insert(mastery);
             spells.known.insert(other);
             drop(spells);
-            w.get_mut::<f4x_core::wizard::sheet::Skill>().points = 20_000;
-            g.treasury_mut(P0).ok_or("player 0 has a treasury")?.mana =
+            wizard.get_mut::<f4x_core::wizard::sheet::Skill>().points = 20_000;
+            w.treasury_mut(P0).ok_or("player 0 has a treasury")?.mana =
                 f4x_def::half_int::HalfInt::from_int(20_000);
         }
-        casts(&mut g, P0, other, 300);
-        casts(&mut g, P1, mastery, 40_000);
+        casts(&mut w, P0, other, 300);
+        casts(&mut w, P1, mastery, 40_000);
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();
-        run(&mut ai, &mut g, &mut events);
+        run(&mut ai, &mut w, &mut events);
         assert!(ai.racing);
         assert_eq!(war_target(&ai), None);
-        assert_ne!(g.treaty(P0, P1), Treaty::War);
+        assert_ne!(w.treaty(P0, P1), Treaty::War);
         assert!(
-            g.wizard(P0)
+            w.wizard(P0)
                 .ok_or("player 0 is a wizard")?
                 .casting()
                 .is_none(),
@@ -229,10 +229,10 @@ mod tests {
 
     #[test]
     fn nothing_changes_while_nobody_casts_it() -> TestResult {
-        let (mut g, _) = world()?;
+        let (mut w, _) = world()?;
         let mut ai = Ai::new(P0);
         ai.war_on = Some(P1);
-        run(&mut ai, &mut g, &mut Vec::new());
+        run(&mut ai, &mut w, &mut Vec::new());
         assert_eq!(war_target(&ai), None);
         assert!(!ai.racing);
         Ok(())

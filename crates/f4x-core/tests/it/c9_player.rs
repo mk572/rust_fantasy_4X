@@ -1,23 +1,23 @@
 //! Class 9, the player: the treasury (alchemy, taxes) and the offers a wizard is made.
 
 use crate::support::{content, text, worlds};
-use f4x_core::game::save::Snapshot;
-use f4x_core::game::{Command, Event, Game, Rejection};
 use f4x_core::map::Position;
 use f4x_core::player::offer::{Offer, OfferError};
 use f4x_core::player::PlayerId;
 use f4x_core::wizard::magic::{MagicError, Retort};
+use f4x_core::world::save::Snapshot;
+use f4x_core::world::{Command, Event, Rejection, World};
 use f4x_def::half_int::HalfInt;
 
-fn wizards(g: &Game) -> Vec<PlayerId> {
-    g.player_ids()
+fn wizards(w: &World) -> Vec<PlayerId> {
+    w.player_ids()
         .into_iter()
-        .filter(|&p| !g.is_neutral_player(p) && g.wizard(p).is_some())
+        .filter(|&p| !w.is_neutral_player(p) && w.wizard(p).is_some())
         .collect()
 }
 
-fn treasury(g: &Game, p: PlayerId) -> (HalfInt, HalfInt) {
-    let t = g.player(p).expect("a player").treasury();
+fn treasury(w: &World, p: PlayerId) -> (HalfInt, HalfInt) {
+    let t = w.player(p).expect("a player").treasury();
     (t.gold, t.mana)
 }
 
@@ -31,23 +31,25 @@ fn refusal(events: &[Event]) -> Option<Rejection> {
 #[test]
 fn alchemy_turns_gold_into_mana_and_back_at_the_rate_of_the_wizard_and_refuses_what_is_not_there() {
     let alchemy = Retort::new(0 /* alchemy */);
-    for (name, mut g) in worlds().into_iter().step_by(2) {
-        for p in wizards(&g) {
+    for (name, mut w) in worlds().into_iter().step_by(2) {
+        for p in wizards(&w) {
             // Half for any wizard, all of it for one with the Alchemy retort (`retorts.ron`).
-            let has = g.wizard(p).is_some_and(|w| w.retorts().contains(&alchemy));
+            let has = w
+                .wizard(p)
+                .is_some_and(|wizard| wizard.retorts().contains(&alchemy));
             let percent = if has { 100 } else { 50 };
-            let t = g.treasury_mut(p).expect("a treasury");
+            let t = w.treasury_mut(p).expect("a treasury");
             t.gold = HalfInt::from_int(1000);
             t.mana = HalfInt::from_int(1000);
             // Gold to mana.
-            let events = g.apply(Command::Alchemy {
+            let events = w.apply(Command::Alchemy {
                 player: p,
                 amount: 100,
                 gold_to_mana: true,
             });
             assert_eq!(refusal(&events), None, "{name}");
             assert_eq!(
-                treasury(&g, p),
+                treasury(&w, p),
                 (
                     HalfInt::from_int(900),
                     HalfInt::from_int(1000 + 100 * percent / 100)
@@ -55,12 +57,12 @@ fn alchemy_turns_gold_into_mana_and_back_at_the_rate_of_the_wizard_and_refuses_w
                 "{name}: {p:?}"
             );
             // And back.
-            g.apply(Command::Alchemy {
+            w.apply(Command::Alchemy {
                 player: p,
                 amount: 100,
                 gold_to_mana: false,
             });
-            let (gold, mana) = treasury(&g, p);
+            let (gold, mana) = treasury(&w, p);
             assert_eq!(
                 mana,
                 HalfInt::from_int(1000 + 100 * percent / 100 - 100),
@@ -68,43 +70,43 @@ fn alchemy_turns_gold_into_mana_and_back_at_the_rate_of_the_wizard_and_refuses_w
             );
             assert_eq!(gold, HalfInt::from_int(900 + 100 * percent / 100), "{name}");
             // More than there is: refused, nothing changes. A negative amount changes nothing either.
-            let before = treasury(&g, p);
+            let before = treasury(&w, p);
             let (gold, mana) = before;
             for (amount, to_mana, why) in [
                 (gold.floor() + 1, true, MagicError::NotEnoughGold),
                 (mana.floor() + 1, false, MagicError::NotEnoughMana),
             ] {
-                let events = g.apply(Command::Alchemy {
+                let events = w.apply(Command::Alchemy {
                     player: p,
                     amount,
                     gold_to_mana: to_mana,
                 });
                 assert_eq!(refusal(&events), Some(Rejection::Magic(why)), "{name}");
-                assert_eq!(treasury(&g, p), before);
+                assert_eq!(treasury(&w, p), before);
             }
-            g.apply(Command::Alchemy {
+            w.apply(Command::Alchemy {
                 player: p,
                 amount: -50,
                 gold_to_mana: true,
             });
-            assert_eq!(treasury(&g, p), before, "{name}: a negative amount");
+            assert_eq!(treasury(&w, p), before, "{name}: a negative amount");
         }
     }
 }
 
 #[test]
 fn a_higher_tax_brings_more_gold_until_the_rebels_stop_paying_and_the_rate_is_held_to_the_table() {
-    for (name, mut g) in worlds().into_iter().step_by(2) {
-        let p = wizards(&g)[0];
-        let top = (g.content().rules.config.tax_unrest_percent.len() - 1) as u8;
+    for (name, mut w) in worlds().into_iter().step_by(2) {
+        let p = wizards(&w)[0];
+        let top = (w.content().rules.config.tax_unrest_percent.len() - 1) as u8;
         let mut last: std::collections::BTreeMap<usize, (HalfInt, u32)> = Default::default();
         for rate in 0..=top {
             assert_eq!(
-                refusal(&g.apply(Command::SetTaxRate { player: p, rate })),
+                refusal(&w.apply(Command::SetTaxRate { player: p, rate })),
                 None
             );
-            for (i, (city, _)) in g.economy().cities_of(p).into_iter().enumerate() {
-                let eco = g.economy().city_economy(city).expect("an economy");
+            for (i, (city, _)) in w.economy().cities_of(p).into_iter().enumerate() {
+                let eco = w.economy().city_economy(city).expect("an economy");
                 if let Some(&(g0, r0)) = last.get(&i) {
                     assert!(eco.rebels >= r0, "{name}: rate {rate} calms city {i}");
                     // Rebels pay no taxes, so a rate that makes more of them can bring less; while it
@@ -121,18 +123,18 @@ fn a_higher_tax_brings_more_gold_until_the_rebels_stop_paying_and_the_rate_is_he
             }
         }
         // A rate over the table is held to its top.
-        g.apply(Command::SetTaxRate {
+        w.apply(Command::SetTaxRate {
             player: p,
             rate: u8::MAX,
         });
-        let held = g.player_component::<f4x_core::player::Tax>(p).map(|t| t.0);
+        let held = w.player_component::<f4x_core::player::Tax>(p).map(|t| t.0);
         assert_eq!(held, Some(top), "{name}");
     }
 }
 
 /// A game in which `p` has been made the offers.
-fn with_offers(g: &Game, p: PlayerId, offers: Vec<Offer>) -> Game {
-    let mut s: Snapshot = Snapshot::from_text(&text(g)).expect("reads");
+fn with_offers(w: &World, p: PlayerId, offers: Vec<Offer>) -> World {
+    let mut s: Snapshot = Snapshot::from_text(&text(w)).expect("reads");
     let slot = s
         .players
         .iter_mut()
@@ -144,9 +146,9 @@ fn with_offers(g: &Game, p: PlayerId, offers: Vec<Offer>) -> Game {
 
 #[test]
 fn mercenaries_offered_are_hired_for_their_price_or_turned_down_for_nothing() {
-    let (_, g) = worlds().remove(0);
-    let p = wizards(&g)[0];
-    let unit = g
+    let (_, w) = worlds().remove(0);
+    let p = wizards(&w)[0];
+    let unit = w
         .content()
         .rules
         .units
@@ -161,14 +163,14 @@ fn mercenaries_offered_are_hired_for_their_price_or_turned_down_for_nothing() {
         level: 1,
         price: 90,
     };
-    let mut g = with_offers(&g, p, vec![offer.clone()]);
-    g.treasury_mut(p).expect("a treasury").gold = HalfInt::from_int(100);
-    let units_before = g.units().player_units(p).len();
+    let mut w = with_offers(&w, p, vec![offer.clone()]);
+    w.treasury_mut(p).expect("a treasury").gold = HalfInt::from_int(100);
+    let units_before = w.units().player_units(p).len();
     // With too little gold the offer stands, the game as it was.
-    g.treasury_mut(p).expect("a treasury").gold = HalfInt::from_int(89);
-    let was = text(&g);
+    w.treasury_mut(p).expect("a treasury").gold = HalfInt::from_int(89);
+    let was = text(&w);
     assert_eq!(
-        refusal(&g.apply(Command::AcceptOffer {
+        refusal(&w.apply(Command::AcceptOffer {
             player: p,
             index: 0,
             name: None,
@@ -176,10 +178,10 @@ fn mercenaries_offered_are_hired_for_their_price_or_turned_down_for_nothing() {
         })),
         Some(Rejection::Offer(OfferError::NoGold))
     );
-    assert_eq!(text(&g), was);
+    assert_eq!(text(&w), was);
     // With enough, two units of the kind join and the price is paid.
-    g.treasury_mut(p).expect("a treasury").gold = HalfInt::from_int(100);
-    let events = g.apply(Command::AcceptOffer {
+    w.treasury_mut(p).expect("a treasury").gold = HalfInt::from_int(100);
+    let events = w.apply(Command::AcceptOffer {
         player: p,
         index: 0,
         name: None,
@@ -193,15 +195,15 @@ fn mercenaries_offered_are_hired_for_their_price_or_turned_down_for_nothing() {
         })
         .expect("MercenariesHired");
     assert_eq!(hired.len(), 2);
-    assert_eq!(g.units().player_units(p).len(), units_before + 2);
+    assert_eq!(w.units().player_units(p).len(), units_before + 2);
     for u in hired {
-        assert_eq!(g.units().unit_owner(u), Some(p));
-        assert_eq!(g.units().unit_def(u).map(|d| d.num), Some(unit.num()));
+        assert_eq!(w.units().unit_owner(u), Some(p));
+        assert_eq!(w.units().unit_def(u).map(|d| d.num), Some(unit.num()));
     }
-    assert_eq!(treasury(&g, p).0, HalfInt::from_int(10));
+    assert_eq!(treasury(&w, p).0, HalfInt::from_int(10));
     // The offer is answered: asking again finds nothing.
     assert_eq!(
-        refusal(&g.apply(Command::AcceptOffer {
+        refusal(&w.apply(Command::AcceptOffer {
             player: p,
             index: 0,
             name: None,
@@ -211,18 +213,18 @@ fn mercenaries_offered_are_hired_for_their_price_or_turned_down_for_nothing() {
     );
     // Turned down, it costs nothing and goes.
     let (_, g0) = worlds().remove(0);
-    let mut g = with_offers(&g0, p, vec![offer]);
-    let gold = treasury(&g, p).0;
+    let mut w = with_offers(&g0, p, vec![offer]);
+    let gold = treasury(&w, p).0;
     assert_eq!(
-        refusal(&g.apply(Command::RejectOffer {
+        refusal(&w.apply(Command::RejectOffer {
             player: p,
             index: 0
         })),
         None
     );
-    assert_eq!(treasury(&g, p).0, gold);
+    assert_eq!(treasury(&w, p).0, gold);
     assert_eq!(
-        refusal(&g.apply(Command::RejectOffer {
+        refusal(&w.apply(Command::RejectOffer {
             player: p,
             index: 0
         })),
@@ -243,7 +245,7 @@ fn an_offer_that_is_not_answered_lapses_at_the_turn_change() {
         .find(|d| d.hireable)
         .map(|d| f4x_core::rules::UnitId::new(d.num))
         .expect("a unit");
-    let mut g = with_offers(
+    let mut w = with_offers(
         &g0,
         p,
         vec![Offer::Mercenaries {
@@ -253,9 +255,9 @@ fn an_offer_that_is_not_answered_lapses_at_the_turn_change() {
             price: 1,
         }],
     );
-    g.apply(Command::EndTurn);
+    w.apply(Command::EndTurn);
     // What is waiting now was rolled at this turn change, not kept from before.
-    let kept = g
+    let kept = w
         .player_component::<f4x_core::player::Offers>(p)
         .map(|o| {
             o.0.iter().any(|x| {
@@ -277,15 +279,15 @@ fn an_offer_that_is_not_answered_lapses_at_the_turn_change() {
 fn with_several_circles_a_hired_hero_and_mercenaries_come_to_the_circle_asked_for() {
     use crate::c9_spell::two_cities;
     use f4x_core::rules::UnitId;
-    let (_, mut g) = worlds().remove(0);
-    g.scenario_change_settings(|s| s.rules.multiple_summoning_circles = true);
-    let (p, first, second, _) = two_cities(&mut g);
-    g.move_summoning_circle(p, second).expect("moved");
-    let circles = g.wizard(p).expect("a wizard").summon_circles();
+    let (_, mut w) = worlds().remove(0);
+    w.scenario_change_settings(|s| s.rules.multiple_summoning_circles = true);
+    let (p, first, second, _) = two_cities(&mut w);
+    w.move_summoning_circle(p, second).expect("moved");
+    let circles = w.wizard(p).expect("a wizard").summon_circles();
     assert_eq!(circles.len(), 2);
     let (a, b) = (circles[0], circles[1]);
     let _ = first;
-    let unit = g
+    let unit = w
         .content()
         .rules
         .units
@@ -294,11 +296,11 @@ fn with_several_circles_a_hired_hero_and_mercenaries_come_to_the_circle_asked_fo
         .find(|d| d.hireable && d.kind == f4x_def::rules::UnitKind::Normal && !d.is_settler())
         .map(|d| UnitId::new(d.num))
         .expect("a unit for hire");
-    let kind = (0..g.content().rules.hero_templates.len())
+    let kind = (0..w.content().rules.hero_templates.len())
         .find(|&k| {
-            g.units()
+            w.units()
                 .hero_entity(k)
-                .is_some_and(|h| g.units().hero_state(h) == Some(f4x_core::hero::HeroState::Free))
+                .is_some_and(|h| w.units().hero_state(h) == Some(f4x_core::hero::HeroState::Free))
         })
         .expect("a free hero");
     for offer in [
@@ -310,17 +312,17 @@ fn with_several_circles_a_hired_hero_and_mercenaries_come_to_the_circle_asked_fo
         },
         Offer::Hero { kind, price: 1 },
     ] {
-        let mut g = with_offers(&g, p, vec![offer.clone()]);
-        g.treasury_mut(p).expect("a treasury").gold = HalfInt::from_int(100_000);
-        let accept = |g: &mut Game, at| {
-            g.apply(Command::AcceptOffer {
+        let mut w = with_offers(&w, p, vec![offer.clone()]);
+        w.treasury_mut(p).expect("a treasury").gold = HalfInt::from_int(100_000);
+        let accept = |w: &mut World, at| {
+            w.apply(Command::AcceptOffer {
                 player: p,
                 index: 0,
                 name: None,
                 at,
             })
         };
-        let was = text(&g);
+        let was = text(&w);
         // No circle named, or one that is none of the wizard's: refused, nothing changes.
         let elsewhere = Position {
             x: a.x.wrapping_add(1),
@@ -328,22 +330,22 @@ fn with_several_circles_a_hired_hero_and_mercenaries_come_to_the_circle_asked_fo
         };
         for at in [None, Some(elsewhere)] {
             assert_eq!(
-                refusal(&accept(&mut g, at)),
+                refusal(&accept(&mut w, at)),
                 Some(Rejection::Offer(OfferError::Circle)),
                 "{offer:?} at {at:?}"
             );
-            assert_eq!(text(&g), was);
+            assert_eq!(text(&w), was);
         }
         // The second circle: whoever joins appears there, and not at the first.
-        let (here_a, here_b) = (g.units().units_at(a).len(), g.units().units_at(b).len());
-        let events = accept(&mut g, Some(b));
+        let (here_a, here_b) = (w.units().units_at(a).len(), w.units().units_at(b).len());
+        let events = accept(&mut w, Some(b));
         assert_eq!(refusal(&events), None, "{events:?}");
         assert!(
-            g.units().units_at(b).len() > here_b,
+            w.units().units_at(b).len() > here_b,
             "{offer:?}: nobody came to {b:?}"
         );
         assert_eq!(
-            g.units().units_at(a).len(),
+            w.units().units_at(a).len(),
             here_a,
             "{offer:?}: someone came to {a:?}"
         );
@@ -355,49 +357,49 @@ fn with_several_circles_resurrection_asks_for_the_circle_the_hero_comes_back_to(
     use crate::c9_spell::two_cities;
     use f4x_core::rules::exec::Target;
     use f4x_core::spell::hero::HeroSummon;
-    let (_, mut g) = worlds().remove(0);
-    g.scenario_change_settings(|s| s.rules.multiple_summoning_circles = true);
-    let (p, _, second, _) = two_cities(&mut g);
-    g.treasury_mut(p).expect("a treasury").gold = HalfInt::from_int(100_000);
-    let kind = (0..g.content().rules.hero_templates.len())
-        .find(|&k| g.hire_hero(p, k).is_ok())
+    let (_, mut w) = worlds().remove(0);
+    w.scenario_change_settings(|s| s.rules.multiple_summoning_circles = true);
+    let (p, _, second, _) = two_cities(&mut w);
+    w.treasury_mut(p).expect("a treasury").gold = HalfInt::from_int(100_000);
+    let kind = (0..w.content().rules.hero_templates.len())
+        .find(|&k| w.hire_hero(p, k).is_ok())
         .expect("a hero can be hired");
-    let hero = g.units().hero_entity(kind).expect("the hero");
-    g.cheat_slay_unit(hero);
+    let hero = w.units().hero_entity(kind).expect("the hero");
+    w.cheat_slay_unit(hero);
     let spell = HeroSummon::Resurrection
-        .spell_in(&g.content().rules)
+        .spell_in(&w.content().rules)
         .expect("a Resurrection spell");
     assert!(
-        g.units().raisable_heroes().contains(&kind),
+        w.units().raisable_heroes().contains(&kind),
         "the hero is not dead"
     );
     // One circle: the dead hero is the target. Two: the circle is named too.
-    assert_eq!(g.check_target(p, spell, Some(Target::Hero(kind))), Ok(()));
-    g.move_summoning_circle(p, second).expect("moved");
-    let circles = g.wizard(p).expect("a wizard").summon_circles();
-    assert!(g.check_target(p, spell, Some(Target::Hero(kind))).is_err());
+    assert_eq!(w.check_target(p, spell, Some(Target::Hero(kind))), Ok(()));
+    w.move_summoning_circle(p, second).expect("moved");
+    let circles = w.wizard(p).expect("a wizard").summon_circles();
+    assert!(w.check_target(p, spell, Some(Target::Hero(kind))).is_err());
     let elsewhere = Position {
         x: circles[0].x.wrapping_add(1),
         ..circles[0]
     };
-    assert!(g
+    assert!(w
         .check_target(p, spell, Some(Target::HeroAt(kind, elsewhere)))
         .is_err());
     for &at in &circles {
         assert_eq!(
-            g.check_target(p, spell, Some(Target::HeroAt(kind, at))),
+            w.check_target(p, spell, Some(Target::HeroAt(kind, at))),
             Ok(())
         );
     }
     // And the hero comes back to the circle named.
-    g.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(100_000);
-    g.scenario_casting(p, spell, 0);
+    w.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(100_000);
+    w.scenario_casting(p, spell, 0);
     let at = circles[1];
-    let events = g.apply(Command::ResolveCast {
+    let events = w.apply(Command::ResolveCast {
         player: p,
         target: Target::HeroAt(kind, at),
     });
     assert_eq!(refusal(&events), None, "{events:?}");
-    let back = g.units().hero_entity(kind).expect("the hero");
-    assert_eq!(g.units().unit_position(back), Some(at));
+    let back = w.units().hero_entity(kind).expect("the hero");
+    assert_eq!(w.units().unit_position(back), Some(at));
 }

@@ -25,17 +25,16 @@ use crate::rules::ItemPowerId;
 use f4x_def::half_int::HalfInt;
 use serde::{Deserialize, Serialize};
 
-use crate::battle::game::ranged_kind_of;
+use crate::battle::world::ranged_kind_of;
 use crate::battle::RangedKind;
 use f4x_def::content::Content;
 
-use crate::game::Game;
 use crate::rules::damage_type::{DamageType, DamageTypes};
 use crate::rules::effects::Effect;
 use crate::rules::stats::{Modifier, Source};
 use crate::rules::{ItemDef, ItemKind, ItemPowerDef, ModOp, Rules, SlotKind, SpellId, Stat};
 use crate::unit::UnitView;
-use hecs::World;
+use crate::world::World;
 
 /// The plain bonuses of an item.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -273,7 +272,7 @@ pub fn modifiers(
         add_typed(Stat::MeleeToHit, b.to_hit, &[]);
     }
     let kind = ranged_kind_of(abilities, rules);
-    let thrown = crate::battle::game::weapon_shot_of(abilities, rules)
+    let thrown = crate::battle::world::weapon_shot_of(abilities, rules)
         == Some(crate::battle::RangedKind::Short);
     if has_ranged && item.adds_to_ranged(kind, thrown) {
         let counts =
@@ -298,26 +297,26 @@ pub fn modifiers(
 }
 
 /// The item rules' view of the game, as [`UnitView`] is the unit rules': the world, the content and
-/// the players, read-only. Get one with `Game::items()`; the unit rules build one from their own
+/// the players, read-only. Get one with `World::items()`; the unit rules build one from their own
 /// view to ask what a unit carries.
 #[derive(Clone, Copy)]
 pub struct ItemView<'a> {
-    world: &'a World,
+    ecs: &'a hecs::World,
     content: &'a Content,
 }
 
 impl<'a> ItemView<'a> {
-    pub fn new(world: &'a World, content: &'a Content) -> Self {
-        ItemView { world, content }
+    pub fn new(ecs: &'a hecs::World, content: &'a Content) -> Self {
+        ItemView { ecs, content }
     }
 
     fn units(&self) -> UnitView<'a> {
-        UnitView::new(self.world, self.content)
+        UnitView::new(self.ecs, self.content)
     }
 
     /// Is the unit of a kind that carries items?
     fn is_hero(&self, unit: hecs::Entity) -> bool {
-        self.world
+        self.ecs
             .get::<&crate::unit::Unit>(unit)
             .ok()
             .is_some_and(|u| self.content.rules.units.get(u.0).hero.is_some())
@@ -330,7 +329,7 @@ impl<'a> ItemView<'a> {
             return Vec::new();
         }
         let mut out: Vec<(u8, Item)> = self
-            .world
+            .ecs
             .query::<(&Item, &entity::HeldBy)>()
             .iter()
             .filter_map(|(_, (item, by))| match by {
@@ -349,7 +348,7 @@ impl<'a> ItemView<'a> {
             return Vec::new();
         }
         let mut out: Vec<(u8, hecs::Entity, Item)> = self
-            .world
+            .ecs
             .query::<(&Item, &entity::HeldBy)>()
             .iter()
             .filter_map(|(e, (item, by))| match by {
@@ -408,16 +407,16 @@ impl<'a> ItemView<'a> {
     }
 }
 
-impl Game {
+impl World {
     /// The item rules' view of the game.
     pub fn items(&self) -> ItemView<'_> {
-        ItemView::new(&self.world, &self.content)
+        ItemView::new(&self.ecs, &self.content)
     }
 }
 
 impl UnitView<'_> {
     /// The item rules' view, built from this one.
     pub(crate) fn items(&self) -> ItemView<'_> {
-        ItemView::new(self.world, self.content)
+        ItemView::new(self.ecs, self.content)
     }
 }

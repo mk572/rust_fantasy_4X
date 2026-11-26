@@ -223,7 +223,7 @@ After the suite is built it is attacked, as `f4x-def` was. Two kinds:
 | `c1_determinism.rs` | 1 | same call same world; interleaved and threaded; independence of steps; the floats (`anchor`) |
 | `c2_input.rs` | 2 | extreme seeds, settings at the ends and over them, bad `NewGame` fields, damaged content, `generate` extremes |
 | `c3_map.rs` | 3 | `map_problems(&Generated, &Content, &GenParams)`: the independent checker and a test per rule that it fires |
-| `c4_start.rs` | 4 | `start_problems(&Game)`: the same for a started game; a played game goes on; save and load |
+| `c4_start.rs` | 4 | `start_problems(&World)`: the same for a started game; a played game goes on; save and load |
 | `c5_algorithms.rs` | 5 | the algorithms reachable from outside (`neutral::range`, `neutral::neutral_city_count`, `temperament::*`, `island::growth` through `grow_site_islands`, `computer_wizard` through `new_game`); the private ones are inline tests |
 | `c6_coupling.rs` | 6 | the numbers the crate names against the rows of the shipped content |
 | `c7_drift.rs` | 7 | `fixtures` and `regression` of the old suite, and the proof that the comparison can fail |

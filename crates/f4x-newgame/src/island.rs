@@ -173,17 +173,17 @@ pub fn grow_site_islands(
 
 /// Build out the island of a town of a game being set up (a start town or a neutral city) to
 /// [`MIN_LAND`] squares, where it is smaller. A square that holds a tower or a node stays as it is.
-pub fn build_out(game: &mut f4x_core::game::Game, at: Position) {
-    let Some(map) = game.map() else {
+pub fn build_out(world: &mut f4x_core::world::World, at: Position) {
+    let Some(map) = world.map() else {
         return;
     };
-    let sites = game.economy().site_squares();
-    let squares = growth(map, game.content(), game.seed(), at, &|x, y| {
+    let sites = world.economy().site_squares();
+    let squares = growth(map, world.content(), world.seed(), at, &|x, y| {
         sites
             .iter()
             .any(|s| s.plane == at.plane && s.x as i32 == x && s.y as i32 == y)
     });
-    let Some(grass) = game
+    let Some(grass) = world
         .content()
         .terrains
         .first_of_class(TerrainClass::Grassland, at.plane)
@@ -191,7 +191,7 @@ pub fn build_out(game: &mut f4x_core::game::Game, at: Position) {
         return;
     };
     for (x, y) in squares {
-        game.scenario_set_terrain(Position { x, y, ..at }, grass);
+        world.scenario_set_terrain(Position { x, y, ..at }, grass);
     }
 }
 

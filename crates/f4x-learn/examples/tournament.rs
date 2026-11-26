@@ -230,11 +230,11 @@ fn lines(n: usize, ctx: &Ctx) -> Vec<Line> {
 /// number (1500 at the average). One imaginary even draw against a phantom of average strength
 /// keeps an unbeaten or winless entry finite.
 fn ratings(n: usize, ctx: &Ctx) -> Vec<f64> {
-    let mut w = vec![vec![0.0f64; n]; n];
+    let mut table = vec![vec![0.0f64; n]; n];
     for m in &ctx.done {
         let (a, b) = (ctx.index(&m.a), ctx.index(&m.b));
-        w[a][b] += f64::from(m.result.points[0]);
-        w[b][a] += f64::from(m.result.points[1]);
+        table[a][b] += f64::from(m.result.points[0]);
+        table[b][a] += f64::from(m.result.points[1]);
     }
     let mut p = vec![1.0f64; n];
     for _ in 0..1000 {
@@ -244,8 +244,8 @@ fn ratings(n: usize, ctx: &Ctx) -> Vec<f64> {
             let mut den = 1.0 / (old[i] + 1.0);
             for j in 0..n {
                 if i != j {
-                    won += w[i][j];
-                    den += (w[i][j] + w[j][i]) / (old[i] + old[j]);
+                    won += table[i][j];
+                    den += (table[i][j] + table[j][i]) / (old[i] + old[j]);
                 }
             }
             p[i] = won / den;

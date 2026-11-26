@@ -3,19 +3,18 @@
 //! The checks and the costs are methods of [`Economy`]: what a city may build, what
 //! it costs, how far it is, what a purchase or a sale would do, what finishing an item gives
 //! and what the auto-builder picks (`city/autobuild.rs`). They need only the world, the map, the
-//! content and the players. `Game` makes the changes that need more (the owner's gold, the new
+//! content and the players. `World` makes the changes that need more (the owner's gold, the new
 //! unit, the treasury for the Vizier).
 
 use f4x_def::half_int::HalfInt;
-use hecs::World;
 
 use crate::city::economy::{Buildings, CityRace, Economy};
 use crate::city::City;
-use crate::game::Game;
 use crate::map::Position;
 use crate::player::PlayerId;
 use crate::rules::{BuildingId, Stat, UnitId, UnitKind};
 use crate::unit::Experience;
+use crate::world::World;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum ProductionItem {
@@ -109,11 +108,11 @@ pub(crate) enum Advance {
 
 /// Take a building out of a city. Fails when the city has none or does not have this one.
 pub(crate) fn remove_building(
-    world: &World,
+    ecs: &hecs::World,
     city: hecs::Entity,
     building: BuildingId,
 ) -> Result<(), ProductionError> {
-    let mut b = world
+    let mut b = ecs
         .get::<&mut Buildings>(city)
         .map_err(|_| ProductionError::NotACity)?;
     let before = b.0.len();
@@ -133,13 +132,13 @@ impl Economy<'_> {
     ) -> Result<(), ProductionError> {
         let rules = &self.content.rules;
         let race_id = self
-            .world
+            .ecs
             .get::<&CityRace>(city)
             .map(|r| r.0)
             .map_err(|_| ProductionError::NotACity)?;
         let race = rules.races.get(race_id);
         let built = self
-            .world
+            .ecs
             .get::<&Buildings>(city)
             .map(|b| b.0.clone())
             .map_err(|_| ProductionError::NotACity)?;
@@ -175,7 +174,7 @@ impl Economy<'_> {
                 }
                 if self.costs_a_citizen(u)
                     && self
-                        .world
+                        .ecs
                         .get::<&super::economy::Population>(city)
                         .map_or(0, |p| p.figures)
                         < 2
@@ -200,7 +199,7 @@ impl Economy<'_> {
     }
 
     pub fn city_is_coastal(&self, city: hecs::Entity) -> bool {
-        let (Some(map), Ok(at)) = (self.map, self.world.get::<&Position>(city).map(|p| *p)) else {
+        let (Some(map), Ok(at)) = (self.map, self.ecs.get::<&Position>(city).map(|p| *p)) else {
             return false;
         };
         let grid = map.plane(at.plane);
@@ -228,7 +227,7 @@ impl Economy<'_> {
     }
 
     pub fn city_production(&self, city: hecs::Entity) -> Production {
-        self.world
+        self.ecs
             .get::<&Production>(city)
             .map(|p| *p)
             .unwrap_or_default()
@@ -300,7 +299,7 @@ impl Economy<'_> {
     }
 
     pub fn has_building(&self, city: hecs::Entity, building: BuildingId) -> bool {
-        self.world
+        self.ecs
             .get::<&Buildings>(city)
             .is_ok_and(|b| b.0.contains(&building))
     }
@@ -324,7 +323,7 @@ impl Economy<'_> {
         {
             return 0;
         }
-        let (Some(map), Ok(at)) = (self.map, self.world.get::<&Position>(city).map(|p| *p)) else {
+        let (Some(map), Ok(at)) = (self.map, self.ecs.get::<&Position>(city).map(|p| *p)) else {
             return WEAPON_MAGIC;
         };
         let grid = map.plane(at.plane);
@@ -372,7 +371,7 @@ impl Economy<'_> {
 
     /// The building the city has sold this turn, which its picture shows as rubble.
     pub fn sold_building(&self, city: hecs::Entity) -> Option<BuildingId> {
-        self.world.get::<&SoldBuilding>(city).ok().map(|s| s.0)
+        self.ecs.get::<&SoldBuilding>(city).ok().map(|s| s.0)
     }
 
     /// What selling `building` would bring, or why it cannot be sold.
@@ -418,7 +417,7 @@ impl Economy<'_> {
         if p.progress < HalfInt::from_int(self.item_cost(city, item) as i32) {
             return Some(Advance::Waiting(p));
         }
-        let at = *self.world.get::<&Position>(city).ok()?;
+        let at = *self.ecs.get::<&Position>(city).ok()?;
         let owner = self.city_owner(city)?;
         Some(Advance::Done {
             item,
@@ -455,7 +454,7 @@ impl Economy<'_> {
     }
 }
 
-impl Game {
+impl World {
     pub fn set_production(
         &mut self,
         city: hecs::Entity,
@@ -488,7 +487,7 @@ impl Game {
     /// A new turn of `player`: each of their cities may sell a building again.
     pub(crate) fn reopen_sales(&mut self, player: crate::player::PlayerId) {
         let sold: Vec<hecs::Entity> = self
-            .world
+            .ecs
             .query::<(&City, &SoldBuilding)>()
             .iter()
             .map(|(e, _)| e)
@@ -508,7 +507,7 @@ impl Game {
     ) -> Result<u32, ProductionError> {
         let (owner, cost) = self.economy().sell_plan(city, building)?;
         let ends_production = self.economy().production_needs(city, building);
-        remove_building(&self.world, city, building)?;
+        remove_building(&self.ecs, city, building)?;
         self.put(city, SoldBuilding(building));
         if ends_production {
             let mut p = self.economy().city_production(city);
@@ -588,7 +587,7 @@ impl Game {
         let cost = self.economy().item_cost(city, item);
         match item {
             ProductionItem::Building(b) => {
-                if let Ok(mut buildings) = self.world.get::<&mut Buildings>(city) {
+                if let Ok(mut buildings) = self.ecs.get::<&mut Buildings>(city) {
                     buildings.0.push(b);
                 }
                 self.autobuild_spent(city, item, cost);

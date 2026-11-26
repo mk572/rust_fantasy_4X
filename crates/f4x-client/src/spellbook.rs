@@ -11,8 +11,8 @@ use crate::page::Page;
 use crate::page_turn::{Book, BookTurn};
 use crate::text::Args;
 use crate::ui;
-use f4x_core::game::Command;
 use f4x_core::rules::exec::Target;
+use f4x_core::world::Command;
 use f4x_def::rules::{CastContext, RealmId, SpellId, SpellTarget};
 use macroquad::prelude::*;
 
@@ -171,7 +171,7 @@ impl App {
         per_page: usize,
         sort: Option<BookSort>,
     ) -> Vec<BookPage> {
-        let rules = &self.game.content().rules;
+        let rules = &self.world.content().rules;
         let mut pages: Vec<BookPage> = Vec::new();
         for &realm in BOOK_REALMS {
             let mut of: Vec<SpellId> = spells
@@ -186,7 +186,7 @@ impl App {
                 }
                 Some(BookSort::ManaCost) => of.sort_by_key(|&s| {
                     (
-                        self.game.casting_cost(HUMAN, s, false),
+                        self.world.casting_cost(HUMAN, s, false),
                         self.names.spell(rules.spells.get(s).num).to_string(),
                     )
                 }),
@@ -211,9 +211,9 @@ impl App {
     /// Whether a click on `spell` in the map's book starts casting it: the wizard knows it and
     /// it can be cast on the map.
     fn book_spell_usable(&self, spell: SpellId) -> bool {
-        self.game.wizard(HUMAN).is_some_and(|m| m.knows(spell))
+        self.world.wizard(HUMAN).is_some_and(|m| m.knows(spell))
             && self
-                .game
+                .world
                 .content()
                 .rules
                 .spells
@@ -225,10 +225,10 @@ impl App {
     /// What a click on a spell the wizard does not know leads to: an offer to learn it next when
     /// it is on offer for research, else the reason it cannot be learnt.
     fn why_not_learnable(&self, spell: SpellId) -> BookAsk {
-        let Some(m) = self.game.wizard(HUMAN) else {
+        let Some(m) = self.world.wizard(HUMAN) else {
             return BookAsk::Say("spell.cannot_learn_yet");
         };
-        let realm = Some(self.game.content().rules.spells.get(spell).realm);
+        let realm = Some(self.world.content().rules.spells.get(spell).realm);
         // Arcane spells need no book; every other realm does.
         if realm.is_some_and(|r| r.num() != 5 /* arcane */)
             && realm.is_some_and(|r| m.books().get(&r).copied().unwrap_or(0) == 0)
@@ -266,16 +266,16 @@ impl App {
     pub(crate) fn aim_paid_spell(&mut self, spell: SpellId) {
         self.screen = Screen::Map;
         if f4x_core::spell::hero::HeroSummon::Resurrection
-            .is_in(self.game.content().rules.spells.get(spell))
+            .is_in(self.world.content().rules.spells.get(spell))
         {
             self.open_resurrect(spell, true);
             return;
         }
-        if self.game.content().rules.spells.get(spell).target == SpellTarget::EnemyWizard {
+        if self.world.content().rules.spells.get(spell).target == SpellTarget::EnemyWizard {
             self.open_wizard_pick(spell, true);
             return;
         }
-        if self.game.content().rules.spells.get(spell).target == SpellTarget::GlobalEnchantment {
+        if self.world.content().rules.spells.get(spell).target == SpellTarget::GlobalEnchantment {
             self.open_global_pick(spell, true);
             return;
         }
@@ -299,7 +299,7 @@ impl App {
             return;
         }
         // A spell that takes extra mana asks how much first.
-        if self.game.spell_takes_extra_mana(spell) {
+        if self.world.spell_takes_extra_mana(spell) {
             self.cast_extra = 0;
             self.modals.open(crate::extra_mana::ExtraMana::new(spell));
             return;
@@ -310,7 +310,7 @@ impl App {
 
     /// The extra mana the player chose for `spell`; none for a spell that does not take it.
     pub(crate) fn chosen_extra(&self, spell: SpellId) -> i32 {
-        if self.game.spell_takes_extra_mana(spell) {
+        if self.world.spell_takes_extra_mana(spell) {
             self.cast_extra
         } else {
             0
@@ -319,30 +319,30 @@ impl App {
 
     /// The rest of `begin_cast`, once the extra mana (`cast_extra`) is settled.
     pub(crate) fn continue_cast(&mut self, spell: SpellId) {
-        let needs = self.game.spell_needs_target(HUMAN, spell);
+        let needs = self.world.spell_needs_target(HUMAN, spell);
         let cost = self
-            .game
+            .world
             .casting_cost_with_extra(HUMAN, spell, self.chosen_extra(spell));
-        let instant = self.game.wizard(HUMAN).map_or(0, |m| m.skill_left());
+        let instant = self.world.wizard(HUMAN).map_or(0, |m| m.skill_left());
         let mana = self
-            .game
+            .world
             .player(HUMAN)
             .map_or(0, |p| p.treasury().mana.floor());
         if needs && cost <= instant.min(mana) {
             // The dead hero Resurrection raises is chosen from a list.
             if f4x_core::spell::hero::HeroSummon::Resurrection
-                .is_in(self.game.content().rules.spells.get(spell))
+                .is_in(self.world.content().rules.spells.get(spell))
             {
                 self.open_resurrect(spell, false);
                 return;
             }
             // A rival wizard is chosen by portrait.
-            if self.game.content().rules.spells.get(spell).target == SpellTarget::EnemyWizard {
+            if self.world.content().rules.spells.get(spell).target == SpellTarget::EnemyWizard {
                 self.open_wizard_pick(spell, false);
                 return;
             }
             // A rival's global enchantment is no place on the map: it is chosen from a list.
-            if self.game.content().rules.spells.get(spell).target == SpellTarget::GlobalEnchantment
+            if self.world.content().rules.spells.get(spell).target == SpellTarget::GlobalEnchantment
             {
                 self.open_global_pick(spell, false);
                 return;
@@ -360,7 +360,7 @@ impl App {
             return;
         }
         let extra = self.chosen_extra(spell);
-        let events = self.game.apply(Command::CastSpell {
+        let events = self.world.apply(Command::CastSpell {
             extra,
             player: HUMAN,
             spell,
@@ -410,12 +410,12 @@ impl App {
 
     /// The player clicked `pos` while choosing a target.
     pub(crate) fn aim_at(&mut self, t: Targeting, pos: f4x_core::map::Position) {
-        let def = self.game.content().rules.spells.get(t.spell);
+        let def = self.world.content().rules.spells.get(t.spell);
         let target = match def.target {
             SpellTarget::OwnUnit | SpellTarget::EnemyUnit | SpellTarget::AnyUnit => {
-                let units = self.game.units().units_at(pos);
+                let units = self.world.units().units_at(pos);
                 let wanted = units.into_iter().find(|&u| {
-                    let mine = self.game.units().unit_owner(u) == Some(HUMAN);
+                    let mine = self.world.units().unit_owner(u) == Some(HUMAN);
                     match def.target {
                         SpellTarget::OwnUnit => mine,
                         SpellTarget::EnemyUnit => !mine,
@@ -425,20 +425,20 @@ impl App {
                 wanted.map(Target::Unit)
             }
             SpellTarget::OwnCity | SpellTarget::EnemyCity => {
-                self.game.economy().city_at(pos).map(Target::City)
+                self.world.economy().city_at(pos).map(Target::City)
             }
             // Another wizard, by clicking one of their cities or units.
             SpellTarget::EnemyWizard => self
-                .game
+                .world
                 .economy()
                 .city_at(pos)
-                .and_then(|c| self.game.economy().city_owner(c))
+                .and_then(|c| self.world.economy().city_owner(c))
                 .or_else(|| {
-                    self.game
+                    self.world
                         .units()
                         .units_at(pos)
                         .into_iter()
-                        .find_map(|u| self.game.units().unit_owner(u))
+                        .find_map(|u| self.world.units().unit_owner(u))
                 })
                 .filter(|&o| o != HUMAN)
                 .map(Target::Player),
@@ -446,12 +446,12 @@ impl App {
         };
         // A Spell Ward also needs a realm: ask for it.
         if f4x_core::spell::city::CityEffect::SpellWard
-            .is_in(self.game.content().rules.spells.get(t.spell))
+            .is_in(self.world.content().rules.spells.get(t.spell))
         {
             match target {
                 Some(Target::City(city))
-                    if self.game.economy().city_owner(city) == Some(HUMAN)
-                        && !self.game.fully_warded(city) =>
+                    if self.world.economy().city_owner(city) == Some(HUMAN)
+                        && !self.world.fully_warded(city) =>
                 {
                     self.modals.open(crate::view::Ward {
                         spell: t.spell,
@@ -468,11 +468,11 @@ impl App {
         }
         // Word of Recall with several summoning circles asks which one the unit goes to.
         if let Some(Target::Unit(unit)) = target {
-            let recalls = self.game.content().rules.spells.get(t.spell).has_hook_arg(
+            let recalls = self.world.content().rules.spells.get(t.spell).has_hook_arg(
                 f4x_core::spell::special::RECALL,
                 f4x_core::spell::special::RECALL_ANYONE,
             );
-            if recalls && self.game.has_several_circles(HUMAN) {
+            if recalls && self.world.has_several_circles(HUMAN) {
                 let cities = self.circle_cities();
                 let prompt = self.text("battle.choose_circle");
                 self.pick_city(prompt, cities, move |app, city| {
@@ -507,7 +507,7 @@ impl App {
                 target: Some(target),
             }
         };
-        let events = self.game.apply(cmd.clone());
+        let events = self.world.apply(cmd.clone());
         if Self::refused_as_pointless(&events) {
             // Nothing is shown of the refusal: the player is asked instead.
             self.ask_cast_anyway(cmd, t.spell, Some(t));
@@ -515,7 +515,7 @@ impl App {
         }
         let rejected = events
             .iter()
-            .any(|e| matches!(e, f4x_core::game::Event::Rejected(_)));
+            .any(|e| matches!(e, f4x_core::world::Event::Rejected(_)));
         self.note(events);
         if rejected {
             self.targeting = Some(t);
@@ -544,8 +544,8 @@ impl App {
             return;
         }
         // A spell that is paid for and waits for its target: choose that first.
-        if let Some(spell) = self.game.wizard(HUMAN).and_then(|m| m.casting_paid()) {
-            if self.game.spell_needs_target(HUMAN, spell) {
+        if let Some(spell) = self.world.wizard(HUMAN).and_then(|m| m.casting_paid()) {
+            if self.world.spell_needs_target(HUMAN, spell) {
                 self.aim_paid_spell(spell);
                 return;
             }
@@ -560,7 +560,7 @@ impl App {
         ui.pages = self.book_pages_sorted(&spells, SMALL_PAGE, Some(ui.sort));
         // Open at the spell being cast, or where the book was left.
         let mut left = ui.last_left.min(ui.pages.len().saturating_sub(2));
-        if let Some(c) = self.game.wizard(HUMAN).and_then(|m| m.casting()) {
+        if let Some(c) = self.world.wizard(HUMAN).and_then(|m| m.casting()) {
             if let Some(i) = ui.pages.iter().position(|p| p.spells.contains(&c.spell)) {
                 left = i - i % 2;
             }
@@ -573,10 +573,10 @@ impl App {
 impl BookUi {
     /// The spells the map's spell book lists, by its filter.
     fn castable_spells(&self, app: &App) -> Vec<SpellId> {
-        let Some(m) = app.game.wizard(HUMAN) else {
+        let Some(m) = app.world.wizard(HUMAN) else {
             return Vec::new();
         };
-        let spells = &app.game.content().rules.spells;
+        let spells = &app.world.content().rules.spells;
         let works_in = |s: SpellId, context| spells.get(s).contexts.contains(&context);
         match self.filter {
             BookFilter::All => spells.iter().map(|(id, _)| id).collect(),
@@ -608,9 +608,9 @@ impl BookUi {
             BookAsk::Learn(spell) => {
                 let name_term = app
                     .names
-                    .spell_term(app.game.content().rules.spells.get(spell).num);
+                    .spell_term(app.world.content().rules.spells.get(spell).num);
                 let researching = app
-                    .game
+                    .world
                     .wizard(HUMAN)
                     .and_then(|m| m.researching())
                     .is_some();
@@ -632,7 +632,7 @@ impl BookUi {
                                 &Args::new().term("spell", name_term.clone()),
                             ));
                         } else {
-                            let events = app.game.apply(Command::SetResearch {
+                            let events = app.world.apply(Command::SetResearch {
                                 player: HUMAN,
                                 spell,
                             });
@@ -672,7 +672,7 @@ impl BookUi {
 
     /// The player picked a spell in the book: cast it, asking first if another is under way.
     fn choose_spell_to_cast(&mut self, app: &mut App, spell: SpellId) {
-        let casting = app.game.wizard(HUMAN).and_then(|m| m.casting());
+        let casting = app.world.wizard(HUMAN).and_then(|m| m.casting());
         match casting {
             // The spell being cast: only an offer to give it up.
             Some(c) if c.spell == spell => self.replace = Some((spell, true)),
@@ -815,24 +815,24 @@ impl BookUi {
         x: f32,
         y: f32,
     ) {
-        let def = app.game.content().rules.spells.get(spell).clone();
+        let def = app.world.content().rules.spells.get(spell).clone();
         let shown = app.names.spell(def.num).to_string();
         if let Some(entry) = self.combat.as_ref().and_then(|m| m.get(&spell)).copied() {
             app.draw_combat_entry(lay, view, &shown, Some(def.realm), entry, x, y);
             return;
         }
         let casting = app
-            .game
+            .world
             .wizard(HUMAN)
             .and_then(|m| m.casting())
             .filter(|c| c.spell == spell);
         let cost = casting.map_or_else(
-            || app.game.casting_cost(HUMAN, spell, false),
+            || app.world.casting_cost(HUMAN, spell, false),
             |c| c.remaining,
         );
         // Castable on the map; known but only for battle; not learnt (all spells are listed).
         let usable = app.book_spell_usable(spell);
-        let known = app.game.wizard(HUMAN).is_some_and(|m| m.knows(spell));
+        let known = app.world.wizard(HUMAN).is_some_and(|m| m.knows(spell));
         let ink = if usable {
             Color::new(0.2, 0.12, 0.05, 1.0)
         } else if known {
@@ -865,14 +865,14 @@ impl BookUi {
         );
         // Turns to cast: a symbol for each, twenty to a row; no symbols for an instant spell.
         let skill = app
-            .game
+            .world
             .wizard(HUMAN)
-            .map_or(0, |m| m.casting_skill(&app.game.content().rules));
+            .map_or(0, |m| m.casting_skill(&app.world.content().rules));
         let mana = app
-            .game
+            .world
             .player(HUMAN)
             .map_or(0, |p| p.treasury().mana.floor());
-        let income = app.cache.income(&app.game, HUMAN).split.mana.floor();
+        let income = app.cache.income(&app.world, HUMAN).split.mana.floor();
         let limit = skill.min(mana + income).max(0);
         let turns = if limit == 0 {
             40
@@ -882,7 +882,7 @@ impl BookUi {
         let realm_symbol = Some(def.realm).map_or(9, |r| 4 + usize::from(r.num()));
         if turns < 1 {
             let instant = app
-                .game
+                .world
                 .wizard(HUMAN)
                 .map_or(0, |m| m.skill_left())
                 .min(mana)
@@ -1012,23 +1012,23 @@ impl BookUi {
             clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
             self.draw_spellbook(app, &lay, view, input);
             let casting = app
-                .game
+                .world
                 .wizard(HUMAN)
                 .and_then(|m| m.casting())
                 .map(|c| {
                     app.names
-                        .spell_term(app.game.content().rules.spells.get(c.spell).num)
+                        .spell_term(app.world.content().rules.spells.get(c.spell).num)
                 })
                 .unwrap_or_default();
             let question = app.text_with("spell.abort", &Args::new().term("spell", casting));
             match app.confirm_box(&question, input) {
                 Some(true) => {
                     self.replace = None;
-                    let events = app.game.apply(Command::CancelCast { player: HUMAN });
+                    let events = app.world.apply(Command::CancelCast { player: HUMAN });
                     app.note(events);
                     if !abort_only
                         && app
-                            .game
+                            .world
                             .wizard(HUMAN)
                             .is_some_and(|m| m.casting().is_none())
                     {
@@ -1102,7 +1102,7 @@ impl BookUi {
                         self.choose_spell_to_cast(app, spell);
                         return;
                     }
-                    if !app.game.wizard(HUMAN).is_some_and(|m| m.knows(spell)) {
+                    if !app.world.wizard(HUMAN).is_some_and(|m| m.knows(spell)) {
                         self.last_left = left;
                         self.ask = Some(app.why_not_learnable(spell));
                         return;

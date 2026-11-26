@@ -1,12 +1,12 @@
 //! The hero types: the rules over `Rules::hero_templates` that do not need the game's
 //! world: which unit a type is, its level and hire price, how a wizard's heroes are rolled when the
 //! game starts (`Init_Heroes`) and which one is offered or summoned (`Pick_Random_Hero`). The
-//! heroes themselves are entities (`hero/game.rs`).
+//! heroes themselves are entities (`hero/world.rs`).
 
-use crate::game::rng::GameRng;
 use crate::hero::{Hero, HeroAbilities, HeroState, Tier};
 use crate::rules::Ability;
 use crate::rules::{HeroTemplate, PickType, Rules, UnitId};
+use crate::world::rng::GameRng;
 use f4x_def::names::NameBundle;
 
 /// The hero types before the champions, and the champions after them (`Pick_Random_Hero`):

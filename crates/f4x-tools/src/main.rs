@@ -8,7 +8,6 @@ mod cache;
 mod console_cmd;
 mod contestant;
 mod duel;
-mod game_methods;
 mod hero_duel;
 mod ladder;
 mod metrics;
@@ -19,6 +18,7 @@ mod spell_duel;
 #[cfg(test)]
 mod testutil;
 mod versus;
+mod world_methods;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -60,7 +60,7 @@ const USAGE: &str = "usage:
                                               real battles between shipped units, played by the battle AI, with the
                                               rules' invariants checked and the win rate of each unit (task 655)
   f4x-tools soak-diff SNAPSHOT_A SNAPSHOT_B   show how two saved games differ
-  f4x-tools game-methods                      methods on Game per file of f4x-core, and the files over the guideline
+  f4x-tools world-methods                      methods on World per file of f4x-core, and the files over the guideline
                                               (a report, not a test)";
 
 fn main() -> ExitCode {
@@ -71,7 +71,7 @@ fn main() -> ExitCode {
         Some("mapgen-stats") => mapgen_stats(&args[1..]),
         Some("start-stats") => start_stats(&args[1..]),
         Some("console") => console_cmd::run(&args[1..]),
-        Some("game-methods") => game_methods::run(&args[1..]),
+        Some("world-methods") => world_methods::run(&args[1..]),
         Some("soak") => soak::run(&args[1..]),
         Some("queries") => queries::run(&args[1..]),
         Some("soak-versus") => versus::run(&args[1..]),
@@ -154,14 +154,14 @@ fn map_counts(c: &Content, g: &f4x_newgame::mapgen::Generated) -> BTreeMap<Strin
     let mut add = |k: String, v: f64| *n.entry(k).or_default() += v;
     for plane in Plane::all() {
         let grid = g.map.plane(plane);
-        let (w, h) = (grid.width() as i32, grid.height() as i32);
+        let (width, h) = (grid.width() as i32, grid.height() as i32);
         let land = |x: i32, y: i32| {
             grid.get(x, y)
                 .and_then(|t| c.terrains.get(t))
                 .is_some_and(|d| d.class != TerrainClass::Ocean)
         };
         for y in 0..h {
-            for x in 0..w {
+            for x in 0..width {
                 let class = grid
                     .get(x, y)
                     .and_then(|t| c.terrains.get(t))
@@ -177,22 +177,23 @@ fn map_counts(c: &Content, g: &f4x_newgame::mapgen::Generated) -> BTreeMap<Strin
             }
         }
         // Landmasses: 8-connected land, x wrapping.
-        let mut seen = vec![false; (w * h) as usize];
+        let mut seen = vec![false; (width * h) as usize];
         let (mut count, mut largest, mut total) = (0.0, 0.0f64, 0.0);
         for y in 0..h {
-            for x in 0..w {
-                if seen[(y * w + x) as usize] || !land(x, y) {
+            for x in 0..width {
+                if seen[(y * width + x) as usize] || !land(x, y) {
                     continue;
                 }
                 count += 1.0;
                 let (mut size, mut stack) = (0.0, vec![(x, y)]);
-                seen[(y * w + x) as usize] = true;
+                seen[(y * width + x) as usize] = true;
                 while let Some((cx, cy)) = stack.pop() {
                     size += 1.0;
                     for (dx, dy) in (-1..=1).flat_map(|a| (-1..=1).map(move |b| (a, b))) {
-                        let (nx, ny) = ((cx + dx).rem_euclid(w), cy + dy);
-                        if (0..h).contains(&ny) && land(nx, ny) && !seen[(ny * w + nx) as usize] {
-                            seen[(ny * w + nx) as usize] = true;
+                        let (nx, ny) = ((cx + dx).rem_euclid(width), cy + dy);
+                        if (0..h).contains(&ny) && land(nx, ny) && !seen[(ny * width + nx) as usize]
+                        {
+                            seen[(ny * width + nx) as usize] = true;
                             stack.push((nx, ny));
                         }
                     }
@@ -279,12 +280,12 @@ fn start_stats(args: &[String]) -> Result<(), String> {
             let mut spec = NewGame::with_wizards(3);
             spec.seed = seed;
             spec.settings.basic.original_map_generator = original;
-            let g = new_game(&c, &spec)?;
-            let cities = g.economy().cities();
+            let w = new_game(&c, &spec)?;
+            let cities = w.economy().cities();
             let mut per_plane = [0.0; 2];
             let mut forts = Vec::new();
             for (_, city, at) in &cities {
-                if g.is_neutral_player(city.owner) {
+                if w.is_neutral_player(city.owner) {
                     per_plane[at.plane.index()] += 1.0;
                 } else {
                     forts.push(*at);

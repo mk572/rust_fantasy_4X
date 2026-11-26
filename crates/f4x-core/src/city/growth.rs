@@ -1,17 +1,17 @@
 //! How cities grow, outposts included, and how a city is founded. The sums are plain
 //! functions over the people and the random numbers ([`grow_population`], [`outpost_step`],
-//! [`outpost_shrink_chance`]); the `Game` side reads the city and applies the result.
+//! [`outpost_shrink_chance`]); the `World` side reads the city and applies the result.
 //!
 //! Tests: in city/growth/tests.rs.
 
 use crate::city::economy::{Buildings, CityRace, Economy, Farmers, Population};
 use crate::city::production::{Production, ProductionItem};
 use crate::city::City;
-use crate::game::rng::GameRng;
-use crate::game::Game;
 use crate::map::Position;
 use crate::player::PlayerId;
 use crate::spell::city::CityEffect;
+use crate::world::rng::GameRng;
+use crate::world::World;
 use f4x_def::half_int::HalfInt;
 
 /// Apply `delta_tens` to a city's people: tens of 100 make a citizen (up to `cap`); a city
@@ -67,7 +67,7 @@ pub(crate) enum OutpostTurn {
 
 /// One turn of an outpost: by chance it gains up to three tens of people, and by another chance
 /// it loses up to two; at `outpost.city_tens` it becomes a city of one. The draws are in this
-/// order. An outpost left with no people is not changed here: see [`Game::grow_outpost`].
+/// order. An outpost left with no people is not changed here: see [`World::grow_outpost`].
 pub(crate) fn outpost_step(
     rules: &f4x_def::rules::OutpostRules,
     mut pop: Population,
@@ -87,11 +87,11 @@ pub(crate) fn outpost_step(
     pop
 }
 
-impl Game {
+impl World {
     /// Divide a city's population into whole citizens and tens, applying `delta_tens`.
     pub(crate) fn apply_growth(&mut self, city: hecs::Entity, delta_tens: i32) -> (u32, u32) {
         let pop = self
-            .world
+            .ecs
             .get::<&Population>(city)
             .map(|p| *p)
             .unwrap_or_default();
@@ -102,7 +102,7 @@ impl Game {
         );
         self.put(city, grown);
         // A city that starved down cannot keep more farmers than it has people.
-        let farmers = self.world.get::<&Farmers>(city).map_or(0, |f| f.0);
+        let farmers = self.ecs.get::<&Farmers>(city).map_or(0, |f| f.0);
         if farmers > grown.figures {
             self.put(city, Farmers(grown.figures));
         }
@@ -111,13 +111,13 @@ impl Game {
 
     /// Outposts grow a few tens of people at a time, by chance. One left with none is lost.
     pub(crate) fn grow_outpost(&mut self, city: hecs::Entity) -> OutpostTurn {
-        if self.world.get::<&Position>(city).is_err() {
+        if self.ecs.get::<&Position>(city).is_err() {
             return OutpostTurn::Stays;
         }
         let grow = self.economy().outpost_growth_chance(city);
         let shrink = outpost_shrink_chance(|effect| self.economy().city_has_effect(city, effect));
         let pop = self
-            .world
+            .ecs
             .get::<&Population>(city)
             .map(|p| *p)
             .unwrap_or_default();
@@ -148,7 +148,7 @@ impl Game {
         figures: u32,
     ) -> hecs::Entity {
         let serial = self.take_serial();
-        let city = self.world.spawn((
+        let city = self.ecs.spawn((
             serial,
             City { name },
             crate::player::Owner(self.player_entity(owner).expect("a city has an owner")),
@@ -192,10 +192,10 @@ impl Economy<'_> {
     /// minerals and wild game in reach, and Gaia's Blessing and Stream of Life. The computer
     /// wizards' bonus is applied at the end.
     pub(crate) fn outpost_growth_chance(&self, city: hecs::Entity) -> i32 {
-        let Some(at) = self.world.get::<&Position>(city).ok().map(|p| *p) else {
+        let Some(at) = self.ecs.get::<&Position>(city).ok().map(|p| *p) else {
             return 0;
         };
-        let race = self.world.get::<&CityRace>(city).ok().map(|r| r.0);
+        let race = self.ecs.get::<&CityRace>(city).ok().map(|r| r.0);
         let mut grow = race.map_or(10, |r| {
             i32::from(self.content.rules.races.get(r).outpost_growth)
         });
@@ -223,7 +223,7 @@ impl Economy<'_> {
         // A computer wizard's difficulty bonus.
         let owner = self.city_owner(city);
         let bonus = owner
-            .and_then(|o| crate::player::component::<crate::player::Bonus>(self.world, o))
+            .and_then(|o| crate::player::component::<crate::player::Bonus>(self.ecs, o))
             .map_or(100, |b| b.outpost_growth);
         crate::player::Bonus::of(bonus, grow)
     }

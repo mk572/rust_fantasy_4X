@@ -13,19 +13,19 @@ pub mod entity;
 pub mod fortress;
 pub mod magic;
 pub(crate) mod magic_command;
-pub(crate) mod magic_game;
 pub mod magic_income;
+pub(crate) mod magic_world;
 pub mod objective;
 pub mod retort;
 pub mod sheet;
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::game::setting::SpellLibraryDef;
-use crate::game::Game;
 use crate::player::PlayerId;
 use crate::rules::{Rarity, RealmId, Rules, SpellId};
 use crate::wizard::magic::{MagicError, Retort};
+use crate::world::setting::SpellLibraryDef;
+use crate::world::World;
 
 pub use f4x_def::settings::PICKS;
 // The most retorts a wizard may have is `max_retorts` of `wizard` in `rules.ron`.
@@ -148,7 +148,7 @@ impl WizardBuild {
     }
 }
 
-impl Game {
+impl World {
     /// Check a build against the pick rules (not the starting spells).
     pub fn check_wizard_build(&self, build: &WizardBuild) -> Result<(), BuildError> {
         let most = self.settings.wizards.max_books_per_realm;

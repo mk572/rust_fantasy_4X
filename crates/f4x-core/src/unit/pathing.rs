@@ -9,11 +9,11 @@ use f4x_def::half_int::HalfInt;
 
 use crate::fast::FastSet;
 
-use crate::game::Game;
 use crate::map::Position;
 use crate::unit::movement::FULL_MOVE;
+use crate::world::World;
 
-/// See [`Game::reach_signature`].
+/// See [`World::reach_signature`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ReachSignature {
     at: Position,
@@ -67,8 +67,8 @@ impl Iterator for Ring {
 }
 
 /// The squares next to `p`; none when the game has no map.
-pub(crate) fn ring(game: &Game, p: Position) -> Ring {
-    let (w, h) = game
+pub(crate) fn ring(world: &World, p: Position) -> Ring {
+    let (w, h) = world
         .map
         .as_ref()
         .map_or((0, 0), |m| (m.width() as i32, m.height() as i32));
@@ -83,11 +83,11 @@ pub(crate) fn ring(game: &Game, p: Position) -> Ring {
     }
 }
 
-pub(crate) fn neighbours(game: &Game, p: Position) -> Vec<Position> {
-    ring(game, p).collect()
+pub(crate) fn neighbours(world: &World, p: Position) -> Vec<Position> {
+    ring(world, p).collect()
 }
 
-impl Game {
+impl World {
     /// Cheapest path for the stack from where it stands to `to` on the same plane,
     /// excluding the start tile. Hostile tiles other than the destination are avoided.
     /// Returns `None` if there is no way there.
@@ -115,7 +115,7 @@ impl Game {
         if count.is_empty() {
             return false;
         }
-        for (_, (_, at)) in self.world.query::<(&crate::unit::Unit, &Position)>().iter() {
+        for (_, (_, at)) in self.ecs.query::<(&crate::unit::Unit, &Position)>().iter() {
             if let Some((_, n)) = count.iter_mut().find(|(p, _)| p == at) {
                 *n += 1;
             }
@@ -132,14 +132,14 @@ impl Game {
         self.grid_walk(units, &[]).0
     }
 
-    /// Whether the stack can walk to any of `targets` (the answer of [`Game::reachable_squares`]
+    /// Whether the stack can walk to any of `targets` (the answer of [`World::reachable_squares`]
     /// for them, but the search stops at the first one it reaches; the start does not count
     /// unless it is among the targets).
     pub fn reaches_any(&self, units: &[hecs::Entity], targets: &[Position]) -> bool {
         !targets.is_empty() && self.grid_reaches_any(units, targets)
     }
 
-    /// Like [`Game::reaches_any`], but when no target can be reached it gives every square the
+    /// Like [`World::reaches_any`], but when no target can be reached it gives every square the
     /// stack can walk to (the whole region the search ran over; `None` when a target is found).
     pub fn unreached_region(
         &self,

@@ -8,11 +8,11 @@ use rand::RngCore;
 
 use crate::city::economy::Buildings;
 use crate::feature::def::FeatureKind;
-use crate::game::{Event, Game};
 use crate::map::terrain::TerrainClass;
 use crate::map::Position;
 use crate::player::PlayerId;
 use crate::spell::target_error::TargetError;
+use crate::world::{Event, World};
 
 /// The hook of the spells that act on one map square.
 pub const TERRAIN_EFFECT: &str = "terrain_effect";
@@ -38,7 +38,7 @@ impl TerrainEffect {
     }
 }
 
-impl Game {
+impl World {
     /// Volcanoes that add to `player`'s magic power, one each: the ones they own.
     pub fn volcano_count(&self, player: PlayerId) -> i32 {
         self.economy()
@@ -218,7 +218,7 @@ impl Game {
             return events;
         }
         let mut lost = 0;
-        if let Ok(mut b) = self.world.get::<&mut Buildings>(city) {
+        if let Ok(mut b) = self.ecs.get::<&mut Buildings>(city) {
             let before = b.0.len();
             b.0.retain(|_| {
                 rng.next_u32() % 100 >= self.content.rules.config.spell_effects.collapse_percent
@@ -247,12 +247,12 @@ impl Game {
         else {
             return Vec::new();
         };
-        let Ok(at) = self.world.get::<&Position>(city).map(|p| *p) else {
+        let Ok(at) = self.ecs.get::<&Position>(city).map(|p| *p) else {
             return Vec::new();
         };
         let victim = self.economy().city_owner(city);
         let mut buildings_lost = 0;
-        if let Ok(mut b) = self.world.get::<&mut Buildings>(city) {
+        if let Ok(mut b) = self.ecs.get::<&mut Buildings>(city) {
             let before = b.0.len();
             b.0.retain(|_| {
                 rng.next_u32() % 100
@@ -280,10 +280,7 @@ impl Game {
             }
         }
         let mut population_lost = 0;
-        if let Ok(mut pop) = self
-            .world
-            .get::<&mut crate::city::economy::Population>(city)
-        {
+        if let Ok(mut pop) = self.ecs.get::<&mut crate::city::economy::Population>(city) {
             let dead = (0..pop.figures.saturating_sub(1))
                 .filter(|_| {
                     rng.next_u32() % 100

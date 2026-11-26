@@ -4,10 +4,10 @@
 
 use f4x_core::city::production::{ProductionError, ProductionItem};
 use f4x_core::diplomacy::{DiplomacyCommand, Treaty};
-use f4x_core::game::serial::Serial;
-use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
+use f4x_core::world::serial::Serial;
+use f4x_core::world::{Command, Event, World};
 
 use crate::view::{is_coastal, is_fighter, is_ship};
 use crate::Ai;
@@ -272,11 +272,11 @@ fn choose_plan(ai: &Ai, view: &PlayerView) -> Option<Plan> {
 
 /// Keep the landing plan (the war job gathers the army at its port and tags it for the ships,
 /// `pickup.rs` carries it) and the sea scout.
-pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     let me = ai.player;
     // Forget a plan whose target is no longer an enemy's or whose port is gone.
     {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         if let Some(plan) = ai.naval {
             let enemy = if is_tower(&view, plan.target) {
                 view.towers()
@@ -296,13 +296,13 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             ai.naval = choose_plan(ai, &view);
         }
     }
-    sea_scout(ai, game);
+    sea_scout(ai, world);
     if ai.naval.is_none() {
         return;
     }
     // The sea scout has found its enemy: the ship now carries the landing.
     let scouting: Vec<hecs::Entity> = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         my_ships(&view)
             .into_iter()
             .filter(|&s| ai.roles.is_scouting(view.serial_of(s)))
@@ -310,12 +310,12 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     };
     if !scouting.is_empty() {
         let serials: Vec<Serial> = {
-            let view = PlayerView::new(game, me);
+            let view = PlayerView::new(world, me);
             scouting.iter().map(|&s| view.serial_of(s)).collect()
         };
         ai.roles.release_many(&serials, crate::roles::Role::Scout);
         ai.roles.release_role(crate::roles::Role::SeaParty);
-        ai.order(game, Command::ClearOrders { units: scouting }, events);
+        ai.order(world, Command::ClearOrders { units: scouting }, events);
     }
 }
 
@@ -323,13 +323,13 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 /// crossing by a tower (the war comes first, so that what stands in the way can be attacked).
 pub(crate) fn declare_war_on_city(
     ai: &mut Ai,
-    game: &mut Game,
+    world: &mut World,
     target: Position,
     events: &mut Vec<Event>,
 ) -> bool {
     let me = ai.player;
     let owner = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         view.city_at(target)
             .and_then(|c| view.city_owner(c))
             .filter(|&o| view.is_rival_wizard(o))
@@ -337,14 +337,14 @@ pub(crate) fn declare_war_on_city(
     let Some(owner) = owner else {
         return true;
     };
-    match game.treaty(me, owner) {
+    match world.treaty(me, owner) {
         Treaty::War => true,
         // A wizard it has not met cannot be declared war on: the landing goes on.
-        Treaty::None if !game.have_met(me, owner) => true,
+        Treaty::None if !world.have_met(me, owner) => true,
         Treaty::None => {
             if ai
                 .send(
-                    game,
+                    world,
                     Command::Diplomacy(DiplomacyCommand::DeclareWar {
                         player: me,
                         on: owner,
@@ -353,7 +353,7 @@ pub(crate) fn declare_war_on_city(
                 )
                 .is_ok()
             {
-                ai.memory.put().enemy = Some((owner, game.turn));
+                ai.memory.put().enemy = Some((owner, world.turn));
             }
             true
         }
@@ -363,9 +363,9 @@ pub(crate) fn declare_war_on_city(
 
 /// With every walkable square explored and no enemy city known, a ship looks for the rest of the
 /// world: the first coastal city builds one, and it scouts like any scout.
-fn sea_scout(ai: &mut Ai, game: &mut Game) {
+fn sea_scout(ai: &mut Ai, world: &mut World) {
     let me = ai.player;
-    let view = PlayerView::new(game, me);
+    let view = PlayerView::new(world, me);
     let nothing_known = !view
         .known_cities()
         .iter()
@@ -393,17 +393,17 @@ fn sea_scout(ai: &mut Ai, game: &mut Game) {
         let serial = view.serial_of(ship);
         let _ = ai
             .roles
-            .claim(serial, crate::roles::Role::Scout, game.turn, None);
+            .claim(serial, crate::roles::Role::Scout, world.turn, None);
         ai.frontier_closed = false;
         ai.sea_scouting = true;
     }
 }
 
 /// The sea scout is called off: the ship has a settler to carry.
-pub(crate) fn release_scouts(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+pub(crate) fn release_scouts(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     let me = ai.player;
     let ships: Vec<hecs::Entity> = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         view.my_units()
             .into_iter()
             .filter(|&u| is_ship(&view, u) && ai.roles.is_scouting(view.serial_of(u)))
@@ -413,13 +413,13 @@ pub(crate) fn release_scouts(ai: &mut Ai, game: &mut Game, events: &mut Vec<Even
         return;
     }
     let serials: Vec<Serial> = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         ships.iter().map(|&s| view.serial_of(s)).collect()
     };
     ai.roles.release_many(&serials, crate::roles::Role::Scout);
     ai.roles.release_role(crate::roles::Role::SeaParty);
     ai.sea_scouting = false;
-    ai.order(game, Command::ClearOrders { units: ships }, events);
+    ai.order(world, Command::ClearOrders { units: ships }, events);
 }
 
 #[cfg(test)]
@@ -442,8 +442,8 @@ mod tests {
     }
 
     /// The id of what the port would build.
-    fn port_builds(game: &Game) -> Option<String> {
-        let view = PlayerView::new(game, P0);
+    fn port_builds(world: &World) -> Option<String> {
+        let view = PlayerView::new(world, P0);
         let city = view.city_at(port())?;
         let rules = &view.content().rules;
         Some(match port_item(&view, city, true)? {
@@ -455,32 +455,32 @@ mod tests {
 
     #[test]
     fn a_race_with_a_ship_yard_works_up_to_a_galley() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        assert_eq!(port_builds(&g).as_deref(), Some("ship_wrights_guild"));
-        build(&mut g, port(), &[12 /* ship_wrights_guild */]);
-        assert_eq!(port_builds(&g).as_deref(), Some("sawmill"));
-        build(&mut g, port(), &[15 /* sawmill */]);
-        assert_eq!(port_builds(&g).as_deref(), Some("ship_yard"));
-        build(&mut g, port(), &[13 /* ship_yard */]);
-        assert_eq!(port_builds(&g).as_deref(), Some("galley"));
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        assert_eq!(port_builds(&w).as_deref(), Some("ship_wrights_guild"));
+        build(&mut w, port(), &[12 /* ship_wrights_guild */]);
+        assert_eq!(port_builds(&w).as_deref(), Some("sawmill"));
+        build(&mut w, port(), &[15 /* sawmill */]);
+        assert_eq!(port_builds(&w).as_deref(), Some("ship_yard"));
+        build(&mut w, port(), &[13 /* ship_yard */]);
+        assert_eq!(port_builds(&w).as_deref(), Some("galley"));
     }
 
     #[test]
     fn a_race_without_a_ship_yard_stops_at_the_trireme() {
         // Beastmen may build a Ship Wrights Guild but no Ship Yard.
-        let mut g = game(COAST_CITY, 1 /* beastmen */);
-        assert_eq!(port_builds(&g).as_deref(), Some("ship_wrights_guild"));
-        build(&mut g, port(), &[12 /* ship_wrights_guild */]);
-        assert_eq!(port_builds(&g).as_deref(), Some("trireme"));
+        let mut w = game(COAST_CITY, 1 /* beastmen */);
+        assert_eq!(port_builds(&w).as_deref(), Some("ship_wrights_guild"));
+        build(&mut w, port(), &[12 /* ship_wrights_guild */]);
+        assert_eq!(port_builds(&w).as_deref(), Some("trireme"));
     }
 
     #[test]
     fn a_city_away_from_the_sea_is_never_offered_a_ship() -> TestResult {
         // With every ship building in place, an inland city still cannot build a ship.
-        let mut g = game(INLAND_CITY, 8 /* high_men */);
+        let mut w = game(INLAND_CITY, 8 /* high_men */);
         let inland = at(INLAND_CITY.0, INLAND_CITY.1);
         build(
-            &mut g,
+            &mut w,
             inland,
             &[
                 12, /* ship_wrights_guild */
@@ -488,7 +488,7 @@ mod tests {
                 13, /* ship_yard */
             ],
         );
-        let view = PlayerView::new(&g, P0);
+        let view = PlayerView::new(&w, P0);
         let city = view.city_at(inland).ok_or("the city is there")?;
         assert_eq!(port_item(&view, city, true), None);
         Ok(())
@@ -496,9 +496,9 @@ mod tests {
 
     #[test]
     fn a_landing_is_a_shore_square_beside_the_city_and_the_sea_beside_that() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.reveal_map(P0);
-        let view = PlayerView::new(&g, P0);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.reveal_map(P0);
+        let view = PlayerView::new(&w, P0);
         let (land, sea) = landing(&view, enemy()).ok_or("a landing")?;
         assert_ne!(land, enemy());
         assert_ne!(view.terrain_class(land), Some(TerrainClass::Ocean));
@@ -510,18 +510,18 @@ mod tests {
 
     #[test]
     fn no_landing_is_known_for_ground_the_wizard_has_not_seen() {
-        let g = game(COAST_CITY, 8 /* high_men */);
-        let view = PlayerView::new(&g, P0);
+        let w = game(COAST_CITY, 8 /* high_men */);
+        let view = PlayerView::new(&w, P0);
         assert_eq!(landing(&view, enemy()), None);
     }
 
     #[test]
     fn the_plan_sails_from_the_coastal_city_to_a_landing_by_the_enemy() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.reveal_map(P0);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.reveal_map(P0);
         let mut ai = Ai::new(P0);
         ai.unreachable.push(enemy());
-        let view = PlayerView::new(&g, P0);
+        let view = PlayerView::new(&w, P0);
         let plan = choose_plan(&ai, &view).ok_or("a plan")?;
         assert_eq!(plan.target, enemy());
         assert_eq!(plan.port, port());
@@ -532,18 +532,18 @@ mod tests {
 
     #[test]
     fn there_is_no_plan_without_a_target_a_coast_or_after_a_failure() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.reveal_map(P0);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.reveal_map(P0);
         let mut ai = Ai::new(P0);
         // Nothing is unreachable by land.
-        assert_eq!(choose_plan(&ai, &PlayerView::new(&g, P0)), None);
+        assert_eq!(choose_plan(&ai, &PlayerView::new(&w, P0)), None);
         // A target already given up on.
         ai.unreachable.push(enemy());
         ai.naval_bad.push(enemy());
-        assert_eq!(choose_plan(&ai, &PlayerView::new(&g, P0)), None);
+        assert_eq!(choose_plan(&ai, &PlayerView::new(&w, P0)), None);
         // A port already given up on.
         ai.naval_bad = vec![port()];
-        assert_eq!(choose_plan(&ai, &PlayerView::new(&g, P0)), None);
+        assert_eq!(choose_plan(&ai, &PlayerView::new(&w, P0)), None);
         // No coastal city at all.
         let mut inland = game(INLAND_CITY, 8 /* high_men */);
         inland.reveal_map(P0);
@@ -554,31 +554,31 @@ mod tests {
 
     #[test]
     fn a_guarded_tower_across_the_sea_is_a_target_while_no_rival_is_known() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
         let tower = at(33, 9);
-        spawn_tower(&mut g, tower, true)?;
-        g.explore(P0, tower, HalfInt::from_raw(5));
+        spawn_tower(&mut w, tower, true)?;
+        w.explore(P0, tower, HalfInt::from_raw(5));
         let ai = Ai::new(P0);
-        let plan = choose_plan(&ai, &PlayerView::new(&g, P0)).ok_or("a plan for the tower")?;
+        let plan = choose_plan(&ai, &PlayerView::new(&w, P0)).ok_or("a plan for the tower")?;
         assert_eq!(plan.target, tower);
         assert_eq!(plan.port, port());
         // Once its ground across is explored, it is not worth the trip.
         for plane in f4x_core::map::Plane::all() {
-            g.explore(P0, Position { plane, ..tower }, HalfInt::from_raw(5));
+            w.explore(P0, Position { plane, ..tower }, HalfInt::from_raw(5));
         }
-        g.reveal_map(P0);
-        assert_eq!(choose_plan(&ai, &PlayerView::new(&g, P0)), None);
+        w.reveal_map(P0);
+        assert_eq!(choose_plan(&ai, &PlayerView::new(&w, P0)), None);
         Ok(())
     }
 
     #[test]
     fn an_idle_ship_scouts_once_no_rival_is_known_and_the_land_is_explored() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let ship = spawn(&mut g, P0, port(), 36 /* galley */, 1)[0];
-        let serial = PlayerView::new(&g, P0).serial_of(ship);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let ship = spawn(&mut w, P0, port(), 36 /* galley */, 1)[0];
+        let serial = PlayerView::new(&w, P0).serial_of(ship);
         let mut ai = Ai::new(P0);
         ai.frontier_closed = true;
-        sea_scout(&mut ai, &mut g);
+        sea_scout(&mut ai, &mut w);
         assert!(ai.sea_scouting);
         assert!(ai.roles.is_scouting(serial));
         assert!(!ai.frontier_closed, "scouting by sea reopens the search");
@@ -586,12 +586,12 @@ mod tests {
 
     #[test]
     fn no_ship_scouts_while_a_rival_is_known_or_land_is_still_open() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        spawn(&mut g, P0, port(), 36 /* galley */, 1);
-        g.reveal_map(P0);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        spawn(&mut w, P0, port(), 36 /* galley */, 1);
+        w.reveal_map(P0);
         let mut ai = Ai::new(P0);
         ai.frontier_closed = true;
-        sea_scout(&mut ai, &mut g);
+        sea_scout(&mut ai, &mut w);
         assert!(!ai.sea_scouting, "the enemy city is known");
         let mut fresh = game(COAST_CITY, 8 /* high_men */);
         spawn(&mut fresh, P0, port(), 36 /* galley */, 1);
@@ -602,14 +602,14 @@ mod tests {
 
     #[test]
     fn a_sea_scout_is_called_off_once_a_landing_is_planned() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.reveal_map(P0);
-        let ship = spawn(&mut g, P0, port(), 36 /* galley */, 1)[0];
-        let serial = PlayerView::new(&g, P0).serial_of(ship);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.reveal_map(P0);
+        let ship = spawn(&mut w, P0, port(), 36 /* galley */, 1)[0];
+        let serial = PlayerView::new(&w, P0).serial_of(ship);
         let mut ai = Ai::new(P0);
         let _ = ai.roles.claim(serial, crate::roles::Role::Scout, 1, None);
         ai.unreachable.push(enemy());
-        run(&mut ai, &mut g, &mut Vec::new());
+        run(&mut ai, &mut w, &mut Vec::new());
         assert!(ai.naval.is_some());
         assert!(
             !ai.roles.is_scouting(serial),

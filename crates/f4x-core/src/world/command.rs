@@ -2,23 +2,23 @@
 //!
 //! Tests: none, because it only declares the command types.
 
-use crate::{battle, city, diplomacy, game, item, map, player, rules, spell, unit};
+use crate::{battle, city, diplomacy, item, map, player, rules, spell, unit, world};
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Command {
     EndTurn,
-    /// The round begins (`Game::start_round`): the round counter advances and the world's
+    /// The round begins (`World::start_round`): the round counter advances and the world's
     /// opening work runs. Sent by `f4x-master` once per round.
     StartRound,
-    /// The turn of a player begins (`Game::start_player_turn`).
+    /// The turn of a player begins (`World::start_player_turn`).
     StartPlayerTurn {
         player: player::PlayerId,
     },
-    /// The turn of a player ends (`Game::end_player_turn`).
+    /// The turn of a player ends (`World::end_player_turn`).
     EndPlayerTurn {
         player: player::PlayerId,
     },
-    /// The round ends (`Game::end_round`): durations and world-wide work, once.
+    /// The round ends (`World::end_round`): durations and world-wide work, once.
     EndRound,
     /// Create a unit (summoning, production and scenario setup go through this).
     CreateUnit {
@@ -28,39 +28,39 @@ pub enum Command {
     },
     /// Move a stack one tile.
     MoveStack {
-        #[serde(with = "game::replay::stable_ref::many")]
+        #[serde(with = "world::replay::stable_ref::many")]
         units: Vec<hecs::Entity>,
         to: map::Position,
     },
     /// Give a stack a standing order to walk to a tile.
     GoTo {
-        #[serde(with = "game::replay::stable_ref::many")]
+        #[serde(with = "world::replay::stable_ref::many")]
         units: Vec<hecs::Entity>,
         to: map::Position,
     },
     /// Cancel standing orders.
     ClearOrders {
-        #[serde(with = "game::replay::stable_ref::many")]
+        #[serde(with = "world::replay::stable_ref::many")]
         units: Vec<hecs::Entity>,
     },
     /// Park a ship at sea as a bridge for its owner's walkers (`transport::Bridge`), or take it
     /// off its post with `on: false`. The ship has to stand at sea.
     SetBridge {
-        #[serde(with = "game::replay::stable_ref::one")]
+        #[serde(with = "world::replay::stable_ref::one")]
         unit: hecs::Entity,
         on: bool,
     },
     /// Put units on standby (Done or Patrol), or take them off it with `None`.
     SetStandby {
-        #[serde(with = "game::replay::stable_ref::many")]
+        #[serde(with = "world::replay::stable_ref::many")]
         units: Vec<hecs::Entity>,
         standby: Option<unit::Standby>,
     },
     /// Begin a battle between two stacks of units.
     BeginBattle {
-        #[serde(with = "game::replay::stable_ref::many")]
+        #[serde(with = "world::replay::stable_ref::many")]
         attackers: Vec<hecs::Entity>,
-        #[serde(with = "game::replay::stable_ref::many")]
+        #[serde(with = "world::replay::stable_ref::many")]
         defenders: Vec<hecs::Entity>,
     },
     /// The command, after the player was told it would do nothing (a lasting spell the unit has
@@ -70,9 +70,9 @@ pub enum Command {
     Battle(battle::BattleCommand),
     /// Fight a battle between two stacks to the end without the tactical map.
     AutoResolve {
-        #[serde(with = "game::replay::stable_ref::many")]
+        #[serde(with = "world::replay::stable_ref::many")]
         attackers: Vec<hecs::Entity>,
-        #[serde(with = "game::replay::stable_ref::many")]
+        #[serde(with = "world::replay::stable_ref::many")]
         defenders: Vec<hecs::Entity>,
         /// The most mana one wizard may spend from the reserve in the fight (strategic combat);
         /// `None` is no limit beyond the wizard's own skill and reserve.
@@ -81,34 +81,34 @@ pub enum Command {
     },
     /// A stack next to a guarded site (tower, node or encounter site) assaults its guards.
     EnterSite {
-        #[serde(with = "game::replay::stable_ref::many")]
+        #[serde(with = "world::replay::stable_ref::many")]
         units: Vec<hecs::Entity>,
         to: map::Position,
     },
     /// A stack with a purifying unit cleanses the corrupted square it stands on.
     Purify {
-        #[serde(with = "game::replay::stable_ref::many")]
+        #[serde(with = "world::replay::stable_ref::many")]
         units: Vec<hecs::Entity>,
     },
     /// Engineers build a road along `path` (starting where they stand).
     BuildRoad {
-        #[serde(with = "game::replay::stable_ref::many")]
+        #[serde(with = "world::replay::stable_ref::many")]
         units: Vec<hecs::Entity>,
         path: Vec<map::Position>,
     },
     /// Meld a spirit of the stack into the magic node it stands on.
     Meld {
-        #[serde(with = "game::replay::stable_ref::many")]
+        #[serde(with = "world::replay::stable_ref::many")]
         units: Vec<hecs::Entity>,
     },
     /// Move a stack to the same tile on the other plane.
     ShiftPlane {
-        #[serde(with = "game::replay::stable_ref::many")]
+        #[serde(with = "world::replay::stable_ref::many")]
         units: Vec<hecs::Entity>,
     },
     /// Teleport a stack from a city with an Earth Gate to another such city of the same wizard.
     EarthGate {
-        #[serde(with = "game::replay::stable_ref::many")]
+        #[serde(with = "world::replay::stable_ref::many")]
         units: Vec<hecs::Entity>,
         to: map::Position,
     },
@@ -122,14 +122,14 @@ pub enum Command {
     },
     /// The unit sheet's Dismiss: a unit leaves its owner's service for good; a hero's items go to the armory.
     DismissUnit {
-        #[serde(with = "game::replay::stable_ref::one")]
+        #[serde(with = "world::replay::stable_ref::one")]
         unit: hecs::Entity,
     },
     /// The unit sheet: turn off one of the wizard's own lasting spells on a unit. A unit that
     /// then stands at sea without flight or water walking drowns.
     TurnOffUnitSpell {
         player: player::PlayerId,
-        #[serde(with = "game::replay::stable_ref::one")]
+        #[serde(with = "world::replay::stable_ref::one")]
         unit: hecs::Entity,
         spell: rules::SpellId,
     },
@@ -176,22 +176,22 @@ pub enum Command {
     },
     /// A settler founds an outpost where it stands and is used up.
     SettleOutpost {
-        #[serde(with = "game::replay::stable_ref::one")]
+        #[serde(with = "world::replay::stable_ref::one")]
         unit: hecs::Entity,
         name: String,
     },
     SetProduction {
-        #[serde(with = "game::replay::stable_ref::one")]
+        #[serde(with = "world::replay::stable_ref::one")]
         city: hecs::Entity,
         item: city::production::ProductionItem,
     },
     /// Pay gold to finish the current item at the next turn change.
     BuyProduction {
-        #[serde(with = "game::replay::stable_ref::one")]
+        #[serde(with = "world::replay::stable_ref::one")]
         city: hecs::Entity,
     },
     SetFarmers {
-        #[serde(with = "game::replay::stable_ref::one")]
+        #[serde(with = "world::replay::stable_ref::one")]
         city: hecs::Entity,
         farmers: u32,
     },
@@ -205,7 +205,7 @@ pub enum Command {
     },
     /// Give a city an auto-builder plan, or switch it off with `None` (docs/auto-builder.md).
     SetAutoBuild {
-        #[serde(with = "game::replay::stable_ref::one")]
+        #[serde(with = "world::replay::stable_ref::one")]
         city: hecs::Entity,
         plan: Option<city::autobuild::BuildPlan>,
     },
@@ -214,21 +214,21 @@ pub enum Command {
         player: player::PlayerId,
     },
     SellBuilding {
-        #[serde(with = "game::replay::stable_ref::one")]
+        #[serde(with = "world::replay::stable_ref::one")]
         city: hecs::Entity,
         building: rules::BuildingId,
     },
     /// Give a city a new name (the box that names a new outpost). The name is trimmed and cut to
     /// twelve characters; an empty one changes nothing.
     RenameCity {
-        #[serde(with = "game::replay::stable_ref::one")]
+        #[serde(with = "world::replay::stable_ref::one")]
         city: hecs::Entity,
         name: String,
     },
     /// Raze a city just taken, instead of keeping it (until the end of the turn).
     RazeCity {
         player: player::PlayerId,
-        #[serde(with = "game::replay::stable_ref::one")]
+        #[serde(with = "world::replay::stable_ref::one")]
         city: hecs::Entity,
     },
     SetTaxRate {
@@ -247,17 +247,17 @@ pub enum Command {
         research: u8,
         skill: u8,
     },
-    /// Give up lasting spells and summoned creatures now, chosen from `Game::upkeep_shortfall`
+    /// Give up lasting spells and summoned creatures now, chosen from `World::upkeep_shortfall`
     /// before the turn change would drop the newest ones.
     ReleaseUpkeep {
         player: player::PlayerId,
         items: Vec<spell::cast::UpkeepKind>,
     },
-    /// Let these units go for lack of gold or food (chosen from `Game::treasury_shortfall`),
+    /// Let these units go for lack of gold or food (chosen from `World::treasury_shortfall`),
     /// and destroy the listed items for mana first to make room for a released hero's items.
     ReleaseTroops {
         player: player::PlayerId,
-        #[serde(with = "game::replay::stable_ref::many")]
+        #[serde(with = "world::replay::stable_ref::many")]
         units: Vec<hecs::Entity>,
         scrap: Vec<item::armory::ItemSpot>,
     },
@@ -271,7 +271,7 @@ pub enum Command {
         spell: rules::SpellId,
         target: Option<rules::exec::Target>,
         /// Mana put into the spell beyond its cost, for a spell that takes extra mana
-        /// (`Game::spell_takes_extra_mana`: Disenchant Area, Disjunction and the like); its
+        /// (`World::spell_takes_extra_mana`: Disenchant Area, Disjunction and the like); its
         /// dispel strength grows with it. Zero for any other spell.
         #[serde(default)]
         extra: i32,
@@ -293,7 +293,7 @@ pub enum Command {
     /// Turn off one of the wizard's own spells on a city.
     TurnOffCitySpell {
         player: player::PlayerId,
-        #[serde(with = "game::replay::stable_ref::one")]
+        #[serde(with = "world::replay::stable_ref::one")]
         city: hecs::Entity,
         spell: rules::SpellId,
     },

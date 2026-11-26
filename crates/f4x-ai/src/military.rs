@@ -6,9 +6,9 @@
 
 use std::collections::HashMap;
 
-use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
+use f4x_core::world::{Command, Event, World};
 
 use crate::view::{fighting_strength, is_fighter, unit_strength};
 use crate::Ai;
@@ -37,9 +37,9 @@ pub(crate) fn edge(phase: crate::phase::Phase, lead: f32) -> f32 {
 }
 
 /// [`edge`] for this wizard now.
-pub(crate) fn campaign_ratio(game: &Game, me: f4x_core::player::PlayerId) -> f32 {
-    let phase = crate::phase::phase(&PlayerView::new(game, me));
-    edge(phase, crate::statecraft::lead_of(game, me))
+pub(crate) fn campaign_ratio(world: &World, me: f4x_core::player::PlayerId) -> f32 {
+    let phase = crate::phase::phase(&PlayerView::new(world, me));
+    edge(phase, crate::statecraft::lead_of(world, me))
 }
 
 /// An attack out of a city's garrison needs a much bigger edge.
@@ -109,28 +109,28 @@ pub(crate) fn stacks(
 /// Whether the defenders belong to a wizard the AI has a pact or an alliance with: the game refuses an
 /// attack on them until a player has broken the treaty, and the AI declares war (which breaks it) before it
 /// chooses to attack, never by a stray order (task 776).
-pub(crate) fn held_by_treaty(ai: &Ai, game: &Game, defenders: &[hecs::Entity]) -> bool {
+pub(crate) fn held_by_treaty(ai: &Ai, world: &World, defenders: &[hecs::Entity]) -> bool {
     defenders
         .first()
-        .and_then(|&d| game.units().unit_owner(d))
-        .is_some_and(|owner| game.bound_by_treaty(ai.player, owner))
+        .and_then(|&d| world.units().unit_owner(d))
+        .is_some_and(|owner| world.bound_by_treaty(ai.player, owner))
 }
 
 /// Attack: a human defender fights the battle in person (kept for the client), any other is
 /// resolved at once.
 pub(crate) fn engage(
     ai: &mut Ai,
-    game: &mut Game,
+    world: &mut World,
     attackers: Vec<hecs::Entity>,
     defenders: Vec<hecs::Entity>,
     events: &mut Vec<Event>,
 ) {
-    if held_by_treaty(ai, game, &defenders) {
+    if held_by_treaty(ai, world, &defenders) {
         return;
     }
     let defended_in_person = defenders
         .first()
-        .and_then(|&d| game.units().unit_owner(d))
+        .and_then(|&d| world.units().unit_owner(d))
         .is_some_and(|owner| ai.defended_by.contains(&owner));
     if defended_in_person {
         ai.attacks.push(crate::Attack {
@@ -138,7 +138,7 @@ pub(crate) fn engage(
             defenders,
         });
     } else {
-        resolve(ai, game, attackers, defenders, events);
+        resolve(ai, world, attackers, defenders, events);
     }
 }
 
@@ -146,18 +146,18 @@ pub(crate) fn engage(
 /// fight for a city gets all it may, a sure win in the open little).
 pub(crate) fn resolve(
     ai: &mut Ai,
-    game: &mut Game,
+    world: &mut World,
     attackers: Vec<hecs::Entity>,
     defenders: Vec<hecs::Entity>,
     events: &mut Vec<Event>,
 ) {
-    if held_by_treaty(ai, game, &defenders) {
+    if held_by_treaty(ai, world, &defenders) {
         return;
     }
     let mana_budget =
-        crate::budget::for_attack(&PlayerView::new(game, ai.player), &attackers, &defenders);
+        crate::budget::for_attack(&PlayerView::new(world, ai.player), &attackers, &defenders);
     ai.order(
-        game,
+        world,
         Command::AutoResolve {
             mana_budget,
             attackers,
@@ -273,11 +273,11 @@ mod tests {
     /// The same game asks a bolder edge late than early.
     #[test]
     fn the_same_wizard_asks_a_smaller_edge_late_in_the_game_than_early() {
-        let mut g = crate::testworld::game(crate::testworld::COAST_CITY, 8 /* high_men */);
-        g.turn = 1;
-        let early = campaign_ratio(&g, crate::testworld::P0);
-        g.turn = 400;
-        let late = campaign_ratio(&g, crate::testworld::P0);
+        let mut w = crate::testworld::game(crate::testworld::COAST_CITY, 8 /* high_men */);
+        w.turn = 1;
+        let early = campaign_ratio(&w, crate::testworld::P0);
+        w.turn = 400;
+        let late = campaign_ratio(&w, crate::testworld::P0);
         assert!(late < early, "{late} against {early}");
     }
 
@@ -286,46 +286,46 @@ mod tests {
     fn no_attack_is_sent_on_a_treaty_partner() {
         use crate::testworld::{at, spawn, COAST_CITY, P0, P1};
         use f4x_core::diplomacy::Treaty;
-        let mut g = crate::diplo_b_stance::tests::pair(8, 8, 100);
-        let units = |g: &Game, p| g.units_of(p).len();
-        assert!(units(&g, P0) > 0 && units(&g, P1) > 0);
-        let attackers: Vec<hecs::Entity> = g
+        let mut w = crate::diplo_b_stance::tests::pair(8, 8, 100);
+        let units = |w: &World, p| w.units_of(p).len();
+        assert!(units(&w, P0) > 0 && units(&w, P1) > 0);
+        let attackers: Vec<hecs::Entity> = w
             .units()
             .all_units()
             .into_iter()
-            .filter(|&u| g.units().unit_owner(u) == Some(P0))
+            .filter(|&u| w.units().unit_owner(u) == Some(P0))
             .collect();
-        spawn(&mut g, P1, at(COAST_CITY.0 + 1, COAST_CITY.1), 95, 1);
-        let defenders: Vec<hecs::Entity> = g
+        spawn(&mut w, P1, at(COAST_CITY.0 + 1, COAST_CITY.1), 95, 1);
+        let defenders: Vec<hecs::Entity> = w
             .units()
             .all_units()
             .into_iter()
-            .filter(|&u| g.units().unit_owner(u) == Some(P1))
+            .filter(|&u| w.units().unit_owner(u) == Some(P1))
             .collect();
         for treaty in [Treaty::Pact, Treaty::Alliance] {
-            g.start_treaty(P0, P1, treaty);
+            w.start_treaty(P0, P1, treaty);
             let mut ai = Ai::new(P0);
             let mut events = Vec::new();
             engage(
                 &mut ai,
-                &mut g,
+                &mut w,
                 attackers.clone(),
                 defenders.clone(),
                 &mut events,
             );
             crate::assault::strike(
                 &mut ai,
-                &mut g,
+                &mut w,
                 attackers.clone(),
                 defenders.clone(),
                 &mut events,
             );
             assert!(events.is_empty(), "{treaty:?}: {events:?}");
         }
-        g.declare_war(P0, P1);
+        w.declare_war(P0, P1);
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();
-        engage(&mut ai, &mut g, attackers, defenders, &mut events);
+        engage(&mut ai, &mut w, attackers, defenders, &mut events);
         assert!(!events.is_empty(), "at war the attack is sent");
     }
 }

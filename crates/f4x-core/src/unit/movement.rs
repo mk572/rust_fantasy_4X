@@ -12,9 +12,9 @@ use crate::player::PlayerId;
 use crate::rules::unit_flag::{UnitFlag, UnitFlags};
 use crate::rules::Ability;
 
-use crate::game::Game;
 use crate::rules::MovementType;
 use crate::unit::{MovesLeft, Unit};
+use crate::world::World;
 use f4x_def::half_int::HalfInt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -409,7 +409,7 @@ impl Economy<'_> {
     pub fn hostile_at(&self, pos: Position, mover: PlayerId) -> Option<Vec<hecs::Entity>> {
         // While the mover's turn is kept, the squares with something hostile on them are known:
         // any other square answers at once.
-        if crate::unit::kept::keeping(self.world, mover)
+        if crate::unit::kept::keeping(self.ecs, mover)
             && !self.hostile_squares(mover).contains(&pos)
         {
             return None;
@@ -430,7 +430,7 @@ impl Economy<'_> {
     /// many squares. A path through such a square fails at the step into it.
     pub fn full_squares(&self, stack: usize) -> crate::fast::FastSet<Position> {
         let mut count: crate::fast::FastMap<Position, usize> = Default::default();
-        for (_, (_, p)) in self.world.query::<(&crate::unit::Unit, &Position)>().iter() {
+        for (_, (_, p)) in self.ecs.query::<(&crate::unit::Unit, &Position)>().iter() {
             *count.entry(*p).or_default() += 1;
         }
         // A tower holds one stack for both planes.
@@ -452,7 +452,7 @@ impl Economy<'_> {
     /// Every square where [`Self::hostile_at`] would find something for `mover`: one pass over the
     /// units and cities, for a search that asks about many squares.
     pub fn hostile_squares(&self, mover: PlayerId) -> std::rc::Rc<crate::fast::FastSet<Position>> {
-        if let Some(kept) = crate::unit::kept::hostile(self.world, mover) {
+        if let Some(kept) = crate::unit::kept::hostile(self.ecs, mover) {
             if crate::unit::kept::checking() {
                 assert_eq!(
                     *kept,
@@ -463,24 +463,24 @@ impl Economy<'_> {
             return kept;
         }
         let set = std::rc::Rc::new(self.build_hostile_squares(mover));
-        crate::unit::kept::keep_hostile(self.world, mover, &set);
+        crate::unit::kept::keep_hostile(self.ecs, mover, &set);
         set
     }
 
     fn build_hostile_squares(&self, mover: PlayerId) -> crate::fast::FastSet<Position> {
         // A player's id belongs to one player entity, so units can be told apart by their owner
         // entity without looking each id up.
-        let mine = crate::player::find_entity(self.world, mover);
+        let mine = crate::player::find_entity(self.ecs, mover);
         let mut out: crate::fast::FastSet<Position> = match mine {
             Some(me) => self
-                .world
+                .ecs
                 .query::<(&Unit, &Position, &crate::player::Owner)>()
                 .iter()
                 .filter(|(_, (_, _, o))| o.0 != me)
                 .map(|(_, (_, p, _))| *p)
                 .collect(),
             None => self
-                .world
+                .ecs
                 .query::<(&Unit, &Position)>()
                 .iter()
                 .filter(|(e, _)| self.units().unit_owner(*e).is_some_and(|o| o != mover))
@@ -489,7 +489,7 @@ impl Economy<'_> {
         };
         // The cities of other players, found by the owner's entity like the units above.
         for (_, (_, at, owner)) in self
-            .world
+            .ecs
             .query::<(&crate::city::City, &Position, &crate::player::Owner)>()
             .iter()
         {
@@ -671,7 +671,7 @@ impl Economy<'_> {
     }
 }
 
-impl Game {
+impl World {
     /// A stack that ends a move in a tower becomes its owner, and its player sees the tower
     /// square on both planes (the original's `Units_In_Tower`). Under a Planar Seal the tower is
     /// still claimed, but the other plane stays dark (the wiki: towers can still be liberated,
@@ -730,7 +730,7 @@ impl Game {
             self.put(u, MovesLeft(left));
             self.put(u, to);
             // A ship that sails is no bridge any more.
-            let _ = self.world.remove_one::<crate::unit::transport::Bridge>(u);
+            let _ = self.ecs.remove_one::<crate::unit::transport::Bridge>(u);
             let sight = self.units().unit_sight(u);
             self.explore(owner, to, sight);
         }
@@ -753,14 +753,14 @@ impl Game {
         }
         // Passengers carried into a port stay aboard while the ship goes on (a voyage passes
         // through ports); the ship that stops there puts them ashore at the next turn start
-        // (`Game::unload_in_ports`).
+        // (`World::unload_in_ports`).
         for &p in &carried {
             self.put(p, to);
         }
         // Who is aboard what now.
         let flies = self.economy().stack_traits(units);
         crate::unit::transport::update_aboard(
-            &mut self.world,
+            &mut self.ecs,
             self.map.as_ref(),
             &self.content,
             units,

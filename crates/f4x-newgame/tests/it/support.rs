@@ -2,8 +2,8 @@
 //! settings of a variant, and the distances the checkers measure with (written here from their
 //! definition, not taken from the crate under test).
 
-use f4x_core::game::setting::GameSettings;
-use f4x_core::game::Game;
+use f4x_core::world::setting::GameSettings;
+use f4x_core::world::World;
 use f4x_def::content::Content;
 use f4x_def::half_int::HalfInt;
 use f4x_def::testdir::shipped;
@@ -64,7 +64,7 @@ impl Variant {
 
 /// One world to make: everything that decides it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct World {
+pub struct WorldCase {
     pub seed: u64,
     pub wizards: u8,
     pub all_ai: bool,
@@ -74,7 +74,7 @@ pub struct World {
     pub variant: Variant,
 }
 
-impl World {
+impl WorldCase {
     /// The settings of this world: the content's own new game, the size, the land share and the
     /// variant put over it.
     pub fn settings(&self) -> GameSettings {
@@ -108,12 +108,12 @@ impl World {
 }
 
 /// The size, land share and wizards of the content's own new game.
-pub fn standard() -> World {
+pub fn standard() -> WorldCase {
     let s = shipped()
         .settings
         .default_game()
         .expect("the shipped content has a default game");
-    World {
+    WorldCase {
         seed: 1,
         wizards: s.basic.opponents + 1,
         all_ai: true,
@@ -174,16 +174,16 @@ pub fn most_wizards() -> u8 {
 /// The worlds of the normal run: a cut of the matrix of `docs/f4x-newgame-test-design.md`. The
 /// standard size over every seed; every corner size and land share over three seeds; every variant
 /// over two seeds. `F4X_WORLDS=N` adds N more worlds from a generator (the seed is in the failure).
-pub fn worlds() -> Vec<World> {
+pub fn worlds() -> Vec<WorldCase> {
     let std = standard();
     let mut out = Vec::new();
     for &seed in SEEDS {
-        out.push(World { seed, ..std });
+        out.push(WorldCase { seed, ..std });
     }
     for (width, height) in sizes() {
         for &land in &lands() {
             for &seed in &[1, 2, 0xDEAD_BEEF] {
-                out.push(World {
+                out.push(WorldCase {
                     seed,
                     width,
                     height,
@@ -195,7 +195,7 @@ pub fn worlds() -> Vec<World> {
     }
     for &variant in VARIANTS {
         for &seed in &[5, 9] {
-            out.push(World {
+            out.push(WorldCase {
                 seed,
                 variant,
                 ..std
@@ -205,7 +205,7 @@ pub fn worlds() -> Vec<World> {
     // Both generators at the ends of the land share.
     for &land in &lands() {
         for &variant in &[Variant::OriginalGenerator, Variant::ExtendTinyIslands] {
-            out.push(World {
+            out.push(WorldCase {
                 seed: 12,
                 land,
                 variant,
@@ -215,7 +215,7 @@ pub fn worlds() -> Vec<World> {
     }
     for wizards in [2, 3, 5, most_wizards()] {
         for all_ai in [true, false] {
-            out.push(World {
+            out.push(WorldCase {
                 seed: 4,
                 wizards,
                 all_ai,
@@ -224,13 +224,13 @@ pub fn worlds() -> Vec<World> {
         }
     }
     out.extend(extra_worlds());
-    out.sort_by_key(|w| format!("{w:?}"));
+    out.sort_by_key(|case| format!("{case:?}"));
     out.dedup();
     out
 }
 
 /// `F4X_WORLDS=N` more worlds, from a generator seeded by `F4X_WORLDS_SEED` (default 1).
-fn extra_worlds() -> Vec<World> {
+fn extra_worlds() -> Vec<WorldCase> {
     let n: usize = std::env::var("F4X_WORLDS")
         .ok()
         .and_then(|v| v.parse().ok())
@@ -248,7 +248,7 @@ fn extra_worlds() -> Vec<World> {
     };
     let sizes = sizes();
     (0..n)
-        .map(|_| World {
+        .map(|_| WorldCase {
             seed: next(),
             wizards: 2 + (next() % u64::from(most_wizards() - 1)) as u8,
             all_ai: next() % 2 == 0,
@@ -260,54 +260,54 @@ fn extra_worlds() -> Vec<World> {
         .collect()
 }
 
-type Cache<T> = OnceLock<Mutex<HashMap<World, Arc<T>>>>;
+type Cache<T> = OnceLock<Mutex<HashMap<WorldCase, Arc<T>>>>;
 
-fn cached<T>(cache: &'static Cache<T>, world: World, make: impl FnOnce() -> T) -> Arc<T> {
+fn cached<T>(cache: &'static Cache<T>, case: WorldCase, make: impl FnOnce() -> T) -> Arc<T> {
     let map = cache.get_or_init(Default::default);
-    if let Some(found) = map.lock().expect("the cache").get(&world) {
+    if let Some(found) = map.lock().expect("the cache").get(&case) {
         return found.clone();
     }
     // Made outside the lock: two tests may make the same world at once, and both are the same.
     let made = Arc::new(make());
     map.lock()
         .expect("the cache")
-        .entry(world)
+        .entry(case)
         .or_insert(made)
         .clone()
 }
 
 /// The map of a world, as the generator makes it (the parameters the settings give).
-pub fn generated(world: World) -> Arc<Generated> {
+pub fn generated(case: WorldCase) -> Arc<Generated> {
     static CACHE: Cache<Generated> = OnceLock::new();
-    cached(&CACHE, world, || {
-        generate(world.seed, &params(world), shipped())
-            .unwrap_or_else(|e| panic!("{world:?}: the map is refused: {e}"))
+    cached(&CACHE, case, || {
+        generate(case.seed, &params(case), shipped())
+            .unwrap_or_else(|e| panic!("{case:?}: the map is refused: {e}"))
     })
 }
 
 /// What the generator is asked for by the settings of the world.
-pub fn params(world: World) -> GenParams {
-    gen_params(&world.settings())
+pub fn params(case: WorldCase) -> GenParams {
+    gen_params(&case.settings())
 }
 
 /// A game of the world, new. A game is not `Sync`, so the cache is the thread's own; the games
 /// are read only (a test that changes one makes its own with [`fresh_game`]).
-pub fn game(world: World) -> std::rc::Rc<Game> {
+pub fn game(case: WorldCase) -> std::rc::Rc<World> {
     thread_local! {
-        static CACHE: std::cell::RefCell<HashMap<World, std::rc::Rc<Game>>> = Default::default();
+        static CACHE: std::cell::RefCell<HashMap<WorldCase, std::rc::Rc<World>>> = Default::default();
     }
-    if let Some(found) = CACHE.with(|c| c.borrow().get(&world).cloned()) {
+    if let Some(found) = CACHE.with(|c| c.borrow().get(&case).cloned()) {
         return found;
     }
-    let made = std::rc::Rc::new(fresh_game(world));
-    CACHE.with(|c| c.borrow_mut().insert(world, made.clone()));
+    let made = std::rc::Rc::new(fresh_game(case));
+    CACHE.with(|c| c.borrow_mut().insert(case, made.clone()));
     made
 }
 
 /// A game of the world, made again, for a test that changes it.
-pub fn fresh_game(world: World) -> Game {
-    new_game(shipped(), &world.spec())
-        .unwrap_or_else(|e| panic!("{world:?}: the game is refused: {e}"))
+pub fn fresh_game(case: WorldCase) -> World {
+    new_game(shipped(), &case.spec())
+        .unwrap_or_else(|e| panic!("{case:?}: the game is refused: {e}"))
 }
 
 pub fn content() -> &'static Content {

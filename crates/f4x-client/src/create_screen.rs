@@ -56,19 +56,19 @@ impl CreateState {
     pub(crate) fn pick_preset(&mut self, app: &mut App, index: Option<usize>) {
         match index {
             Some(i) => {
-                let num = app.game.content().rules.wizards.defs()[i].num;
-                if let Some(mut build) = app.game.preset_build(num) {
+                let num = app.world.content().rules.wizards.defs()[i].num;
+                if let Some(mut build) = app.world.preset_build(num) {
                     // More books in a realm than the game allows: the surplus is taken off and
                     // the retorts the books no longer allow with it; the picks it frees are
                     // the player's to spend.
                     let most = app
                         .options
-                        .settings(&app.game.content().settings)
+                        .settings(&app.world.content().settings)
                         .wizards
                         .max_books_per_realm;
                     if build.trim_books(most) {
                         let books = build.books.clone();
-                        let rules = &app.game.content().rules;
+                        let rules = &app.world.content().rules;
                         build
                             .retorts
                             .retain(|&r| f4x_core::wizard::retort_available(rules, r, &books));
@@ -95,7 +95,7 @@ impl CreateState {
         for realm in &realms {
             for rarity in [Rarity::Common, Rarity::Uncommon, Rarity::Rare] {
                 let want = self.build.spell_choices_of(
-                    &app.game.content().settings.spell_library,
+                    &app.world.content().settings.spell_library,
                     *realm,
                     rarity,
                 );
@@ -105,18 +105,19 @@ impl CreateState {
                     .iter()
                     .copied()
                     .filter(|&s| {
-                        let d = app.game.content().rules.spells.get(s);
+                        let d = app.world.content().rules.spells.get(s);
                         d.realm == (*realm) && d.rarity == rarity
                     })
                     .collect();
                 chosen.truncate(want);
-                for s in f4x_core::wizard::magic::default_spells(app.game.content(), *realm, rarity)
-                    .into_iter()
-                    .chain(f4x_core::wizard::magic::spells_of(
-                        app.game.content(),
-                        *realm,
-                        rarity,
-                    ))
+                for s in
+                    f4x_core::wizard::magic::default_spells(app.world.content(), *realm, rarity)
+                        .into_iter()
+                        .chain(f4x_core::wizard::magic::spells_of(
+                            app.world.content(),
+                            *realm,
+                            rarity,
+                        ))
                 {
                     if chosen.len() >= want {
                         break;
@@ -136,7 +137,7 @@ impl CreateState {
     pub(crate) fn default_name(&self, app: &App) -> String {
         self.build
             .portrait
-            .and_then(|p| app.game.content().rules.wizards.defs().get(usize::from(p)))
+            .and_then(|p| app.world.content().rules.wizards.defs().get(usize::from(p)))
             .map_or_else(
                 || app.text("create.default_name"),
                 |w| app.names.wizard(w.num).to_string(),
@@ -180,7 +181,7 @@ mod tests {
         let realms = app.book_realms();
         assert!(!state.build.spells.is_empty());
         for &s in &state.build.spells {
-            let realm = app.game.content().rules.spells.get(s).realm;
+            let realm = app.world.content().rules.spells.get(s).realm;
             assert!(realms.contains(&realm), "{realm:?} holds no books");
         }
         let spells = state.build.spells.clone();
@@ -209,7 +210,7 @@ mod tests {
         state.begin_game(&mut app);
         let first = app
             .names
-            .wizard(app.game.content().rules.wizards.defs()[0].num)
+            .wizard(app.world.content().rules.wizards.defs()[0].num)
             .to_string();
         assert_eq!(
             app.human_build.as_ref().map(|b| b.name.as_str()),

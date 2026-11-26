@@ -5,10 +5,10 @@
 //!
 //! Tests: below.
 
-use f4x_core::game::Game;
 use f4x_core::rules::RealmId;
 use f4x_core::wizard::magic::Retort;
 use f4x_core::wizard::objective::{Objective, Personality};
+use f4x_core::world::World;
 
 /// The original's realm order, which its weight table is indexed by (`sbr_Nature` to `sbr_Death`).
 const REALMS: &[RealmId] = f4x_core::rules::BOOK_REALMS;
@@ -146,23 +146,23 @@ pub fn pick_objective(weights: &[i32; 5], roll: i32) -> Objective {
 
 /// Draw a personality, then an objective, for every wizard but the human, in turn order. Called
 /// when a game starts.
-pub fn assign_temperaments(game: &mut Game) {
-    for id in game.player_ids() {
-        if game.human() == Some(id) {
+pub fn assign_temperaments(world: &mut World) {
+    for id in world.player_ids() {
+        if world.human() == Some(id) {
             continue;
         }
-        let Some(sheet) = game.wizard(id) else {
+        let Some(sheet) = world.wizard(id) else {
             continue;
         };
         let personality = personality_weights(|r| sheet.books_in(r), |r| sheet.has(r));
         let objective = objective_weights(|r| sheet.books_in(r), |r| sheet.has(r));
         let mut draw = |weights: &[i32]| match weights.iter().sum::<i32>() {
-            total if total > 0 => game.roll(total as u32) as i32,
+            total if total > 0 => world.roll(total as u32) as i32,
             _ => 0,
         };
         let personality = pick_personality(&personality, draw(&personality));
         let objective = pick_objective(&objective, draw(&objective));
-        if let Some(mut w) = game.wizard_mut(id) {
+        if let Some(mut w) = world.wizard_mut(id) {
             w.put(Some(personality));
             w.put(Some(objective));
         }

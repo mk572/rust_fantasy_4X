@@ -12,17 +12,17 @@
 //!
 //! Tests: in feature/lair/tests.rs and node.rs.
 
-use hecs::{Entity, World};
+use hecs::Entity;
 
 use crate::city::economy::Economy;
 use crate::feature::def::{FeatureDef, FeatureKind};
 use crate::feature::lair::Lair;
 use crate::feature::node::Node;
-use crate::game::serial::Serial;
-use crate::game::Game;
 use crate::map::{FeatureId, Position};
 use crate::player::{self, Owner, PlayerId};
 use crate::rules::{RealmId, UnitId};
+use crate::world::serial::Serial;
+use crate::world::World;
 
 /// On a tower, a node or an encounter site: which feature of the content it is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -111,9 +111,9 @@ impl LairInfo {
 }
 
 /// The player an `Owner` on `entity` names.
-fn owner_of(world: &World, entity: Entity) -> Option<PlayerId> {
-    let owner = world.get::<&Owner>(entity).ok()?;
-    player::id_of(world, owner.0)
+fn owner_of(ecs: &hecs::World, entity: Entity) -> Option<PlayerId> {
+    let owner = ecs.get::<&Owner>(entity).ok()?;
+    player::id_of(ecs, owner.0)
 }
 
 impl<'a> Economy<'a> {
@@ -125,7 +125,7 @@ impl<'a> Economy<'a> {
     /// The feature of the content on a square: the one of the entity there, or else the mineral.
     pub fn feature_id_at(&self, at: Position) -> Option<FeatureId> {
         if let Some(e) = self.feature_entity_at(at) {
-            if let Ok(f) = self.world.get::<&TerrainFeature>(e) {
+            if let Ok(f) = self.ecs.get::<&TerrainFeature>(e) {
                 return Some(f.0);
             }
         }
@@ -143,15 +143,15 @@ impl<'a> Economy<'a> {
     }
 
     fn node_info(&self, entity: Entity) -> Option<NodeInfo> {
-        let node = self.world.get::<&Node>(entity).ok()?;
-        let pos = *self.world.get::<&Position>(entity).ok()?;
+        let node = self.ecs.get::<&Node>(entity).ok()?;
+        let pos = *self.ecs.get::<&Position>(entity).ok()?;
         Some(NodeInfo {
             entity,
             pos,
             realm: node.realm,
             power: node.power,
             aura: node.aura.clone(),
-            owner: owner_of(self.world, entity),
+            owner: owner_of(self.ecs, entity),
             guardian: node.guardian,
             warped: node.warped,
         })
@@ -159,9 +159,9 @@ impl<'a> Economy<'a> {
 
     /// A guarded site by its entity.
     pub fn lair_of(&self, entity: Entity) -> Option<LairInfo> {
-        let lair = self.world.get::<&Lair>(entity).ok()?;
-        let pos = *self.world.get::<&Position>(entity).ok()?;
-        let site = self.world.get::<&TerrainFeature>(entity).ok()?.0;
+        let lair = self.ecs.get::<&Lair>(entity).ok()?;
+        let pos = *self.ecs.get::<&Position>(entity).ok()?;
+        let site = self.ecs.get::<&TerrainFeature>(entity).ok()?.0;
         let reward = self.content.features.get(site).and_then(|d| d.reward);
         Some(LairInfo {
             entity,
@@ -183,7 +183,7 @@ impl<'a> Economy<'a> {
     /// Every feature entity that has component `C`, oldest first.
     fn entities_with<C: hecs::Component>(&self) -> Vec<Entity> {
         let mut found: Vec<(Serial, Entity)> = self
-            .world
+            .ecs
             .query::<(&C, &Serial)>()
             .iter()
             .map(|(e, (_, s))| (*s, e))
@@ -209,7 +209,7 @@ impl<'a> Economy<'a> {
     /// The node whose aura covers a square (the node's own square included).
     pub fn node_covering(&self, at: Position) -> Option<NodeInfo> {
         let mut covering: Vec<(Serial, Entity)> = self
-            .world
+            .ecs
             .query::<(&Node, &Position, &Serial)>()
             .iter()
             .filter(|(_, (n, p, _))| p.plane == at.plane && n.aura.contains(&(at.x, at.y)))
@@ -279,7 +279,7 @@ impl<'a> Economy<'a> {
     /// The squares of the towers, nodes and encounter sites; a tower is on both planes.
     pub fn site_squares(&self) -> Vec<Position> {
         let mut found = Vec::new();
-        for (e, (f, pos)) in self.world.query::<(&TerrainFeature, &Position)>().iter() {
+        for (e, (f, pos)) in self.ecs.query::<(&TerrainFeature, &Position)>().iter() {
             let _ = e;
             found.push(*pos);
             if self.content.features.get(f.0).map(|d| d.kind) == Some(FeatureKind::Tower) {
@@ -293,21 +293,21 @@ impl<'a> Economy<'a> {
     pub fn tower_owner(&self, at: Position) -> Option<PlayerId> {
         let e = self.feature_entity_at(at)?;
         let is_tower = self
-            .world
+            .ecs
             .get::<&TerrainFeature>(e)
             .ok()
             .and_then(|f| self.content.features.get(f.0))
             .is_some_and(|d| d.kind == FeatureKind::Tower);
-        is_tower.then(|| owner_of(self.world, e)).flatten()
+        is_tower.then(|| owner_of(self.ecs, e)).flatten()
     }
 
     /// The player whose volcano stands on a square.
     pub fn volcano_at(&self, at: Position) -> Option<PlayerId> {
         let e = self.feature_entity_at(at)?;
-        if !self.world.satisfies::<&Volcano>(e).unwrap_or(false) {
+        if !self.ecs.satisfies::<&Volcano>(e).unwrap_or(false) {
             return None;
         }
-        owner_of(self.world, e)
+        owner_of(self.ecs, e)
     }
 
     /// Every volcano: its square and owner, oldest first.
@@ -315,14 +315,14 @@ impl<'a> Economy<'a> {
         self.entities_with::<Volcano>()
             .into_iter()
             .filter_map(|e| {
-                let pos = *self.world.get::<&Position>(e).ok()?;
-                Some((pos, owner_of(self.world, e)?))
+                let pos = *self.ecs.get::<&Position>(e).ok()?;
+                Some((pos, owner_of(self.ecs, e)?))
             })
             .collect()
     }
 }
 
-impl Game {
+impl World {
     /// Spawn the feature a placement describes and enter it in the map's index. A tower is one
     /// entity found on both planes.
     pub fn spawn_feature(&mut self, placement: Placement) -> Entity {
@@ -330,11 +330,11 @@ impl Game {
         self.spawn_feature_with(serial, placement)
     }
 
-    /// [`Game::spawn_feature`] with a creation number already taken (a load).
+    /// [`World::spawn_feature`] with a creation number already taken (a load).
     pub(crate) fn spawn_feature_with(&mut self, serial: Serial, placement: Placement) -> Entity {
         let kind = self.content.features.get(placement.feature).map(|d| d.kind);
         let e = self
-            .world
+            .ecs
             .spawn((TerrainFeature(placement.feature), placement.at, serial));
         if let Some(node) = placement.node {
             self.put(e, node);
@@ -359,7 +359,7 @@ impl Game {
         at: Position,
     ) -> Option<Entity> {
         let player = self.player_entity(owner)?;
-        let e = self.world.spawn((Volcano, at, serial, Owner(player)));
+        let e = self.ecs.spawn((Volcano, at, serial, Owner(player)));
         self.index_feature(e, at, false);
         Some(e)
     }
@@ -373,11 +373,11 @@ impl Game {
 
     /// Remove a feature entity and its entry in the index.
     pub(crate) fn despawn_feature(&mut self, entity: Entity) {
-        let Ok(at) = self.world.get::<&Position>(entity).map(|p| *p) else {
+        let Ok(at) = self.ecs.get::<&Position>(entity).map(|p| *p) else {
             return;
         };
         let both = self
-            .world
+            .ecs
             .get::<&TerrainFeature>(entity)
             .ok()
             .and_then(|f| self.content.features.get(f.0).map(|d| d.kind))
@@ -385,7 +385,7 @@ impl Game {
         if let Some(map) = self.map.as_mut() {
             map.unindex_feature(at, both);
         }
-        let _ = self.world.despawn(entity);
+        let _ = self.ecs.despawn(entity);
     }
 
     fn index_feature(&mut self, entity: Entity, at: Position, both_planes: bool) {
@@ -404,18 +404,18 @@ impl Game {
     /// Despawn every tower, node, encounter site and volcano.
     pub(crate) fn despawn_all_features(&mut self) {
         let found: Vec<Entity> = self
-            .world
+            .ecs
             .query::<()>()
             .with::<&Position>()
             .iter()
             .map(|(e, ())| e)
             .filter(|&e| {
-                self.world.satisfies::<&TerrainFeature>(e).unwrap_or(false)
-                    || self.world.satisfies::<&Volcano>(e).unwrap_or(false)
+                self.ecs.satisfies::<&TerrainFeature>(e).unwrap_or(false)
+                    || self.ecs.satisfies::<&Volcano>(e).unwrap_or(false)
             })
             .collect();
         for e in found {
-            let _ = self.world.despawn(e);
+            let _ = self.ecs.despawn(e);
         }
     }
 }

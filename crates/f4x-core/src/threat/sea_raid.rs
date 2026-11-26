@@ -8,11 +8,11 @@
 //!
 //! Tests: in threat/tests.rs (`a_sea_raid_...`).
 
-use crate::game::{Event, Game};
 use crate::map::terrain::TerrainClass;
 use crate::map::{Plane, Position};
 use crate::rules::{RaceId, Stat, UnitId, UnitKind};
 use crate::unit::{Experience, Unpaid};
+use crate::world::{Event, World};
 
 /// The eight neighbours of a square.
 const AROUND: [(i32, i32); 8] = [
@@ -33,7 +33,7 @@ pub struct Landing {
     pub sea: Position,
 }
 
-impl Game {
+impl World {
     /// Whether this raid is a sea raid: the setting is on and the chance comes up. No roll is
     /// made with the setting off, so a game without it plays as it did.
     pub(super) fn sea_raid_comes(&mut self) -> bool {

@@ -6,7 +6,7 @@ use f4x_core::city::production::ProductionItem;
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::PlayerId;
 
-use f4x_core::game::{Event, Game};
+use f4x_core::world::{Event, World};
 
 pub fn plane_letter(p: Plane) -> char {
     match p {
@@ -19,35 +19,35 @@ pub fn pos(p: Position) -> String {
     format!("{},{},{}", p.x, p.y, plane_letter(p.plane))
 }
 
-pub fn player(game: &Game, id: PlayerId) -> String {
-    if let Some(p) = game.player(id).filter(|_| game.has_player(id)) {
+pub fn player(world: &World, id: PlayerId) -> String {
+    if let Some(p) = world.player(id).filter(|_| world.has_player(id)) {
         format!("{} ({})", p.name(), id.0)
     } else {
         format!("player {}", id.0)
     }
 }
 
-pub fn unit(game: &Game, u: hecs::Entity) -> String {
-    let name = game.units().unit_def(u).map_or("?", |d| d.id.as_str());
-    let at = game
+pub fn unit(world: &World, u: hecs::Entity) -> String {
+    let name = world.units().unit_def(u).map_or("?", |d| d.id.as_str());
+    let at = world
         .units()
         .unit_position(u)
         .map_or(String::new(), |p| format!(" at {}", pos(p)));
-    format!("unit {} {name}{at}", game.units().serial_of(u).0)
+    format!("unit {} {name}{at}", world.units().serial_of(u).0)
 }
 
-pub fn city_name(game: &Game, c: hecs::Entity) -> String {
-    let name = game
+pub fn city_name(world: &World, c: hecs::Entity) -> String {
+    let name = world
         .economy()
         .cities()
         .into_iter()
         .find(|(e, ..)| *e == c)
         .map_or("?".to_string(), |(_, c, _)| c.name);
-    format!("city {} {name}", game.units().serial_of(c).0)
+    format!("city {} {name}", world.units().serial_of(c).0)
 }
 
-pub fn item(game: &Game, item: ProductionItem) -> String {
-    let rules = &game.content().rules;
+pub fn item(world: &World, item: ProductionItem) -> String {
+    let rules = &world.content().rules;
     match item {
         ProductionItem::Building(b) => rules.buildings.get(b).id.clone(),
         ProductionItem::Unit(u) => rules.units.get(u).id.clone(),
@@ -56,21 +56,21 @@ pub fn item(game: &Game, item: ProductionItem) -> String {
     }
 }
 
-pub fn spell(game: &Game, s: f4x_def::rules::SpellId) -> String {
-    game.content().rules.spells.get(s).id.clone()
+pub fn spell(world: &World, s: f4x_def::rules::SpellId) -> String {
+    world.content().rules.spells.get(s).id.clone()
 }
 
-fn units(game: &Game, list: &[hecs::Entity]) -> String {
+fn units(world: &World, list: &[hecs::Entity]) -> String {
     list.iter()
-        .map(|&u| game.units().serial_of(u).0.to_string())
+        .map(|&u| world.units().serial_of(u).0.to_string())
         .collect::<Vec<_>>()
         .join(",")
 }
 
 /// One line for an offer waiting for an answer.
-pub fn offer(game: &Game, o: &f4x_core::player::offer::Offer) -> String {
+pub fn offer(world: &World, o: &f4x_core::player::offer::Offer) -> String {
     use f4x_core::player::offer::Offer;
-    let rules = &game.content().rules;
+    let rules = &world.content().rules;
     match o {
         Offer::Hero { kind, price } => {
             let name = rules
@@ -101,59 +101,59 @@ pub fn offer(game: &Game, o: &f4x_core::player::offer::Offer) -> String {
             format!("{count} {name} of level {} for {price} gold", level + 1)
         }
         Offer::Item { item, price } => {
-            format!("the item {} for {price} gold", item_label(game, item))
+            format!("the item {} for {price} gold", item_label(world, item))
         }
         Offer::Resale { item, price, .. } => format!(
             "the item {} for {price} gold, sold by another wizard",
-            item_label(game, item)
+            item_label(world, item)
         ),
     }
 }
 
 /// One line for an event.
-pub fn event(game: &Game, e: &Event) -> String {
+pub fn event(world: &World, e: &Event) -> String {
     match e {
         Event::TurnStarted { turn } => format!("Turn {turn} begins"),
         Event::CityFounded { city, pos: p } => {
-            format!("Founded {} at {}", city_name(game, *city), pos(*p))
+            format!("Founded {} at {}", city_name(world, *city), pos(*p))
         }
         Event::ProductionCompleted { city, item: i } => {
-            format!("{} finished {}", city_name(game, *city), item(game, *i))
+            format!("{} finished {}", city_name(world, *city), item(world, *i))
         }
         Event::ProductionBlocked { city, item: i } => {
             format!(
                 "{} cannot finish {} yet: the city is full or too small",
-                city_name(game, *city),
-                item(game, *i)
+                city_name(world, *city),
+                item(world, *i)
             )
         }
         Event::ProductionImpossible { city, item: i } => format!(
             "{} can no longer produce {}",
-            city_name(game, *city),
-            item(game, *i)
+            city_name(world, *city),
+            item(world, *i)
         ),
         Event::ChaosRiftStrikes {
             city,
             units_lost,
             building,
         } => {
-            let mut line = format!("The chaos rift over {} strikes", city_name(game, *city));
+            let mut line = format!("The chaos rift over {} strikes", city_name(world, *city));
             if *units_lost > 0 {
                 line += &format!(": {units_lost} unit(s) destroyed");
             }
             if let Some(b) = building {
-                line += &format!(", {} falls", game.content().rules.buildings.get(*b).id);
+                line += &format!(", {} falls", world.content().rules.buildings.get(*b).id);
             }
             line
         }
         Event::CityGrew { city, figures } => {
-            format!("{} grew to {figures}", city_name(game, *city))
+            format!("{} grew to {figures}", city_name(world, *city))
         }
         Event::CityShrank { city, figures } => {
-            format!("{} shrank to {figures}", city_name(game, *city))
+            format!("{} shrank to {figures}", city_name(world, *city))
         }
         Event::UnitsDisbanded { player: p, units } => {
-            format!("{} disbanded {units} units", player(game, *p))
+            format!("{} disbanded {units} units", player(world, *p))
         }
         Event::ShipLanded {
             player: p,
@@ -161,7 +161,7 @@ pub fn event(game: &Game, e: &Event) -> String {
             at,
         } => format!(
             "a ship of {} landed {units} units at {}",
-            player(game, *p),
+            player(world, *p),
             pos(*at)
         ),
         Event::ShipStranded {
@@ -170,16 +170,16 @@ pub fn event(game: &Game, e: &Event) -> String {
             at,
         } => format!(
             "a ship of {} was destroyed on land at {}, leaving {units} units",
-            player(game, *p),
+            player(world, *p),
             pos(*at)
         ),
         Event::FortressPlaced { player: p, pos: at } => {
-            format!("{} placed a fortress at {}", player(game, *p), pos(*at))
+            format!("{} placed a fortress at {}", player(world, *p), pos(*at))
         }
         Event::WizardBanished { player: p, by } => {
-            format!("{} is banished by {}", player(game, *p), player(game, *by))
+            format!("{} is banished by {}", player(world, *p), player(world, *by))
         }
-        Event::WizardReturned { player: p, .. } => format!("{} has returned", player(game, *p)),
+        Event::WizardReturned { player: p, .. } => format!("{} has returned", player(world, *p)),
         Event::ConquestSpells {
             winner,
             loser,
@@ -187,29 +187,29 @@ pub fn event(game: &Game, e: &Event) -> String {
         } => {
             let names: Vec<_> = spells
                 .iter()
-                .map(|&s| game.content().rules.spells.get(s).id.clone())
+                .map(|&s| world.content().rules.spells.get(s).id.clone())
                 .collect();
             format!(
                 "{} takes {} from {}",
-                player(game, *winner),
+                player(world, *winner),
                 if names.is_empty() {
                     "no spells".to_string()
                 } else {
                     names.join(" and ")
                 },
-                player(game, *loser)
+                player(world, *loser)
             )
         }
-        Event::WizardDefeated { player: p } => format!("{} is defeated", player(game, *p)),
+        Event::WizardDefeated { player: p } => format!("{} is defeated", player(world, *p)),
         Event::GameOver { winner, kind, turn } => format!(
             "GAME OVER: {} wins by {kind:?} on turn {turn}",
-            player(game, *winner)
+            player(world, *winner)
         ),
         Event::CityCaptured { city, from, to } => format!(
             "{} taken from {} by {}",
-            city_name(game, *city),
-            player(game, *from),
-            player(game, *to)
+            city_name(world, *city),
+            player(world, *from),
+            player(world, *to)
         ),
         Event::CityLooted {
             city,
@@ -219,26 +219,26 @@ pub fn event(game: &Game, e: &Event) -> String {
             ..
         } => format!(
             "{} is looted of {gold} gold; {citizens_lost} citizens and {} buildings are lost",
-            city_name(game, *city),
+            city_name(world, *city),
             buildings_lost.len()
         ),
         Event::CityRazed {
             player: p, gold, ..
         } => format!(
             "{} razes the city and loots {gold} gold",
-            player(game, *p)
+            player(world, *p)
         ),
         Event::SpellLearned {
             player: p,
             spell: s,
         } => {
-            format!("{} learned {}", player(game, *p), spell(game, *s))
+            format!("{} learned {}", player(world, *p), spell(world, *s))
         }
         Event::SpellCast {
             player: p,
             spell: s,
         } => {
-            format!("{} cast {}", player(game, *p), spell(game, *s))
+            format!("{} cast {}", player(world, *p), spell(world, *s))
         }
         Event::SpellFizzled {
             player: p,
@@ -246,21 +246,21 @@ pub fn event(game: &Game, e: &Event) -> String {
             city,
         } => format!(
             "{}'s {} fizzles: nightshade protects {}",
-            player(game, *p),
-            spell(game, *s),
-            city_name(game, *city)
+            player(world, *p),
+            spell(world, *s),
+            city_name(world, *city)
         ),
         Event::Dispelled { player: p, removed } => {
             format!(
                 "{}'s dispel removes {removed} enchantment(s)",
-                player(game, *p)
+                player(world, *p)
             )
         }
         Event::DispelFailed {
             player: p,
             spell: s,
         } => {
-            format!("{}'s dispel of {} fails", player(game, *p), spell(game, *s))
+            format!("{}'s dispel of {} fails", player(world, *p), spell(world, *s))
         }
         Event::GlobalSpellRemoved {
             player: p,
@@ -268,9 +268,9 @@ pub fn event(game: &Game, e: &Event) -> String {
             spell: s,
         } => format!(
             "{} ends {}'s {}",
-            player(game, *p),
-            player(game, *victim),
-            spell(game, *s)
+            player(world, *p),
+            player(world, *victim),
+            spell(world, *s)
         ),
         Event::GlobalSpellTaken {
             player: p,
@@ -278,9 +278,9 @@ pub fn event(game: &Game, e: &Event) -> String {
             spell: s,
         } => format!(
             "{} takes {}'s {}",
-            player(game, *p),
-            player(game, *victim),
-            spell(game, *s)
+            player(world, *p),
+            player(world, *victim),
+            spell(world, *s)
         ),
         Event::SpellBlasted {
             player: p,
@@ -289,9 +289,9 @@ pub fn event(game: &Game, e: &Event) -> String {
             mana,
         } => format!(
             "{} blasts {}'s {} for {mana} mana",
-            player(game, *p),
-            player(game, *victim),
-            spell(game, *s)
+            player(world, *p),
+            player(world, *victim),
+            spell(world, *s)
         ),
         Event::PowerDrained {
             player: p,
@@ -299,8 +299,8 @@ pub fn event(game: &Game, e: &Event) -> String {
             amount,
         } => format!(
             "{} drains {amount} mana from {}",
-            player(game, *p),
-            player(game, *victim)
+            player(world, *p),
+            player(world, *victim)
         ),
         Event::SkillDestroyed {
             player: p,
@@ -308,18 +308,18 @@ pub fn event(game: &Game, e: &Event) -> String {
             amount,
         } => format!(
             "{} destroys {amount} points of {}'s casting skill",
-            player(game, *p),
-            player(game, *victim)
+            player(world, *p),
+            player(world, *victim)
         ),
         Event::UnitsSlain {
             player: p,
             spell: s,
             count,
-        } => format!("{}'s {} slays {count} units", player(game, *p), spell(game, *s)),
+        } => format!("{}'s {} slays {count} units", player(world, *p), spell(world, *s)),
         Event::UnitTransformed { from, to, .. } => format!(
             "A {} becomes {}",
-            game.content().rules.units.get(*from).id,
-            game.content().rules.units.get(*to).id
+            world.content().rules.units.get(*from).id,
+            world.content().rules.units.get(*to).id
         ),
         Event::EarthquakeStruck {
             units_lost,
@@ -330,7 +330,7 @@ pub fn event(game: &Game, e: &Event) -> String {
         Event::UnitMutated { mutation, .. } => format!("A unit is mutated by chaos: {mutation:?}"),
         Event::MasteryStarted { caster } => format!(
             "{} has started casting the Spell of Mastery",
-            player(game, *caster)
+            player(world, *caster)
         ),
         Event::WorldSpellStruck {
             spell: s,
@@ -340,7 +340,7 @@ pub fn event(game: &Game, e: &Event) -> String {
             ..
         } => format!(
             "{} kills {units_lost} units and {population_lost} citizens and destroys {buildings_lost} buildings",
-            spell(game, *s)
+            spell(world, *s)
         ),
         Event::SpellSuppressed {
             player: p,
@@ -349,10 +349,10 @@ pub fn event(game: &Game, e: &Event) -> String {
             counter,
         } => format!(
             "{}'s {} is stopped by {}'s {}",
-            player(game, *p),
-            spell(game, *s),
-            player(game, *by),
-            spell(game, *counter)
+            player(world, *p),
+            spell(world, *s),
+            player(world, *by),
+            spell(world, *counter)
         ),
         Event::SpellFailed {
             player: p,
@@ -361,33 +361,33 @@ pub fn event(game: &Game, e: &Event) -> String {
             refunded,
         } => format!(
             "{}'s {} fails ({reason:?}); {refunded} mana returned",
-            player(game, *p),
-            spell(game, *s)
+            player(world, *p),
+            spell(world, *s)
         ),
         Event::NoTargetForCast { spell: s, .. } => {
             format!(
                 "There are no targets for {}: it is not paid for until there is one (`cancelcast` stops it)",
-                spell(game, *s)
+                spell(world, *s)
             )
         }
         Event::SpellReady { spell: s, .. } => {
             format!(
                 "{} is paid for: choose a target with `target`",
-                spell(game, *s)
+                spell(world, *s)
             )
         }
         Event::HeroJoined { player: p, kind, .. } => {
-            let name = game
+            let name = world
                 .units()
                 .hero_type_name(*kind)
                 .unwrap_or_else(|| "A hero".to_string());
-            format!("{name} joins {}", player(game, *p))
+            format!("{name} joins {}", player(world, *p))
         }
         Event::HeroSpellFailed { spell: s, .. } => {
-            format!("{} finds no hero to bring", spell(game, *s))
+            format!("{} finds no hero to bring", spell(world, *s))
         }
         Event::SpellHasNoEffectYet { spell: s } => {
-            format!("{} has no effect yet", spell(game, *s))
+            format!("{} has no effect yet", spell(world, *s))
         }
         Event::BattleStarted {
             attacker,
@@ -396,14 +396,14 @@ pub fn event(game: &Game, e: &Event) -> String {
         } => format!(
             "Battle at {}: {} attacks {}",
             pos(*site),
-            player(game, *attacker),
-            player(game, *defender)
+            player(world, *attacker),
+            player(world, *defender)
         ),
-        Event::Battle(e) => battle_event(game, e),
+        Event::Battle(e) => battle_event(world, e),
         Event::BattleEnded { winner, loser } => format!(
             "Battle over: {} beats {}",
-            player(game, *winner),
-            player(game, *loser)
+            player(world, *winner),
+            player(world, *loser)
         ),
         Event::BattleSpoils {
             player: p,
@@ -418,10 +418,10 @@ pub fn event(game: &Game, e: &Event) -> String {
             };
             format!(
                 "{}'s survivors gain {experience} experience{fame}",
-                player(game, *p)
+                player(world, *p)
             )
         }
-        Event::UnitCreated { unit: u, .. } => format!("Created {}", unit(game, *u)),
+        Event::UnitCreated { unit: u, .. } => format!("Created {}", unit(world, *u)),
         Event::UnitsMoved {
             units: us,
             from,
@@ -429,7 +429,7 @@ pub fn event(game: &Game, e: &Event) -> String {
         } => {
             format!(
                 "Units {} moved {} -> {}",
-                units(game, us),
+                units(world, us),
                 pos(*from),
                 pos(*to)
             )
@@ -441,23 +441,23 @@ pub fn event(game: &Game, e: &Event) -> String {
             ..
         } => format!(
             "Units {} attack {} (defenders {})",
-            units(game, attackers),
+            units(world, attackers),
             pos(*to),
-            units(game, defenders)
+            units(world, defenders)
         ),
         Event::SiteEncounter { units: us, to, .. } => {
             format!(
                 "Units {} reach a guarded site at {}",
-                units(game, us),
+                units(world, us),
                 pos(*to)
             )
         }
         Event::RaidersRaised { owner, count, .. } => {
-            format!("{} raises {count} raiders", player(game, *owner))
+            format!("{} raises {count} raiders", player(world, *owner))
         }
         Event::SeaRaidLanded { owner, at, count } => format!(
             "{} lands {count} raiders and a settler from the sea at {}",
-            player(game, *owner),
+            player(world, *owner),
             pos(*at)
         ),
         Event::MonstersSettled {
@@ -467,7 +467,7 @@ pub fn event(game: &Game, e: &Event) -> String {
             evicted,
         } => format!(
             "{count} monsters settle in the {} at {} and drive out {evicted}",
-            game.content()
+            world.content()
                 .features
                 .get(*site)
                 .map_or("site", |d| d.id.as_str()),
@@ -481,7 +481,7 @@ pub fn event(game: &Game, e: &Event) -> String {
         } => format!(
             "Monsters {} {name} of {} at {}",
             if *ruined { "raze" } else { "wreck" },
-            player(game, *owner),
+            player(world, *owner),
             pos(*at)
         ),
         Event::SiteCleared {
@@ -492,43 +492,43 @@ pub fn event(game: &Game, e: &Event) -> String {
         } => {
             format!(
                 "{} cleared the site at {} ({loot:?})",
-                player(game, *p),
+                player(world, *p),
                 pos(*at)
             )
         }
         Event::HeroSummoned { player: p, kind } => {
-            let name = game
+            let name = world
                 .units()
                 .hero_type_name(*kind)
                 .unwrap_or_else(|| "A hero".to_string());
-            format!("{name} is summoned for {}: accept or reject it", player(game, *p))
+            format!("{name} is summoned for {}: accept or reject it", player(world, *p))
         }
         Event::OfferMade { player: p, offer: o } => {
-            format!("{} is offered: {}", player(game, *p), offer(game, o))
+            format!("{} is offered: {}", player(world, *p), offer(world, o))
         }
         Event::ItemSold { player: p, item, gold } => {
-            let name = item_label(game, item);
-            format!("{} sells the item {name} for {gold} gold", player(game, *p))
+            let name = item_label(world, item);
+            format!("{} sells the item {name} for {gold} gold", player(world, *p))
         }
         Event::ItemScrapped { player: p, item, mana } => {
-            let name = item_label(game, item);
-            format!("{} breaks up the item {name} for {mana} mana", player(game, *p))
+            let name = item_label(world, item);
+            format!("{} breaks up the item {name} for {mana} mana", player(world, *p))
         }
         Event::MercenariesHired { player: p, units } => {
-            format!("{} hires {} mercenaries", player(game, *p), units.len())
+            format!("{} hires {} mercenaries", player(world, *p), units.len())
         }
         Event::ItemMade { player: p, item, .. } => {
-            let name = item_label(game, item);
-            format!("{} gets the item {name}", player(game, *p))
+            let name = item_label(world, item);
+            format!("{} gets the item {name}", player(world, *p))
         }
         Event::Rejected(why) => format!("Refused: {why:?}"),
-        Event::Diplomacy(d) => diplomacy(game, d),
+        Event::Diplomacy(d) => diplomacy(world, d),
         other => format!("{other:?}"),
     }
 }
 
 /// The spell events of a battle; the other battle events are shown plainly.
-fn battle_event(game: &Game, e: &f4x_battle::battle::BattleEvent) -> String {
+fn battle_event(world: &World, e: &f4x_battle::battle::BattleEvent) -> String {
     use f4x_battle::battle::BattleEvent as B;
     match e {
         B::SpellCast {
@@ -538,17 +538,17 @@ fn battle_event(game: &Game, e: &f4x_battle::battle::BattleEvent) -> String {
             mana,
         } => format!(
             "{side:?} wizard casts {} (skill {skill}, mana {mana})",
-            spell(game, *s)
+            spell(world, *s)
         ),
         B::UnitSpellCast {
             unit,
             spell: s,
             mana,
-        } => format!("Unit {unit} casts {} (mana {mana})", spell(game, *s)),
+        } => format!("Unit {unit} casts {} (mana {mana})", spell(world, *s)),
         B::SpellCountered { side, spell: s } => {
             format!(
                 "Counter Magic stops the {side:?} wizard's {}",
-                spell(game, *s)
+                spell(world, *s)
             )
         }
         B::SpellDamaged { unit, dealt, kills } => {
@@ -569,20 +569,25 @@ fn battle_event(game: &Game, e: &f4x_battle::battle::BattleEvent) -> String {
         B::Merged { unit } => format!("Unit {unit} sinks into the ground"),
         B::Surfaced { unit, cell } => format!("Unit {unit} comes up at {},{}", cell.0, cell.1),
         B::HeroRecalled { unit } => format!("Unit {unit} is recalled to the summoning circle"),
-        B::SpellEnchanted { unit, spell: s } => format!("Unit {unit} is under {}", spell(game, *s)),
+        B::SpellEnchanted { unit, spell: s } => {
+            format!("Unit {unit} is under {}", spell(world, *s))
+        }
         B::SpellDispelled { unit, removed, .. } => {
             format!("Dispel takes {removed} spells off unit {unit}")
         }
         B::Summoned { unit } => format!("Unit {unit} is summoned"),
         B::Raised { unit } => format!("Unit {unit} rises again as undead"),
         B::FieldDispelled { side, spell: s } => {
-            format!("{side:?}'s {} is dispelled from the field", spell(game, *s))
+            format!(
+                "{side:?}'s {} is dispelled from the field",
+                spell(world, *s)
+            )
         }
         B::FieldRaised { side, spell: s } => {
-            format!("{side:?} raises {} over the field", spell(game, *s))
+            format!("{side:?} raises {} over the field", spell(world, *s))
         }
         B::WallRaised { side, spell: s } => {
-            format!("{side:?} raises {} at the city", spell(game, *s))
+            format!("{side:?} raises {} at the city", spell(world, *s))
         }
         B::SpellResisted { unit } => format!("Unit {unit} resists the spell"),
         B::SpellSlew { unit, kills } => format!("Spell destroys {kills} figures of unit {unit}"),
@@ -617,13 +622,13 @@ fn battle_event(game: &Game, e: &f4x_battle::battle::BattleEvent) -> String {
 }
 
 /// A bundle of goods in words: "100 gold, the spell Haste, the item Sword of Doom".
-pub fn goods(game: &Game, goods: f4x_core::diplomacy::Goods) -> String {
+pub fn goods(world: &World, goods: f4x_core::diplomacy::Goods) -> String {
     let mut parts = Vec::new();
     if goods.gold > 0 {
         parts.push(format!("{} gold", goods.gold));
     }
     if let Some(s) = goods.spell {
-        parts.push(format!("the spell {}", spell(game, s)));
+        parts.push(format!("the spell {}", spell(world, s)));
     }
     if goods.item.is_some() {
         parts.push("an item".to_string());
@@ -642,38 +647,38 @@ pub fn goods(game: &Game, goods: f4x_core::diplomacy::Goods) -> String {
 }
 
 /// What a proposal asks, in words.
-pub fn proposal(game: &Game, kind: f4x_core::diplomacy::ProposalKind) -> String {
+pub fn proposal(world: &World, kind: f4x_core::diplomacy::ProposalKind) -> String {
     use f4x_core::diplomacy::ProposalKind as K;
     match kind {
         K::Pact => "a wizard pact".into(),
         K::Alliance => "an alliance".into(),
         K::Peace => "peace".into(),
-        K::WarOn(t) => format!("war on {}", player(game, t)),
-        K::BreakAllianceWith(t) => format!("breaking the alliance with {}", player(game, t)),
+        K::WarOn(t) => format!("war on {}", player(world, t)),
+        K::BreakAllianceWith(t) => format!("breaking the alliance with {}", player(world, t)),
         K::Trade { give, get } => format!(
             "a trade: their {} for {}",
-            goods(game, get),
-            goods(game, give)
+            goods(world, get),
+            goods(world, give)
         ),
         K::Threat => "a threat to attack".into(),
         K::Demand { gold } => format!("{gold} gold as tribute"),
     }
 }
 
-fn diplomacy(game: &Game, d: &f4x_core::diplomacy::DiplomacyEvent) -> String {
+fn diplomacy(world: &World, d: &f4x_core::diplomacy::DiplomacyEvent) -> String {
     use f4x_core::diplomacy::DiplomacyEvent as D;
     match d {
-        D::ContactMade { a, b } => format!("{} and {} meet", player(game, *a), player(game, *b)),
+        D::ContactMade { a, b } => format!("{} and {} meet", player(world, *a), player(world, *b)),
         D::TreatyChanged { a, b, treaty } => format!(
             "{} and {}: {}",
-            player(game, *a),
-            player(game, *b),
+            player(world, *a),
+            player(world, *b),
             crate::talk::treaty_word(*treaty)
         ),
         D::WarDeclared { attacker, defender } => format!(
             "{} declares war on {}",
-            player(game, *attacker),
-            player(game, *defender)
+            player(world, *attacker),
+            player(world, *defender)
         ),
         D::TreatyBroken {
             breaker,
@@ -681,22 +686,22 @@ fn diplomacy(game: &Game, d: &f4x_core::diplomacy::DiplomacyEvent) -> String {
             treaty,
         } => format!(
             "{} breaks the {} with {}",
-            player(game, *breaker),
+            player(world, *breaker),
             crate::talk::treaty_word(*treaty),
-            player(game, *victim)
+            player(world, *victim)
         ),
         D::ProposalMade(p) => format!(
             "{} proposes to {}: {}",
-            player(game, p.from),
-            player(game, p.to),
-            proposal(game, p.kind)
+            player(world, p.from),
+            player(world, p.to),
+            proposal(world, p.kind)
         ),
         D::ProposalCountered { old, new } => format!(
             "{} answers {}'s proposal of {} with: {}",
-            player(game, new.from),
-            player(game, old.from),
-            proposal(game, old.kind),
-            proposal(game, new.kind)
+            player(world, new.from),
+            player(world, old.from),
+            proposal(world, old.kind),
+            proposal(world, new.kind)
         ),
         D::ProposalAnswered {
             proposal: p,
@@ -704,40 +709,40 @@ fn diplomacy(game: &Game, d: &f4x_core::diplomacy::DiplomacyEvent) -> String {
             lapsed,
         } => format!(
             "{} {} {}'s proposal of {}",
-            player(game, p.to),
+            player(world, p.to),
             match (accepted, lapsed) {
                 (true, _) => "accepts",
                 (false, true) => "does not answer",
                 (false, false) => "refuses",
             },
-            player(game, p.from),
-            proposal(game, p.kind)
+            player(world, p.from),
+            proposal(world, p.kind)
         ),
         D::GoldGiven { from, to, gold } => format!(
             "{} gives {} {gold} gold",
-            player(game, *from),
-            player(game, *to)
+            player(world, *from),
+            player(world, *to)
         ),
         D::Warned { from, to } => format!(
             "{} warns {} that its patience is running out",
-            player(game, *from),
-            player(game, *to)
+            player(world, *from),
+            player(world, *to)
         ),
         D::Remarked { from, to, why } => format!(
             "{} tells {} why: {why:?}",
-            player(game, *from),
-            player(game, *to)
+            player(world, *from),
+            player(world, *to)
         ),
         D::Trespassing { owner, intruder } => format!(
             "{} warns {} to keep its units away from its cities",
-            player(game, *owner),
-            player(game, *intruder)
+            player(world, *owner),
+            player(world, *intruder)
         ),
         D::SpellGiven { from, to, spell: s } => format!(
             "{} gives {} {}",
-            player(game, *from),
-            player(game, *to),
-            spell(game, *s)
+            player(world, *from),
+            player(world, *to),
+            spell(world, *s)
         ),
         D::BattleLosses {
             attacker,
@@ -747,10 +752,10 @@ fn diplomacy(game: &Game, d: &f4x_core::diplomacy::DiplomacyEvent) -> String {
             ..
         } => format!(
             "{} holds the losses of {} heroes and {} other units against {}",
-            player(game, *defender),
+            player(world, *defender),
             heroes,
             others,
-            player(game, *attacker)
+            player(world, *attacker)
         ),
         D::AssaultFailed {
             attacker,
@@ -758,24 +763,24 @@ fn diplomacy(game: &Game, d: &f4x_core::diplomacy::DiplomacyEvent) -> String {
             fortress,
         } => format!(
             "{}'s assault on {}'s {} failed",
-            player(game, *attacker),
-            player(game, *defender),
+            player(world, *attacker),
+            player(world, *defender),
             if *fortress { "fortress city" } else { "city" }
         ),
         D::FortressTaken { winner, loser } => format!(
             "{} took the fortress of {}",
-            player(game, *winner),
-            player(game, *loser)
+            player(world, *winner),
+            player(world, *loser)
         ),
         D::WizardDestroyed { winner, loser } => format!(
             "{} destroyed {}",
-            player(game, *winner),
-            player(game, *loser)
+            player(world, *winner),
+            player(world, *loser)
         ),
         D::EnchantmentCast { caster, spell: s } => format!(
             "the other wizards take note of {} by {}",
-            spell(game, *s),
-            player(game, *caster)
+            spell(world, *s),
+            player(world, *caster)
         ),
         D::CitySpellCast {
             caster,
@@ -783,21 +788,21 @@ fn diplomacy(game: &Game, d: &f4x_core::diplomacy::DiplomacyEvent) -> String {
             spell: s,
         } => format!(
             "{} takes note of {} by {} on its city",
-            player(game, *owner),
-            spell(game, *s),
-            player(game, *caster)
+            player(world, *owner),
+            spell(world, *s),
+            player(world, *caster)
         ),
         D::Subverted { caster, target } => format!(
             "{} subverts the standing of {}",
-            player(game, *caster),
-            player(game, *target)
+            player(world, *caster),
+            player(world, *target)
         ),
     }
 }
 
 /// An item in a line: its name, kind, bonuses, powers and charges.
-pub fn magic_item(game: &Game, item: &f4x_core::item::Item) -> String {
-    let rules = &game.content().rules;
+pub fn magic_item(world: &World, item: &f4x_core::item::Item) -> String {
+    let rules = &world.content().rules;
     let b = item.bonus;
     let mut parts: Vec<String> = [
         ("attack", b.attack),
@@ -827,7 +832,7 @@ pub fn magic_item(game: &Game, item: &f4x_core::item::Item) -> String {
     }
     format!(
         "{} ({:?}, worth {}): {}",
-        item_label(game, item),
+        item_label(world, item),
         item.kind,
         item.cost,
         if parts.is_empty() {
@@ -840,12 +845,12 @@ pub fn magic_item(game: &Game, item: &f4x_core::item::Item) -> String {
 
 /// An item as the console shows it: the name it was given, else the alias of the prefab item it
 /// copies, else "made item" (the console shows aliases and numbers; the client names things).
-fn item_label(game: &Game, item: &f4x_core::item::Item) -> String {
+fn item_label(world: &World, item: &f4x_core::item::Item) -> String {
     if !item.name.is_empty() {
         return item.name.clone();
     }
     match item.prefab {
-        Some(id) => game.content().rules.items.get(id).id.clone(),
+        Some(id) => world.content().rules.items.get(id).id.clone(),
         None => "made item".to_string(),
     }
 }

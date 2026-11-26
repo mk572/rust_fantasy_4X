@@ -8,10 +8,10 @@
 
 use crate::view::{is_fighter, is_ship};
 use crate::Ai;
-use f4x_core::game::serial::Serial;
-use f4x_core::game::{Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
+use f4x_core::world::serial::Serial;
+use f4x_core::world::{Event, World};
 
 /// What a unit is doing, as far as the AI's lists say.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -158,7 +158,7 @@ pub struct Muster {
 /// [`release`]: Registry::release
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct Registry {
-    map: std::collections::BTreeMap<f4x_core::game::serial::Serial, Assignment>,
+    map: std::collections::BTreeMap<f4x_core::world::serial::Serial, Assignment>,
     /// The latest turn the registry was told of (by a claim or a sync).
     #[serde(default)]
     now: u32,
@@ -889,27 +889,27 @@ pub fn tally(held: &[Held]) -> Tally {
 
 /// The start of the turn: units that appeared since the last audit (built, summoned, hired, come
 /// off a ship) get their role at once, and those gone leave the registry.
-pub fn register(ai: &mut Ai, game: &Game) {
-    let view = PlayerView::new(game, ai.player);
+pub fn register(ai: &mut Ai, world: &World) {
+    let view = PlayerView::new(world, ai.player);
     let alive: Vec<_> = view.my_units().iter().map(|&u| view.serial_of(u)).collect();
     ai.roles.prune(&alive);
-    sync(ai, &view, game.turn);
+    sync(ai, &view, world.turn);
 }
 
 /// The end-of-turn check: every unit the wizard owns is looked at, each turn, and has a role. A
 /// unit with nothing to do awaits orders and stays where it stands: the soldiers among them are
 /// counted (adrift), as are the ships and the other units (unassigned). The audit is counted in an
 /// [`Event::RolesAudited`].
-pub fn audit(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+pub fn audit(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     let me = ai.player;
     let counted = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         // The units that are gone leave the registry; the others each get their role.
         let alive: Vec<_> = view.my_units().iter().map(|&u| view.serial_of(u)).collect();
         ai.roles.prune(&alive);
         // Units with no entry yet came into being since the start of the turn.
         let unregistered = alive.iter().filter(|&&s| ai.roles.get(s).is_none()).count() as u32;
-        let held = sync(ai, &view, game.turn);
+        let held = sync(ai, &view, world.turn);
         (tally(&held), unregistered)
     };
     let (counted, unregistered) = counted;
@@ -945,7 +945,7 @@ pub fn audit(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 mod tests {
     use super::*;
     use crate::testworld::{at, game, spawn, spawn_tower, COAST_CITY, P0};
-    use f4x_core::game::Command;
+    use f4x_core::world::Command;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -953,21 +953,21 @@ mod tests {
     /// the audit counts it and leaves it where it stands.
     #[test]
     fn a_lone_soldier_outside_a_city_is_counted_and_left_where_it_stands() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
         let tower = at(8, 6);
-        spawn_tower(&mut g, tower, false)?;
-        g.reveal_map(P0);
-        let lone = spawn(&mut g, P0, tower, 104 /* spearmen */, 1);
+        spawn_tower(&mut w, tower, false)?;
+        w.reveal_map(P0);
+        let lone = spawn(&mut w, P0, tower, 104 /* spearmen */, 1);
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();
-        audit(&mut ai, &mut g, &mut events);
+        audit(&mut ai, &mut w, &mut events);
         assert!(
             events
                 .iter()
                 .any(|e| matches!(e, Event::RolesAudited { adrift: 1, .. })),
             "{events:?}"
         );
-        let view = PlayerView::new(&g, P0);
+        let view = PlayerView::new(&w, P0);
         assert!(lone.iter().all(|&u| !view.unit_has_order(u)));
         assert!(events.iter().all(|e| !matches!(e, Event::Rejected(_))));
         let held = sync(&mut ai, &view, 1);
@@ -979,12 +979,12 @@ mod tests {
     /// A unit in a role list, or in a city, or with an order, is not adrift.
     #[test]
     fn a_unit_with_a_list_a_city_or_an_order_is_not_adrift() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.reveal_map(P0);
-        let home = spawn(&mut g, P0, at(COAST_CITY.0, COAST_CITY.1), 104, 1);
-        let scout = spawn(&mut g, P0, at(8, 6), 104, 1);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.reveal_map(P0);
+        let home = spawn(&mut w, P0, at(COAST_CITY.0, COAST_CITY.1), 104, 1);
+        let scout = spawn(&mut w, P0, at(8, 6), 104, 1);
         let mut ai = Ai::new(P0);
-        let view = PlayerView::new(&g, P0);
+        let view = PlayerView::new(&w, P0);
         let _ = ai
             .roles
             .claim(view.serial_of(scout[0]), Role::Scout, 1, None);
@@ -1002,20 +1002,20 @@ mod tests {
     #[test]
     fn soldiers_with_no_city_in_reach_await_orders_where_they_stand() -> TestResult {
         use crate::testworld::ENEMY_CITY;
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.reveal_map(P0);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.reveal_map(P0);
         let far = {
-            let view = PlayerView::new(&g, P0);
+            let view = PlayerView::new(&w, P0);
             crate::naval::landing(&view, at(ENEMY_CITY.0, ENEMY_CITY.1))
                 .ok_or("a shore tile near the far city")?
                 .0
         };
-        let stranded = spawn(&mut g, P0, far, 104 /* spearmen */, 2);
+        let stranded = spawn(&mut w, P0, far, 104 /* spearmen */, 2);
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();
-        audit(&mut ai, &mut g, &mut events);
+        audit(&mut ai, &mut w, &mut events);
         assert!(ai.roles.members(Role::Reinforce).is_empty());
-        let view = PlayerView::new(&g, P0);
+        let view = PlayerView::new(&w, P0);
         let held = sync(&mut ai, &view, 1);
         for &u in &stranded {
             let roles = held.iter().find(|h| h.unit == u).map(|h| h.role);
@@ -1029,13 +1029,13 @@ mod tests {
     /// role, and a unit of another kind with nothing to do is counted as unassigned.
     #[test]
     fn ships_settlers_and_other_units_are_in_the_table_too() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.reveal_map(P0);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.reveal_map(P0);
         let port = at(COAST_CITY.0, COAST_CITY.1);
-        let ship = spawn(&mut g, P0, port, 36 /* galley */, 1)[0];
-        let other = spawn(&mut g, P0, at(8, 6), 111 /* high_men_settlers */, 1)[0];
+        let ship = spawn(&mut w, P0, port, 36 /* galley */, 1)[0];
+        let other = spawn(&mut w, P0, at(8, 6), 111 /* high_men_settlers */, 1)[0];
         let mut ai = Ai::new(P0);
-        let view = PlayerView::new(&g, P0);
+        let view = PlayerView::new(&w, P0);
         let held = sync(&mut ai, &view, 1);
         let of = |u: hecs::Entity| held.iter().find(|h| h.unit == u).cloned();
         let ship_held = of(ship).ok_or("the ship is in the table")?;
@@ -1050,8 +1050,8 @@ mod tests {
         Ok(())
     }
 
-    fn serial(n: u64) -> f4x_core::game::serial::Serial {
-        f4x_core::game::serial::Serial(n)
+    fn serial(n: u64) -> f4x_core::world::serial::Serial {
+        f4x_core::world::serial::Serial(n)
     }
 
     /// The registry holds one role per unit: a lower-priority claim on a held role is refused, a
@@ -1151,20 +1151,20 @@ mod tests {
     /// No unit has an empty role: whatever has nothing to do awaits orders.
     #[test]
     fn no_unit_is_left_without_a_role() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.reveal_map(P0);
-        spawn(&mut g, P0, at(COAST_CITY.0, COAST_CITY.1), 104, 2);
-        spawn(&mut g, P0, at(8, 6), 104, 1);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.reveal_map(P0);
+        spawn(&mut w, P0, at(COAST_CITY.0, COAST_CITY.1), 104, 2);
+        spawn(&mut w, P0, at(8, 6), 104, 1);
         spawn(
-            &mut g,
+            &mut w,
             P0,
             at(COAST_CITY.0, COAST_CITY.1),
             36, /* galley */
             1,
         );
-        spawn(&mut g, P0, at(9, 6), 111 /* high_men_settlers */, 1);
+        spawn(&mut w, P0, at(9, 6), 111 /* high_men_settlers */, 1);
         let mut ai = Ai::new(P0);
-        let view = PlayerView::new(&g, P0);
+        let view = PlayerView::new(&w, P0);
         let held = sync(&mut ai, &view, 1);
         assert_eq!(
             held.len(),
@@ -1178,17 +1178,17 @@ mod tests {
     /// city, a unit with an order its destination, a ship its state.
     #[test]
     fn every_unit_has_an_explicit_role_with_its_target() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.reveal_map(P0);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.reveal_map(P0);
         let city = at(COAST_CITY.0, COAST_CITY.1);
-        let home = spawn(&mut g, P0, city, 104, 1)[0];
-        let walker = spawn(&mut g, P0, city, 104, 1)[0];
-        let ship = spawn(&mut g, P0, city, 36 /* galley */, 1)[0];
-        let idle = spawn(&mut g, P0, at(8, 6), 111 /* high_men_settlers */, 1)[0];
+        let home = spawn(&mut w, P0, city, 104, 1)[0];
+        let walker = spawn(&mut w, P0, city, 104, 1)[0];
+        let ship = spawn(&mut w, P0, city, 36 /* galley */, 1)[0];
+        let idle = spawn(&mut w, P0, at(8, 6), 111 /* high_men_settlers */, 1)[0];
         let mut events = Vec::new();
         let mut ai = Ai::new(P0);
         ai.send(
-            &mut g,
+            &mut w,
             Command::GoTo {
                 units: vec![walker],
                 to: at(8, 6),
@@ -1196,7 +1196,7 @@ mod tests {
             &mut events,
         )
         .map_err(|e| format!("{e:?}"))?;
-        let view = PlayerView::new(&g, P0);
+        let view = PlayerView::new(&w, P0);
         sync(&mut ai, &view, 1);
         let get = |u: hecs::Entity| ai.roles.get(view.serial_of(u)).cloned();
         let of = |u: hecs::Entity| get(u).map(|a| (a.role, a.to));
@@ -1238,19 +1238,19 @@ mod tests {
     /// Units tagged for a ship are counted by the audit, so a soak can tell how long they wait.
     #[test]
     fn units_waiting_for_a_ship_are_counted_by_the_audit() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
         let home = at(COAST_CITY.0, COAST_CITY.1);
-        let soldiers = spawn(&mut g, P0, home, 104 /* spearmen */, 2);
+        let soldiers = spawn(&mut w, P0, home, 104 /* spearmen */, 2);
         let mut ai = Ai::new(P0);
-        register(&mut ai, &g);
-        let view = PlayerView::new(&g, P0);
+        register(&mut ai, &w);
+        let view = PlayerView::new(&w, P0);
         for &u in &soldiers {
             let s = view.serial_of(u);
             let _ = ai.roles.claim(s, Role::March, 1, Some(at(30, 6)));
             ai.roles.set_crossing(s, Some(Crossing::Sea));
         }
         let mut events = Vec::new();
-        audit(&mut ai, &mut g, &mut events);
+        audit(&mut ai, &mut w, &mut events);
         assert!(
             events
                 .iter()

@@ -6,10 +6,10 @@
 
 use super::crafting::{self, ItemDesign};
 use super::Item;
-use crate::game::rng::GameRng;
 use crate::rules::ItemId;
 use crate::rules::ItemPowerId;
 use crate::rules::{ItemKind, Rules};
+use crate::world::rng::GameRng;
 
 /// The grade of item asked for (the original's `Power` argument).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

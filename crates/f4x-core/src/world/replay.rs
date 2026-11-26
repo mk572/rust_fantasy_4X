@@ -3,23 +3,23 @@
 //! A [`Replay`] is a snapshot of the game plus every command applied since, so the same game can
 //! be played again from that point (the random stream is part of the snapshot). Commands name
 //! units and cities by `hecs` entity, and entity ids are not the same after a load, so each
-//! command is written with creation numbers ([`crate::game::serial::Serial`]) in their place and
+//! command is written with creation numbers ([`crate::world::serial::Serial`]) in their place and
 //! resolved against the game it is played into. That is what [`stable_ref`] does for the
 //! `Command` fields.
 //!
 //! Recording is local play's tool for replays and for saving a game with its history; it does
 //! not make a network protocol (see task 811, the multiplayer item).
 //!
-//! Tests: in game/replay/tests.rs.
+//! Tests: in world/replay/tests.rs.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::game::save::{LoadError, Snapshot, SAVE_VERSION};
-use crate::game::serial::Serial;
-use crate::game::{Command, Event, Game};
+use crate::world::save::{LoadError, Snapshot, SAVE_VERSION};
+use crate::world::serial::Serial;
+use crate::world::{Command, Event, World};
 
 /// What a recorded game is: where it started and what was done since.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -115,14 +115,14 @@ pub(crate) struct Recording {
     commands: Vec<String>,
 }
 
-impl Game {
+impl World {
     /// Entities that carry creation numbers, both ways, into the thread's context.
     fn load_context(&self) {
         CONTEXT.with(|c| {
             let mut c = c.borrow_mut();
             c.to_serial.clear();
             c.to_entity.clear();
-            for (e, s) in self.world.query::<&Serial>().iter() {
+            for (e, s) in self.ecs.query::<&Serial>().iter() {
                 c.to_serial.insert(e, s.0);
                 c.to_entity.insert(s.0, e);
             }
@@ -194,7 +194,8 @@ impl Replay {
     }
 
     pub fn from_text(text: &str) -> Result<Self, ReplayError> {
-        crate::game::save::check_replay_text(text).map_err(|e| ReplayError::Load(e.to_string()))?;
+        crate::world::save::check_replay_text(text)
+            .map_err(|e| ReplayError::Load(e.to_string()))?;
         ron::from_str(text).map_err(|e| ReplayError::Load(e.to_string()))
     }
 
@@ -205,19 +206,19 @@ impl Replay {
         &self,
         content: impl Into<std::sync::Arc<f4x_def::content::Content>>,
         count: usize,
-    ) -> Result<(Game, Vec<Vec<Event>>), ReplayError> {
-        let mut game = self
+    ) -> Result<(World, Vec<Vec<Event>>), ReplayError> {
+        let mut world = self
             .start
             .clone()
             .restore(content)
             .map_err(|e| ReplayError::Load(format!("{e:?}")))?;
-        game.start_recording()?;
+        world.start_recording()?;
         let mut all = Vec::new();
         for (i, text) in self.commands.iter().take(count).enumerate() {
-            game.load_context();
+            world.load_context();
             let command: Command = ron::from_str(text).map_err(|_| ReplayError::Unresolved(i))?;
-            all.push(game.apply(command));
+            all.push(world.apply(command));
         }
-        Ok((game, all))
+        Ok((world, all))
     }
 }

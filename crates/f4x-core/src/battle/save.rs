@@ -7,12 +7,12 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::game::ActiveBattle;
 pub use super::load::BattleLoadError;
+use super::world::ActiveBattle;
 use super::{Battle, Side};
-use crate::game::save::LoadError;
-use crate::game::serial::Serial;
-use crate::game::Game;
+use crate::world::save::LoadError;
+use crate::world::serial::Serial;
+use crate::world::World;
 
 /// A battle in progress as a save holds it, next to the world it is fought in: the battle itself,
 /// and the world's entities it refers to by creation number.
@@ -28,7 +28,7 @@ pub struct ActiveBattleSave {
     pub lair: Option<Serial>,
 }
 
-impl Game {
+impl World {
     /// The battle in progress, for a save. `None` outside a battle.
     pub(crate) fn battle_save(&self) -> Option<ActiveBattleSave> {
         let a = self.battle.as_ref()?;
@@ -75,10 +75,11 @@ impl Game {
                 return Err(bad(&format!("has a missing {side:?} player {}", player.0)));
             }
         }
-        let unit_of = |game: &Game, serial: Serial| {
-            game.units()
+        let unit_of = |world: &World, serial: Serial| {
+            world
+                .units()
                 .entity_of_serial(serial)
-                .filter(|&e| game.units().unit_def(e).is_some())
+                .filter(|&e| world.units().unit_def(e).is_some())
         };
         let sources = save
             .sources

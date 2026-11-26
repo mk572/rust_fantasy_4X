@@ -2,7 +2,7 @@
 //!
 //! A unit can be made undead: raised by the Animate Dead spell in a battle (`battle/spells.rs`),
 //! taken by the winner of a battle after a Life Steal or Create Undead attack drained it to
-//! death (`battle/game.rs`), or turned by Zombie Mastery ([`Game::make_undead`]). An undead unit:
+//! death (`battle/world.rs`), or turned by Zombie Mastery ([`World::make_undead`]). An undead unit:
 //! - is a creature of the Death realm and counts as fantastic in battle;
 //! - has the immunities of the Death creatures: death, cold, poison and illusion. The original
 //!   forgot the last three for raised units (`COMBINIT.c`, "OGBUG"); the help gives them, and
@@ -22,9 +22,8 @@
 //!
 //! Tests: in turn/tests.rs and spell/wizard/tests.rs.
 
-use crate::game::Game;
 use crate::unit::{Unit, UnitView};
-use hecs::World;
+use crate::world::World;
 
 /// Marks a unit that was made undead.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -36,7 +35,7 @@ pub const DEATH: crate::rules::RealmId = crate::rules::RealmId::new(4) /* death 
 impl UnitView<'_> {
     /// Whether the unit was made undead (not merely black channeled).
     pub fn unit_is_undead(&self, unit: hecs::Entity) -> bool {
-        self.world.get::<&Undead>(unit).is_ok()
+        self.ecs.get::<&Undead>(unit).is_ok()
     }
 
     /// Whether the Black Channels spell is on the unit.
@@ -71,22 +70,22 @@ impl UnitView<'_> {
 
 /// Make a unit undead. Its lasting spells fall away, as they do for the dead raised in a
 /// battle. Returns false for a unit that is gone.
-pub(crate) fn make_undead(world: &mut World, unit: hecs::Entity) -> bool {
-    if world.get::<&Unit>(unit).is_err() {
+pub(crate) fn make_undead(ecs: &mut hecs::World, unit: hecs::Entity) -> bool {
+    if ecs.get::<&Unit>(unit).is_err() {
         return false;
     }
-    crate::game::put_in(world, unit, Undead);
+    crate::world::put_in(ecs, unit, Undead);
     crate::spell::instance::remove_on(
-        world,
+        ecs,
         crate::spell::instance::SpellTarget::Unit(unit),
         |_, _| true,
     );
     true
 }
 
-impl Game {
+impl World {
     /// Make a unit undead (see [`make_undead`]).
     pub fn make_undead(&mut self, unit: hecs::Entity) -> bool {
-        make_undead(&mut self.world, unit)
+        make_undead(&mut self.ecs, unit)
     }
 }

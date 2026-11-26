@@ -13,7 +13,7 @@ use crate::page::Page;
 use crate::text::{Args, Texts};
 use crate::ui;
 use crate::view::{App, Screen};
-use f4x_core::game::setting::{
+use f4x_core::world::setting::{
     EventFrequency, GameSettings, MeleeVsFliers, SettingsDef, SpellAccess, MAP_HEIGHTS, MAP_WIDTHS,
     MAX_OPPONENTS, MAX_TILE_LIMIT,
 };
@@ -663,7 +663,7 @@ pub(crate) fn rows() -> Vec<Row> {
         num(
             "custom.max_tile",
             (
-                f4x_core::game::setting::MAX_STACK as i32,
+                f4x_core::world::setting::MAX_STACK as i32,
                 MAX_TILE_LIMIT as i32,
                 1,
             ),
@@ -687,7 +687,7 @@ pub(crate) fn rows() -> Vec<Row> {
         ),
         num(
             "custom.max_battle_side",
-            (1, f4x_core::game::setting::MAX_STACK as i32, 1),
+            (1, f4x_core::world::setting::MAX_STACK as i32, 1),
             "",
             |s| s.rules.max_battle_side as i32,
             |s, v| s.rules.max_battle_side = v as usize,
@@ -840,11 +840,11 @@ impl App {
         let work = self
             .options
             .custom
-            .unwrap_or_else(|| self.options.settings(&self.game.content().settings));
+            .unwrap_or_else(|| self.options.settings(&self.world.content().settings));
         let preset = self.options.preset;
         // A rule set other than Fully customized is what the rows are compared with.
-        let reference =
-            (preset != Preset::Custom).then(|| preset.applied(work, &self.game.content().settings));
+        let reference = (preset != Preset::Custom)
+            .then(|| preset.applied(work, &self.world.content().settings));
         self.open_page(
             Screen::Options,
             CustomPage {
@@ -863,8 +863,8 @@ impl App {
     /// them for every new game, Back drops the changes.
     pub fn open_default_game(&mut self) {
         let (work, preset) = (self.default_game.settings, self.default_game.preset);
-        let reference =
-            (preset != Preset::Custom).then(|| preset.applied(work, &self.game.content().settings));
+        let reference = (preset != Preset::Custom)
+            .then(|| preset.applied(work, &self.world.content().settings));
         self.open_page(
             Screen::GameSettings,
             CustomPage {
@@ -887,7 +887,7 @@ const ROW: f32 = 9.0;
 /// Height of the two boxes: the title, the rows and the buttons under them.
 const BOX_HEIGHT: f32 = 29.0 + COLUMN as f32 * ROW + 8.0 + 12.0 + 14.0;
 
-pub(crate) use f4x_core::game::setting::RuleSet as Preset;
+pub(crate) use f4x_core::world::setting::RuleSet as Preset;
 
 /// The text key of a rule set's name.
 pub(crate) fn preset_key(preset: Preset) -> &'static str {
@@ -1041,7 +1041,7 @@ impl Page for CustomPage {
                 app.apply_default_game(rec);
                 app.open_settings();
             } else {
-                let settings = app.game.content().settings.clone();
+                let settings = app.world.content().settings.clone();
                 app.options.keep_custom(self.work, self.preset, &settings);
                 app.open_options();
             }
@@ -1237,7 +1237,7 @@ impl CustomPage {
             }
         }
         if let Some(i) = picked {
-            let def = app.game.content().settings.clone();
+            let def = app.world.content().settings.clone();
             match open {
                 Menu::Preset => self.choose(Preset::ALL[i], None, &def),
                 // The level's figures replace every rule, so a hand-made set is gone.

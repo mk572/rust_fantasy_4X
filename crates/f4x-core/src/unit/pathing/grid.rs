@@ -12,11 +12,11 @@ use f4x_def::half_int::HalfInt;
 
 use crate::city::economy::Economy;
 use crate::fast::FastSet;
-use crate::game::Game;
 use crate::map::{Plane, Position};
 use crate::path_grid::{Costs, PathGrid, Road, Searcher, Square};
 use crate::player::PlayerId;
 use crate::unit::movement::{MoveError, StackTraits, StepEntry, StepProfile, ROAD_MOVE};
+use crate::world::World;
 
 impl Economy<'_> {
     /// The grid of one unit on `plane`, with what its stack gives it (`traits`). It holds the
@@ -97,7 +97,7 @@ pub(crate) struct CachedGrid {
     room: FastSet<Position>,
 }
 
-impl Game {
+impl World {
     /// The grid of a stack on the plane it stands on, at the pace of its slowest unit: the cost
     /// of a step is the worst of its units' costs, and a square one cannot enter is closed to the
     /// stack. `None` for no units, no map, or a unit that cannot move at all. Kept for the turn
@@ -134,7 +134,7 @@ impl Game {
                 Err(grids) => PathGrid::slowest(&grids.iter().collect::<Vec<_>>()).ok(),
             }
         };
-        if let Some(kept) = crate::unit::kept::grid(&self.world, &key) {
+        if let Some(kept) = crate::unit::kept::grid(&self.ecs, &key) {
             if kept.room == room {
                 if crate::unit::kept::checking() {
                     assert!(
@@ -150,7 +150,7 @@ impl Game {
             grid: grid.clone(),
             room,
         });
-        crate::unit::kept::keep_grid(&self.world, key, &kept);
+        crate::unit::kept::keep_grid(&self.ecs, key, &kept);
         Some(grid)
     }
 
@@ -198,7 +198,7 @@ impl Game {
         }
     }
 
-    /// [`Game::find_path`]'s search over the stack's grid: the cheapest path for the stack to
+    /// [`World::find_path`]'s search over the stack's grid: the cheapest path for the stack to
     /// `to` (not through hostile squares or guarded sites; with `avoid_full`, not through squares
     /// with no room for it), without the start.
     pub(super) fn grid_path(
@@ -238,7 +238,7 @@ impl Game {
         Some(path.into_iter().map(square).collect())
     }
 
-    /// The walk of [`Game::reachable_squares`] and [`Game::unreached_region`] over the grid:
+    /// The walk of [`World::reachable_squares`] and [`World::unreached_region`] over the grid:
     /// what the stack can walk to (until one of `targets`, when there are any), and whether a
     /// target was among it.
     pub(super) fn grid_walk(

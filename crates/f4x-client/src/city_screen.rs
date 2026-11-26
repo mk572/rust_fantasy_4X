@@ -8,10 +8,10 @@ use crate::text::Args;
 use crate::ui;
 use f4x_core::city::economy::Resource;
 use f4x_core::city::production::ProductionItem;
-use f4x_core::game::Command;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::rules::{BuildingId, RaceId, SpellId};
+use f4x_core::world::Command;
 use f4x_def::half_int::HalfInt;
 use macroquad::prelude::*;
 
@@ -168,7 +168,7 @@ impl App {
     pub(crate) fn city_screen(&mut self, page: &mut CityPage, input: &Input) {
         let city = page.city;
         if self
-            .game
+            .world
             .economy()
             .city_at(self.city_position(city))
             .is_none()
@@ -214,7 +214,7 @@ impl App {
                 let elsewhere = self
                     .selection
                     .iter()
-                    .any(|&u| self.game.units().unit_position(u) != Some(here));
+                    .any(|&u| self.world.units().unit_position(u) != Some(here));
                 if elsewhere {
                     self.selection.clear();
                 }
@@ -302,7 +302,7 @@ impl App {
     }
 
     pub(crate) fn city_position(&self, city: hecs::Entity) -> Position {
-        self.game.city_position(city).unwrap_or(Position {
+        self.world.city_position(city).unwrap_or(Position {
             plane: f4x_core::map::Plane::Arcanus,
             x: 0,
             y: 0,
@@ -381,10 +381,10 @@ impl App {
     /// building, which leaves rubble) or `built:ID` (the building fades in).
     pub fn open_test_city_fx(&mut self, list: &str) {
         use f4x_core::rules::exec::Target;
-        let Some(city) = self.game.economy().cities().first().map(|c| c.0) else {
+        let Some(city) = self.world.economy().cities().first().map(|c| c.0) else {
             return;
         };
-        let rules = &self.game.content().rules;
+        let rules = &self.world.content().rules;
         let spell_ward = rules
             .spells
             .defs()
@@ -412,20 +412,20 @@ impl App {
             }
         }
         for spell in spells {
-            self.game
+            self.world
                 .attach_enchantment(Target::City(city), spell, HUMAN);
         }
         if let (Some(spell), false) = (spell_ward, wards.is_empty()) {
-            self.game
+            self.world
                 .attach_enchantment(Target::City(city), spell, HUMAN);
             for realm in wards {
-                self.game.add_spell_ward(city, realm);
+                self.world.add_spell_ward(city, realm);
             }
         }
         if sell {
-            let first = self.game.city_buildings(city).first().copied();
+            let first = self.world.city_buildings(city).first().copied();
             if let Some(b) = first {
-                if let Err(e) = self.game.sell_building(city, b) {
+                if let Err(e) = self.world.sell_building(city, b) {
                     eprintln!("cannot sell: {e:?}");
                 }
             }
@@ -454,7 +454,7 @@ impl App {
             &mut name,
             input,
         ) {
-            let events = self.game.apply(Command::RenameCity { city, name });
+            let events = self.world.apply(Command::RenameCity { city, name });
             self.note(events);
         } else {
             page.naming = Some(name);
@@ -482,21 +482,21 @@ impl App {
         let city = page.city;
         let name = self.city_name(city);
         let (race_name, race_index) = self
-            .game
+            .world
             .city_race(city)
             .map(|r| {
                 (
                     self.names
-                        .race(self.game.content().rules.races.get(r).num)
+                        .race(self.world.content().rules.races.get(r).num)
                         .to_string(),
                     r.num() as usize,
                 )
             })
             .unwrap_or_default();
-        let Some(eco) = self.game.economy().city_economy(city) else {
+        let Some(eco) = self.world.economy().city_economy(city) else {
             return;
         };
-        let pop = self.game.city_population(city);
+        let pop = self.world.city_population(city);
         // The title names the size: Outpost, Hamlet, Village, Town, City, Capital.
         let title = self.text_with(
             "city.title",
@@ -511,7 +511,7 @@ impl App {
             page.naming = Some(name.clone());
         }
         let mut race_name = race_name;
-        let serial = self.game.units().serial_of(city);
+        let serial = self.world.units().serial_of(city);
         for (kind, mark) in [
             (f4x_core::world_event::EventKind::Plague, "city.plague"),
             (
@@ -519,7 +519,7 @@ impl App {
                 "city.pop_boom",
             ),
         ] {
-            if self.game.events().on_city(kind, serial) {
+            if self.world.events().on_city(kind, serial) {
                 race_name += &self.text(mark);
             }
         }
@@ -539,7 +539,7 @@ impl App {
             19.0,
         );
         // The citizens: farmers, then workers, then rebels. Clicking one changes its job.
-        let farmers = self.game.city_farmers(city);
+        let farmers = self.world.city_farmers(city);
         let total = (eco.farmers + eco.workers + eco.rebels).max(1) as f32;
         let step = (11.0f32).min(196.0 / total);
         let mut x = 7.0;
@@ -556,13 +556,13 @@ impl App {
                 if clicked && ui::hit(hit, true, input).hovered() && eco.figures > 0 {
                     match job {
                         0 => {
-                            self.game.apply(Command::SetFarmers {
+                            self.world.apply(Command::SetFarmers {
                                 city,
                                 farmers: farmers.saturating_sub(1),
                             });
                         }
                         1 => {
-                            self.game.apply(Command::SetFarmers {
+                            self.world.apply(Command::SetFarmers {
                                 city,
                                 farmers: farmers + 1,
                             });
@@ -626,7 +626,7 @@ impl App {
         lay: Layout,
         input: &Input,
     ) {
-        let Some(eco) = self.game.economy().city_economy(city) else {
+        let Some(eco) = self.world.economy().city_economy(city) else {
             return;
         };
         let view = Self::view(lay);
@@ -714,7 +714,7 @@ impl App {
         const PAGE: usize = 6;
         let mut hit = false;
         let view = Self::view(lay);
-        let list = self.game.spells().city_enchantments(city);
+        let list = self.world.spells().city_enchantments(city);
         // The temporary effects follow the spells, in plain text and not clickable.
         let effects = self.temp_effect_lines(city);
         let total = list.len() + effects.len();
@@ -756,7 +756,7 @@ impl App {
         }
         for (row, &(spell, caster)) in list.iter().enumerate().skip(panel.spell_first).take(PAGE) {
             let i = (row - panel.spell_first) as f32;
-            let def = self.game.content().rules.spells.get(spell).clone();
+            let def = self.world.content().rules.spells.get(spell).clone();
             let mut row_label = self.names.spell(def.num).to_string();
             let name_term = self.names.spell_term(def.num);
             if f4x_core::spell::city::CityEffect::SpellWard.is_in(&def) {
@@ -764,7 +764,7 @@ impl App {
                     "city.spell_ward",
                     &Args::new().term("spell", name_term.clone()).text(
                         "wards",
-                        self.game
+                        self.world
                             .economy()
                             .city_wards(city)
                             .into_iter()
@@ -807,17 +807,17 @@ impl App {
     /// The same as a term, for a message that needs a form of the word.
     pub(crate) fn city_size_term(&self, city: hecs::Entity) -> f4x_lang::text::Term {
         let figures = self
-            .game
+            .world
             .economy()
             .city_economy(city)
             .map_or(0, |e| e.figures);
-        self.size_term(figures, self.game.economy().is_fortress_city(city))
+        self.size_term(figures, self.world.economy().is_fortress_city(city))
     }
 
     /// The name of a city's size: outpost, hamlet up to city, and capital for a fortress city.
     pub(crate) fn size_term(&self, figures: u32, fortress: bool) -> f4x_lang::text::Term {
         let words = crate::event_message::CITY_SIZE_WORDS;
-        let class = f4x_core::city::conquest::city_size_class(&self.game.content().rules, figures);
+        let class = f4x_core::city::conquest::city_size_class(&self.world.content().rules, figures);
         let key = if figures == 0 {
             words[0]
         } else if fortress {
@@ -832,26 +832,26 @@ impl App {
     /// another wizard's city it is only what the human may know: the report of the view
     /// (`PlayerView::city_report`, the same the AI reads), and nothing for a city not explored.
     fn city_data(&self, city: hecs::Entity) -> CityData {
-        if self.game.economy().city_owner(city) == Some(HUMAN) {
+        if self.world.economy().city_owner(city) == Some(HUMAN) {
             let at = self.city_position(city);
             return CityData {
-                population: self.game.city_population(city).figures,
-                buildings: self.game.city_buildings(city),
+                population: self.world.city_population(city).figures,
+                buildings: self.world.city_buildings(city),
                 // A building sold this turn keeps its place as rubble.
-                sold: self.game.economy().sold_building(city),
+                sold: self.world.economy().sold_building(city),
                 enchantments: self
-                    .game
+                    .world
                     .spells()
                     .city_enchantments(city)
                     .into_iter()
                     .map(|(s, _)| s)
                     .collect(),
-                race: self.game.city_race(city),
-                fortress: self.game.economy().is_fortress_city(city),
-                summoning_circle: self.game.wizard(HUMAN).and_then(|w| w.summon_at()) == Some(at),
+                race: self.world.city_race(city),
+                fortress: self.world.economy().is_fortress_city(city),
+                summoning_circle: self.world.wizard(HUMAN).and_then(|w| w.summon_at()) == Some(at),
             };
         }
-        let Some(report) = PlayerView::new(&self.game, HUMAN).city_report(city) else {
+        let Some(report) = PlayerView::new(&self.world, HUMAN).city_report(city) else {
             return CityData::default();
         };
         CityData {
@@ -868,7 +868,7 @@ impl App {
     /// What the cityscape layout needs from a city.
     fn cityscape_info(&self, city: hecs::Entity, data: &CityData) -> crate::cityscape::CityInfo {
         use crate::cityscape as cs;
-        let rules = &self.game.content().rules;
+        let rules = &self.world.content().rules;
         let at = self.city_position(city);
         let buildings = data
             .buildings
@@ -893,7 +893,7 @@ impl App {
         if data.summoning_circle {
             magic.push(cs::SUMMONING_CIRCLE);
         }
-        let class = self.game.economy().terrain_class_at(at);
+        let class = self.world.economy().terrain_class_at(at);
         let house_type = data
             .race
             .map(|r| rules.races.get(r).house_type)
@@ -996,7 +996,7 @@ impl App {
         }
         // Water and high ground around the city.
         let (mut river, mut ocean, mut mountain, mut hills) = (false, false, false, false);
-        if let Some(map) = self.game.map() {
+        if let Some(map) = self.world.map() {
             let grid = map.plane(at.plane);
             for dy in -1i32..=1 {
                 for dx in -1i32..=1 {
@@ -1004,7 +1004,7 @@ impl App {
                     river |= grid.has_river(x, y);
                     let class = grid
                         .get(x, y)
-                        .and_then(|t| self.game.content().terrains.get(t))
+                        .and_then(|t| self.world.content().terrains.get(t))
                         .map(|d| d.class);
                     ocean |= class == Some(f4x_core::map::terrain::TerrainClass::Ocean);
                     if dy <= 0 && !(dy == 0 && dx != 0) {
@@ -1061,7 +1061,7 @@ impl App {
         let grid = cs::make_layout(&info);
         let house_type = data
             .race
-            .map(|r| self.game.content().rules.races.get(r).house_type as usize)
+            .map(|r| self.world.content().rules.races.get(r).house_type as usize)
             .unwrap_or(0);
         // Variants of houses, trees and rocks are drawn from the layout's own seed so they
         // stay put from frame to frame.
@@ -1070,7 +1070,7 @@ impl App {
         let rubble_of = data.sold.map(|b| {
             (
                 b.num() as i16,
-                self.game.content().rules.buildings.get(b).shape,
+                self.world.content().rules.buildings.get(b).shape,
             )
         });
         let evil_presence = enchanted(183 /* evil_presence */);
@@ -1158,7 +1158,7 @@ impl App {
         }
         // Walls along the front.
         let has_walls = self
-            .game
+            .world
             .city_buildings(city)
             .iter()
             .any(|&id| id.num() == 35 /* city_walls */);
@@ -1176,7 +1176,7 @@ impl App {
             }
         }
         // The wards and spells that guard the city, along the bottom, and its magic walls.
-        let wards = self.game.economy().city_wards(city);
+        let wards = self.world.economy().city_wards(city);
         for &(realm, entry, left) in cs::REALM_WARDS {
             if wards.iter().any(|&w| self.realm_alias(w) == realm) {
                 self.city_pic(lay, "cityscap", entry, 0, x0 + left, y0 + cs::WARD_ROW);
@@ -1208,7 +1208,7 @@ impl App {
             Some(cs::SUMMONING_CIRCLE) => Some(self.text("city.summoning_circle")),
             None if over_rubble => Some(self.text("city.destroyed")),
             Some(i) if (3..=35).contains(&i) => self
-                .game
+                .world
                 .content()
                 .rules
                 .buildings
@@ -1248,11 +1248,11 @@ impl App {
     fn draw_city_area(&mut self, page: &mut CityPage, lay: Layout, input: &Input) {
         let city = page.city;
         let at = self.city_position(city);
-        let Some(map) = self.game.map() else {
+        let Some(map) = self.world.map() else {
             return;
         };
         let (width, height) = (map.width() as i32, map.height() as i32);
-        let area: Vec<_> = self.game.economy().city_area(at);
+        let area: Vec<_> = self.world.economy().city_area(at);
         let tile = vec2(TILE_W * lay.scale, TILE_H * lay.scale);
         let anim = (get_time() * 4.0) as usize;
         // A click on the map shows or hides each square's food and production.
@@ -1274,7 +1274,7 @@ impl App {
                     continue;
                 }
                 crate::map_draw::draw_square(
-                    &self.game,
+                    &self.world,
                     &mut self.art,
                     at.plane,
                     x as u32,
@@ -1294,8 +1294,8 @@ impl App {
                     x: x as u32,
                     y: y as u32,
                 };
-                if let Some(here) = self.game.economy().city_at(square) {
-                    crate::map_draw::draw_city(&self.game, &mut self.art, here, r.x, r.y, tile);
+                if let Some(here) = self.world.economy().city_at(square) {
+                    crate::map_draw::draw_city(&self.world, &mut self.art, here, r.x, r.y, tile);
                 }
                 let shared = area
                     .iter()
@@ -1306,8 +1306,8 @@ impl App {
                 if page.area_figures {
                     // Everything comes from the economy's own per-square yield, so the map
                     // shows what the city counts: shared squares halved, corruption, minerals.
-                    let sq = self.game.map().and_then(|m| {
-                        let eco = self.game.economy();
+                    let sq = self.world.map().and_then(|m| {
+                        let eco = self.world.economy();
                         let ctx = eco.square_ctx(city)?;
                         Some(eco.square_yield(m.plane(at.plane), x, y, shared, ctx))
                     });
@@ -1364,7 +1364,7 @@ impl App {
 
     /// The most rows the garrison list can be scrolled down by.
     fn garrison_last_row(&self, city: hecs::Entity) -> usize {
-        let units = self.game.units().units_at(self.city_position(city)).len();
+        let units = self.world.units().units_at(self.city_position(city)).len();
         units.div_ceil(5).saturating_sub(Self::GARRISON_ROWS)
     }
 
@@ -1396,17 +1396,17 @@ impl App {
     /// garrison list scrolled down a row.
     pub fn crowd_first_city(&mut self) {
         let Some((_, at)) = self
-            .game
+            .world
             .economy()
             .cities()
             .into_iter()
-            .find(|(c, ..)| self.game.economy().city_owner(*c) == Some(HUMAN))
+            .find(|(c, ..)| self.world.economy().city_owner(*c) == Some(HUMAN))
             .map(|(c, _, p)| (c, p))
         else {
             return;
         };
         let kind = self
-            .game
+            .world
             .content()
             .rules
             .units
@@ -1416,7 +1416,7 @@ impl App {
             .map(|d| f4x_def::rules::UnitId::new(d.num));
         if let Some(kind) = kind {
             for _ in 0..14 {
-                self.game.spawn_unit(HUMAN, at, kind);
+                self.world.spawn_unit(HUMAN, at, kind);
             }
         }
         self.garrison_row = 1;
@@ -1425,7 +1425,7 @@ impl App {
     /// The garrison's unit squares and the unit on each (the rows that are shown).
     fn garrison_cells(&self, city: hecs::Entity, lay: Layout) -> Vec<(Rect, hecs::Entity)> {
         let at = self.city_position(city);
-        self.game
+        self.world
             .units()
             .units_at(at)
             .into_iter()
@@ -1445,7 +1445,7 @@ impl App {
     fn draw_city_garrison(&mut self, city: hecs::Entity, city_lay: Layout) {
         let at = self.city_position(city);
         let lay = crate::frame::Layout::new();
-        let all = self.game.units().units_at(at);
+        let all = self.world.units().units_at(at);
         if all.len() > Self::GARRISON_ROWS * 5 {
             let [up, down] = Self::garrison_arrows(city_lay);
             let last = self.garrison_last_row(city);
@@ -1668,7 +1668,7 @@ impl App {
     fn draw_product_picture(&mut self, lay: Layout, city: hecs::Entity, item: ProductionItem) {
         match item {
             ProductionItem::Unit(id) => {
-                let def = self.game.content().rules.units.get(id).clone();
+                let def = self.world.content().rules.units.get(id).clone();
                 let Some(ty) = self
                     .art
                     .unit_entry(&def.id)
@@ -1715,8 +1715,8 @@ impl App {
             }
             ProductionItem::TradeGoods => self.draw_centred_building(lay, 41),
             ProductionItem::Housing => {
-                let house_type = self.game.city_race(city).map_or(0, |r| {
-                    self.game.content().rules.races.get(r).house_type as usize
+                let house_type = self.world.city_race(city).map_or(0, |r| {
+                    self.world.content().rules.races.get(r).house_type as usize
                 });
                 self.draw_centred_building(lay, 42 + house_type.min(2));
             }
@@ -1725,8 +1725,8 @@ impl App {
 
     fn draw_city_production(&mut self, page: &mut CityPage, lay: Layout, input: &Input) {
         let city = page.city;
-        let prod = self.game.economy().city_production(city);
-        let eco = self.game.economy().city_economy(city).unwrap_or_default();
+        let prod = self.world.economy().city_production(city);
+        let eco = self.world.economy().city_economy(city).unwrap_or_default();
         let view = Self::view(lay);
         match prod.item {
             Some(item) => {
@@ -1743,7 +1743,7 @@ impl App {
                         top + 6.0 * i as f32,
                     );
                 }
-                let cost = self.game.economy().item_cost(city, item);
+                let cost = self.world.economy().item_cost(city, item);
                 if cost > 0 {
                     let remaining = (f4x_def::half_int::HalfInt::from_int(cost as i32)
                         - prod.progress)
@@ -1793,10 +1793,10 @@ impl App {
             }
         }
         let gold = self
-            .game
+            .world
             .player(crate::view::HUMAN)
             .map_or(f4x_def::half_int::HalfInt::ZERO, |p| p.treasury().gold);
-        let price = self.game.economy().buy_cost(city);
+        let price = self.world.economy().buy_cost(city);
         // Clickable whenever the item can be bought; too little gold is answered with a box.
         if self.city_wood_button(
             lay,
@@ -1860,17 +1860,17 @@ impl App {
 
     /// Everything the city may start building: buildings, then units, then the two specials.
     pub(crate) fn buildable_items(&self, city: hecs::Entity) -> Vec<ProductionItem> {
-        let rules = &self.game.content().rules;
+        let rules = &self.world.content().rules;
         let mut items = Vec::new();
         for (id, _) in rules.buildings.iter() {
             let item = ProductionItem::Building(id);
-            if self.game.economy().can_build(city, item).is_ok() {
+            if self.world.economy().can_build(city, item).is_ok() {
                 items.push(item);
             }
         }
         for (id, _) in rules.units.iter() {
             let item = ProductionItem::Unit(id);
-            if self.game.economy().can_build(city, item).is_ok() {
+            if self.world.economy().can_build(city, item).is_ok() {
                 items.push(item);
             }
         }
@@ -1903,13 +1903,13 @@ mod tests {
     ) -> TestResult {
         let mut app = App::for_test();
         let words = crate::event_message::CITY_SIZE_WORDS;
-        let from = app.game.content().rules.config.city_size_from.clone();
+        let from = app.world.content().rules.config.city_size_from.clone();
         // The rows of `rules.ron` and the words of the text files stay in step: one word for an
         // outpost and one for each row.
         assert_eq!(words.len(), from.len() + 1);
         let word = |app: &App, class: usize| app.names.word(words[class]).text;
         let capital = app
-            .game
+            .world
             .economy()
             .cities()
             .first()
@@ -1919,18 +1919,18 @@ mod tests {
         let at = app.city_position(capital);
         let at = Position { x: at.x + 3, ..at };
         let city = app
-            .game
+            .world
             .scenario_found_city(HUMAN, at, "Testville", None, 0);
-        app.game.scenario_set_citizens(city, 0);
+        app.world.scenario_set_citizens(city, 0);
         assert_eq!(app.city_size_name(city), word(&app, 0), "an outpost");
         for (row, &figures) in from.iter().enumerate() {
-            app.game.scenario_set_citizens(city, figures);
+            app.world.scenario_set_citizens(city, figures);
             assert_eq!(
                 app.city_size_name(city),
                 word(&app, row + 1),
                 "{figures} figures"
             );
-            app.game.scenario_set_citizens(city, figures - 1);
+            app.world.scenario_set_citizens(city, figures - 1);
             assert_eq!(
                 app.city_size_name(city),
                 word(&app, row),
@@ -1938,7 +1938,7 @@ mod tests {
             );
         }
         let last = from.last().copied().ok_or("no size rows")?;
-        app.game.scenario_set_citizens(city, last + 20);
+        app.world.scenario_set_citizens(city, last + 20);
         assert_eq!(app.city_size_name(city), word(&app, words.len() - 1));
         Ok(())
     }

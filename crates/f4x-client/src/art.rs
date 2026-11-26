@@ -929,20 +929,20 @@ impl Art {
 /// transparent pixel with a figure pixel above, below or beside it takes the next colour of the
 /// ramp, which advances as the picture is read a column at a time.
 fn outline_pixels(img: &mut Image, ramp: &[Color]) {
-    let (w, h) = (usize::from(img.width), usize::from(img.height));
-    let inside: Vec<bool> = (0..w * h).map(|i| img.bytes[i * 4 + 3] > 0).collect();
+    let (width, h) = (usize::from(img.width), usize::from(img.height));
+    let inside: Vec<bool> = (0..width * h).map(|i| img.bytes[i * 4 + 3] > 0).collect();
     let (mut at, mut step) = (0usize, 0usize);
-    for x in 0..w {
+    for x in 0..width {
         for y in 0..h {
             let near = |dx: isize, dy: isize| {
                 let (nx, ny) = (x as isize + dx, y as isize + dy);
-                (0..w as isize).contains(&nx)
+                (0..width as isize).contains(&nx)
                     && (0..h as isize).contains(&ny)
-                    && inside[ny as usize * w + nx as usize]
+                    && inside[ny as usize * width + nx as usize]
             };
-            if !inside[y * w + x] && (near(-1, 0) || near(1, 0) || near(0, -1) || near(0, 1)) {
+            if !inside[y * width + x] && (near(-1, 0) || near(1, 0) || near(0, -1) || near(0, 1)) {
                 let c = ramp[at % ramp.len()];
-                let i = (y * w + x) * 4;
+                let i = (y * width + x) * 4;
                 img.bytes[i..i + 4].copy_from_slice(&[
                     (c.r * 255.0) as u8,
                     (c.g * 255.0) as u8,

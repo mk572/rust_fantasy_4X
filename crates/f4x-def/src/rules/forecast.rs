@@ -3,7 +3,7 @@
 //! is on. Walls, terrain, spells and the players' skill are not in it, so it is a hint, not a
 //! promise. This file is the verdict on the worths: the bands (`config.forecast.bands_pct`) that
 //! split the ratio of two worths, and the key of the message for each. What a side is worth is
-//! worked out by the game (`Game::side_worth` in `f4x-core`).
+//! worked out by the game (`World::side_worth` in `f4x-core`).
 //!
 //! Tests: `tests/it/c4_values.rs`.
 

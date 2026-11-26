@@ -9,9 +9,9 @@ use crate::modal::{keep, kind, Modal};
 use crate::text::Args;
 use crate::view::{App, HUMAN};
 use f4x_core::diplomacy::{DiplomacyCommand, Treaty};
-use f4x_core::game::Command;
 use f4x_core::map::Position;
 use f4x_core::player::PlayerId;
+use f4x_core::world::Command;
 
 /// What the player is asked, and what is sent on Yes.
 pub(crate) struct AttackWar {
@@ -30,13 +30,13 @@ impl Modal for AttackWar {
         );
         match app.confirmation_box(&Layout::new(), &text, input) {
             Some(true) => {
-                let mut events = app
-                    .game
-                    .apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
-                        player: HUMAN,
-                        on: self.on,
-                    }));
-                events.extend(app.game.apply(self.then));
+                let mut events =
+                    app.world
+                        .apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+                            player: HUMAN,
+                            on: self.on,
+                        }));
+                events.extend(app.world.apply(self.then));
                 app.note(events);
                 None
             }
@@ -51,15 +51,16 @@ impl App {
     /// an independent race (they use the full diplomacy rules) the human is not at war with yet. The
     /// monsters take no part in diplomacy and are attacked freely.
     pub(crate) fn war_to_declare(&self, to: Position) -> Option<PlayerId> {
-        let defenders = self.game.economy().hostile_at(to, HUMAN)?;
+        let defenders = self.world.economy().hostile_at(to, HUMAN)?;
         let owner = defenders
             .first()
-            .and_then(|&u| self.game.units().unit_owner(u))
+            .and_then(|&u| self.world.units().unit_owner(u))
             .or_else(|| {
-                let city = self.game.economy().city_at(to)?;
-                self.game.economy().city_owner(city)
+                let city = self.world.economy().city_at(to)?;
+                self.world.economy().city_owner(city)
             })?;
-        (self.game.takes_part_in_diplomacy(owner) && self.game.treaty(HUMAN, owner) != Treaty::War)
+        (self.world.takes_part_in_diplomacy(owner)
+            && self.world.treaty(HUMAN, owner) != Treaty::War)
             .then_some(owner)
     }
 
@@ -69,7 +70,7 @@ impl App {
         match self.war_to_declare(to) {
             Some(on) => self.modals.open(AttackWar { on, then: command }),
             None => {
-                let events = self.game.apply(command);
+                let events = self.world.apply(command);
                 self.note(events);
             }
         }
@@ -85,12 +86,12 @@ mod tests {
     fn a_war_is_to_be_declared_only_on_a_wizard_the_human_is_not_at_war_with() -> TestResult {
         let mut app = App::for_test();
         let rival = PlayerId(1);
-        let unit = app.game.units().player_units(HUMAN)[0];
-        let kind = app.game.units().unit_kind_id(unit).ok_or("a kind")?;
-        let at = app.game.units().unit_position(unit).ok_or("a position")?;
+        let unit = app.world.units().player_units(HUMAN)[0];
+        let kind = app.world.units().unit_kind_id(unit).ok_or("a kind")?;
+        let at = app.world.units().unit_position(unit).ok_or("a position")?;
         // The rival's unit on the human's own square is not on a free square, so look for one beside.
         let (w, h) = {
-            let map = app.game.map().ok_or("a map")?;
+            let map = app.world.map().ok_or("a map")?;
             (map.width() as i32, map.height() as i32)
         };
         let squares: Vec<Position> = (-1..=1)
@@ -108,18 +109,18 @@ mod tests {
         let to = squares
             .into_iter()
             .find(|&to| {
-                app.game
+                app.world
                     .apply(Command::CreateUnit {
                         owner: rival,
                         pos: to,
                         unit: kind,
                     })
                     .iter()
-                    .all(|e| !matches!(e, f4x_core::game::Event::Rejected(_)))
+                    .all(|e| !matches!(e, f4x_core::world::Event::Rejected(_)))
             })
             .ok_or("no square for a rival's unit")?;
         assert_eq!(app.war_to_declare(to), Some(rival));
-        app.game.declare_war(HUMAN, rival);
+        app.world.declare_war(HUMAN, rival);
         assert_eq!(app.war_to_declare(to), None, "already at war");
         assert_eq!(
             app.war_to_declare(at),

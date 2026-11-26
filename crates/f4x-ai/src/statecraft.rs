@@ -23,11 +23,11 @@
 //! from the environment for a soak (`AIK_DIPLO_<NAME>`, see `crate::knob`).
 
 use f4x_core::diplomacy::{army_strength, DiplomacyCommand, ProposalKind, Remark, Treaty};
-use f4x_core::game::{Command, Event, Game};
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
 use f4x_core::rules::RaceId;
 use f4x_core::wizard::magic::Retort;
+use f4x_core::world::{Command, Event, World};
 
 use crate::memory::Diplomats;
 use crate::Ai;
@@ -117,14 +117,14 @@ pub(crate) struct Scene {
 }
 
 impl Scene {
-    pub(crate) fn new(game: &Game, me: PlayerId) -> Self {
-        let view = PlayerView::new(game, me);
-        let others = game
+    pub(crate) fn new(world: &World, me: PlayerId) -> Self {
+        let view = PlayerView::new(world, me);
+        let others = world
             .player_ids()
             .into_iter()
             .filter(|&p| p != me && view.is_diplomat(p))
-            .filter(|&p| game.have_met(me, p))
-            .filter(|&p| game.player(p).is_some_and(|q| !q.is_defeated()))
+            .filter(|&p| world.have_met(me, p))
+            .filter(|&p| world.player(p).is_some_and(|q| !q.is_defeated()))
             .collect();
         Self {
             me,
@@ -138,14 +138,14 @@ impl Scene {
         }
     }
 
-    pub(crate) fn power(&self, game: &Game, who: PlayerId) -> Power {
+    pub(crate) fn power(&self, world: &World, who: PlayerId) -> Power {
         let cities = if who == self.me {
             self.mine.len()
         } else {
             self.known.iter().filter(|(o, _)| *o == who).count()
         };
         Power {
-            army: army_strength(game, who),
+            army: army_strength(world, who),
             cities: cities as i32,
         }
     }
@@ -161,23 +161,23 @@ impl Scene {
 
 /// The wizard that leads the game as `observer` sees it: casting the Spell of Mastery, or far
 /// ahead of the next best in army and cities. `None` when the observer leads or nobody does.
-pub(crate) fn leader_of(game: &Game, observer: PlayerId) -> Option<PlayerId> {
+pub(crate) fn leader_of(world: &World, observer: PlayerId) -> Option<PlayerId> {
     let k = Knobs::current();
-    let view = PlayerView::new(game, observer);
+    let view = PlayerView::new(world, observer);
     if let Some((caster, _)) = view
         .rival_mastery_casters()
         .into_iter()
-        .find(|&(p, _)| game.have_met(observer, p))
+        .find(|&(p, _)| world.have_met(observer, p))
     {
         return Some(caster);
     }
-    let scene = Scene::new(game, observer);
+    let scene = Scene::new(world, observer);
     let mut scores: Vec<(i32, PlayerId)> = scene
         .others
         .iter()
         .copied()
         .chain(std::iter::once(observer))
-        .map(|p| (scene.power(game, p).score(&k), p))
+        .map(|p| (scene.power(world, p).score(&k), p))
         .collect();
     scores.sort_by_key(|&(s, p)| (std::cmp::Reverse(s), p.0));
     let (best, leader) = *scores.first()?;
@@ -189,10 +189,10 @@ pub(crate) fn leader_of(game: &Game, observer: PlayerId) -> Option<PlayerId> {
 /// and cities, as [`leader_of`] reads them): the observer's score over the best other's, 1 when
 /// level or when it has met nobody. Above 1 the observer leads (task 697: a lead lowers the edge an
 /// army wants before it marches).
-pub(crate) fn lead_of(game: &Game, observer: PlayerId) -> f32 {
+pub(crate) fn lead_of(world: &World, observer: PlayerId) -> f32 {
     let k = Knobs::current();
-    let scene = Scene::new(game, observer);
-    let score = |p: PlayerId| scene.power(game, p).score(&k).max(1) as f32;
+    let scene = Scene::new(world, observer);
+    let score = |p: PlayerId| scene.power(world, p).score(&k).max(1) as f32;
     scene
         .others
         .iter()
@@ -204,34 +204,35 @@ pub(crate) fn lead_of(game: &Game, observer: PlayerId) -> f32 {
 }
 
 /// The race of a player: a neutral player's own, a wizard's the race of its first city.
-fn race_of(game: &Game, who: PlayerId) -> Option<RaceId> {
-    game.race_of_player(who).or_else(|| {
-        game.economy()
+fn race_of(world: &World, who: PlayerId) -> Option<RaceId> {
+    world.race_of_player(who).or_else(|| {
+        world
+            .economy()
             .cities()
             .into_iter()
             .find(|(_, c, _)| c.owner == who)
-            .and_then(|(e, _, _)| game.city_race(e))
+            .and_then(|(e, _, _)| world.city_race(e))
     })
 }
 
 /// The modest bonus `me` gives `other`'s standing, to its willingness for a pact, an alliance, a
 /// trade or a peace: the other's fame, a Charismatic retort, the same race, books in the same
 /// realms, less a treaty the other broke with it. None of these decides alone.
-pub(crate) fn affinity(game: &Game, minds: &Diplomats, me: PlayerId, other: PlayerId) -> i32 {
+pub(crate) fn affinity(world: &World, minds: &Diplomats, me: PlayerId, other: PlayerId) -> i32 {
     let k = Knobs::current();
     let mut a = 0;
-    if let Some(w) = game.wizard(other) {
+    if let Some(w) = world.wizard(other) {
         a += (w.fame() / k.fame_per_point).clamp(0, k.fame_cap);
         if w.retorts().contains(&Retort::new(16) /* charismatic */) {
             a += k.charismatic;
         }
     }
-    if let (Some(x), Some(y)) = (race_of(game, me), race_of(game, other)) {
+    if let (Some(x), Some(y)) = (race_of(world, me), race_of(world, other)) {
         if x == y {
             a += k.same_race;
         }
     }
-    if let (Some(x), Some(y)) = (game.wizard(me), game.wizard(other)) {
+    if let (Some(x), Some(y)) = (world.wizard(me), world.wizard(other)) {
         let books = |w: &f4x_core::wizard::entity::Wizard<'_>| w.books();
         let (mine, theirs) = (books(&x), books(&y));
         let shared = mine
@@ -252,7 +253,7 @@ pub(crate) fn affinity(game: &Game, minds: &Diplomats, me: PlayerId, other: Play
         }
     }
     // The memory of a broken treaty.
-    if minds.opinion(game, me, other).broken {
+    if minds.opinion(world, me, other).broken {
         a -= k.broken_memory;
     }
     a
@@ -260,13 +261,13 @@ pub(crate) fn affinity(game: &Game, minds: &Diplomats, me: PlayerId, other: Play
 
 /// What stands against a friendly answer to `asker` for `judge`: the asker is a neighbour the
 /// judge is far ahead of and means to attack, or leads the game.
-pub(crate) fn self_interest(game: &Game, judge: PlayerId, asker: PlayerId) -> i32 {
+pub(crate) fn self_interest(world: &World, judge: PlayerId, asker: PlayerId) -> i32 {
     let k = Knobs::current();
     let mut against = 0;
-    if dominates(game, judge, asker, &k) {
+    if dominates(world, judge, asker, &k) {
         against += k.interest_target;
     }
-    if leader_of(game, judge) == Some(asker) {
+    if leader_of(world, judge) == Some(asker) {
         against += k.interest_leader;
     }
     against
@@ -274,7 +275,7 @@ pub(crate) fn self_interest(game: &Game, judge: PlayerId, asker: PlayerId) -> i3
 
 /// The sum of the factors and the self-interest, in the willingness of `judge` toward `asker`.
 pub(crate) fn goodwill(
-    game: &Game,
+    world: &World,
     minds: &Diplomats,
     judge: PlayerId,
     asker: PlayerId,
@@ -284,11 +285,11 @@ pub(crate) fn goodwill(
     if !k.on_factors {
         return 0;
     }
-    let mut g = affinity(game, minds, judge, asker) - self_interest(game, judge, asker);
+    let mut g = affinity(world, minds, judge, asker) - self_interest(world, judge, asker);
     if matches!(kind, ProposalKind::Pact | ProposalKind::Alliance) {
         // Two wizards that fear the same leader get on better.
-        if let Some(leader) = leader_of(game, judge) {
-            if leader != asker && leader_of(game, asker) == Some(leader) {
+        if let Some(leader) = leader_of(world, judge) {
+            if leader != asker && leader_of(world, asker) == Some(leader) {
                 g += k.coalition_bonus;
             }
         }
@@ -297,9 +298,9 @@ pub(crate) fn goodwill(
 }
 
 /// Whether `me` is far ahead of `other` in army and cities.
-fn dominates(game: &Game, me: PlayerId, other: PlayerId, k: &Knobs) -> bool {
-    let scene = Scene::new(game, me);
-    let (mine, theirs) = (scene.power(game, me), scene.power(game, other));
+fn dominates(world: &World, me: PlayerId, other: PlayerId, k: &Knobs) -> bool {
+    let scene = Scene::new(world, me);
+    let (mine, theirs) = (scene.power(world, me), scene.power(world, other));
     theirs.cities > 0
         && mine.cities as usize >= k.dominant_min_cities
         && mine.army * 100 >= k.dominant_army * theirs.army.max(1)
@@ -308,28 +309,28 @@ fn dominates(game: &Game, me: PlayerId, other: PlayerId, k: &Knobs) -> bool {
 
 /// Whether a trade with `asker` would arm an enemy of `judge`: the asker is at war with it or
 /// with one of its allies, or leads the game.
-pub(crate) fn arms_enemy(game: &Game, judge: PlayerId, asker: PlayerId) -> bool {
+pub(crate) fn arms_enemy(world: &World, judge: PlayerId, asker: PlayerId) -> bool {
     Knobs::current().on_arms
-        && (game.treaty(judge, asker) == Treaty::War
-            || game.player_ids().into_iter().any(|p| {
+        && (world.treaty(judge, asker) == Treaty::War
+            || world.player_ids().into_iter().any(|p| {
                 p != judge
                     && p != asker
-                    && game.treaty(judge, p) == Treaty::Alliance
-                    && game.treaty(asker, p) == Treaty::War
+                    && world.treaty(judge, p) == Treaty::Alliance
+                    && world.treaty(asker, p) == Treaty::War
             })
-            || leader_of(game, judge) == Some(asker))
+            || leader_of(world, judge) == Some(asker))
 }
 
 /// A proposal `me` makes to `to`, which `to` answers at once when it is an AI. Whether it was made.
 pub(crate) fn propose(
     ai: &Ai,
-    game: &mut Game,
+    world: &mut World,
     events: &mut Vec<Event>,
     to: PlayerId,
     kind: ProposalKind,
 ) -> bool {
     let me = ai.player;
-    if game
+    if world
         .diplomacy
         .proposals()
         .iter()
@@ -339,20 +340,26 @@ pub(crate) fn propose(
     }
     let made = ai
         .send(
-            game,
+            world,
             Command::Diplomacy(DiplomacyCommand::Propose { from: me, to, kind }),
             events,
         )
         .is_ok();
-    if made && game.human() != Some(to) {
-        events.extend(crate::settle(game, me, to, &ai.diplomats));
+    if made && world.human() != Some(to) {
+        events.extend(crate::settle(world, me, to, &ai.diplomats));
     }
     made
 }
 
-pub(crate) fn remark(ai: &Ai, game: &mut Game, events: &mut Vec<Event>, to: PlayerId, why: Remark) {
+pub(crate) fn remark(
+    ai: &Ai,
+    world: &mut World,
+    events: &mut Vec<Event>,
+    to: PlayerId,
+    why: Remark,
+) {
     ai.order(
-        game,
+        world,
         Command::Diplomacy(DiplomacyCommand::Remark {
             from: ai.player,
             to,
@@ -363,43 +370,43 @@ pub(crate) fn remark(ai: &Ai, game: &mut Game, events: &mut Vec<Event>, to: Play
 }
 
 /// Once a turn, after the talk with the other wizards.
-pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+pub(crate) fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     let me = ai.player;
     {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         if view.is_defeated() || view.wizard().is_some_and(|w| w.is_banished()) {
             return;
         }
     }
-    let scene = Scene::new(game, me);
+    let scene = Scene::new(world, me);
     // The peace score offers peace where it says so (`diplo_b.rs`); the enemy and the friends come from the
     // three values (`diplo_b_stance.rs`).
-    crate::diplo_b::wars(ai, game, events, &scene);
-    crate::diplo_b_stance::run(ai, game, events, &scene);
+    crate::diplo_b::wars(ai, world, events, &scene);
+    crate::diplo_b_stance::run(ai, world, events, &scene);
 }
 
 /// A gift of gold to `to`, once in `gift_cool` turns, from a treasury that has the gold to spare.
 pub(crate) fn gift_gold(
     ai: &Ai,
-    game: &mut Game,
+    world: &mut World,
     events: &mut Vec<Event>,
     to: PlayerId,
     why: Remark,
 ) -> bool {
     let me = ai.player;
     let k = crate::diplo_b::Knobs::current();
-    let gold = game.player(me).map_or(0, |p| p.treasury().gold.floor());
+    let gold = world.player(me).map_or(0, |p| p.treasury().gold.floor());
     if !ai
         .memory
         .get()
-        .due(to, crate::memory::Did::Gift, game.turn, k.gift_cool)
+        .due(to, crate::memory::Did::Gift, world.turn, k.gift_cool)
         || gold < 100
     {
         return false;
     }
     let given = ai
         .send(
-            game,
+            world,
             Command::Diplomacy(DiplomacyCommand::GiveGold {
                 from: me,
                 to,
@@ -409,18 +416,20 @@ pub(crate) fn gift_gold(
         )
         .is_ok();
     if given {
-        ai.memory.put().did(to, crate::memory::Did::Gift, game.turn);
-        remark(ai, game, events, to, why);
+        ai.memory
+            .put()
+            .did(to, crate::memory::Did::Gift, world.turn);
+        remark(ai, world, events, to, why);
     }
     given
 }
 
 /// Whether `me` could get an army to a city of `target`: one a fighter can walk to, or one on another
 /// land mass that a ship could land beside, from a port of its own.
-pub(crate) fn can_attack(game: &Game, me: PlayerId, scene: &Scene, target: PlayerId) -> bool {
+pub(crate) fn can_attack(world: &World, me: PlayerId, scene: &Scene, target: PlayerId) -> bool {
     // A city to march on that a unit can reach.
     let reachable = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         let fighter = view
             .my_units()
             .into_iter()
@@ -434,7 +443,7 @@ pub(crate) fn can_attack(game: &Game, me: PlayerId, scene: &Scene, target: Playe
     };
     // Or a city on another land mass that a ship could land beside, from a port of its own.
     let by_sea = !reachable && {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         let port = view
             .my_cities()
             .into_iter()

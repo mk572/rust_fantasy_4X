@@ -8,7 +8,7 @@ use crate::modal::{keep, kind, Modal};
 use crate::spellbook::Targeting;
 use crate::text::Args;
 use crate::view::App;
-use f4x_core::game::{Command, Event, Rejection};
+use f4x_core::world::{Command, Event, Rejection};
 
 /// The spell cast on a target that has its effect: the command waits for the answer.
 pub(crate) struct CastAnyway {
@@ -30,7 +30,7 @@ impl Modal for CastAnyway {
         let answer = app.confirmation_box(&Layout::new(), &text, input);
         match answer {
             Some(true) => {
-                let events = app.game.apply(Command::Anyway(Box::new(self.command)));
+                let events = app.world.apply(Command::Anyway(Box::new(self.command)));
                 app.note(events);
                 None
             }
@@ -60,7 +60,7 @@ impl App {
     ) {
         let spell_name = self
             .names
-            .spell_term(self.game.content().rules.spells.get(spell).num);
+            .spell_term(self.world.content().rules.spells.get(spell).num);
         self.modals.open(CastAnyway {
             command,
             spell_name,

@@ -180,7 +180,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::game::Event;
+    use f4x_core::world::Event;
 
     #[test]
     fn a_creator_without_a_figure_of_its_own_shows_the_blank_picture() {
@@ -192,7 +192,7 @@ mod tests {
     #[test]
     fn the_zombies_figure_is_the_zombies_unit() {
         let app = App::for_test();
-        let rules = &app.game.content().rules;
+        let rules = &app.world.content().rules;
         let zombies = rules
             .units
             .iter()

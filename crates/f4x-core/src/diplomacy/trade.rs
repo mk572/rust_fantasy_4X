@@ -4,7 +4,7 @@
 //! A trade is two bundles of [`Goods`]: what the proposer gives and what it gets. A bundle holds
 //! gold, a spell, an item (of the vault or the award list), a unit (of a city, not a hero) and a
 //! hero (of a city), each of them optional. A negotiation (`Proposal::round`) builds a bundle up
-//! one category at a time. The rules check that every thing can be handed over (`Game::check_proposal`);
+//! one category at a time. The rules check that every thing can be handed over (`World::check_proposal`);
 //! the worth below is for whoever decides, a human or an AI, and the same for both.
 //!
 //! **The baseline** is one gold = one research point = one production = one mana. A spell is its
@@ -22,14 +22,14 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::game::serial::Serial;
-use crate::game::Game;
 use crate::item::entity::HeldBy;
 use crate::item::Item;
 use crate::map::Position;
 use crate::player::view::PlayerView;
 use crate::player::PlayerId;
 use crate::rules::SpellId;
+use crate::world::serial::Serial;
+use crate::world::World;
 
 // What the goods are worth in percent (books, slots, war) is `trade` of `rules.ron`.
 
@@ -124,7 +124,7 @@ impl Goods {
 }
 
 /// The item with this creation number in the vault or on the award list of `owner`.
-pub fn armory_item(view: &Game, owner: PlayerId, serial: Serial) -> Option<(hecs::Entity, Item)> {
+pub fn armory_item(view: &World, owner: PlayerId, serial: Serial) -> Option<(hecs::Entity, Item)> {
     view.items()
         .held(|h| matches!(h, HeldBy::Vault(p, _) | HeldBy::Award(p) if p == owner))
         .into_iter()
@@ -133,7 +133,7 @@ pub fn armory_item(view: &Game, owner: PlayerId, serial: Serial) -> Option<(hecs
 
 /// The unit with this creation number if it is one `owner` may give: its own, not a hero, in
 /// one of its cities.
-pub fn giveable_unit(view: &Game, owner: PlayerId, serial: Serial) -> Option<hecs::Entity> {
+pub fn giveable_unit(view: &World, owner: PlayerId, serial: Serial) -> Option<hecs::Entity> {
     let unit = view.units().entity_of_serial(serial)?;
     let mine = view.units().player_units(owner).contains(&unit);
     let hero = view.units().hero_units(owner).contains(&unit);
@@ -148,7 +148,7 @@ pub fn giveable_unit(view: &Game, owner: PlayerId, serial: Serial) -> Option<hec
 
 /// The hero with this creation number if `owner` may give it: in its service and in one of its
 /// cities.
-pub fn giveable_hero(view: &Game, owner: PlayerId, serial: Serial) -> Option<hecs::Entity> {
+pub fn giveable_hero(view: &World, owner: PlayerId, serial: Serial) -> Option<hecs::Entity> {
     let hero = view.units().entity_of_serial(serial)?;
     let mine = view.units().hero_units(owner).contains(&hero);
     let pos = view.units().unit_position(hero)?;
@@ -162,7 +162,7 @@ pub fn giveable_hero(view: &Game, owner: PlayerId, serial: Serial) -> Option<hec
 
 /// Where a unit standing at `from` appears when it is given to `receiver`: the receiver's city
 /// with room that is closest to it, on its own plane first.
-pub fn delivery_square(view: &Game, receiver: PlayerId, from: Position) -> Option<Position> {
+pub fn delivery_square(view: &World, receiver: PlayerId, from: Position) -> Option<Position> {
     let map = view.map()?;
     PlayerView::new(view, receiver)
         .my_cities()
@@ -178,7 +178,7 @@ pub fn delivery_square(view: &Game, receiver: PlayerId, from: Position) -> Optio
 /// Whether `owner` could hand `goods` to `receiver` now (a bundle may be empty). Gold needs the
 /// treasury, a spell the books of the receiver (a wizard's), an item the vault (the receiver's
 /// too: every player has one), a unit a city and the receiver a square with room.
-pub fn can_hand_over(view: &Game, owner: PlayerId, receiver: PlayerId, goods: Goods) -> bool {
+pub fn can_hand_over(view: &World, owner: PlayerId, receiver: PlayerId, goods: Goods) -> bool {
     if goods.gold < 0 {
         return false;
     }
@@ -227,7 +227,7 @@ pub fn can_hand_over(view: &Game, owner: PlayerId, receiver: PlayerId, goods: Go
 }
 
 /// What `goods` is worth in gold to `holder`, the one who would have it (see the module).
-pub fn worth(view: &Game, holder: PlayerId, goods: Goods) -> i32 {
+pub fn worth(view: &World, holder: PlayerId, goods: Goods) -> i32 {
     let mut total = goods.gold.max(0);
     if let Some(spell) = goods.spell {
         total += spell_worth(view, holder, spell);
@@ -245,7 +245,7 @@ pub fn worth(view: &Game, holder: PlayerId, goods: Goods) -> i32 {
 }
 
 /// A spell: its research cost, more with the books of its realm.
-pub fn spell_worth(view: &Game, holder: PlayerId, spell: SpellId) -> i32 {
+pub fn spell_worth(view: &World, holder: PlayerId, spell: SpellId) -> i32 {
     let def = view.content().rules.spells.get(spell);
     let rules = &view.content().rules.config.trade;
     let books = view
@@ -257,7 +257,7 @@ pub fn spell_worth(view: &Game, holder: PlayerId, spell: SpellId) -> i32 {
 
 /// An item of anybody's armory (the giver's, so it is looked up in all of them) as `holder`
 /// would hold it.
-fn armory_item_worth(view: &Game, holder: PlayerId, serial: Serial) -> i32 {
+fn armory_item_worth(view: &World, holder: PlayerId, serial: Serial) -> i32 {
     let found = view
         .items()
         .held(|h| matches!(h, HeldBy::Vault(..) | HeldBy::Award(_)))
@@ -267,7 +267,7 @@ fn armory_item_worth(view: &Game, holder: PlayerId, serial: Serial) -> i32 {
 }
 
 /// An item: its value, by whether a hero of the holder could carry it.
-pub fn item_worth(view: &Game, holder: PlayerId, item: &Item) -> i32 {
+pub fn item_worth(view: &World, holder: PlayerId, item: &Item) -> i32 {
     use crate::item::armory::ItemWorld;
     let items = view.items();
     let rules = &view.content().rules.config.trade;
@@ -293,7 +293,7 @@ pub fn item_worth(view: &Game, holder: PlayerId, item: &Item) -> i32 {
 }
 
 /// A unit: its production cost, more for its level and experience, and more to a wizard at war.
-fn unit_worth(view: &Game, holder: PlayerId, serial: Serial) -> i32 {
+fn unit_worth(view: &World, holder: PlayerId, serial: Serial) -> i32 {
     let Some(unit) = view.units().entity_of_serial(serial) else {
         return 0;
     };
@@ -305,7 +305,7 @@ fn unit_worth(view: &Game, holder: PlayerId, serial: Serial) -> i32 {
 /// What a unit's combat rating (its worth in spearmen at its level, `unit_ratings.ron`) is worth
 /// in gold; 0 for a unit with no row or when the rules leave it out. The rating says nothing of
 /// price or upkeep: the worth in a trade is the greater of this and what the unit cost to make.
-fn combat_worth(view: &Game, unit: hecs::Entity) -> i32 {
+fn combat_worth(view: &World, unit: hecs::Entity) -> i32 {
     let rules = &view.content().rules;
     let Some(def) = view.units().unit_def(unit) else {
         return 0;
@@ -318,7 +318,7 @@ fn combat_worth(view: &Game, unit: hecs::Entity) -> i32 {
 
 /// A hero: its hire cost, more for its level and experience, plus the items it carries, and more
 /// to a wizard at war (the items too: they fight with it).
-fn hero_worth(view: &Game, holder: PlayerId, serial: Serial) -> i32 {
+fn hero_worth(view: &World, holder: PlayerId, serial: Serial) -> i32 {
     let Some(hero) = view.units().entity_of_serial(serial) else {
         return 0;
     };
@@ -343,7 +343,7 @@ fn hero_worth(view: &Game, holder: PlayerId, serial: Serial) -> i32 {
 /// What a unit of this base cost is worth with the level and experience it has: a quarter of the
 /// cost for every level (the hire price of a hero grows the same way) and the part of the next
 /// quarter its points towards the next level make up.
-pub fn veteran_cost(view: &Game, unit: hecs::Entity, base: i32) -> i32 {
+pub fn veteran_cost(view: &World, unit: hecs::Entity, base: i32) -> i32 {
     let Some(path) = view.units().unit_level_path(unit) else {
         return base;
     };
@@ -361,7 +361,7 @@ pub fn veteran_cost(view: &Game, unit: hecs::Entity, base: i32) -> i32 {
 }
 
 /// A unit of this production cost to `holder`.
-pub fn unit_cost_worth(view: &Game, holder: PlayerId, cost: i32) -> i32 {
+pub fn unit_cost_worth(view: &World, holder: PlayerId, cost: i32) -> i32 {
     let at_war = view
         .player_ids()
         .into_iter()

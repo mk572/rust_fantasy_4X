@@ -1,6 +1,6 @@
 //! Experience at the turn change.
 //!
-//! The level itself is worked out by [`Game::unit_level`]: experience gives up to Elite (a
+//! The level itself is worked out by [`World::unit_level`]: experience gives up to Elite (a
 //! hero's Demi-god), Heroism lifts a unit to Elite, and the Warlord retort and the Crusade spell
 //! add a level each, which is the only way for a normal unit into Ultra-Elite and Champion.
 //! Here the turn change does two things:
@@ -19,10 +19,9 @@ use crate::player::PlayerId;
 use crate::rules::Ability;
 use f4x_def::content::Content;
 
-use crate::game::Game;
 use crate::rules::UnitKind;
 use crate::unit::{Experience, UnitView, HEROISM};
-use hecs::World;
+use crate::world::World;
 
 impl UnitView<'_> {
     /// Experience a hero with Armsmaster gives its stack each turn (0 without the ability).
@@ -53,51 +52,46 @@ impl UnitView<'_> {
             .map(|p| self.content.rules.level_paths.get(p))
             .and_then(|p| p.levels.last())
             .map(|l| l.xp)?;
-        let xp = self.world.get::<&Experience>(unit).map_or(0, |x| x.0);
+        let xp = self.ecs.get::<&Experience>(unit).map_or(0, |x| x.0);
         (xp < cap).then(|| (xp + amount).min(cap))
     }
 }
 
 /// `amount` xp for a living normal unit or hero, up to what experience can give: the turn's
 /// one point, or a won battle's share (`battle/spoils.rs`).
-pub(crate) fn gain_xp(world: &mut World, content: &Content, unit: hecs::Entity, amount: u32) {
-    if let Some(xp) = UnitView::new(world, content).xp_after(unit, amount) {
-        crate::game::put_in(world, unit, Experience(xp));
+pub(crate) fn gain_xp(ecs: &mut hecs::World, content: &Content, unit: hecs::Entity, amount: u32) {
+    if let Some(xp) = UnitView::new(ecs, content).xp_after(unit, amount) {
+        crate::world::put_in(ecs, unit, Experience(xp));
     }
 }
 
 /// The turn change for experience: a point for everyone, Heroism ending where it has done its
 /// work, and the Armsmasters training their squares.
-pub(crate) fn process(world: &mut World, content: &Content, only: Option<PlayerId>) {
-    let mut units = UnitView::new(world, content).all_units();
+pub(crate) fn process(ecs: &mut hecs::World, content: &Content, only: Option<PlayerId>) {
+    let mut units = UnitView::new(ecs, content).all_units();
     // While a wizard's Time Stop lasts, only their units gain experience.
     if let Some(keeper) = only {
-        let view = UnitView::new(world, content);
+        let view = UnitView::new(ecs, content);
         units.retain(|&u| view.unit_owner(u) == Some(keeper));
     }
     for &unit in &units {
-        gain_xp(
-            world,
-            content,
-            unit,
-            content.rules.config.renown.xp_per_turn,
-        );
+        gain_xp(ecs, content, unit, content.rules.config.renown.xp_per_turn);
     }
     for &unit in &units {
         let done = {
-            let view = UnitView::new(world, content);
+            let view = UnitView::new(ecs, content);
             view.unit_has_heroism(unit)
                 && view.unit_xp_level(unit) >= content.rules.config.renown.heroism_level
         };
         if done {
             crate::spell::instance::remove_on(
-                world,
+                ecs,
                 crate::spell::instance::SpellTarget::Unit(unit),
                 |s, _| content.rules.spells.get(s).has_hook(HEROISM),
             );
         }
     }
-    let view = UnitView::new(world, content);
+    let view = UnitView::new(ecs, content);
     let mut best: Vec<(Position, PlayerId, u32)> = Vec::new();
     for &unit in &units {
         let gain = view.armsmaster_xp(unit);
@@ -124,7 +118,7 @@ pub(crate) fn process(world: &mut World, content: &Content, only: Option<PlayerI
                     .unit_def(unit)
                     .is_some_and(|d| d.kind != UnitKind::Hero && d.level_path.is_some());
             if trainee {
-                let xp = view.world.get::<&Experience>(unit).map_or(0, |x| x.0);
+                let xp = view.ecs.get::<&Experience>(unit).map_or(0, |x| x.0);
                 trained.push((unit, xp + gain));
             }
         }
@@ -132,14 +126,14 @@ pub(crate) fn process(world: &mut World, content: &Content, only: Option<PlayerI
     // Several squares are worked out before any is paid, so the same unit is never trained
     // twice from a stale reading: each unit stands on one square and belongs to one owner.
     for (unit, xp) in trained {
-        crate::game::put_in(world, unit, Experience(xp));
+        crate::world::put_in(ecs, unit, Experience(xp));
     }
 }
 
-impl Game {
+impl World {
     /// `amount` xp for a living normal unit or hero (see [`gain_xp`]).
     pub(crate) fn gain_xp(&mut self, unit: hecs::Entity, amount: u32) {
-        gain_xp(&mut self.world, &self.content, unit, amount);
+        gain_xp(&mut self.ecs, &self.content, unit, amount);
     }
 
     pub(crate) fn process_experience(&mut self, player: crate::player::PlayerId) {
@@ -147,6 +141,6 @@ impl Game {
         if self.time_stopper().is_some_and(|keeper| keeper != player) {
             return;
         }
-        process(&mut self.world, &self.content, Some(player));
+        process(&mut self.ecs, &self.content, Some(player));
     }
 }

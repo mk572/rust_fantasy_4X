@@ -4,9 +4,9 @@
 //!
 //! Tests: below, on the shipped content, with a second city.
 
-use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
+use f4x_core::world::{Command, Event, World};
 
 use crate::view::{garrison_wanted, is_fighter, unit_strength};
 use crate::Ai;
@@ -130,10 +130,10 @@ const LATE_SPARE: usize = 1;
 /// room in the city's stack and fight no tower or city. A city keeps at least what it wants and the
 /// stronger units; the weakest low-tier ones beyond that are dismissed. Not in a threatened city, and
 /// not a unit with a task.
-pub fn thin_out(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+pub fn thin_out(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     let me = ai.player;
     let dismissed: Vec<hecs::Entity> = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         if crate::phase::phase(&view) != crate::phase::Phase::Win {
             return;
         }
@@ -175,7 +175,7 @@ pub fn thin_out(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         out
     };
     for unit in dismissed {
-        ai.order(game, Command::DismissUnit { unit }, events);
+        ai.order(world, Command::DismissUnit { unit }, events);
     }
 }
 
@@ -188,38 +188,38 @@ mod tests {
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
     /// Player 0 with a city on the coast and a second one inland, and its circle on the coast.
-    fn two_cities() -> Result<Game, Box<dyn std::error::Error>> {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let events = g.apply(Command::FoundCity {
+    fn two_cities() -> Result<World, Box<dyn std::error::Error>> {
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let events = w.apply(Command::FoundCity {
             owner: P0,
             pos: at(INLAND_CITY.0, INLAND_CITY.1),
             name: "Inland".into(),
-            race: g.content().rules.races.id_numbered(8),
+            race: w.content().rules.races.id_numbered(8),
             population: 8,
         });
         assert!(!events.iter().any(|e| matches!(e, Event::Rejected(_))));
         let coast = at(COAST_CITY.0, COAST_CITY.1);
-        let mut w = g.wizard_mut(P0).ok_or("player 0 is a wizard")?;
-        w.put(Some(Fortress(coast)));
-        w.put(Some(SummonAt(vec![coast])));
-        Ok(g)
+        let mut wizard = w.wizard_mut(P0).ok_or("player 0 is a wizard")?;
+        wizard.put(Some(Fortress(coast)));
+        wizard.put(Some(SummonAt(vec![coast])));
+        Ok(w)
     }
 
-    fn held(g: &Game, pos: Position) -> usize {
-        PlayerView::new(g, P0).garrison(pos).len()
+    fn held(w: &World, pos: Position) -> usize {
+        PlayerView::new(w, P0).garrison(pos).len()
     }
 
     #[test]
     fn late_in_the_game_the_cheap_units_of_a_full_city_are_let_go_and_the_strong_stay() -> TestResult
     {
-        let mut g = two_cities()?;
+        let mut w = two_cities()?;
         let coast = at(COAST_CITY.0, COAST_CITY.1);
-        spawn(&mut g, P0, coast, 104 /* high_men_spearmen */, 6);
-        let paladins = spawn(&mut g, P0, coast, 113 /* high_men_paladins */, 2);
-        g.turn = 400;
+        spawn(&mut w, P0, coast, 104 /* high_men_spearmen */, 6);
+        let paladins = spawn(&mut w, P0, coast, 113 /* high_men_paladins */, 2);
+        w.turn = 400;
         let mut ai = Ai::new(P0);
-        thin_out(&mut ai, &mut g, &mut Vec::new());
-        let view = PlayerView::new(&g, P0);
+        thin_out(&mut ai, &mut w, &mut Vec::new());
+        let view = PlayerView::new(&w, P0);
         let left = view.garrison(coast);
         // Wanted is one at peace and a spare: two stay, and they are the better of the cheap.
         assert!(left.len() < 8, "{} units left", left.len());
@@ -230,52 +230,52 @@ mod tests {
 
     #[test]
     fn the_cheap_units_stay_early_in_the_game_and_in_a_threatened_city() -> TestResult {
-        let mut g = two_cities()?;
+        let mut w = two_cities()?;
         let coast = at(COAST_CITY.0, COAST_CITY.1);
-        spawn(&mut g, P0, coast, 104 /* high_men_spearmen */, 6);
-        g.turn = 20;
+        spawn(&mut w, P0, coast, 104 /* high_men_spearmen */, 6);
+        w.turn = 20;
         let mut ai = Ai::new(P0);
-        thin_out(&mut ai, &mut g, &mut Vec::new());
-        assert_eq!(held(&g, coast), 6);
-        g.turn = 400;
+        thin_out(&mut ai, &mut w, &mut Vec::new());
+        assert_eq!(held(&w, coast), 6);
+        w.turn = 400;
         ai.threatened = vec![coast];
-        thin_out(&mut ai, &mut g, &mut Vec::new());
-        assert_eq!(held(&g, coast), 6);
+        thin_out(&mut ai, &mut w, &mut Vec::new());
+        assert_eq!(held(&w, coast), 6);
         Ok(())
     }
 
     /// The rate of tax that stirs the most unrest, whatever the rules table holds.
-    fn harshest_tax(g: &Game) -> u8 {
-        (g.content().rules.config.tax_unrest_percent.len() - 1) as u8
+    fn harshest_tax(w: &World) -> u8 {
+        (w.content().rules.config.tax_unrest_percent.len() - 1) as u8
     }
 
     #[test]
     fn a_city_with_rebels_keeps_all_its_normal_units_and_one_without_only_what_defence_wants(
     ) -> TestResult {
-        let mut g = two_cities()?;
+        let mut w = two_cities()?;
         let inland = at(INLAND_CITY.0, INLAND_CITY.1);
-        let spearmen = spawn(&mut g, P0, inland, 104 /* high_men_spearmen */, 6);
-        let paladin = spawn(&mut g, P0, inland, 113 /* high_men_paladins */, 1)[0];
-        g.turn = 250;
+        let spearmen = spawn(&mut w, P0, inland, 104 /* high_men_spearmen */, 6);
+        let paladin = spawn(&mut w, P0, inland, 113 /* high_men_paladins */, 1)[0];
+        w.turn = 250;
         let all: Vec<hecs::Entity> = spearmen.iter().copied().chain([paladin]).collect();
-        let kept = |g: &Game| post(&PlayerView::new(g, P0), inland, &all);
-        let rebels = |g: &Game| -> Result<u32, Box<dyn std::error::Error>> {
-            let view = PlayerView::new(g, P0);
+        let kept = |w: &World| post(&PlayerView::new(w, P0), inland, &all);
+        let rebels = |w: &World| -> Result<u32, Box<dyn std::error::Error>> {
+            let view = PlayerView::new(w, P0);
             let city = view.city_at(inland).ok_or("no city")?;
             Ok(view.city_economy(city).ok_or("no economy")?.rebels)
         };
         // On the gentlest tax nothing stirs, and the garrison is what defence wants: not everyone.
-        g.apply(Command::SetTaxRate {
+        w.apply(Command::SetTaxRate {
             player: P0,
             rate: 0,
         });
-        assert_eq!(rebels(&g)?, 0);
-        assert!(kept(&g).len() < all.len(), "{:?}", kept(&g));
+        assert_eq!(rebels(&w)?, 0);
+        assert!(kept(&w).len() < all.len(), "{:?}", kept(&w));
         // With rebels the normal units stay: they keep order, half a rebel each.
-        let rate = harshest_tax(&g);
-        g.apply(Command::SetTaxRate { player: P0, rate });
-        assert!(rebels(&g)? > 0, "the harshest tax stirs no unrest");
-        let with_rebels = kept(&g);
+        let rate = harshest_tax(&w);
+        w.apply(Command::SetTaxRate { player: P0, rate });
+        assert!(rebels(&w)? > 0, "the harshest tax stirs no unrest");
+        let with_rebels = kept(&w);
         assert!(
             all.iter().all(|u| with_rebels.contains(u)),
             "{with_rebels:?}"
@@ -287,18 +287,18 @@ mod tests {
     /// city near an enemy asks the same in both.
     #[test]
     fn a_building_wizard_wants_less_in_a_quiet_city_than_a_settled_one() -> TestResult {
-        let mut g = two_cities()?;
+        let mut w = two_cities()?;
         let inland = at(INLAND_CITY.0, INLAND_CITY.1);
-        spawn(&mut g, P0, inland, 104 /* high_men_spearmen */, 1);
-        g.turn = 1;
+        spawn(&mut w, P0, inland, 104 /* high_men_spearmen */, 1);
+        w.turn = 1;
         let building = {
-            let view = PlayerView::new(&g, P0);
+            let view = PlayerView::new(&w, P0);
             assert_eq!(crate::phase::phase(&view), crate::phase::Phase::Build);
             wanted_strength(&view, inland)
         };
-        g.turn = 250;
+        w.turn = 250;
         let settled = {
-            let view = PlayerView::new(&g, P0);
+            let view = PlayerView::new(&w, P0);
             assert_eq!(crate::phase::phase(&view), crate::phase::Phase::Secure);
             wanted_strength(&view, inland)
         };

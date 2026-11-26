@@ -15,8 +15,8 @@ use std::collections::BTreeMap;
 use std::rc::Rc;
 
 use f4x_core::diplomacy::DiplomacyEvent;
-use f4x_core::game::{Event, Game};
 use f4x_core::player::PlayerId;
+use f4x_core::world::{Event, World};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// What a wizard does to another now and then, with a cool-down between two (`Memory::did`).
@@ -220,14 +220,14 @@ impl Memory {
     /// Take in what `me` has been told: the battles it fought and the cities it won or lost against
     /// another wizard or neutral race. What happened to others, and its fights with monsters, are not
     /// its business.
-    pub(crate) fn notice(&mut self, me: PlayerId, game: &Game, events: &[Event]) {
+    pub(crate) fn notice(&mut self, me: PlayerId, world: &World, events: &[Event]) {
         use crate::diplo_b::Knobs;
-        let turn = game.turn;
+        let turn = world.turn;
         let known =
-            |p: PlayerId| p != me && (game.is_wizard(p) || game.race_of_player(p).is_some());
+            |p: PlayerId| p != me && (world.is_wizard(p) || world.race_of_player(p).is_some());
         let k = Knobs::current();
         for event in events {
-            self.feel(game, me, event);
+            self.feel(world, me, event);
             // What the others do that is ruthless, seen when they are known to it.
             let act = match *event {
                 Event::CityRazed { player, .. } => Some((player, Ruth::Razed)),
@@ -251,7 +251,7 @@ impl Memory {
                 _ => None,
             };
             if let Some((who, kind)) = act {
-                if known(who) && game.have_met(me, who) {
+                if known(who) && world.have_met(me, who) {
                     self.ruthless(who, turn, kind);
                 }
                 continue;
@@ -267,7 +267,7 @@ impl Memory {
                 continue;
             }
             // A war that began since the last clash is another war: its weariness starts at 0.
-            let since = game
+            let since = world
                 .war_age(me, with)
                 .map_or(0, |age| turn.saturating_sub(age));
             let d = self.dealing(with);
@@ -368,44 +368,44 @@ impl Diplomats {
     /// What `me` feels about `other` (`Memory::opinion`); the start when it has no memory in the table.
     pub(crate) fn opinion(
         &self,
-        game: &Game,
+        world: &World,
         me: PlayerId,
         other: PlayerId,
     ) -> crate::opinion::Opinion {
         match self.0.borrow().get(&me) {
-            Some(m) => m.borrow().opinion(game, me, other),
-            None => Memory::default().opinion(game, me, other),
+            Some(m) => m.borrow().opinion(world, me, other),
+            None => Memory::default().opinion(world, me, other),
         }
     }
 
     /// How friendly `me` feels about `other`.
-    pub(crate) fn friendship(&self, game: &Game, me: PlayerId, other: PlayerId) -> i32 {
-        self.opinion(game, me, other).friendship
+    pub(crate) fn friendship(&self, world: &World, me: PlayerId, other: PlayerId) -> i32 {
+        self.opinion(world, me, other).friendship
     }
 
     /// How friendly `me` feels about `other`, -100..=100: what the human is shown of a wizard's regard
     /// (task 784; 781 refines it with the fear and the strategic regard).
-    pub fn feeling(&self, game: &Game, me: PlayerId, other: PlayerId) -> i32 {
-        self.friendship(game, me, other)
+    pub fn feeling(&self, world: &World, me: PlayerId, other: PlayerId) -> i32 {
+        self.friendship(world, me, other)
     }
 
     /// Set what `me` feels about `other` outright: the demo screens and tests that need a wizard in a mood.
     /// A wizard that has no memory in the table gets one.
-    pub fn set_feeling(&self, game: &Game, me: PlayerId, other: PlayerId, to: i32) {
+    pub fn set_feeling(&self, world: &World, me: PlayerId, other: PlayerId, to: i32) {
         let memory = Rc::clone(
             self.0
                 .borrow_mut()
                 .entry(me)
                 .or_insert_with(|| Rc::new(RefCell::new(Memory::default()))),
         );
-        memory.borrow_mut().set_friendship(game, me, other, to);
+        memory.borrow_mut().set_friendship(world, me, other, to);
     }
 
     /// Whether `me` will not see `other` to talk (the human's "will not see you"): it hates the other
     /// beyond reason and is not at war with them (at war a wizard always hears an offer of peace).
-    pub fn refuses_audience(&self, game: &Game, me: PlayerId, other: PlayerId) -> bool {
-        self.friendship(game, me, other) <= AUDIENCE_REFUSED_BELOW
-            && game.treaty(me, other) != f4x_core::diplomacy::Treaty::War
+    pub fn refuses_audience(&self, world: &World, me: PlayerId, other: PlayerId) -> bool {
+        self.friendship(world, me, other) <= AUDIENCE_REFUSED_BELOW
+            && world.treaty(me, other) != f4x_core::diplomacy::Treaty::War
     }
 
     /// What `player` remembers; an empty memory when it has none in the table.
@@ -431,10 +431,10 @@ mod tests {
     const THIRD: PlayerId = MONSTERS;
 
     /// A game at turn `turn`.
-    fn at_turn(turn: u32) -> Game {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.turn = turn;
-        g
+    fn at_turn(turn: u32) -> World {
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.turn = turn;
+        w
     }
 
     #[test]

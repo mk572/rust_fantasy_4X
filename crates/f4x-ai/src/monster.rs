@@ -6,10 +6,10 @@
 
 use std::collections::HashMap;
 
-use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::{PlayerId, MONSTERS};
+use f4x_core::world::{Command, Event, World};
 
 use crate::assault::{march, strike};
 use crate::military::expected_defence;
@@ -22,12 +22,12 @@ const EDGE: f32 = 1.0;
 
 /// Play the monsters' turn. A battle against a player in `defended_by` is returned, for the
 /// host to play out.
-pub fn roam(game: &mut Game, defended_by: &[PlayerId]) -> (Vec<Event>, Vec<Attack>) {
+pub fn roam(world: &mut World, defended_by: &[PlayerId]) -> (Vec<Event>, Vec<Attack>) {
     let mut ai = Ai::new(MONSTERS);
     ai.leave_defence_to(defended_by);
     let mut events = Vec::new();
     let stacks: Vec<(Position, Vec<hecs::Entity>)> = {
-        let view = PlayerView::new(game, MONSTERS);
+        let view = PlayerView::new(world, MONSTERS);
         let mut by_square: HashMap<Position, Vec<hecs::Entity>> = HashMap::new();
         for u in view.my_units() {
             if let Some(p) = view.unit_position(u) {
@@ -42,7 +42,7 @@ pub fn roam(game: &mut Game, defended_by: &[PlayerId]) -> (Vec<Event>, Vec<Attac
         list
     };
     for (pos, units) in stacks {
-        act(&mut ai, game, pos, units, &mut events);
+        act(&mut ai, world, pos, units, &mut events);
     }
     let attacks = ai.take_attacks();
     (events, attacks)
@@ -52,14 +52,14 @@ pub fn roam(game: &mut Game, defended_by: &[PlayerId]) -> (Vec<Event>, Vec<Attac
 /// nearest city or stand it knows, or look for new ground.
 fn act(
     ai: &mut Ai,
-    game: &mut Game,
+    world: &mut World,
     pos: Position,
     units: Vec<hecs::Entity>,
     events: &mut Vec<Event>,
 ) {
     // Units lost in an earlier fight this turn are gone.
     let units: Vec<hecs::Entity> = {
-        let view = PlayerView::new(game, MONSTERS);
+        let view = PlayerView::new(world, MONSTERS);
         units
             .into_iter()
             .filter(|&u| view.unit_position(u) == Some(pos) && view.unit_moves_left(u) > 0)
@@ -70,7 +70,7 @@ fn act(
     }
     // 1. A city next to us.
     let (neighbours, zones, mine, turn) = {
-        let view = PlayerView::new(game, MONSTERS);
+        let view = PlayerView::new(world, MONSTERS);
         (
             crate::military::neighbours(&view, pos),
             view.vacant_zones(),
@@ -80,7 +80,7 @@ fn act(
     };
     for &n in &neighbours {
         let defence = {
-            let view = PlayerView::new(game, MONSTERS);
+            let view = PlayerView::new(world, MONSTERS);
             match (view.city_at(n), view.hostile_at(n)) {
                 (Some(_), Some(defenders)) => {
                     Some((defenders, expected_defence(&view, &HashMap::new(), turn, n)))
@@ -92,7 +92,7 @@ fn act(
             Some((defenders, _)) if defenders.is_empty() => {
                 if ai
                     .send(
-                        game,
+                        world,
                         Command::MoveStack {
                             units: units.clone(),
                             to: n,
@@ -105,8 +105,8 @@ fn act(
                 }
             }
             Some((defenders, theirs)) if mine >= theirs * EDGE => {
-                let band = crate::view::party(&PlayerView::new(game, MONSTERS), &units);
-                strike(ai, game, band, defenders, events);
+                let band = crate::view::party(&PlayerView::new(world, MONSTERS), &units);
+                strike(ai, world, band, defenders, events);
                 return;
             }
             _ => {}
@@ -116,7 +116,7 @@ fn act(
     if let Some(&zone) = neighbours.iter().find(|n| zones.contains(n)) {
         if ai
             .send(
-                game,
+                world,
                 Command::MoveStack {
                     units: units.clone(),
                     to: zone,
@@ -130,7 +130,7 @@ fn act(
     }
     // 3. On the way already.
     {
-        let view = PlayerView::new(game, MONSTERS);
+        let view = PlayerView::new(world, MONSTERS);
         if units.iter().any(|&u| view.unit_has_order(u)) {
             return;
         }
@@ -141,7 +141,7 @@ fn act(
         City(Position),
     }
     let goal = {
-        let view = PlayerView::new(game, MONSTERS);
+        let view = PlayerView::new(world, MONSTERS);
         let mut best: Option<(u32, u8, Position, bool)> = None;
         for &z in &zones {
             if z == pos {
@@ -174,22 +174,22 @@ fn act(
     };
     match goal {
         Some(Goal::Zone(z)) => {
-            ai.order(game, Command::GoTo { units, to: z }, events);
+            ai.order(world, Command::GoTo { units, to: z }, events);
         }
         Some(Goal::City(c)) => {
             // A band that cannot get to the city stays where it is this turn; the reason is kept
             // in the refused-order log.
-            if let Err(why) = march(ai, game, &units, c, events) {
-                ai.note_failure(game, format!("march to {c:?}"), format!("{why:?}"));
+            if let Err(why) = march(ai, world, &units, c, events) {
+                ai.note_failure(world, format!("march to {c:?}"), format!("{why:?}"));
             }
         }
         None => {
             let target = {
-                let view = PlayerView::new(game, MONSTERS);
+                let view = PlayerView::new(world, MONSTERS);
                 best_target(&view, units[0], pos, &[])
             };
             if let Some(to) = target {
-                ai.order(game, Command::GoTo { units, to }, events);
+                ai.order(world, Command::GoTo { units, to }, events);
             }
         }
     }
@@ -205,31 +205,31 @@ mod tests {
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-    fn end_turn(g: &mut Game) {
+    fn end_turn(w: &mut World) {
         // The wizard's soldiers eat: put the citizens on the farms, or they starve at the turn.
-        g.balance_farmers(P0);
-        g.apply(Command::EndTurn);
+        w.balance_farmers(P0);
+        w.apply(Command::EndTurn);
     }
 
     /// The monsters know the land round `p`, as they would after walking there.
-    fn know(g: &mut Game, p: Position) {
-        g.explore(MONSTERS, p, HalfInt::from_int(4));
+    fn know(w: &mut World, p: Position) {
+        w.explore(MONSTERS, p, HalfInt::from_int(4));
     }
 
     #[test]
     fn monsters_next_to_an_empty_city_walk_in_and_wreck_it() {
-        let mut g = game(INLAND_CITY, 8 /* high_men */);
+        let mut w = game(INLAND_CITY, 8 /* high_men */);
         let city = at(INLAND_CITY.0, INLAND_CITY.1);
         spawn(
-            &mut g,
+            &mut w,
             MONSTERS,
             at(INLAND_CITY.0, INLAND_CITY.1 - 1),
             174, /* zombies */
             2,
         );
-        know(&mut g, city);
-        end_turn(&mut g);
-        let (events, _) = roam(&mut g, &[]);
+        know(&mut w, city);
+        end_turn(&mut w);
+        let (events, _) = roam(&mut w, &[]);
         assert!(
             events
                 .iter()
@@ -237,10 +237,10 @@ mod tests {
             "{events:?}"
         );
         // The city is wrecked and gone, or still the wizard's: never the monsters'.
-        let owner = g
+        let owner = w
             .economy()
             .city_at(city)
-            .and_then(|c| g.economy().city_owner(c));
+            .and_then(|c| w.economy().city_owner(c));
         assert!(
             owner.is_none() || owner == Some(P0),
             "monsters never hold a city: {owner:?}"
@@ -249,19 +249,19 @@ mod tests {
 
     #[test]
     fn monsters_that_see_a_defended_city_they_can_beat_attack_it() {
-        let mut g = game(INLAND_CITY, 8 /* high_men */);
+        let mut w = game(INLAND_CITY, 8 /* high_men */);
         let city = at(INLAND_CITY.0, INLAND_CITY.1);
-        spawn(&mut g, P0, city, 104 /* high_men_spearmen */, 1);
+        spawn(&mut w, P0, city, 104 /* high_men_spearmen */, 1);
         spawn(
-            &mut g,
+            &mut w,
             MONSTERS,
             at(INLAND_CITY.0, INLAND_CITY.1 - 1),
             164, /* great_drake */
             3,
         );
-        know(&mut g, city);
-        end_turn(&mut g);
-        let (events, attacks) = roam(&mut g, &[]);
+        know(&mut w, city);
+        end_turn(&mut w);
+        let (events, attacks) = roam(&mut w, &[]);
         assert!(attacks.is_empty(), "no human to hand the fight to");
         assert!(
             events.iter().any(|e| matches!(
@@ -284,38 +284,38 @@ mod tests {
                 .any(|e| matches!(e, Event::CityRampaged { pos, .. } if *pos == city)),
             "the winners wreck the city: {events:?}"
         );
-        assert!(g.units().player_units(P0).is_empty(), "the spearman fell");
+        assert!(w.units().player_units(P0).is_empty(), "the spearman fell");
     }
 
     #[test]
     fn an_attack_on_the_human_is_kept_for_the_host() {
-        let mut g = game(INLAND_CITY, 8 /* high_men */);
+        let mut w = game(INLAND_CITY, 8 /* high_men */);
         let city = at(INLAND_CITY.0, INLAND_CITY.1);
-        spawn(&mut g, P0, city, 104 /* high_men_spearmen */, 1);
+        spawn(&mut w, P0, city, 104 /* high_men_spearmen */, 1);
         spawn(
-            &mut g,
+            &mut w,
             MONSTERS,
             at(INLAND_CITY.0, INLAND_CITY.1 - 1),
             164, /* great_drake */
             3,
         );
-        know(&mut g, city);
-        end_turn(&mut g);
-        let (_, attacks) = roam(&mut g, &[P0]);
+        know(&mut w, city);
+        end_turn(&mut w);
+        let (_, attacks) = roam(&mut w, &[P0]);
         assert_eq!(attacks.len(), 1);
-        assert!(!g.in_battle());
+        assert!(!w.in_battle());
     }
 
     #[test]
     fn monsters_settle_in_a_cleared_node_they_have_seen() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
         let node_at = at(5, 9);
-        let feature = g
+        let feature = w
             .content()
             .features
             .id_numbered(4)
             .ok_or("chaos_node is shipped")?;
-        let site = g.spawn_feature(Placement {
+        let site = w.spawn_feature(Placement {
             at: node_at,
             feature,
             node: None,
@@ -331,10 +331,10 @@ mod tests {
                 hurt: Vec::new(),
             }),
         });
-        spawn(&mut g, MONSTERS, at(5, 8), 174 /* zombies */, 2);
-        know(&mut g, node_at);
-        end_turn(&mut g);
-        let (events, _) = roam(&mut g, &[]);
+        spawn(&mut w, MONSTERS, at(5, 8), 174 /* zombies */, 2);
+        know(&mut w, node_at);
+        end_turn(&mut w);
+        let (events, _) = roam(&mut w, &[]);
         assert!(
             events
                 .iter()
@@ -342,39 +342,39 @@ mod tests {
             "{events:?}"
         );
         assert!(
-            g.economy()
+            w.economy()
                 .lair_of(site)
                 .ok_or("the node has a lair")?
                 .intact
         );
-        assert!(g.units().player_units(MONSTERS).is_empty());
+        assert!(w.units().player_units(MONSTERS).is_empty());
         Ok(())
     }
 
     #[test]
     fn monsters_that_know_nothing_go_scouting() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let units = spawn(&mut g, MONSTERS, at(5, 5), 174 /* zombies */, 2);
-        g.explore(MONSTERS, at(5, 5), HalfInt::from_raw(3));
-        end_turn(&mut g);
-        let (events, _) = roam(&mut g, &[]);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let units = spawn(&mut w, MONSTERS, at(5, 5), 174 /* zombies */, 2);
+        w.explore(MONSTERS, at(5, 5), HalfInt::from_raw(3));
+        end_turn(&mut w);
+        let (events, _) = roam(&mut w, &[]);
         assert!(
             events.iter().any(|e| matches!(e, Event::UnitsMoved { .. })),
             "{events:?}"
         );
-        let view = PlayerView::new(&g, MONSTERS);
+        let view = PlayerView::new(&w, MONSTERS);
         assert_ne!(view.unit_position(units[0]), Some(at(5, 5)));
     }
 
     #[test]
     fn a_stack_too_weak_for_the_city_it_sees_does_not_march_on_it() {
-        let mut g = game(INLAND_CITY, 8 /* high_men */);
+        let mut w = game(INLAND_CITY, 8 /* high_men */);
         let city = at(INLAND_CITY.0, INLAND_CITY.1);
-        spawn(&mut g, P0, city, 113 /* high_men_paladins */, 6);
-        spawn(&mut g, MONSTERS, at(9, 9), 174 /* zombies */, 1);
-        know(&mut g, city);
-        end_turn(&mut g);
-        let (events, _) = roam(&mut g, &[]);
+        spawn(&mut w, P0, city, 113 /* high_men_paladins */, 6);
+        spawn(&mut w, MONSTERS, at(9, 9), 174 /* zombies */, 1);
+        know(&mut w, city);
+        end_turn(&mut w);
+        let (events, _) = roam(&mut w, &[]);
         assert!(!events
             .iter()
             .any(|e| matches!(e, Event::CityRampaged { .. })));

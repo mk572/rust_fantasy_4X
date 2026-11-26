@@ -1,5 +1,5 @@
 //! The settings a game is played with: chosen once when the game is made, saved and loaded with
-//! it, and read by the rules through [`Game::settings`](crate::game::Game::settings)
+//! it, and read by the rules through [`World::settings`](crate::world::World::settings)
 //! (`docs/game-settings.md`). The records and the figures are data in `f4x-def`
 //! (`f4x_def::settings`); here is the code that applies them to a game.
 
@@ -8,7 +8,7 @@ pub use f4x_def::settings::*;
 use crate::player::PlayerId;
 use f4x_def::half_int::HalfInt;
 
-impl crate::game::Game {
+impl crate::world::World {
     /// Copy the settings that the rules read from the content (half upkeep, the arcane spell
     /// cap) into this game's own copy of the content, so a game keeps the choices it was made or
     /// saved with. Called when a game is made and when one is loaded.
@@ -67,7 +67,7 @@ impl crate::game::Game {
     pub fn apply_wizard_settings(&mut self) {
         let ai = self.settings.ai;
         let human = self.human();
-        for (_, (&id, bonus, neutral)) in self.world.query_mut::<(
+        for (_, (&id, bonus, neutral)) in self.ecs.query_mut::<(
             &PlayerId,
             &mut crate::player::Bonus,
             Option<&crate::player::Neutral>,

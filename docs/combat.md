@@ -15,9 +15,9 @@ alive, damage on the front figure, moves, ammunition, flags for flying, first st
 range, the ranged attack kind), so combat needs no access to the world and can be tested, replayed or driven by
 an AI alone.
 
-`Game` links it in (`battle/game.rs`):
+`World` links it in (`battle/world.rs`):
 - `Command::BeginBattle { attackers, defenders }` copies two stacks into a battle
-  (`Game::start_battle`): wounded units start wounded (`Hurt` becomes figures and front damage),
+  (`World::start_battle`): wounded units start wounded (`Hurt` becomes figures and front damage),
   the defenders' square gives the terrain, the sides are deployed on opposite edges.
 - `Command::Battle(BattleCommand)` carries out an order and returns `Event::Battle(..)` events.
 - When a side has no active unit left the results are written back (`finish_battle`): dead
@@ -96,7 +96,7 @@ to roll against each attack (`attack::process_attack`).
 - **A unit's immunities** are its abilities `weapon_immunity`, `magic_immunity`,
   `missile_immunity`, `fire_immunity`, `cold_immunity`, `poison_immunity`, `stoning_immunity`,
   `death_immunity` and `illusion_immunity` (`Immunities::of`). Lasting spells can grant them:
-  a passive `GrantAbility` effect on a spell is read by `Game::unit_abilities` (Magic Immunity
+  a passive `GrantAbility` effect on a spell is read by `World::unit_abilities` (Magic Immunity
   grants `magic_immunity`, Guardian Wind `missile_immunity`).
 - **The defence rolled** (`effective_defense`, the original's `Battle_Unit_Defense_Special`):
   1. An illusion rolls no defence at all (0) unless the defender has illusion immunity.
@@ -106,7 +106,7 @@ to roll against each attack (`attack::process_attack`).
      missile immunity gets 10, not 50, against normal arrows (the original's order, kept).
   4. Magic immunity makes the defence 50 against any non-melee attack that has a realm (spell
      shots and breath).
-- **Magical weapons** (`Game::unit_has_magical_weapon`) ignore weapon immunity: heroes,
+- **Magical weapons** (`World::unit_has_magical_weapon`) ignore weapon immunity: heroes,
   fantastic and summoned creatures, and units with the `magical_weapon` ability (Flame Blade
   and Holy Weapon grant it) and units trained with magic, mithril or adamantium weapons (task 18).
   The original also uses a Chaos or Black Channels race change and Eldritch Weapon.
@@ -125,7 +125,7 @@ to roll against each attack (`attack::process_attack`).
   spell that is hard to resist) is added first. Magic immunity adds 30 against any realm;
   Righteousness +30 and Bless +3 against chaos and death; Elemental Armor +10, or else Resist
   Elements +3, against chaos and nature; Resist Magic +5 against any realm. They are read from
-  the unit's lasting spells by name (`Game::unit_resistance_against`), so Resist Elements and
+  the unit's lasting spells by name (`World::unit_resistance_against`), so Resist Elements and
   Resist Magic have no flat resistance modifier any more.
 - **Spells read by name** (Resist Elements, Elemental Armor, Resist Magic, Spell Lock, Bless, Heroism,
   Righteousness) have no rules of their own; cast in a battle, the unit carries them and the checks above find
@@ -212,7 +212,7 @@ Damage is sorted by what dealt it (`Damage::drained` and `gone`, kept per unit i
 `BattleUnit::damage_kinds`). A unit that dies mostly of life steal, or of the blows and poison of a
 creator of undead (a victim with magic immunity is spared), has fallen `Fate::Drained`: the
 winner takes it after the battle as an undead unit, full strength, unless it was a
-creature of the Death realm or a hero (`raise_drained`, `battle/game.rs`); this holds for a fight at a lair too, and the winner's standing units count against the stack of nine. If the guards or monsters win, the drained attackers are raised for the shared neutral owner `unit::NEUTRAL` and stay on the site as permanent neutral units: the guards made for the fight go, those units do not (`finish_site_battle` removes only the fight's guards), and a later stack that walks in meets them as an enemy stack. What a destruction
+creature of the Death realm or a hero (`raise_drained`, `battle/world.rs`); this holds for a fight at a lair too, and the winner's standing units count against the stack of nine. If the guards or monsters win, the drained attackers are raised for the shared neutral owner `unit::NEUTRAL` and stay on the site as permanent neutral units: the guards made for the fight go, those units do not (`finish_site_battle` removes only the fight's guards), and a later stack that walks in meets them as an enemy stack. What a destruction
 attack or a severing spell (Disintegrate, Dispel Evil, Petrify and the other slaying spells)
 kills is `Fate::Gone`. Animate Dead raises one of the casting wizard's own dead (not a hero,
 not summoned in the battle, not gone) on a free square of their half of the field, undead for
@@ -261,14 +261,14 @@ good.
 | `Move { unit, to }` | Walk to a square in `Battle::reachable`; costs its path. | no moves left, unreachable |
 | `Attack { unit, target }` | Melee exchange with an adjacent enemy (thrown/breath first); ends the unit's moves. | not adjacent, already attacked |
 | `Shoot { unit, target }` | Ranged attack at any distance (`Missile` or `Magic` kind), uses one ammunition. | no ranged attack, out of ammunition, already attacked |
-| `Cast { spell, aim, mana }` | The wizard casts a spell (section 8). Only through `Game::battle_command`: `Battle::apply` needs the rules and refuses. | no wizard, already cast this turn, not known, not a battle spell, not in the game yet, too dear, bad target |
+| `Cast { spell, aim, mana }` | The wizard casts a spell (section 8). Only through `World::battle_command`: `Battle::apply` needs the rules and refuses. | no wizard, already cast this turn, not known, not a battle spell, not in the game yet, too dear, bad target |
 | `Done { unit }` | Gives up the rest of the unit's turn. | not the active side's unit |
 | `EndTurn` | Hands play to the other side; the turn number rises when the attacker is up again. | |
 | `Flee` | All the side's active units leave; the other side wins. | |
 
 Events: `Moved` (with the path), `Attacked` (damage and kills both ways), `Shot`, `UnitDied`,
 `TurnStarted`, `Fled`, `Ended`, and for spells `SpellCast`, `SpellCountered`, `SpellDamaged`,
-`SpellImmune`, `SpellHealed`, `SpellEnchanted`, `SpellDispelled`, `Summoned`, `CounterMagicRaised`. `Game::battle_command` wraps them as `Event::Battle(..)` and,
+`SpellImmune`, `SpellHealed`, `SpellEnchanted`, `SpellDispelled`, `Summoned`, `CounterMagicRaised`. `World::battle_command` wraps them as `Event::Battle(..)` and,
 when the battle ends, adds `Event::BattleEnded` and the results of `finish_battle`. A unit's
 ranged kind comes from its abilities (`ranged_kind_of`): bows, slings and rock throwing are
 `Missile`; thrown weapons and breaths are `Short` (used inside melee, no ammunition); the bolt
@@ -287,7 +287,7 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
 
 - **Start:** the client turns `AttackRequested` and `SiteEncounter` events of the human player
   into `BeginBattle` / `EnterSite` at once (a confirm box is task 133 and 128). Any time
-  `Game::in_battle()` is true the screen shows.
+  `World::in_battle()` is true the screen shows.
 - **Projection:** the original's: a cell is 32 by 16 pixels, a step in x moves (+16, +8) and a
   step in y moves (-16, +8) (`Combat_Grid_Screen_Coordinates`). The core's x is the original's
   mirrored (`x = 20 - cgx`), so a square is drawn where the original draws the mirrored one and
@@ -339,7 +339,7 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
   (`battle_ground.rs`) until a ship picture is used. Summoning onto the sea is not possible.
   **A ship lost** in a fight, or removed or dispelled at any time, leaves its passengers at sea:
   beside free land each scrambles ashore on the fleeing odds (half of the troops, three in four of
-  the heroes make it, `Game::drown_stranded`), anywhere else they drown; fliers, swimmers and
+  the heroes make it, `World::drown_stranded`), anywhere else they drown; fliers, swimmers and
   water walkers never needed a ship. Attacking from a ship follows ReMoM: nothing bars the
   passengers of a ship from attacking a land square, and in the original only a coastal city is
   fought with ships in the stack (they sit out). The nine-unit limit counts passengers as before
@@ -394,7 +394,7 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
 ## 7. City sieges (task 41)
 
 Code: `f4x-battle/src/map.rs` (the city and its walls), `battle/mod.rs` (wall attacks, the defence bonus,
-city damage), `battle/game.rs` (starting a city battle), `city/conquest.rs` (what a fallen city
+city damage), `battle/world.rs` (starting a city battle), `city/conquest.rs` (what a fallen city
 costs). The numbers are the original's (`Generate_Combat_Map`, `Deploy_Battle_Units`,
 `Update_Move_Map_City_Area_Restrictions`, `Battle_Unit_Attack`, `End_Of_Combat`); the field is
 mirrored, so the defenders are at the east. **What the walls and the units do is in `battle.ron`**
@@ -423,7 +423,7 @@ tests read the rules from it and never carry a coordinate, a count or a chance o
   have come inside get none of it.
 - **City damage:** at the start of each turn of the battle every attacking unit inside the city area adds one
   (`Battle::city_damage`): a siege that gets into the city and stays there costs the city more when it falls.
-- **Taking the city** (`Game::conquer_city`, `city/conquest.rs`): an outpost is destroyed; any other city
+- **Taking the city** (`World::conquer_city`, `city/conquest.rs`): an outpost is destroyed; any other city
   changes hands with the loser losing fame equal to its size (1 to 5), the winner gaining the size less
   two, and the winner looting the loser's gold in proportion to the city's share of their citizens.
   The fighting kills each citizen but one with a chance of 10 percent plus twice the city
@@ -436,7 +436,7 @@ tests read the rules from it and never carry a coordinate, a count or a chance o
   decision exists for it yet).
 - **Console:** `battle` lists the walls and the city damage, `bwall <unit> <x,y>` and
   `bshootwall <unit> <x,y>` strike a wall, `bvortex <n> <x,y>` moves a Magic Vortex one square, `raze <city>` razes.
-- **City enchantments** (task 25, `spell/city.rs`; read when the battle starts, `Game::start_battle`):
+- **City enchantments** (task 25, `spell/city.rs`; read when the battle starts, `World::start_battle`):
   - *Wall of Fire* (`Battle::wall_of_fire`): a walker (not a flier, not a teleporter or merger) that steps
     from outside the city area into it, or strikes into it from outside, takes the original's Fireball of
     its base strength 5 (fire, each figure, stopped by fire and magic immunity). Shots are not affected.
@@ -458,7 +458,7 @@ tests read the rules from it and never carry a coordinate, a count or a chance o
 
 The wizard does not stand on the field: each side with a wizard (not the independent cities and
 monsters) has a `BattleCaster` (`battle/casting.rs`) and casts through `BattleCommand::Cast`,
-which `Game::battle_command` carries out (`battle/spells.rs`) because it needs the spell rules.
+which `World::battle_command` carries out (`battle/spells.rs`) because it needs the spell rules.
 It follows the original's `Combat_Cast_Spell` and `Combat_Cast_Apply_Spell_Effect`.
 
 - **Skill and mana.** The wizard has their whole casting skill to spend over the battle (none
@@ -472,7 +472,7 @@ It follows the original's `Combat_Cast_Spell` and `Combat_Cast_Apply_Spell_Effec
   reserve is paid at once (the game's `mana` goes down as the spell is cast).
 - **Once a turn.** One spell for each turn of the wizard's side, whatever it did.
 - **Which spells.** The ones the wizard knows with a `Battle` context whose effects are in the
-  game (`Game::battle_spells`): bolts and other damage (`Effect::Damage`), `Heal`, `Summon`,
+  game (`World::battle_spells`): bolts and other damage (`Effect::Damage`), `Heal`, `Summon`,
   `Dispel`, Counter Magic and the lasting spells on one unit that only change numbers (Giant
   Strength, Stone Skin, Iron Skin, Flame Blade, Holy Weapon, Holy Armor, Lionheart, Haste, ...). The
   rest wait for their effects (task 159); they are not offered and `Cast` refuses them.
@@ -519,7 +519,7 @@ It follows the original's `Combat_Cast_Spell` and `Combat_Cast_Apply_Spell_Effec
   (`mana_used`), ammunition (`ammo_used`). Level, Crusade, Warlord, Heroism, Holy Arms and the
   rest of what a global enchantment gives are read from `f4x-def` when asked, as overland; the
   game hands over nothing that has them baked in. A cast adds an entry, a **dispel**
-  (`Game::dispel_battle_unit`) removes entries (`Battle::rebuild_unit`), and nothing is ever
+  (`World::dispel_battle_unit`) removes entries (`Battle::rebuild_unit`), and nothing is ever
   subtracted. A dispel works on the spells cast in the battle and on the lasting spells of the
   overland unit the fighter was copied from (those *are* taken off the overland unit), only those
   cast by another wizard; the sheet is re-read from the overland unit if that changed. Life
@@ -548,7 +548,7 @@ A battle unit casts on its own with `BattleCommand::UnitCast` (`battle/spells/un
 using the wizard's skill or reserve, and not the wizard's one cast a turn:
 
 - a **hero** casts its four innate spells for the spell's plain cost in its own mana
-  (`Game::hero_mana`), and the spell of an **item** for one charge, from any slot; the charges left
+  (`World::hero_mana`), and the spell of an **item** for one charge, from any slot; the charges left
   are written back to the item after the battle;
 - a **creature caster** (`spellcaster` 20 mana, `spellcaster_major` 40) casts the spells of its realm;
 - a unit with `casts_doom_bolt`, `casts_fireball`, `casts_healing` or `casts_web` casts that spell
@@ -558,7 +558,7 @@ using the wizard's skill or reserve, and not the wizard's one cast a turn:
 - a cast uses up the unit's turn; the items' spell save makes the resistance checks of the unit's
   spell harder; extra mana makes a bolt or a Life Drain stronger, up to the unit's mana.
 
-`Game::battle_unit_spells(unit)` lists them, `legal_unit_casts()` the legal casts for the AI and the
+`World::battle_unit_spells(unit)` lists them, `legal_unit_casts()` the legal casts for the AI and the
 console (`uspells`, `ucast`, `blegal`). Spells of the other kinds added with it: Earth to Mud (a 5 by 5
 area of open ground; walkers pay 6 moves to enter, fliers and the bodiless do not), Cracks Call
 (one square: a walker or crawler there is destroyed one time in four, a wall on it falls), Disrupt
@@ -615,7 +615,7 @@ Console: `battle` lists the field enchantments' effects through the units' numbe
 are described. The client's panel names the enchantments over the field.
 
 Dispel Magic (and True) also tries each battlefield enchantment of the caster's enemy
-(`Game::dispel_battle_fields`; task 161), at the spell's difficulty with the masteries of its caster.
+(`World::dispel_battle_fields`; task 161), at the spell's difficulty with the masteries of its caster.
 Counter Magic cannot be dispelled, and the dispel still aims at a unit.
 
 **Not here** (task 159): Disenchant Area and True in battle, the node auras and counter, Wall of Stone in battle (tasks 158 and 163),

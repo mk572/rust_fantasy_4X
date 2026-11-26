@@ -9,7 +9,7 @@
 //!
 //! Where the original is wrong this follows its evident intent: any item's spell can be cast
 //! (the original reads only the first slot, bug H22) and the charges stay on the item after the
-//! battle (`f4x-core`'s `battle/game.rs` writes them back).
+//! battle (`f4x-core`'s `battle/world.rs` writes them back).
 //!
 //! What is left to the game (`f4x-core`'s `battle/spell/unit_cast.rs`): the enemy's Counter Magic
 //! and the node, the wizard's retorts, and the effect of the spell on the world. Evil Omens is a

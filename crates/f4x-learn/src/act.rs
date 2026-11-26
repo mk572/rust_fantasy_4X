@@ -9,7 +9,7 @@
 //!   something to decide: cast nothing, flee, or a spell, then its aim and its mana.
 //!
 //! Every choice is masked by what [`f4x_core::battle::Battle::legal_commands`] and
-//! [`f4x_core::game::Game::legal_battle_casts`] allow, so the agent cannot give a refused order.
+//! [`f4x_core::world::World::legal_battle_casts`] allow, so the agent cannot give a refused order.
 
 use f4x_core::battle::map::{GRID_H, GRID_W};
 use f4x_core::battle::{BattleCommand, SpellAim};

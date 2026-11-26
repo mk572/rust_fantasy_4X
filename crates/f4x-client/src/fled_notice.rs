@@ -52,8 +52,8 @@ mod tests {
     use super::*;
     use crate::modal::kind;
     use crate::view::HUMAN;
-    use f4x_core::game::Event;
     use f4x_core::player::PlayerId;
+    use f4x_core::world::Event;
 
     fn lost(player: PlayerId, units: u32) -> Vec<Event> {
         vec![Event::UnitsLostFleeing { player, units }]

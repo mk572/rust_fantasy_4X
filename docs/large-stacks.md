@@ -17,7 +17,7 @@ What is checked and what is not is marked. Where a line says "to check", I have 
 | `unit/transport.rs` | to check: boarding and landing |
 | `city/neutral.rs` | the garrison of a neutral city (`population / 4`, at most nine) |
 | `feature/lair.rs` | the defenders of a lair |
-| `battle/game.rs` | how many raised dead a winner can keep (`room = MAX_STACK - standing units`) |
+| `battle/world.rs` | how many raised dead a winner can keep (`room = MAX_STACK - standing units`) |
 | `battle/casting.rs` | `MAX_SIDE_UNITS = 9`, a **second copy** of the same number: summons, Possession, Creature Binding, Raise Dead, Animate Dead |
 | `f4x-ai` `military.rs`, `naval.rs` | gathering in chunks of nine, boat loads of two to five |
 
@@ -48,7 +48,7 @@ To check (not looked at):
 ### 3.1 One number
 
 `max_stack` lives in `GameSettings::rules` (see the settings doc) and is read through
-`Game::max_stack()`. `MAX_STACK` and `MAX_SIDE_UNITS` both go away; the battle's per-side limit is
+`World::max_stack()`. `MAX_STACK` and `MAX_SIDE_UNITS` both go away; the battle's per-side limit is
 the same number. A test fails the build if either constant is added back (a `grep` in the test).
 
 ### 3.2 A hard ceiling
@@ -115,7 +115,7 @@ battle deployment's own bound; more would need a fourth column.
 
 ## 5. Order of work
 
-1. Replace both constants with `Game::max_stack()` at limits up to nine (stage 3 of the settings).
+1. Replace both constants with `World::max_stack()` at limits up to nine (stage 3 of the settings).
 2. Make battle deployment and the city layout general, with the overlap tests.
 3. The client panels, with screenshots.
 4. The AI's tables, then the learning AI's inputs, then the tested limits are raised one at a time.

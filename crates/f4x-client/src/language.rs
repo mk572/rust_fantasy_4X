@@ -81,7 +81,7 @@ impl App {
     ) -> Result<(), String> {
         let texts = load_texts(lang_layers, code)?;
         let names = Names::load(lang_layers, code)?;
-        let problems = names.problems(self.game.content());
+        let problems = names.problems(self.world.content());
         if !problems.is_empty() {
             return Err(problems.join("; "));
         }
@@ -301,7 +301,7 @@ mod tests {
         // A made item's name takes the power in its own form: "Schwert der Flammen".
         let made = |suffix| {
             let mut item =
-                f4x_core::item::Item::from_def(&app.game.content().rules.items.defs()[0]);
+                f4x_core::item::Item::from_def(&app.world.content().rules.items.defs()[0]);
             item.name.clear();
             item.prefab = None;
             item.made = Some(f4x_core::item::crafting::MadeName {
@@ -312,7 +312,7 @@ mod tests {
             app.names.item_name(&item, app.texts())
         };
         let flaming = app
-            .game
+            .world
             .content()
             .rules
             .item_powers

@@ -17,8 +17,8 @@ use crate::text::Args;
 use crate::ui;
 use f4x_ai::relation_level;
 use f4x_core::diplomacy::{Goods, ProposalKind, Stage, Treaty};
-use f4x_core::game::{Command, Event};
 use f4x_core::player::PlayerId;
+use f4x_core::world::{Command, Event};
 use f4x_def::rules::{RealmId, SpellId};
 use macroquad::prelude::*;
 
@@ -137,7 +137,7 @@ fn ok_trade(app: &App, with: PlayerId, draft: Draft) -> bool {
         give: draft.give,
         get: draft.ask,
     };
-    app.game.check_proposal(HUMAN, with, kind).is_ok()
+    app.world.check_proposal(HUMAN, with, kind).is_ok()
 }
 
 fn row(label: impl Into<String>, enabled: bool, act: Act) -> Row {
@@ -224,22 +224,22 @@ impl App {
 
     /// The start of a talk with `with`, who opens it (the greeting the first time).
     fn start_talk(&mut self, with: PlayerId) -> Option<DiploUi> {
-        if !self.game.have_met(HUMAN, with) {
+        if !self.world.have_met(HUMAN, with) {
             return None;
         }
-        if self.game.wizard(HUMAN).is_some_and(|w| w.is_banished()) {
+        if self.world.wizard(HUMAN).is_some_and(|w| w.is_banished()) {
             self.log.push(self.text("log.banished_diplomacy"));
             return None;
         }
         let level = relation_level(self.feeling(with));
         let first = self
-            .game
+            .world
             .diplomacy
             .stance(HUMAN, with)
             .is_some_and(|s| s.stage == Stage::Greeted);
-        let salt = (self.game.turn as usize).wrapping_add(usize::from(with.0));
+        let salt = (self.world.turn as usize).wrapping_add(usize::from(with.0));
         let personality = self
-            .game
+            .world
             .wizard(with)
             .map(|w| w.personality())
             .unwrap_or_default();
@@ -257,7 +257,7 @@ impl App {
             } else {
                 Mood::Neutral
             };
-            self.game.apply(Command::Diplomacy(
+            self.world.apply(Command::Diplomacy(
                 f4x_core::diplomacy::DiplomacyCommand::Greeted {
                     player: HUMAN,
                     with,
@@ -278,13 +278,13 @@ impl App {
 
     /// The screen as a screenshot shows it (`--talk MENU`): a wizard met, a relation, a menu.
     pub fn open_test_talk(&mut self, menu: &str, relation: i32) {
-        let Some(with) = self.game.wizards().into_iter().find(|&w| w != HUMAN) else {
+        let Some(with) = self.world.wizards().into_iter().find(|&w| w != HUMAN) else {
             return;
         };
-        self.game.make_contact(HUMAN, with);
+        self.world.make_contact(HUMAN, with);
         self.diplomats
-            .set_feeling(&self.game, with, HUMAN, relation);
-        self.game.drain_diplomacy_events();
+            .set_feeling(&self.world, with, HUMAN, relation);
+        self.world.drain_diplomacy_events();
         let Some(mut ui) = self.start_talk(with) else {
             return;
         };
@@ -314,7 +314,7 @@ impl App {
 
     /// A wizard that hates you beyond reason will not see you (`Diplomats::refuses_audience`).
     fn audience_refused(&self, with: PlayerId) -> bool {
-        self.diplomats.refuses_audience(&self.game, with, HUMAN)
+        self.diplomats.refuses_audience(&self.world, with, HUMAN)
     }
 
     pub(crate) fn diplo_name(&self, p: PlayerId) -> String {
@@ -325,11 +325,11 @@ impl App {
     /// {race}" with the race in the plural ("Independent Barbarians"). None for the monsters and for a
     /// player the game does not have.
     pub(crate) fn player_name(&self, p: PlayerId) -> Option<String> {
-        if let Some(w) = self.game.wizard(p) {
+        if let Some(w) = self.world.wizard(p) {
             return Some(w.name());
         }
-        let race = self.game.race_of_player(p)?;
-        let num = self.game.content().rules.races.get(race).num;
+        let race = self.world.race_of_player(p)?;
+        let num = self.world.content().rules.races.get(race).num;
         Some(self.text_with(
             "diplomacy.neutral_name",
             &Args::new().term("race", self.names.race_plural_term(num)),
@@ -338,10 +338,10 @@ impl App {
 
     /// The wizards another proposal can be about: met by both of us.
     fn third_wizards(&self, with: PlayerId, war: bool) -> Vec<PlayerId> {
-        self.game
+        self.world
             .player_ids()
             .into_iter()
-            .filter(|&t| self.game.takes_part_in_diplomacy(t))
+            .filter(|&t| self.world.takes_part_in_diplomacy(t))
             .filter(|&t| t != HUMAN && t != with)
             .filter(|&t| {
                 let kind = if war {
@@ -349,17 +349,17 @@ impl App {
                 } else {
                     ProposalKind::BreakAllianceWith(t)
                 };
-                self.game.check_proposal(HUMAN, with, kind).is_ok()
+                self.world.check_proposal(HUMAN, with, kind).is_ok()
             })
             .collect()
     }
 
     /// Spells `a` knows and `b` lacks, the more valuable first.
     fn spells_to_give(&self, a: PlayerId, b: PlayerId) -> Vec<SpellId> {
-        let (Some(ma), Some(mb)) = (self.game.wizard(a), self.game.wizard(b)) else {
+        let (Some(ma), Some(mb)) = (self.world.wizard(a), self.world.wizard(b)) else {
             return Vec::new();
         };
-        let spells = &self.game.content().rules.spells;
+        let spells = &self.world.content().rules.spells;
         let mut out: Vec<SpellId> = ma
             .known()
             .iter()
@@ -372,7 +372,7 @@ impl App {
 
     /// The realms (indexes into the rules' realm list) with a spell `with` could give.
     fn exchange_realms(&self, with: PlayerId) -> Vec<usize> {
-        let rules = &self.game.content().rules;
+        let rules = &self.world.content().rules;
         let spells = self.spells_to_give(with, HUMAN);
         rules
             .realms
@@ -475,7 +475,7 @@ impl App {
             D::SpellGiven { from, to, spell } if to == HUMAN && from != HUMAN => {
                 let name_term = self
                     .names
-                    .spell_term(self.game.content().rules.spells.get(spell).num);
+                    .spell_term(self.world.content().rules.spells.get(spell).num);
                 Some(
                     self.text_with(
                         "diplomacy.gives_spell",
@@ -502,14 +502,14 @@ impl DiploUi {
     /// The rows of the menu now, and the prompt over them.
     fn diplo_rows(&self, app: &App) -> (String, Vec<Row>) {
         let with = self.with;
-        let status = app.game.treaty(HUMAN, with);
-        let ok = |kind| app.game.check_proposal(HUMAN, with, kind).is_ok();
+        let status = app.world.treaty(HUMAN, with);
+        let ok = |kind| app.world.check_proposal(HUMAN, with, kind).is_ok();
         let forget = || row(app.text("diplomacy.forget_it"), true, Act::Back);
         match self.menu {
             Menu::Main => {
                 let war = status == Treaty::War;
                 let gold = app
-                    .game
+                    .world
                     .player(HUMAN)
                     .map_or(0, |p| p.treasury().gold.floor());
                 let mut rows = vec![
@@ -547,7 +547,7 @@ impl DiploUi {
                     );
                 }
                 // A neutral player has no spells to trade (task 522).
-                if app.game.race_of_player(with).is_some() {
+                if app.world.race_of_player(with).is_some() {
                     rows.retain(|r| !matches!(r.act, Act::Go(Menu::ExchangeRealm)));
                 }
                 (say::menu_prompt(app.texts()), rows)
@@ -630,7 +630,7 @@ impl DiploUi {
             }
             Menu::Tribute => {
                 let gold = app
-                    .game
+                    .world
                     .player(HUMAN)
                     .map_or(0, |p| p.treasury().gold.floor());
                 let cap = gold / 25 * 25;
@@ -668,7 +668,7 @@ impl DiploUi {
                     .map(|s| {
                         let name = app
                             .names
-                            .spell(app.game.content().rules.spells.get(s).num)
+                            .spell(app.world.content().rules.spells.get(s).num)
                             .to_string();
                         row(name, true, Act::GiveSpell(s))
                     })
@@ -686,7 +686,7 @@ impl DiploUi {
                     .map(|i| {
                         let name = app
                             .names
-                            .realm(app.game.content().rules.realms.defs()[i].num)
+                            .realm(app.world.content().rules.realms.defs()[i].num)
                             .to_string();
                         row(name, true, Act::Go(Menu::ExchangeGet(i)))
                     })
@@ -695,7 +695,7 @@ impl DiploUi {
                 (say::exchange_prompt(app.texts()), rows)
             }
             Menu::ExchangeGet(realm) => {
-                let rules = &app.game.content().rules;
+                let rules = &app.world.content().rules;
                 let id = RealmId::new(rules.realms.defs()[realm].num);
                 let mut rows: Vec<Row> = app
                     .spells_to_give(with, HUMAN)
@@ -714,7 +714,7 @@ impl DiploUi {
                 (say::exchange_prompt(app.texts()), rows)
             }
             Menu::ExchangeGive(get) => {
-                let rules = &app.game.content().rules;
+                let rules = &app.world.content().rules;
                 let mut rows: Vec<Row> = app
                     .spells_to_give(HUMAN, with)
                     .into_iter()
@@ -769,7 +769,7 @@ impl DiploUi {
                     Side::Ask => (with, HUMAN),
                 };
                 // A neutral race has no spells, no vault and no heroes to trade.
-                let neutral = app.game.race_of_player(with).is_some();
+                let neutral = app.world.race_of_player(with).is_some();
                 let mut rows: Vec<Row> = Cat::ALL
                     .into_iter()
                     .map(|cat| {
@@ -800,7 +800,7 @@ impl DiploUi {
                 };
                 let mut rows: Vec<Row> = if cat == Cat::Gold {
                     let gold = app
-                        .game
+                        .world
                         .player(owner)
                         .map_or(0, |p| p.treasury().gold.floor());
                     app.gold_steps()
@@ -850,11 +850,11 @@ impl DiploUi {
                 );
                 let open = give.is_empty() || get.is_empty();
                 let can_counter =
-                    p.round + 1 < app.game.content().rules.config.diplomacy.max_rounds;
+                    p.round + 1 < app.world.content().rules.config.diplomacy.max_rounds;
                 let rows = vec![
                     row(
                         app.text("diplomacy.counter_accept"),
-                        !open && app.game.check_proposal(p.from, HUMAN, p.kind).is_ok(),
+                        !open && app.world.check_proposal(p.from, HUMAN, p.kind).is_ok(),
                         Act::AnswerTrade(true),
                     ),
                     row(
@@ -876,7 +876,7 @@ impl DiploUi {
 
     /// The trade the wizard has put to the human and that waits for an answer.
     fn waiting_trade(&self, app: &App) -> Option<f4x_core::diplomacy::Proposal> {
-        f4x_core::player::view::PlayerView::new(&app.game, HUMAN)
+        f4x_core::player::view::PlayerView::new(&app.world, HUMAN)
             .proposals_to_me()
             .into_iter()
             .find(|p| p.from == self.with && matches!(p.kind, ProposalKind::Trade { .. }))
@@ -899,7 +899,7 @@ impl DiploUi {
     /// Put a proposal, or answer the wizard's trade with one (`counter`), and show the answer.
     fn diplo_send(&mut self, app: &mut App, kind: ProposalKind, counter: bool) {
         let with = self.with;
-        let salt = app.game.turn as usize + usize::from(with.0);
+        let salt = app.world.turn as usize + usize::from(with.0);
         let level = relation_level(app.feeling(with));
         let command = if counter {
             f4x_core::diplomacy::DiplomacyCommand::Counter {
@@ -914,7 +914,7 @@ impl DiploUi {
                 kind,
             }
         };
-        let mut events = app.game.apply(Command::Diplomacy(command));
+        let mut events = app.world.apply(Command::Diplomacy(command));
         if events.iter().any(|e| matches!(e, Event::Rejected(_))) {
             app.note(events);
             let said = say::refused(app.texts(), kind, level, salt);
@@ -922,7 +922,7 @@ impl DiploUi {
             return;
         }
         events.extend(f4x_ai::answer_proposals(
-            &mut app.game,
+            &mut app.world,
             with,
             &app.diplomats,
         ));
@@ -953,7 +953,7 @@ impl DiploUi {
                 self.diplo_say(said, Mood::Good, false)
             }
             Some((false, false)) if kind == ProposalKind::Threat => {
-                let at_war = app.game.treaty(HUMAN, with) == Treaty::War;
+                let at_war = app.world.treaty(HUMAN, with) == Treaty::War;
                 let key = if at_war {
                     "diplomacy.threat_war"
                 } else {
@@ -973,7 +973,7 @@ impl DiploUi {
 
     fn diplo_act(&mut self, app: &mut App, act: Act) {
         let with = self.with;
-        let salt = app.game.turn as usize + usize::from(with.0);
+        let salt = app.world.turn as usize + usize::from(with.0);
         match act {
             Act::Nothing => {}
             Act::Go(menu) => {
@@ -991,7 +991,7 @@ impl DiploUi {
             }
             Act::Propose(kind) => self.diplo_propose(app, kind),
             Act::Break => {
-                let events = app.game.apply(Command::Diplomacy(
+                let events = app.world.apply(Command::Diplomacy(
                     f4x_core::diplomacy::DiplomacyCommand::BreakTreaty {
                         player: HUMAN,
                         with,
@@ -1001,7 +1001,7 @@ impl DiploUi {
                 self.diplo_say(say::treaty_broken(app.texts()), Mood::Bad, false);
             }
             Act::Gold(amount) => {
-                let events = app.game.apply(Command::Diplomacy(
+                let events = app.world.apply(Command::Diplomacy(
                     f4x_core::diplomacy::DiplomacyCommand::GiveGold {
                         from: HUMAN,
                         to: with,
@@ -1016,7 +1016,7 @@ impl DiploUi {
                 }
             }
             Act::GiveSpell(spell) => {
-                let events = app.game.apply(Command::Diplomacy(
+                let events = app.world.apply(Command::Diplomacy(
                     f4x_core::diplomacy::DiplomacyCommand::GiveSpell {
                         from: HUMAN,
                         to: with,
@@ -1081,7 +1081,7 @@ impl DiploUi {
                 let Some(p) = self.waiting_trade(app) else {
                     return;
                 };
-                let events = app.game.apply(Command::Diplomacy(
+                let events = app.world.apply(Command::Diplomacy(
                     f4x_core::diplomacy::DiplomacyCommand::Answer {
                         player: HUMAN,
                         from: with,
@@ -1111,7 +1111,7 @@ impl Page for DiploUi {
 
     fn frame(&mut self, app: &mut App, input: &Input) {
         let with = self.with;
-        if !app.game.have_met(HUMAN, with) {
+        if !app.world.have_met(HUMAN, with) {
             self.leave(app);
             return;
         }
@@ -1119,14 +1119,14 @@ impl Page for DiploUi {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let level = relation_level(app.feeling(with));
-        let slot = app.game.wizard(with).map_or(0, |w| w.portrait());
+        let slot = app.world.wizard(with).map_or(0, |w| w.portrait());
         let pictures = app.art.wizard(slot);
 
         // The room, the wizard, the mirror's frame over him, and the gargoyles' eyes.
         app.draw_pic(&lay, "diplomac", 0, 0, 0.0, 0.0);
         let talking = get_time() - self.talk_since;
         let frame = (talking / TALK_FRAME) as usize;
-        if let Some(race) = app.game.race_of_player(with) {
+        if let Some(race) = app.world.race_of_player(with) {
             // A neutral player has no wizard to move its lips or show a mood: its race's picture
             // (`neutral_art.rs`) stays in the mirror.
             app.draw_neutral(
@@ -1201,7 +1201,7 @@ impl Page for DiploUi {
             if click || input.key_pressed(KeyCode::Space) || input.key_pressed(KeyCode::Enter) {
                 if self.menu == Menu::Greeting {
                     if app.audience_refused(with) {
-                        let salt = app.game.turn as usize;
+                        let salt = app.world.turn as usize;
                         let said = say::cold_shoulder(app.texts(), salt);
                         self.diplo_say(said, Mood::Bad, true);
                     } else {
@@ -1298,7 +1298,7 @@ mod tests {
     /// ones the human's books allow.
     fn app_with_books() -> App {
         let mut app = App::for_test();
-        let mut human = app.game.wizard_mut(HUMAN).expect("a human wizard");
+        let mut human = app.world.wizard_mut(HUMAN).expect("a human wizard");
         for &realm in f4x_core::rules::BOOK_REALMS {
             let books = &mut human.get_mut::<f4x_core::wizard::sheet::Books>().0;
             let n = books.entry(realm).or_insert(0);
@@ -1315,14 +1315,14 @@ mod tests {
             !offered.is_empty(),
             "the rival starts with spells the human lacks"
         );
-        let human = app.game.wizard(HUMAN).ok_or("no human wizard")?;
+        let human = app.world.wizard(HUMAN).ok_or("no human wizard")?;
         assert!(offered.iter().all(|&s| !human.knows(s)));
-        let spells = &app.game.content().rules.spells;
+        let spells = &app.world.content().rules.spells;
         assert!(offered
             .windows(2)
             .all(|w| spells.get(w[0]).research_cost >= spells.get(w[1]).research_cost));
         let first = offered[0];
-        assert!(app.game.cheat_learn_spell(HUMAN, first));
+        assert!(app.world.cheat_learn_spell(HUMAN, first));
         assert!(!app.spells_to_give(RIVAL, HUMAN).contains(&first));
         Ok(())
     }
@@ -1330,7 +1330,7 @@ mod tests {
     #[test]
     fn the_exchange_menu_lists_the_realms_the_wizard_has_a_spell_in() {
         let app = app_with_books();
-        let rules = &app.game.content().rules;
+        let rules = &app.world.content().rules;
         let spells = app.spells_to_give(RIVAL, HUMAN);
         let realms = app.exchange_realms(RIVAL);
         assert!(!realms.is_empty());

@@ -11,7 +11,7 @@ notes under `~/projects/ReMoM/doc/@CodeReview/` (`CONQUEST-Resolve_Wizard_Conque
 | Way | When | Winner |
 |---|---|---|
 | **Conquest** | A wizard is defeated (their last city taken) and only one wizard is left. | the last one standing |
-| **Human defeated** | The human wizard (`Game::human`) is defeated, even if several rivals remain. | whoever took the last city |
+| **Human defeated** | The human wizard (`World::human`) is defeated, even if several rivals remain. | whoever took the last city |
 | **Spell of Mastery** | A wizard finishes casting it. | the caster |
 
 The original (`Resolve_Wizard_Conquest`): when a wizard loses their last city, or is banished and
@@ -26,12 +26,12 @@ until they too have lost every city.
 
 ## 2. What the engine does
 
-- `Game::game_over: Option<GameOver { winner, kind, turn }>`, saved with the game (as is
-  `Game::human`, which the client sets; saves from before it load with the human unset and the
+- `World::game_over: Option<GameOver { winner, kind, turn }>`, saved with the game (as is
+  `World::human`, which the client sets; saves from before it load with the human unset and the
   client fills it in).
 - `Event::GameOver { winner, kind, turn }` is emitted once, at the moment of the winning
   event, inside the same event list (so `WizardDefeated` comes first).
-- **Afterwards every command is refused** with `Rejection::GameOver` (`Game::apply`). The game
+- **Afterwards every command is refused** with `Rejection::GameOver` (`World::apply`). The game
   can still be saved and looked at.
 - The Spell of Mastery is a custom spell hook (`spell_of_mastery`, set by the importer for the
   spell of that name). It is cast like any overland spell, over as many turns as its cost needs
@@ -55,7 +55,7 @@ until they too have lost every city.
 ## 4. The score
 
 The original scores only the human wizard, at the end of the game (`End_Of_Game_Score_Draw`).
-`Game::score(player)` gives the same breakdown for anyone:
+`World::score(player)` gives the same breakdown for anyone:
 
 | Part | Points |
 |---|---|
@@ -75,7 +75,7 @@ the game over screen shows the scale. The original draws a bar of `min(score / 4
 
 ## 5. The client
 
-`Screen::GameOver` opens when `Game::game_over` is set (after any battle on screen ends). It
+`Screen::GameOver` opens when `World::game_over` is set (after any battle on screen ends). It
 shows the headline (victory or defeat and why), the turn and the human's score breakdown, and
 offers *New game*, *Look at the map* (the map stays visible; commands are refused) and *Quit*.
 

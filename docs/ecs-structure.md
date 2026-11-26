@@ -30,11 +30,11 @@ behaviour that depends on slot order.
 ## 2. This project's model
 
 ```
-Game                                   (game/mod.rs; the owner and the orchestrator)
-├── world: hecs::World                 every kind of thing that has an identity: units (heroes are units with a
+World                                  (world/mod.rs; the owner and the orchestrator)
+├── ecs: hecs::World                   every kind of thing that has an identity: units (heroes are units with a
 │                                      `Hero`), cities, players, wizards, terrain features, spell instances,
 │                                      items (section 3)
-├── player_index: HashMap              `PlayerId` to the player's `Entity` (`Game::player_entity`)
+├── player_index: HashMap              `PlayerId` to the player's `Entity` (`World::player_entity`)
 ├── monsters: Entity                   the monsters' neutral player (`MONSTERS`), in no player list
 ├── map: Option<Map>                   the dense grids of two planes (docs/map-layers.md) and the index from a square
 │                                      to its feature entity; the tiles are not entities
@@ -46,20 +46,22 @@ Game                                   (game/mod.rs; the owner and the orchestra
 ├── battle: Option<ActiveBattle>       the fight in progress: a `Battle` plus the overland units it
 │                                      was copied from (battle/); saved with the
 │                                      world (`Snapshot.battle`, battle/save.rs)
-├── rng: GameRng                       the one source of randomness, with its draw count (game/rng.rs)
-├── turn, settings                     the turn counter and the game's settings (`game/setting.rs`)
+├── rng: GameRng                       the one source of randomness, with its draw count (world/rng.rs)
+├── turn, settings                     the turn counter and the game's settings (`world/setting.rs`)
 ├── human: Option<PlayerId>            the human wizard
 ├── game_over: Option<GameOver>        set once the game has ended; every later command is refused
 ├── next_serial                        the counter behind `Serial` (section 5)
 ├── events, item_awards                random events going on; items that fell to wizards from slain heroes
 ├── override_log                       the console's override (cheat) commands that changed the game, saved; a game with entries is `cheated` and does not enter the Hall of Fame
 ├── battle_brains                      the learned players of battles
-└── undo_stack                         snapshots for undoing a command (game/undo.rs)
+└── undo_stack                         snapshots for undoing a command (world/undo.rs)
 ```
+
+In the code `World` is the game's world (the map and everything on it), `ecs` is its entity store and `hecs::World` is always written in full.
 
 Section 3 is the design of the entities; section 3.9 is the save.
 
-`Game::apply(Command) -> Vec<Event>` is the only way state changes. Commands name
+`World::apply(Command) -> Vec<Event>` is the only way state changes. Commands name
 entities by `hecs::Entity`; events report what happened. The client, the AI and tests all
 use the same entry point.
 
@@ -69,65 +71,65 @@ use the same entry point.
    (units, cities). State that changes during play lives here.
 2. **Definitions**: static content loaded once into registries (`Registry<UnitDef>` and so
    on). Never mutated at runtime. An entity points at its definition with a typed id.
-3. **Resources owned by `Game`**: things that are numerous, dense or global (the map
+3. **Resources owned by `World`**: things that are numerous, dense or global (the map
    grids, fog, the RNG). They are plain fields, not entities.
 
 The rule of thumb: if it has an identity that other things refer to and a varied set of
 attributes, it is an entity; if it is addressed by coordinates or is one per player, it is
-a field of `Game`. A player is one per player and still an entity, because other things point at it.
+a field of `World`. A player is one per player and still an entity, because other things point at it.
 
 ### Who may read and change what
 
-The fields of `Game` (`world`, `map`, `fog`, `content`, `player_index`) are private to `f4x-core`. The
-other crates ask the game through its queries (`units()`, `economy()`, the handles `player(id)` and `wizard(id)`, and `game/access.rs`:
+The fields of `World` (`ecs`, `map`, `fog`, `content`, `player_index`) are private to `f4x-core`. The
+other crates ask the game through its queries (`units()`, `economy()`, the handles `player(id)` and `wizard(id)`, and `world/access.rs`:
 `content()`, `map()`, `player_ids()`, `is_explored`, `city_buildings`...), play through
-`Game::apply`, and set a game up by hand (tests, scenarios, tools) through the setters of
-`game/access.rs` and the `cheat_*` mutators of `game/cheat.rs`, which the console's override commands, debug screens and tests use. An AI wizard reads through a `PlayerView` (`player/view.rs`): its own things, the cities of
+`World::apply`, and set a game up by hand (tests, scenarios, tools) through the setters of
+`world/access.rs` and the `cheat_*` mutators of `world/cheat.rs`, which the console's override commands, debug screens and tests use. An AI wizard reads through a `PlayerView` (`player/view.rs`): its own things, the cities of
 others on squares it has explored and the units on squares it sees, so it cannot know more than a
 human player. Tests of other crates may read a component with the hidden
-`Game::component::<T>`.
+`World::component::<T>`.
 
 ### Domains: how the code is organised
 
 A **domain** is a part of the rules with state of its own and rules that mostly concern that
 state: diplomacy, a wizard's magic, the battle engine, the map and fog, the modifier engine.
-`Game` owns the state and orchestrates; it does not hold the rules. The base rule is in
+`World` owns the state and orchestrates; it does not hold the rules. The base rule is in
 [`design.md`](design.md) section 3, the audit and the plan are in
 [`architecture-plan.md`](archive/architecture-plan.md). In short:
 
 1. **A new rule goes on the domain it belongs to**, as a method of that domain's struct or a
-   function over the pieces it needs, not as another `impl Game` method. `Game` only gets
+   function over the pieces it needs, not as another `impl World` method. `World` only gets
    orchestration: routing a `Command`, building the arguments, applying what comes back.
 2. **A domain's fields are private to its module.** Other modules call its methods; they do
    not reach into its fields. (`Diplomacy` is private in this sense; the wizard's rules are
    methods of the wizard handles in `wizard/sheet.rs`, over components of the wizard entity.)
-3. **A domain takes what it needs, not `&mut Game`.** Its methods take `&Content`, `&mut GameRng`
+3. **A domain takes what it needs, not `&mut World`.** Its methods take `&Content`, `&mut GameRng`
    or numbers the game worked out, or a context value (`DiplomacyCtx`).
-4. **The rest of the world is asked of a read-only `&Game`**: its handles (`player`, `wizard`) and a
-   few questions with plain-data answers in `game/view.rs` (what a wizard sees, a player's units,
+4. **The rest of the world is asked of a read-only `&World`**: its handles (`player`, `wizard`) and a
+   few questions with plain-data answers in `world/view.rs` (what a wizard sees, a player's units,
    a city count). There is no fake of the world: a domain's tests build a real game
    (`testutil`), so they run on the code the game runs. A question goes into `view.rs` when two
    domains need it.
 5. **What a domain wants changed outside itself comes back as outcomes**, not as writes:
-   diplomacy leaves `Outcome::Gold` and `Outcome::Spell` in its context, and `Game` applies
+   diplomacy leaves `Outcome::Gold` and `Outcome::Spell` in its context, and `World` applies
    them. Events are returned the same way.
-6. **Random numbers come from a `GameRng`** that the caller passes in (`game/rng.rs`). It is a field
-   of `Game`, so a domain can take `&mut GameRng` next to other borrows.
+6. **Random numbers come from a `GameRng`** that the caller passes in (`world/rng.rs`). It is a field
+   of `World`, so a domain can take `&mut GameRng` next to other borrows.
 
 Three ways to give a domain what it needs, all in use:
 
-- **Borrowing the fields apart**, where the domain's state is a field of something `Game` can
-  borrow beside the content and the generator (the wizard handles: `Game::wizard`, `Game::wizard_mut`).
+- **Borrowing the fields apart**, where the domain's state is a field of something `World` can
+  borrow beside the content and the generator (the wizard handles: `World::wizard`, `World::wizard_mut`).
 - **Lending the domain out for a call**, where its rules need the whole game as a read-only
-  view (`Diplomacy`: `Game::with_diplomacy` takes the state and the generator out of the game,
-  runs the rules over `&Game`, puts them back and applies the outcomes).
-  The spell executor lends the generator to its host the same way (`GameHost`).
-- **A read handle over a few fields** where the domain's state lives in the ECS world (units:
-  `UnitView<'a>` holds `&World` and `&Content`, made by `Game::units()`; the city's yields likewise in `Economy<'a>` over the world, the map and the content, made by `Game::economy()`; what changes
-  units is a function over `&mut World`, such as `unit::spawn`, `experience::gain_xp` and
-  the `spell/temp_effect.rs` functions). A test builds a world and the content and no `Game`.
+  view (`Diplomacy`: `World::with_diplomacy` takes the state and the generator out of the game,
+  runs the rules over `&World`, puts them back and applies the outcomes).
+  The spell executor lends the generator to its host the same way (`WorldHost`).
+- **A read handle over a few fields** where the domain's state lives in the ECS (units:
+  `UnitView<'a>` holds `&hecs::World` and `&Content`, made by `World::units()`; the city's yields likewise in `Economy<'a>` over the `hecs::World`, the map and the content, made by `World::economy()`; what changes
+  units is a function over `&mut hecs::World`, such as `unit::spawn`, `experience::gain_xp` and
+  the `spell/temp_effect.rs` functions). A test builds a `hecs::World` and the content and no `World`.
 
-Every domain of the game follows this, and the battle engine, the rules layer, the map and the fog always did. `f4x-tools game-methods` reports the number of `impl Game` methods per file, as a guideline.
+Every domain of the game follows this, and the battle engine, the rules layer, the map and the fog always did. `f4x-tools world-methods` reports the number of `impl World` methods per file, as a guideline.
 
 
 ## 3. The entity model
@@ -165,7 +167,7 @@ Two entities, because they answer different questions.
   with `Neutral` and no `WizardLink`. Code that reads a wizard for "every player" (before the rework
   `player.magic`) must handle the missing wizard explicitly.
 - The two refer to each other (`WizardLink`, `PlayerLink`) and are made together by game setup and
-  by the AI wizard builder. `Game::player(id)` and `Game::wizard(id)` return read handles.
+  by the AI wizard builder. `World::player(id)` and `World::wizard(id)` return read handles.
 
 Where a thing goes when it is not obvious: **fame** is the wizard's (it is on the wizard sheet);
 **offers** are the player's (a pop-up a turn brings); **the armory** is the player's (vault slots hold
@@ -179,18 +181,18 @@ item entities held by the player); **defeat** is the player's, **banishment** th
   rules in 3.8 say who despawns what so that none dangles.
 - **`PlayerId` is the key for what lives outside the world**: the fog, the diplomacy pairs, the map's
   owner fields, saves, console commands and display ("wizard 3"). It is defined in `player/`, is a
-  component of the player entity and is never reused. One index `PlayerId` to `Entity` on `Game`
+  component of the player entity and is never reused. One index `PlayerId` to `Entity` on `World`
   turns one into the other. No owner is ever a raw `u8`.
 - **A unit, hero or city is always owned by a real player**: a human wizard, an AI wizard, an
   independent city's player, or the monsters' player. Nothing is ownerless and nothing has a
   placeholder owner. Tests build only such situations; a test of a situation the game cannot
   create in normal play exists only to test error handling (a rejected command, a refused save).
-- The neutral player of a race has the id `FIRST_RACE_PLAYER` (100) plus the race's number (`player/race_player.rs`: `race_player_id`, `Game::race_of_player`, `race_player`, `seat_of`); it is made when the first city of the race turns neutral and removed at the round end when it has no city and no unit (`retire_empty_race_players`). The one player
-  that owns the monsters is made with the game (`Game::monsters`, id `player::MONSTERS`, kept at
+- The neutral player of a race has the id `FIRST_RACE_PLAYER` (100) plus the race's number (`player/race_player.rs`: `race_player_id`, `World::race_of_player`, `race_player`, `seat_of`); it is made when the first city of the race turns neutral and removed at the round end when it has no city and no unit (`retire_empty_race_players`). The one player
+  that owns the monsters is made with the game (`World::monsters`, id `player::MONSTERS`, kept at
   255; the save does not store it, the game makes it). It is an entity with `PlayerId` and `Neutral` like
-  the race players but is in no list of players (`Game::has_player` is false for it). Whether a player is
-  neutral is the `Neutral` component (`Game::is_neutral_player`), never an id test.
-- `Game::set_owner(thing, player)` hands a unit or city to a player; `units().unit_owner` and
+  the race players but is in no list of players (`World::has_player` is false for it). Whether a player is
+  neutral is the `Neutral` component (`World::is_neutral_player`), never an id test.
+- `World::set_owner(thing, player)` hands a unit or city to a player; `units().unit_owner` and
   `economy().city_owner` give the `PlayerId` back, `unit_owner_entity` and `city_owner_entity` the
   entity. `economy().cities()` returns `CityInfo` (name and owner id) for display code.
 - A **position index** (square to entity, for terrain features) is the one other index. It is kept
@@ -223,7 +225,7 @@ work and leaves no entity.
 
 A hero is an individual, and an entity that outlives its body. There is **one hero of each of the 35
 types in the whole game**, made when the game starts with the abilities and casting skill that
-the original's `Init_Heroes` rolls for it (rolled once for the game, not for each wizard; `f4x-newgame`'s setup adds all 35, `Game::add_hero` rolls one). No wizard owns a hero
+the original's `Init_Heroes` rolls for it (rolled once for the game, not for each wizard; `f4x-newgame`'s setup adds all 35, `World::add_hero` rolls one). No wizard owns a hero
 until it is hired.
 
 - `HeroState`: `Free` (no one's: it may be offered, summoned or hired; also a hero that was let go,
@@ -233,7 +235,7 @@ until it is hired.
   wizard's player) and the unit components (`Unit`, `Position`, `MovesLeft`, `Hurt`...), and is found
   by any unit query. When the body leaves, `remove_unit` takes the owner and the unit components off
   (the entity keeps its handle and serial) and sets the state by the way it left (`Fate`): `Dead`,
-  `Free` or `Gone`. The spells on the body go with it. `hero::game::remove_unit` stays the one exit.
+  `Free` or `Gone`. The spells on the body go with it. `hero::world::remove_unit` stays the one exit.
 - **A hero is named by its type number** (`Hero.kind`, the index in `Rules::hero_templates`): it is
   unique in the game, so offers, events, `Target::Hero` and the save use that number and
   the log needs no serial for a hero. (This replaces the rule in 3.9 for heroes.) Resurrection
@@ -278,14 +280,14 @@ An item instance is an entity (`item/entity.rs`). Its data is one component, `It
 kind, cost, icon, `ItemBonus`, power ids, charges, optional prefab id, and `made`, the parts of a default name), next to `Serial` and
 `HeldBy`: `Hero(entity, slot)`, `Vault(player, slot)`, `Award(player)`, `Crafting(player)` or
 `Offered(player)`. Moving an item changes `HeldBy`; an item with no holder is despawned.
-The prefabs already made stay a registry on `Game` (`prefab_taken`).
+The prefabs already made stay a registry on `World` (`prefab_taken`).
 
 - **The vault has no limit** (the original's four slots are the size of the item screen, which shows
-  four at a time and scrolls by page). `Game::give_item` and `place_item` fill the first free slot;
+  four at a time and scrolls by page). `World::give_item` and `place_item` fill the first free slot;
   `Placed::Awards` and `Lost` remain for the cases the vault cannot take (no such player). The award
   list is kept for the item screen's hand; an item gets a new creation number when it joins the
   list, so that the list keeps the order of arrival.
-- **Reads** go through `ItemView` (`Game::items()`): `item`, `held_by`, `held`, `carried` (a hero's
+- **Reads** go through `ItemView` (`World::items()`): `item`, `held_by`, `held`, `carried` (a hero's
   items with their slots), `hero_items`, `armory` (the vault and the award list as one value for
   `plan_move`), `crafting`. `Armory` and `HeroItems` are such values, not components.
 - **Loot** is not a holder: `claim_lair` makes the items from the hoard's values and hands them to
@@ -326,7 +328,7 @@ it has no city and no unit, as the table says.
 
 ### 3.9 Saving and replaying
 
-- The save (`game/save.rs`, `SAVE_VERSION = 4`) writes each entity kind as its own list: `players`,
+- The save (`world/save.rs`, `SAVE_VERSION = 4`) writes each entity kind as its own list: `players`,
   `wizards` (one for each player that is no neutral player, naming its player by id), `heroes`,
   `units` (a unit with the creation number of a hero is that hero's body), `cities`, `features`,
   `items` and `spells` (every spell instance: the lasting ones and the cast in progress, with its
@@ -359,13 +361,13 @@ it has no city and no unit, as the table says.
 
 The map layers and the fog (dense grids), the content registries, `Diplomacy` (pairs of players, keyed
 by `PlayerId`), the world events table, the RNG, the undo stack, and the battle in progress (a
-`Battle` with its own world for its spell instances). Battle units are not entities in `Game::world`.
+`Battle` with its own world for its spell instances). Battle units are not entities in `World::ecs`.
 
 ### 3.11 How the code reads and writes the new entities
 
 The pattern is the one of section 2: a **read handle** over the parts it needs
 (`UnitView<'a>`, `Economy<'a>`, and for the new kinds `PlayerView`-style handles from
-`Game::player(id)`, `Game::wizard(id)`), and functions over `&mut World` for changes. Domain state
+`World::player(id)`, `World::wizard(id)`), and functions over `&mut hecs::World` for changes. Domain state
 is private to its module; a domain returns outcomes for what it cannot change itself. A wizard
 handle borrows the world and the content, so the borrow of the RNG beside it stays possible.
 Queries over a `hecs` world have no fixed order: wherever the order is visible (events, the AI's

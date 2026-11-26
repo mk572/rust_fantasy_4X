@@ -27,8 +27,8 @@ use f4x_battle::battle::BattleEvent;
 use f4x_battle::battlemagic::caster::SpellAim;
 use f4x_battle::map::BattleMap;
 use f4x_battle::Side;
-use f4x_core::game::{Command, Event, Game};
 use f4x_core::player::PlayerId;
+use f4x_core::world::{Command, Event, World};
 use f4x_def::content::Content;
 use f4x_def::rules::{CastContext, SpellId, SpellTarget};
 
@@ -109,19 +109,19 @@ fn fight(
     } = pairing;
     let def = content.rules.spells.get(spell);
     let own = for_own(def);
-    let mut game = base_game(content, seed)?;
+    let mut world = base_game(content, seed)?;
     let (ref_owner, other_owner) = if reference_attacks {
         (P0, P1)
     } else {
         (P1, P0)
     };
-    let spawn = |game: &mut Game, owner: PlayerId, x: u32, num: u16| -> Result<_, String> {
+    let spawn = |world: &mut World, owner: PlayerId, x: u32, num: u16| -> Result<_, String> {
         let id = content
             .rules
             .units
             .id_numbered(num)
             .ok_or(format!("no unit {num}"))?;
-        Ok(game.spawn_unit(
+        Ok(world.spawn_unit(
             owner,
             f4x_core::map::Position {
                 plane: f4x_core::map::Plane::Arcanus,
@@ -136,12 +136,12 @@ fn fight(
     let mut r_units = Vec::new();
     let mut o_units = Vec::new();
     for _ in 0..count {
-        r_units.push(spawn(&mut game, ref_owner, rx, reference)?);
-        o_units.push(spawn(&mut game, other_owner, ox, other)?);
+        r_units.push(spawn(&mut world, ref_owner, rx, reference)?);
+        o_units.push(spawn(&mut world, other_owner, ox, other)?);
     }
     let (r_unit, o_unit) = (r_units[0], o_units[0]);
     for &unit in &r_units {
-        crate::ladder::give_level(&mut game, content, unit, ref_owner, reference, level);
+        crate::ladder::give_level(&mut world, content, unit, ref_owner, reference, level);
     }
     let hurt = HURT.load(Ordering::Relaxed);
     if hurt > 0 {
@@ -159,7 +159,7 @@ fn fight(
                     let stat = |s: f4x_def::rules::Stat| d.stats.get(&s).map_or(0, |v| v.floor());
                     stat(f4x_def::rules::Stat::MaxHp) * stat(f4x_def::rules::Stat::Figures).max(1)
                 });
-            game.scenario_set_hurt(unit, u32::try_from(points).unwrap_or(0) * hurt / 100);
+            world.scenario_set_hurt(unit, u32::try_from(points).unwrap_or(0) * hurt / 100);
         }
     }
     // The unit that gains from the spell, and who casts it, when it is cast in the battle.
@@ -174,17 +174,17 @@ fn fight(
     let mut healer = None;
     if let Some(gain) = gainer {
         if own && def.duration == f4x_def::rules::Duration::Instant {
-            game.cheat_learn_spell(gainer_owner, spell);
+            world.cheat_learn_spell(gainer_owner, spell);
             healer = Some(gainer_owner);
         } else if own {
             // Put on before the battle, as an overland cast would be.
-            game.scenario_enchant_unit(gain, spell, gainer_owner);
+            world.scenario_enchant_unit(gain, spell, gainer_owner);
         } else {
             // A spell for an enemy unit: cast in the battle by the side that gains from it, on the
             // other unit.
             let target = if gain == r_unit { o_unit } else { r_unit };
             pending = Some((caster_owner, target));
-            game.cheat_learn_spell(caster_owner, spell);
+            world.cheat_learn_spell(caster_owner, spell);
         }
     }
     let (attackers, defenders) = if reference_attacks {
@@ -192,26 +192,26 @@ fn fight(
     } else {
         (o_units, r_units)
     };
-    game.apply(Command::BeginBattle {
+    world.apply(Command::BeginBattle {
         attackers,
         defenders,
     });
-    if game.battle().is_none() {
+    if world.battle().is_none() {
         return Err("no battle began".into());
     }
-    game.scenario_edit_battle(|b| b.map = BattleMap::open());
+    world.scenario_edit_battle(|b| b.map = BattleMap::open());
     if let Some(owner) = healer {
         let side = if owner == P0 {
             Side::Attacker
         } else {
             Side::Defender
         };
-        game.scenario_battle_caster(side, 1000);
+        world.scenario_battle_caster(side, 1000);
     }
     let mut missed = false;
     let mut exhausted = false;
     for _ in 0..MAX_COMMANDS {
-        let Some(battle) = game.battle() else { break };
+        let Some(battle) = world.battle() else { break };
         if let Some((owner, target)) = pending {
             let side = if owner == P0 {
                 Side::Attacker
@@ -227,8 +227,8 @@ fn fight(
                     .position(|u| u.side == target_side)
                     .ok_or("no target in the battle")?;
                 let _ = target;
-                game.scenario_battle_caster(side, 1000);
-                let events = game.apply(Command::Battle(BattleCommand::Cast {
+                world.scenario_battle_caster(side, 1000);
+                let events = world.apply(Command::Battle(BattleCommand::Cast {
                     spell,
                     aim: SpellAim::Unit(index),
                     mana: 0,
@@ -239,10 +239,10 @@ fn fight(
                 continue;
             }
         }
-        let Some(command) = next_command(&game) else {
+        let Some(command) = next_command(&world) else {
             break;
         };
-        let events = game.apply(Command::Battle(command.clone()));
+        let events = world.apply(Command::Battle(command.clone()));
         if TRACE.load(Ordering::Relaxed) == usize::from(other) {
             println!("{command:?} -> {events:?}");
         }

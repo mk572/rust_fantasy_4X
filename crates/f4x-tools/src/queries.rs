@@ -7,9 +7,9 @@
 use std::path::PathBuf;
 use std::time::Instant;
 
-use f4x_core::game::Game;
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::PlayerId;
+use f4x_core::world::World;
 
 pub const USAGE: &str =
     "usage: f4x-tools queries --from SAVE [--player N] [--repeat N] [--content DIR]";
@@ -37,23 +37,23 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let content =
         f4x_def::load::load_content_layers(&[&dir, std::path::Path::new(f4x_def::SHIPPED_CONTENT)])
             .map_err(|e| e.to_string())?;
-    let (game, _) = f4x_core::game::save::load_game(&path, content)
+    let (world, _) = f4x_core::world::save::load_game(&path, content)
         .map_err(|e| format!("{}: {e}", path.display()))?;
     let human = PlayerId(player);
     println!(
         "{}: {} units, {} cities, player {player}",
         path.display(),
-        game.units().all_units().len(),
-        game.economy().cities().len()
+        world.units().all_units().len(),
+        world.economy().cities().len()
     );
-    for (name, micros) in measure(&game, human, repeat.max(1)) {
+    for (name, micros) in measure(&world, human, repeat.max(1)) {
         println!("{micros:9.0} us  {name}");
     }
     Ok(())
 }
 
 /// The queries of a frame, each timed: name and microseconds a call.
-pub fn measure(game: &Game, human: PlayerId, repeat: u32) -> Vec<(&'static str, f64)> {
+pub fn measure(world: &World, human: PlayerId, repeat: u32) -> Vec<(&'static str, f64)> {
     let plane = Plane::Arcanus;
     let mut out = Vec::new();
     let mut time = |name: &'static str, mut work: Box<dyn FnMut() + '_>| {
@@ -69,32 +69,32 @@ pub fn measure(game: &Game, human: PlayerId, repeat: u32) -> Vec<(&'static str, 
     time(
         "map: vision of the player's plane (economy().visibility)",
         Box::new(|| {
-            std::hint::black_box(game.economy().visibility(human, plane));
+            std::hint::black_box(world.economy().visibility(human, plane));
         }),
     );
     time(
         "map and minimap: every city with its name (economy().cities)",
         Box::new(|| {
-            std::hint::black_box(game.economy().cities());
+            std::hint::black_box(world.economy().cities());
         }),
     );
-    let visible = game.economy().visibility(human, plane);
-    let width = game.map().map_or(1, |m| m.width());
+    let visible = world.economy().visibility(human, plane);
+    let width = world.map().map_or(1, |m| m.width());
     time(
         "map: the stacks to draw (all_units, owner, position, visible to the player)",
         Box::new(|| {
             let mut stacks = 0;
-            for unit in game.units().all_units() {
-                let Some(at) = game.units().unit_position(unit) else {
+            for unit in world.units().all_units() {
+                let Some(at) = world.units().unit_position(unit) else {
                     continue;
                 };
                 if at.plane != plane {
                     continue;
                 }
-                let mine = game.units().unit_owner(unit) == Some(human);
+                let mine = world.units().unit_owner(unit) == Some(human);
                 if !mine
                     && (!visible[(at.y * width + at.x) as usize]
-                        || !game.economy().unit_visible_to(unit, human))
+                        || !world.economy().unit_visible_to(unit, human))
                 {
                     continue;
                 }
@@ -106,20 +106,20 @@ pub fn measure(game: &Game, human: PlayerId, repeat: u32) -> Vec<(&'static str, 
     time(
         "summary panel: budget",
         Box::new(|| {
-            std::hint::black_box(game.budget(human));
+            std::hint::black_box(world.budget(human));
         }),
     );
     time(
         "summary panel: income (mana and research)",
         Box::new(|| {
-            std::hint::black_box(game.income(human));
+            std::hint::black_box(world.income(human));
         }),
     );
-    let mine = game.units().player_units(human);
+    let mine = world.units().player_units(human);
     let stack: Vec<_> = mine.first().copied().into_iter().collect();
     let far = stack
         .first()
-        .and_then(|&u| game.units().unit_position(u))
+        .and_then(|&u| world.units().unit_position(u))
         .map(|p| Position {
             plane: p.plane,
             x: (p.x + width / 2) % width,
@@ -129,20 +129,20 @@ pub fn measure(game: &Game, human: PlayerId, repeat: u32) -> Vec<(&'static str, 
         time(
             "pointer: the path to the square under the cursor (find_path, once a frame)",
             Box::new(|| {
-                std::hint::black_box(game.find_path(&stack, far));
+                std::hint::black_box(world.find_path(&stack, far));
             }),
         );
         time(
             "pointer: the units on the square under the cursor (units_at)",
             Box::new(|| {
-                std::hint::black_box(game.units().units_at(far));
+                std::hint::black_box(world.units().units_at(far));
             }),
         );
     }
     time(
         "map: the player's own units (player_units)",
         Box::new(|| {
-            std::hint::black_box(game.units().player_units(human));
+            std::hint::black_box(world.units().player_units(human));
         }),
     );
     out
@@ -155,8 +155,8 @@ mod tests {
 
     #[test]
     fn every_frame_query_is_timed_on_a_small_game() -> Result<(), String> {
-        let game = new_game(crate::testutil::shipped(), &NewGame::with_wizards(2))?;
-        let times = measure(&game, PlayerId(0), 1);
+        let world = new_game(crate::testutil::shipped(), &NewGame::with_wizards(2))?;
+        let times = measure(&world, PlayerId(0), 1);
         assert!(times.len() >= 8, "{times:?}");
         assert!(times.iter().all(|(_, t)| t.is_finite() && *t >= 0.0));
         Ok(())

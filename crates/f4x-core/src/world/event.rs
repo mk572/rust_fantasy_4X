@@ -4,7 +4,7 @@
 
 use crate::hero::HeroError;
 use crate::{
-    battle, city, diplomacy, feature, game, item, map, player, rules, unit, wizard, world_event,
+    battle, city, diplomacy, feature, item, map, player, rules, unit, wizard, world, world_event,
 };
 
 /// Why a unit left its owner's army (at the turn change, or when its hit points ran out).
@@ -159,7 +159,7 @@ pub enum Event {
     /// The game is over: `winner` won, by conquest or by the Spell of Mastery.
     GameOver {
         winner: player::PlayerId,
-        kind: game::endgame::EndKind,
+        kind: world::endgame::EndKind,
         turn: u32,
     },
     CityCaptured {
@@ -337,7 +337,7 @@ pub enum Event {
         units_lost: u32,
         buildings_lost: u32,
     },
-    /// A wizard has started casting the Spell of Mastery (`Game::mastery_casters`): every wizard is
+    /// A wizard has started casting the Spell of Mastery (`World::mastery_casters`): every wizard is
     /// told.
     MasteryStarted {
         caster: player::PlayerId,
@@ -420,7 +420,7 @@ pub enum Event {
         player: player::PlayerId,
         kind: usize,
     },
-    /// The turn change made the wizard an offer (`Game::offers` lists the ones waiting).
+    /// The turn change made the wizard an offer (`World::offers` lists the ones waiting).
     OfferMade {
         player: player::PlayerId,
         offer: player::offer::Offer,
@@ -615,7 +615,7 @@ pub enum Rejection {
     Meld(feature::node::MeldError),
     Road(map::road::RoadError),
     Purify(map::corruption::PurifyError),
-    BattleStart(battle::game::BattleStartError),
+    BattleStart(battle::world::BattleStartError),
     Raze(city::conquest::RazeError),
     Battle(battle::BattleError),
     Item(item::armory::ItemError),

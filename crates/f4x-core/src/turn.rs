@@ -1,22 +1,22 @@
-//! The turn lifecycle: [`Game::start_round`], [`Game::start_player_turn`],
-//! [`Game::end_player_turn`] and [`Game::end_round`] (task 477, `docs/turn-structure.md`).
+//! The turn lifecycle: [`World::start_round`], [`World::start_player_turn`],
+//! [`World::end_player_turn`] and [`World::end_round`] (task 477, `docs/turn-structure.md`).
 //! `f4x-master` calls them in order; `Command::EndTurn` composes them for all players. What each step does is in its domain: city growth in
-//! `city/growth.rs`, the treasury in `player/finance.rs`, magic in `wizard/magic_game.rs`, healing in
+//! `city/growth.rs`, the treasury in `player/finance.rs`, magic in `wizard/magic_world.rs`, healing in
 //! `unit/healing.rs`.
 //!
 //! Tests: in turn/tests.rs.
 
 use crate::city::economy::{Farmers, Population};
-use crate::game::{Event, Game};
 use crate::player::PlayerId;
+use crate::world::{Event, World};
 use f4x_def::half_int::HalfInt;
 use rand::SeedableRng;
 
-impl Game {
+impl World {
     /// Every player that takes part in the lifecycle, in the fixed order: the wizards and the
     /// independent cities' players by id, then the monsters' owner (the neutral seat) last.
     pub fn turn_players(&self) -> Vec<PlayerId> {
-        let mut ids = crate::player::ids(&self.world);
+        let mut ids = crate::player::ids(&self.ecs);
         if self.player_entity(crate::player::MONSTERS).is_some() {
             ids.push(crate::player::MONSTERS);
         }
@@ -68,7 +68,7 @@ impl Game {
         events.extend(self.drown_stranded(Some(player)));
         events.extend(self.process_road_work(player));
         let mut with_orders: Vec<_> = self
-            .world
+            .ecs
             .query::<&crate::unit::Order>()
             .iter()
             .map(|(e, _)| e)
@@ -128,11 +128,11 @@ impl Game {
         }
         // Keep enough hands on the farms to feed everyone.
         for city in self.player_cities(player) {
-            if self.world.get::<&Population>(city).map_or(0, |p| p.figures) == 0 {
+            if self.ecs.get::<&Population>(city).map_or(0, |p| p.figures) == 0 {
                 continue;
             }
             let min = self.economy().city_min_farmers(city);
-            let farmers = self.world.get::<&Farmers>(city).map_or(0, |f| f.0);
+            let farmers = self.ecs.get::<&Farmers>(city).map_or(0, |f| f.0);
             if farmers < min {
                 self.put(city, Farmers(min));
             }
@@ -145,7 +145,7 @@ impl Game {
         // `settle_treasury` may release units and a city can be lost: build in what is left. The
         // wizard who keeps Time Stop builds nothing until it ends.
         if stopper.is_none() {
-            self.net_gold_memo.set(crate::game::NetGoldMemo::Empty);
+            self.net_gold_memo.set(crate::world::NetGoldMemo::Empty);
             *self.budget_parts.borrow_mut() = None;
             for city in self.player_cities(player) {
                 let before = self.economy().city_production(city).item;
@@ -157,12 +157,12 @@ impl Game {
                         .iter()
                         .any(|e| matches!(e, Event::ProductionCompleted { .. }))
                 {
-                    self.net_gold_memo.set(crate::game::NetGoldMemo::Empty);
+                    self.net_gold_memo.set(crate::world::NetGoldMemo::Empty);
                     self.mark_budget_dirty(player, city);
                 }
                 events.extend(done);
             }
-            self.net_gold_memo.set(crate::game::NetGoldMemo::Off);
+            self.net_gold_memo.set(crate::world::NetGoldMemo::Off);
             *self.budget_parts.borrow_mut() = None;
         }
         events
@@ -197,7 +197,7 @@ impl Game {
     /// told it cannot be).
     fn produce_city(&mut self, city: hecs::Entity) -> Vec<Event> {
         let mut events = Vec::new();
-        if self.world.get::<&Population>(city).map_or(0, |p| p.figures) == 0 {
+        if self.ecs.get::<&Population>(city).map_or(0, |p| p.figures) == 0 {
             return events;
         }
         if let Some(item) = self.production_impossible(city) {
@@ -233,7 +233,7 @@ impl Game {
     /// and suffers from pestilence.
     fn grow_city(&mut self, city: hecs::Entity) -> Vec<Event> {
         let mut events = Vec::new();
-        let figures = self.world.get::<&Population>(city).map_or(0, |p| p.figures);
+        let figures = self.ecs.get::<&Population>(city).map_or(0, |p| p.figures);
         if figures == 0 {
             match self.grow_outpost(city) {
                 crate::city::growth::OutpostTurn::BecameCity => {
@@ -282,7 +282,7 @@ impl Game {
 
 /// The per-player steps for every player in turn, for tests that mean "the turn change".
 #[cfg(test)]
-impl Game {
+impl World {
     pub(crate) fn determine_offers_all(&mut self) -> Vec<Event> {
         let mut events = Vec::new();
         for p in self.turn_players() {

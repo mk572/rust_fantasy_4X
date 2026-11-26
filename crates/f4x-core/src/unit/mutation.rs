@@ -10,12 +10,12 @@
 //!
 //! Tests: in spell/wizard/tests.rs.
 
-use crate::game::rng::GameRng;
-use crate::game::Game;
 use crate::rules::{Ability, MutationRules};
 use crate::rules::{ModOp, Modifier, MovementType, Source, Stat, UnitKind};
 use crate::spell::target_error::TargetError;
 use crate::unit::UnitView;
+use crate::world::rng::GameRng;
+use crate::world::World;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mutation {
@@ -45,7 +45,7 @@ impl UnitView<'_> {
     }
 }
 
-impl Game {
+impl World {
     /// Chaos Channels works on a normal unit or a hero that is not undead and not mutated yet.
     pub fn check_mutate(&self, unit: hecs::Entity) -> Result<(), TargetError> {
         let units = self.units();

@@ -90,11 +90,11 @@ impl App {
         if !self.prefs.get(Pref::CitySpellEvents) {
             return;
         }
-        let Some(city) = self.game.economy().city_at(at) else {
+        let Some(city) = self.world.economy().city_at(at) else {
             return;
         };
         // A cast on the human's own city is always shown.
-        let own = self.game.economy().city_owner(city) == Some(HUMAN);
+        let own = self.world.economy().city_owner(city) == Some(HUMAN);
         if player != HUMAN && !own && !self.rival_spell_seen(player, Some(at), false) {
             return;
         }
@@ -110,7 +110,7 @@ impl App {
         city: hecs::Entity,
         started: Option<f64>,
     ) -> Option<CityScroll> {
-        let def = self.game.content().rules.spells.get(spell);
+        let def = self.world.content().rules.spells.get(spell);
         if !matches!(def.target, SpellTarget::OwnCity | SpellTarget::EnemyCity) {
             return None;
         }
@@ -132,11 +132,11 @@ impl App {
 
     /// For screenshots: the scroll of `id` cast by player `by` on the first city.
     pub fn open_test_city_scroll(&mut self, id: u16, by: u8, seconds: f64) {
-        let Some(spell) = self.game.content().rules.spells.id_numbered(id) else {
+        let Some(spell) = self.world.content().rules.spells.id_numbered(id) else {
             eprintln!("unknown spell {id}");
             return;
         };
-        let Some(city) = self.game.economy().cities().first().map(|c| c.0) else {
+        let Some(city) = self.world.economy().cities().first().map(|c| c.0) else {
             return;
         };
         match self.city_scroll_for(PlayerId(by), spell, city, Some(get_time() - seconds)) {
@@ -227,13 +227,13 @@ mod tests {
     fn a_curse_on_an_enemy_city_gets_the_bad_tune_of_its_realm() {
         let app = App::for_test();
         let city = app
-            .game
+            .world
             .economy()
             .cities()
             .first()
             .map(|c| c.0)
             .expect("the new game has a city");
-        let spells = &app.game.content().rules.spells;
+        let spells = &app.world.content().rules.spells;
         let scroll = |id: u16| {
             app.city_scroll_for(HUMAN, spells.id_numbered(id).expect("spell"), city, None)
         };

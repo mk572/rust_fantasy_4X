@@ -136,19 +136,19 @@ The main screen shows the running world event by name above the minimap ("Conjun
 - **Its own domain, `world_event/mod.rs`, with no handlers.** `Events` is the table: which events are going
   on, the turns each has run and the data it carries (a city, a player, an amount). Its fields are
   private; the rules ask it (`is_ongoing`, `moon_mana`), as `CITYCALC.c` reads `events_table`, and
-  `Game` holds it beside `diplomacy`. It is saved with the game. Nothing is registered anywhere:
+  `World` holds it beside `diplomacy`. It is saved with the game. Nothing is registered anywhere:
   there are no callbacks, no trait objects and no per-event types.
   - **Readers** get the table through the view they already have: `Economy` carries it
     (`with_events`), the wizard's power will ask for Mana Short the same way. A rule that cares
     about an event is one line in the rule it changes, not a hook.
   - **Playing an event out** is one `match` on the event kind in `world_event/mod.rs` that returns plain
     outcomes (lose gold, destroy buildings of a city, a city changes owner, add an item, a citizen
-    dies); `Game` applies them with the functions that already exist (Call the Void and Earthquake
+    dies); `World` applies them with the functions that already exist (Call the Void and Earthquake
     are spell effects, a rebellion is a conquest). The draw and the vetoes are one function over
     the table, the wizards and the cities. So the number of places that know about the 18 events
     is three: the table, the draw, the play-out.
   - **Where it is:** `world_event/mod.rs` (the table, the pressure, the weights, the end rules, the message
-    text), `world_event/game.rs` (the draw, the vetoes, the playing out), `event_popup.rs` in the client
+    text), `world_event/world.rs` (the draw, the vetoes, the playing out), `event_popup.rs` in the client
     (the `Notify2` box, the world event under the minimap, the city marks). The turn runs the
     events after the treasury and before the cities grow, as `Next_Turn_Calc` runs them before the
     cities' changes. Task 303 finished the help, the report, the music and the soak (`f4x-tools soak --events`).

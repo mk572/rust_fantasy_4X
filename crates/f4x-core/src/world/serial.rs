@@ -2,16 +2,16 @@
 //!
 //! `hecs` entity ids can be reused after an entity is despawned, so sorting by id does not
 //! give creation order and changes if a game is saved and reloaded. Every unit and city
-//! carries a `Serial` from a counter in `Game`; all game logic that needs a stable order
+//! carries a `Serial` from a counter in `World`; all game logic that needs a stable order
 //! sorts by it, and saves record it.
 //!
-//! Tests: in game/save/tests.rs.
+//! Tests: in world/save/tests.rs.
 
-use crate::game::Game;
+use crate::world::World;
 
 pub use f4x_def::id::Serial;
 
-impl Game {
+impl World {
     /// The next creation number.
     pub(crate) fn take_serial(&mut self) -> Serial {
         let s = Serial(self.next_serial);

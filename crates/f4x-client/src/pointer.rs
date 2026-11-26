@@ -56,7 +56,7 @@ impl App {
 
     /// Draw the pointer for the frame just built. The battle screen draws its own.
     pub(crate) fn draw_pointer(&mut self, input: &Input) {
-        if matches!(self.screen, Screen::Battle) && self.game.in_battle() {
+        if matches!(self.screen, Screen::Battle) && self.world.in_battle() {
             return;
         }
         let image = self.overland_pointer(input);
@@ -92,7 +92,7 @@ impl App {
         if self.turn_pending > 0 {
             return HOURGLASS;
         }
-        if !matches!(self.screen, Screen::Map) || self.game.in_battle() {
+        if !matches!(self.screen, Screen::Map) || self.world.in_battle() {
             return FINGER;
         }
         if self.targeting.is_some() || self.city_select.is_some() {
@@ -105,9 +105,9 @@ impl App {
             return FINGER;
         };
         // The boot is for the units that can move; the stack moves without the spent ones.
-        let key = (pos, self.units_that_can_move(), self.game.revision());
+        let key = (pos, self.units_that_can_move(), self.world.revision());
         if self.pointer_walk.as_ref().map(|(k, _)| k) != Some(&key) {
-            let walk = self.game.find_path(&key.1, pos).is_some();
+            let walk = self.world.find_path(&key.1, pos).is_some();
             self.pointer_walk = Some((key, walk));
         }
         match self.pointer_walk {
@@ -154,7 +154,7 @@ mod tests {
     fn the_wand_shows_while_a_spell_waits_for_its_target() -> TestResult {
         let mut app = App::for_test();
         let spell = app
-            .game
+            .world
             .content()
             .rules
             .spells
@@ -180,7 +180,7 @@ mod tests {
     fn a_selected_stack_gets_the_boot_where_it_can_walk_and_the_cross_where_not() -> TestResult {
         let mut app = App::for_test();
         let unit = *app
-            .game
+            .world
             .units()
             .player_units(HUMAN)
             .first()
@@ -200,7 +200,7 @@ mod tests {
                 let Some(pos) = app.tile_at(input.mouse_position().into()) else {
                     continue;
                 };
-                let walk = app.game.find_path(&app.selection, pos).is_some();
+                let walk = app.world.find_path(&app.selection, pos).is_some();
                 let want = if walk { BOOT } else { RED_CROSS };
                 assert_eq!(app.overland_pointer(&input), want, "{pos:?}");
                 if walk {
@@ -219,7 +219,7 @@ mod tests {
     ) -> TestResult {
         let mut app = App::for_test();
         let unit = *app
-            .game
+            .world
             .units()
             .player_units(HUMAN)
             .first()
@@ -233,7 +233,7 @@ mod tests {
         app.overland_pointer(&input);
         assert_eq!(app.pointer_walk.as_ref().map(|(_, w)| *w), Some(!first.1));
         // A change of the game makes it again.
-        app.game.set_undo(false);
+        app.world.set_undo(false);
         app.overland_pointer(&input);
         assert_eq!(app.pointer_walk.as_ref().map(|(_, w)| *w), Some(first.1));
         // So does another square under the pointer.
@@ -256,7 +256,7 @@ mod tests {
     fn a_planned_road_or_the_surveyor_keeps_the_finger() -> TestResult {
         let mut app = App::for_test();
         let unit = *app
-            .game
+            .world
             .units()
             .player_units(HUMAN)
             .first()

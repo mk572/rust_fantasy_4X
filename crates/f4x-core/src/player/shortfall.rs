@@ -3,12 +3,12 @@
 //!
 //! The turn end settles the treasury by itself (`finance::settle`: food first, then gold; the
 //! highest upkeep goes first, then the cheapest to make, then the newest; heroes and loaded
-//! ships last). A player who would rather choose asks [`Game::treasury_shortfall`] and answers
+//! ships last). A player who would rather choose asks [`World::treasury_shortfall`] and answers
 //! with `Command::ReleaseTroops`; whatever is released goes at once, so the turn change finds
 //! the books balanced or lets go only of what is still missing. Units released for food no
 //! longer count for gold. A hero who leaves goes back to the roster and can be hired again, and
 //! the items come home to the armory; what does not fit is destroyed for mana, the owner's
-//! choice (`Game::item_overflow`). A ship let go with passengers aboard turns neutral and sails
+//! choice (`World::item_overflow`). A ship let go with passengers aboard turns neutral and sails
 //! for the nearest free shore (`transport::Marooned`).
 //!
 //! Tests: in player/shortfall/tests.rs.
@@ -21,7 +21,7 @@ use crate::unit::movement::MoveError;
 use crate::unit::transport::{Aboard, Marooned};
 use f4x_def::half_int::HalfInt;
 
-use crate::game::{Event, Game, LossCause, Rejection, Shortage};
+use crate::world::{Event, LossCause, Rejection, Shortage, World};
 
 /// One unit the treasury pays for.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -99,7 +99,7 @@ pub struct ItemOverflow {
     pub default_scrap: Vec<ItemSpot>,
 }
 
-impl Game {
+impl World {
     /// The gold or food the wizard cannot pay at the next turn change, or `None` when both are
     /// covered.
     pub fn treasury_shortfall(&self, player: PlayerId) -> Option<TreasuryShortfall> {

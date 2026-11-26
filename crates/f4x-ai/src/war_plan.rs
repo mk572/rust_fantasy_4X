@@ -411,18 +411,18 @@ mod tests {
     /// plan has a goal but no target to march on, and it names the capital for the ships.
     #[test]
     fn a_goal_across_the_sea_gives_no_town_to_march_on() -> Result<(), Box<dyn std::error::Error>> {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.reveal_map(P0);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.reveal_map(P0);
         spawn(
-            &mut g,
+            &mut w,
             P0,
             at(COAST_CITY.0, COAST_CITY.1),
             104, /* spearmen */
             2,
         );
-        let view = PlayerView::new(&g, P0);
+        let view = PlayerView::new(&w, P0);
         let origin = at(COAST_CITY.0, COAST_CITY.1);
-        let list = towns(&view, &HashMap::new(), g.turn, origin, &[], None);
+        let list = towns(&view, &HashMap::new(), w.turn, origin, &[], None);
         assert_eq!(list.len(), 1, "{list:?}");
         assert_eq!(list[0].pos, at(ENEMY_CITY.0, ENEMY_CITY.1));
         assert!(!list[0].on_foot);
@@ -437,23 +437,23 @@ mod tests {
     #[test]
     fn a_town_with_unexplored_ground_around_it_is_a_recon_target(
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.explore(
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.explore(
             P0,
             at(ENEMY_CITY.0, ENEMY_CITY.1),
             f4x_def::half_int::HalfInt::from_raw(2),
         );
-        spawn(&mut g, P0, at(COAST_CITY.0, COAST_CITY.1), 104, 2);
-        let view = PlayerView::new(&g, P0);
+        spawn(&mut w, P0, at(COAST_CITY.0, COAST_CITY.1), 104, 2);
+        let view = PlayerView::new(&w, P0);
         let origin = at(COAST_CITY.0, COAST_CITY.1);
-        let list = towns(&view, &HashMap::new(), g.turn, origin, &[], None);
+        let list = towns(&view, &HashMap::new(), w.turn, origin, &[], None);
         let mut plan = WarPlan::default();
         revise(&mut plan, &view, &list, origin);
         assert_eq!(plan.recon, vec![at(ENEMY_CITY.0, ENEMY_CITY.1)]);
         drop(view);
-        g.reveal_map(P0);
-        let view = PlayerView::new(&g, P0);
-        let list = towns(&view, &HashMap::new(), g.turn, origin, &[], None);
+        w.reveal_map(P0);
+        let view = PlayerView::new(&w, P0);
+        let list = towns(&view, &HashMap::new(), w.turn, origin, &[], None);
         revise(&mut plan, &view, &list, origin);
         assert!(plan.recon.is_empty(), "{:?}", plan.recon);
         Ok(())
@@ -463,8 +463,8 @@ mod tests {
     #[test]
     fn the_plan_keeps_its_target_until_another_is_clearly_better(
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let g = game(COAST_CITY, 8);
-        let view = PlayerView::new(&g, P0);
+        let w = game(COAST_CITY, 8);
+        let view = PlayerView::new(&w, P0);
         let origin = at(COAST_CITY.0, COAST_CITY.1);
         let (a, b) = (town(12, 6), town(14, 6));
         let mut plan = WarPlan::default();
@@ -497,8 +497,8 @@ mod tests {
     /// army crossing by a tower on the far side of it.
     #[test]
     fn the_rally_is_the_nearest_own_city_the_port_of_a_landing_or_the_far_side_of_a_tower() {
-        let g = game(COAST_CITY, 8 /* high_men */);
-        let view = PlayerView::new(&g, P0);
+        let w = game(COAST_CITY, 8 /* high_men */);
+        let view = PlayerView::new(&w, P0);
         let (near, far) = (at(5, 9), at(10, 6));
         let target = at(4, 4);
         let (dn, df) = (
@@ -527,8 +527,8 @@ mod tests {
     /// least a march's three and at most what a battle holds.
     #[test]
     fn the_strength_wanted_follows_the_expected_defence_and_the_builders_count_is_bounded() {
-        let g = game(COAST_CITY, 8 /* high_men */);
-        let view = PlayerView::new(&g, P0);
+        let w = game(COAST_CITY, 8 /* high_men */);
+        let view = PlayerView::new(&w, P0);
         let target = at(4, 4);
         let weak = HashMap::from([(target, (1.0, 2))]);
         let strong =

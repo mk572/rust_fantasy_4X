@@ -1,6 +1,6 @@
 //! What one player may know of the game: all of its own, and of the others only what it can see
 //! or has explored. An AI wizard reads the game through this and plays through
-//! [`Game::apply`], so it cannot see more than a human player does.
+//! [`World::apply`], so it cannot see more than a human player does.
 //!
 //! The view borrows the game for as long as it lives, so it is made where it is read and let go
 //! before a command is sent. It is cheap to make: what a player sees now (`visibility`) is worked
@@ -18,16 +18,16 @@ use std::cell::OnceCell;
 use crate::city::economy::CityEconomy;
 use crate::city::production::{Production, ProductionError, ProductionItem};
 use crate::diplomacy::Proposal;
-use crate::game::serial::Serial;
 use crate::map::terrain::TerrainClass;
 use crate::map::Position;
 use crate::player::{PlayerId, Treasury};
+use crate::world::serial::Serial;
 use f4x_def::content::Content;
 
 use crate::player::finance::Budget;
 
-use crate::game::Game;
 use crate::rules::{RealmId, SpellDef, SpellId, Stat, UnitDef, UnitId};
+use crate::world::World;
 
 /// What the player may read of another wizard's city: the enemy city screen of the original
 /// (`Enemy_City_Screen`), which is what a human gets. The size and name, the race, the citizens,
@@ -81,7 +81,7 @@ impl CitySpecials {
 }
 
 pub struct PlayerView<'a> {
-    game: &'a Game,
+    world: &'a World,
     me: PlayerId,
     seen: [OnceCell<Vec<bool>>; 2],
     /// A number the caller works out once for this view (see [`PlayerView::memo`]).
@@ -89,9 +89,9 @@ pub struct PlayerView<'a> {
 }
 
 impl<'a> PlayerView<'a> {
-    pub fn new(game: &'a Game, me: PlayerId) -> Self {
+    pub fn new(world: &'a World, me: PlayerId) -> Self {
         Self {
-            game,
+            world,
             me,
             seen: [OnceCell::new(), OnceCell::new()],
             memo: OnceCell::new(),
@@ -114,27 +114,27 @@ impl<'a> PlayerView<'a> {
 
     /// The definitions of the game, which are public.
     pub fn content(&self) -> &'a Content {
-        self.game.content()
+        self.world.content()
     }
 
     /// The turn the game is at.
     pub fn turn(&self) -> u32 {
-        self.game.turn
+        self.world.turn
     }
 
     /// Has the game ended?
-    /// The name of the `index`th city of a race (see [`Game::city_name_for`]).
+    /// The name of the `index`th city of a race (see [`World::city_name_for`]).
     pub fn city_name_for(&self, race: crate::rules::RaceId, index: usize) -> String {
-        self.game.city_name_for(race, index)
+        self.world.city_name_for(race, index)
     }
 
     pub fn game_over(&self) -> bool {
-        self.game.game_over.is_some()
+        self.world.game_over.is_some()
     }
 
     /// The player's gold and mana.
     pub fn treasury(&self) -> Treasury {
-        self.game.player(self.me).map_or(
+        self.world.player(self.me).map_or(
             Treasury {
                 gold: HalfInt::ZERO,
                 mana: HalfInt::ZERO,
@@ -145,27 +145,27 @@ impl<'a> PlayerView<'a> {
 
     /// Has the player lost everything?
     pub fn is_defeated(&self) -> bool {
-        self.game.player(self.me).is_some_and(|p| p.is_defeated())
+        self.world.player(self.me).is_some_and(|p| p.is_defeated())
     }
 
     /// The offers made to the player at the turn change that wait for an answer.
     pub fn offers(&self) -> Vec<crate::player::offer::Offer> {
-        self.game.offers(self.me)
+        self.world.offers(self.me)
     }
 
     /// The player's wizard, if it has one.
     pub fn wizard(&self) -> Option<crate::wizard::entity::Wizard<'a>> {
-        self.game.wizard(self.me)
+        self.world.wizard(self.me)
     }
 
     /// What the player's income and expenses come to this turn.
     pub fn budget(&self) -> Budget {
-        self.game.budget(self.me)
+        self.world.budget(self.me)
     }
 
     /// The spells on offer for research.
     pub fn research_choices(&self) -> Vec<SpellId> {
-        self.game
+        self.world
             .wizard(self.me)
             .map(|w| w.candidates())
             .unwrap_or_default()
@@ -173,38 +173,38 @@ impl<'a> PlayerView<'a> {
 
     /// What casting a spell overland costs the player.
     pub fn casting_cost(&self, spell: SpellId) -> i32 {
-        self.game.casting_cost(self.me, spell, false)
+        self.world.casting_cost(self.me, spell, false)
     }
 
     /// The other wizards casting the Spell of Mastery and the mana each has still to pay.
     pub fn rival_mastery_casters(&self) -> Vec<(PlayerId, i32)> {
-        let mut found = self.game.mastery_casters();
+        let mut found = self.world.mastery_casters();
         found.retain(|&(p, _)| p != self.me);
         found
     }
 
     /// Whether the Spell of Mastery is open to the player (`RuleSettings::spell_of_mastery`).
     pub fn mastery_open(&self) -> bool {
-        self.game.mastery_open_to(self.me)
+        self.world.mastery_open_to(self.me)
     }
 
     /// Is the player another wizard (not the neutral player or the monsters)?
     pub fn is_rival_wizard(&self, other: PlayerId) -> bool {
-        other != self.me && self.game.is_wizard(other)
+        other != self.me && self.world.is_wizard(other)
     }
 
     /// Is the player another one that takes part in diplomacy: a wizard or the neutral player of a
     /// race (not the monsters)? A computer player talks to, quarrels with and makes treaties with
     /// these; what needs the wizard itself (the spells) still asks for it.
     pub fn is_diplomat(&self, other: PlayerId) -> bool {
-        other != self.me && self.game.takes_part_in_diplomacy(other)
+        other != self.me && self.world.takes_part_in_diplomacy(other)
     }
 
     /// Whether a wizard the player is at war with has a book in one of `realms` (the books of a
     /// wizard are on show in the diplomacy screen).
     pub fn rival_at_war_has_books(&self, realms: &[RealmId]) -> bool {
         self.rivals_at_war().into_iter().any(|p| {
-            self.game
+            self.world
                 .wizard(p)
                 .is_some_and(|w| realms.iter().any(|&r| w.books_in(r) > 0))
         })
@@ -212,12 +212,12 @@ impl<'a> PlayerView<'a> {
 
     /// The wizards still in the game that the player is at war with.
     pub fn rivals_at_war(&self) -> Vec<PlayerId> {
-        self.game
+        self.world
             .player_ids()
             .into_iter()
             .filter(|&p| {
                 self.is_rival_wizard(p)
-                    && self.game.player(p).is_some_and(|q| !q.is_defeated())
+                    && self.world.player(p).is_some_and(|q| !q.is_defeated())
                     && self.treaty_with(p) == crate::diplomacy::Treaty::War
             })
             .collect()
@@ -225,48 +225,48 @@ impl<'a> PlayerView<'a> {
 
     /// The treaty the player has with another wizard (a player knows its own treaties).
     pub fn treaty_with(&self, other: PlayerId) -> crate::diplomacy::Treaty {
-        self.game.treaty(self.me, other)
+        self.world.treaty(self.me, other)
     }
 
     /// What the player's power makes this turn: the split, the research and the mana upkeep.
     pub fn income(&self) -> crate::wizard::magic_income::Income {
-        self.game.income(self.me)
+        self.world.income(self.me)
     }
 
     /// What researching a spell would cost the player (the Spell of Mastery's depends on the
     /// spells it knows).
     pub fn research_cost(&self, spell: SpellId) -> i32 {
-        self.game
+        self.world
             .wizard(self.me)
-            .map_or(0, |m| m.research_cost(self.game.content(), spell))
+            .map_or(0, |m| m.research_cost(self.world.content(), spell))
     }
 
     /// A spell that has been paid for over several turns and now waits for its target (or takes
     /// effect at the turn's end).
     pub fn paid_spell(&self) -> Option<SpellId> {
-        self.game.wizard(self.me).and_then(|m| m.casting_paid())
+        self.world.wizard(self.me).and_then(|m| m.casting_paid())
     }
 
     /// Does casting the spell ask for a target?
     pub fn spell_needs_target(&self, spell: SpellId) -> bool {
-        self.game.spell_needs_target(self.me, spell)
+        self.world.spell_needs_target(self.me, spell)
     }
 
     /// Would the game accept the spell aimed at the target? (The rules the cast would be checked
     /// by; nothing is cast.)
     pub fn can_aim(&self, spell: SpellId, target: Option<crate::rules::exec::Target>) -> bool {
-        self.game.check_target(self.me, spell, target).is_ok()
+        self.world.check_target(self.me, spell, target).is_ok()
     }
 
     /// Is there a free hero a hero-bringing spell could find for the player? (`true` for any other
     /// spell.)
     pub fn hero_to_summon(&self, spell: SpellId) -> bool {
-        self.game.units().hero_to_summon(self.me, spell)
+        self.world.units().hero_to_summon(self.me, spell)
     }
 
     /// The lasting spells on one of the player's units.
     pub fn unit_enchantments(&self, unit: hecs::Entity) -> Vec<SpellId> {
-        self.game
+        self.world
             .units()
             .unit_enchantments(unit)
             .into_iter()
@@ -276,7 +276,7 @@ impl<'a> PlayerView<'a> {
 
     /// The lasting spells on a city.
     pub fn city_enchantments(&self, city: hecs::Entity) -> Vec<SpellId> {
-        self.game
+        self.world
             .spells()
             .city_enchantments(city)
             .into_iter()
@@ -286,7 +286,7 @@ impl<'a> PlayerView<'a> {
 
     /// The lasting spells on a city that another wizard cast.
     pub fn city_curses(&self, city: hecs::Entity) -> Vec<SpellId> {
-        self.game
+        self.world
             .spells()
             .city_enchantments(city)
             .into_iter()
@@ -298,8 +298,8 @@ impl<'a> PlayerView<'a> {
     /// The lasting spells on the whole world that wizards at war with the player keep going, with
     /// the instance to aim Disjunction at.
     pub fn globals_of_enemies(&self) -> Vec<(SpellId, hecs::Entity)> {
-        let spells = self.game.spells();
-        self.game
+        let spells = self.world.spells();
+        self.world
             .rival_globals(self.me)
             .into_iter()
             .filter(|&i| {
@@ -314,15 +314,15 @@ impl<'a> PlayerView<'a> {
     /// How much of a spell the wizard pays for in a turn: its casting skill and the mana of its
     /// heroes at the fortress. A spell costing more takes more turns.
     pub fn casting_power(&self) -> i32 {
-        self.game
+        self.world
             .wizard(self.me)
-            .map_or(0, |w| w.casting_skill(&self.game.content().rules))
-            + self.game.hero_casting_skill(self.me)
+            .map_or(0, |w| w.casting_skill(&self.world.content().rules))
+            + self.world.hero_casting_skill(self.me)
     }
 
     /// The proposals other wizards have made to the player and it has not answered.
     pub fn proposals_to_me(&self) -> Vec<Proposal> {
-        self.game
+        self.world
             .diplomacy
             .proposals()
             .iter()
@@ -335,18 +335,18 @@ impl<'a> PlayerView<'a> {
 
     /// The player's heroes.
     pub fn my_heroes(&self) -> Vec<hecs::Entity> {
-        self.game.units().hero_units(self.me)
+        self.world.units().hero_units(self.me)
     }
 
     /// The player's vault and the items waiting after a reward.
     pub fn armory(&self) -> crate::item::armory::Armory {
-        self.game.items().armory(self.me)
+        self.world.items().armory(self.me)
     }
 
     /// The empty slots of one of the player's heroes: the slot number and what it takes.
     pub fn hero_free_slots(&self, hero: hecs::Entity) -> Vec<(usize, crate::rules::SlotKind)> {
         use crate::item::armory::ItemWorld;
-        let items = self.game.items();
+        let items = self.world.items();
         let Some(slots) = items.hero_slots(self.me, hero) else {
             return Vec::new();
         };
@@ -360,67 +360,67 @@ impl<'a> PlayerView<'a> {
 
     /// The player's own fortress.
     pub fn fortress(&self) -> Option<Position> {
-        self.game.wizard(self.me).and_then(|w| w.fortress())
+        self.world.wizard(self.me).and_then(|w| w.fortress())
     }
 
     pub fn my_units(&self) -> Vec<hecs::Entity> {
-        self.game.units().player_units(self.me)
+        self.world.units().player_units(self.me)
     }
 
     /// The player's cities (outposts too) and where they stand, oldest first.
     pub fn my_cities(&self) -> Vec<(hecs::Entity, Position)> {
-        self.game.economy().cities_of(self.me)
+        self.world.economy().cities_of(self.me)
     }
 
     pub fn serial_of(&self, entity: hecs::Entity) -> Serial {
-        self.game.units().serial_of(entity)
+        self.world.units().serial_of(entity)
     }
 
     pub fn sort_by_serial(&self, entities: &mut [hecs::Entity]) {
-        self.game.units().sort_by_serial(entities);
+        self.world.units().sort_by_serial(entities);
     }
 
     pub fn unit_def(&self, unit: hecs::Entity) -> Option<&'a UnitDef> {
-        self.game.units().unit_def(unit)
+        self.world.units().unit_def(unit)
     }
 
     pub fn unit_position(&self, unit: hecs::Entity) -> Option<Position> {
-        self.game.units().unit_position(unit)
+        self.world.units().unit_position(unit)
     }
 
     pub fn unit_stat(&self, unit: hecs::Entity, stat: Stat) -> i32 {
-        self.game.units().unit_stat(unit, stat)
+        self.world.units().unit_stat(unit, stat)
     }
 
     /// How far the unit sees, in squares.
     pub fn unit_sight(&self, unit: hecs::Entity) -> HalfInt {
-        self.game.units().unit_sight(unit)
+        self.world.units().unit_sight(unit)
     }
 
     /// Movement points the unit has left this turn.
     pub fn unit_moves_left(&self, unit: hecs::Entity) -> HalfInt {
-        self.game.units().unit_moves_left(unit)
+        self.world.units().unit_moves_left(unit)
     }
 
     /// `(current, maximum)` hit points over all figures.
     pub fn unit_hits(&self, unit: hecs::Entity) -> (u32, u32) {
-        self.game.units().unit_hits(unit)
+        self.world.units().unit_hits(unit)
     }
 
     /// Whether the unit is a walker, by nature and by what it carries or has cast on it
     /// (`Economy::is_walker`): the only kind a ship fetches or a land route is planned for.
     pub fn is_walker(&self, unit: hecs::Entity) -> bool {
-        self.game.economy().is_walker(unit)
+        self.world.economy().is_walker(unit)
     }
 
     /// [`PlayerView::is_walker`] for the unit in the stack it stands in
     /// (`Economy::is_walker_in_stack`): a stack with a Wind Walker is carried through the air.
     pub fn is_walker_in_stack(&self, unit: hecs::Entity) -> bool {
-        self.game.economy().is_walker_in_stack(unit)
+        self.world.economy().is_walker_in_stack(unit)
     }
 
     pub fn unit_has_ability(&self, unit: hecs::Entity, ability: Ability) -> bool {
-        self.game.units().unit_has_ability(unit, ability)
+        self.world.units().unit_has_ability(unit, ability)
     }
 
     /// Whether one of the unit's abilities sets the flag (`Units::unit_has_flag`).
@@ -429,54 +429,54 @@ impl<'a> PlayerView<'a> {
         unit: hecs::Entity,
         flag: crate::rules::unit_flag::UnitFlag,
     ) -> bool {
-        self.game.units().unit_has_flag(unit, flag)
+        self.world.units().unit_has_flag(unit, flag)
     }
 
     /// Whether the unit can found a city.
     pub fn unit_is_settler(&self, unit: hecs::Entity) -> bool {
-        self.game.units().unit_is_settler(unit)
+        self.world.units().unit_is_settler(unit)
     }
 
     /// Whether the unit's weapons are magical (heroes, fantastic creatures, a flaming or blessed
     /// weapon): they hurt what normal weapons barely scratch.
     pub fn unit_has_magical_weapon(&self, unit: hecs::Entity) -> bool {
-        self.game.units().unit_has_magical_weapon(unit)
+        self.world.units().unit_has_magical_weapon(unit)
     }
 
     /// How quickly the unit gets to a square (`unit::mobility`).
     pub fn unit_mobility(&self, unit: hecs::Entity) -> f32 {
-        self.game.units().unit_mobility(unit)
+        self.world.units().unit_mobility(unit)
     }
 
     /// How quickly a party gets to a square: the slowest unit's pace, unless the stack is carried.
     pub fn party_mobility(&self, units: &[hecs::Entity]) -> f32 {
-        self.game.units().party_mobility(units)
+        self.world.units().party_mobility(units)
     }
 
     /// What the unit adds to a battle at full health (`battle::power::unit_power`).
     pub fn unit_power(&self, unit: hecs::Entity) -> f32 {
-        self.game.units().unit_power(unit)
+        self.world.units().unit_power(unit)
     }
 
     /// What the unit would add to a battle with the spell lasting on it (`UnitView::unit_power_with_spell`).
     pub fn unit_power_with_spell(&self, unit: hecs::Entity, spell: SpellId) -> f32 {
-        self.game.units().unit_power_with_spell(unit, spell)
+        self.world.units().unit_power_with_spell(unit, spell)
     }
 
     /// Is the unit walking a path it was ordered to?
     pub fn unit_has_order(&self, unit: hecs::Entity) -> bool {
-        self.game.unit_has_order(unit)
+        self.world.unit_has_order(unit)
     }
 
     /// The square the unit's standing order walks to (the end of its path).
     pub fn unit_destination(&self, unit: hecs::Entity) -> Option<Position> {
-        self.game.unit_destination(unit)
+        self.world.unit_destination(unit)
     }
 
     /// The magic nodes on explored squares: where each stands, who holds it, whether a Guardian
     /// Spirit does, whether it is warped.
     pub fn nodes(&self) -> Vec<crate::feature::entity::NodeInfo> {
-        self.game
+        self.world
             .economy()
             .nodes()
             .into_iter()
@@ -486,8 +486,8 @@ impl<'a> PlayerView<'a> {
 
     /// Is the engineer at work on a road?
     pub fn unit_builds_road(&self, unit: hecs::Entity) -> bool {
-        self.game
-            .world
+        self.world
+            .ecs
             .get::<&crate::map::road::RoadWork>(unit)
             .is_ok()
     }
@@ -495,14 +495,14 @@ impl<'a> PlayerView<'a> {
     /// Whether a road can be built on the square (not on water): a way that crosses water (a ship's
     /// square) is no way for a road.
     pub fn road_possible(&self, at: Position) -> bool {
-        self.game.turns_to_build_road(at).is_some()
+        self.world.turns_to_build_road(at).is_some()
     }
 
     /// Is there a road on an explored square?
     pub fn has_road(&self, at: Position) -> bool {
         self.explored(at)
             && self
-                .game
+                .world
                 .map()
                 .is_some_and(|m| m.plane(at.plane).has_road(at.x as i32, at.y as i32))
     }
@@ -510,33 +510,33 @@ impl<'a> PlayerView<'a> {
     /// The squares of the way the stack would walk to `to` (the start left out), `None` when it
     /// has none.
     pub fn path(&self, units: &[hecs::Entity], to: Position) -> Option<Vec<Position>> {
-        self.game.find_path(units, to)
+        self.world.find_path(units, to)
     }
 
     /// The units aboard a ship (they stay aboard in a port until they step ashore).
     pub fn passengers_of(&self, ship: hecs::Entity) -> Vec<hecs::Entity> {
-        self.game.economy().passengers_of(ship)
+        self.world.economy().passengers_of(ship)
     }
 
     /// The food a unit eats per turn.
     pub fn unit_food(&self, unit: hecs::Entity) -> f4x_def::half_int::HalfInt {
-        self.game.units().unit_food(unit)
+        self.world.units().unit_food(unit)
     }
 
     /// The food these units eat together per turn.
     pub fn food_of(&self, units: &[hecs::Entity]) -> f4x_def::half_int::HalfInt {
-        self.game.units().food_of(units)
+        self.world.units().food_of(units)
     }
 
     /// The race of a city.
     pub fn city_race(&self, city: hecs::Entity) -> Option<f4x_def::rules::RaceId> {
-        self.game.economy().city_race(city)
+        self.world.economy().city_race(city)
     }
 
     /// Is the city the player's own? What a city makes, builds and costs is read of its own
     /// cities only; of another wizard's the player has the `city_report`.
     fn is_my_city(&self, city: hecs::Entity) -> bool {
-        self.game.economy().city_owner(city) == Some(self.me)
+        self.world.economy().city_owner(city) == Some(self.me)
     }
 
     /// What one of the player's cities is building (nothing for another's: see `city_report`).
@@ -544,7 +544,7 @@ impl<'a> PlayerView<'a> {
         if !self.is_my_city(city) {
             return Production::default();
         }
-        self.game.economy().city_production(city)
+        self.world.economy().city_production(city)
     }
 
     pub fn can_build(
@@ -555,14 +555,14 @@ impl<'a> PlayerView<'a> {
         if !self.is_my_city(city) {
             return Err(ProductionError::NotACity);
         }
-        self.game.economy().can_build(city, item)
+        self.world.economy().can_build(city, item)
     }
 
     pub fn buy_cost(&self, city: hecs::Entity) -> Option<HalfInt> {
         if !self.is_my_city(city) {
             return None;
         }
-        self.game.economy().buy_cost(city)
+        self.world.economy().buy_cost(city)
     }
 
     /// The figures of one of the player's cities (food, production, gold, ...); `None` for
@@ -571,14 +571,14 @@ impl<'a> PlayerView<'a> {
         if !self.is_my_city(city) {
             return None;
         }
-        self.game.economy().city_economy(city)
+        self.world.economy().city_economy(city)
     }
 
     /// The food the player's cities would add if half of their workers went to the fields: what
     /// an army that eats more can still be fed with, at the cost of production (the balance of
     /// farmers puts people there as the food is needed).
     pub fn farming_headroom(&self) -> f4x_def::half_int::HalfInt {
-        let economy = self.game.economy();
+        let economy = self.world.economy();
         self.my_cities()
             .into_iter()
             .filter_map(|(city, _)| {
@@ -598,17 +598,17 @@ impl<'a> PlayerView<'a> {
             return Vec::new();
         }
         let sees = self.sees(at);
-        let mut units = self.game.economy().garrison(at);
+        let mut units = self.world.economy().garrison(at);
         units.retain(|&u| {
-            self.game.units().unit_owner(u) == Some(self.me)
-                || (sees && self.game.economy().unit_visible_to(u, self.me))
+            self.world.units().unit_owner(u) == Some(self.me)
+                || (sees && self.world.economy().unit_visible_to(u, self.me))
         });
         units
     }
 
     /// The game's difficulty: 0 intro, 1 easy, 2 normal, 3 hard, 4 extreme, 5 impossible.
     pub fn difficulty(&self) -> u8 {
-        self.game.difficulty()
+        self.world.difficulty()
     }
 
     // ---- what it knows of the world ------------------------------------------------
@@ -616,17 +616,17 @@ impl<'a> PlayerView<'a> {
     /// Does a diagonal step cost more than a straight one, in movement and in sight (the setting
     /// `diagonal_extra_cost`)?
     pub fn diagonal_extra_cost(&self) -> bool {
-        self.game.settings.basic.diagonal_extra_cost
+        self.world.settings.basic.diagonal_extra_cost
     }
 
     /// Has the player explored the square?
     pub fn explored(&self, at: Position) -> bool {
-        self.game.is_explored(self.me, at)
+        self.world.is_explored(self.me, at)
     }
 
     /// The share (0 to 1) of a plane's squares the player has explored.
     pub fn explored_share(&self, plane: crate::map::Plane) -> f32 {
-        let Some(grid) = self.game.map().map(|m| m.plane(plane)) else {
+        let Some(grid) = self.world.map().map(|m| m.plane(plane)) else {
             return 0.0;
         };
         let (w, h) = (grid.width(), grid.height());
@@ -639,12 +639,12 @@ impl<'a> PlayerView<'a> {
 
     /// Does the player see the square now?
     pub fn sees(&self, at: Position) -> bool {
-        if let Some(sees) = self.game.cached_sees(self.me, at) {
+        if let Some(sees) = self.world.cached_sees(self.me, at) {
             return sees;
         }
         let seen = self.seen[at.plane.index()]
-            .get_or_init(|| self.game.economy().visibility(self.me, at.plane));
-        let width = self.game.map().map_or(0, |m| m.width());
+            .get_or_init(|| self.world.economy().visibility(self.me, at.plane));
+        let width = self.world.map().map_or(0, |m| m.width());
         seen.get((at.y * width + at.x) as usize)
             .copied()
             .unwrap_or(false)
@@ -652,7 +652,7 @@ impl<'a> PlayerView<'a> {
 
     /// The cities of other players on squares the player has explored.
     pub fn known_cities(&self) -> Vec<(hecs::Entity, PlayerId, Position)> {
-        self.game
+        self.world
             .economy()
             .city_places(|owner, p| owner != self.me && self.explored(p))
     }
@@ -660,18 +660,18 @@ impl<'a> PlayerView<'a> {
     /// Is the city its owner's fortress city (the wizard's seat)? Asked of a city the player has
     /// explored.
     pub fn is_fortress_city(&self, city: hecs::Entity) -> bool {
-        self.game.economy().is_fortress_city(city)
+        self.world.economy().is_fortress_city(city)
     }
 
     /// The city on a square the player has explored.
     pub fn city_at(&self, at: Position) -> Option<hecs::Entity> {
         self.explored(at)
-            .then(|| self.game.economy().city_at(at))
+            .then(|| self.world.economy().city_at(at))
             .flatten()
     }
 
     pub fn city_owner(&self, city: hecs::Entity) -> Option<PlayerId> {
-        self.game.economy().city_owner(city)
+        self.world.economy().city_owner(city)
     }
 
     /// What the enemy city screen shows of a city of another player on a square the player has
@@ -679,14 +679,14 @@ impl<'a> PlayerView<'a> {
     /// (the screen says "No Report") and a handle that is no city. It is read live: what the
     /// player explored once it may look at, as the human may, seen now or not.
     pub fn city_report(&self, city: hecs::Entity) -> Option<CityReport> {
-        let economy = self.game.economy();
+        let economy = self.world.economy();
         let owner = economy.city_owner(city)?;
-        let position = self.game.city_position(city)?;
+        let position = self.world.city_position(city)?;
         if owner == self.me || !self.explored(position) {
             return None;
         }
         let figures = economy.city_economy(city).unwrap_or_default();
-        let units = self.game.units();
+        let units = self.world.units();
         let mut garrison: Vec<hecs::Entity> = units
             .units_at(position)
             .into_iter()
@@ -704,10 +704,11 @@ impl<'a> PlayerView<'a> {
             farmers: figures.farmers,
             workers: figures.workers,
             rebels: figures.rebels,
-            buildings: self.game.city_buildings(city),
-            enchantments: self.game.spells().city_enchantments(city),
+            buildings: self.world.city_buildings(city),
+            enchantments: self.world.spells().city_enchantments(city),
             garrison,
-            summoning_circle: self.game.wizard(owner).and_then(|w| w.summon_at()) == Some(position),
+            summoning_circle: self.world.wizard(owner).and_then(|w| w.summon_at())
+                == Some(position),
         })
     }
 
@@ -716,7 +717,7 @@ impl<'a> PlayerView<'a> {
         if !self.is_my_city(city) {
             return None;
         }
-        let at = self.game.city_position(city)?;
+        let at = self.world.city_position(city)?;
         Some(self.site_specials(at))
     }
 
@@ -724,13 +725,13 @@ impl<'a> PlayerView<'a> {
     /// explored them (what is not explored counts for nothing).
     pub fn site_specials(&self, at: Position) -> CitySpecials {
         let mut out = CitySpecials::default();
-        let Some(map) = self.game.map() else {
+        let Some(map) = self.world.map() else {
             return out;
         };
         let grid = map.plane(at.plane);
-        let features = &self.game.content().features;
+        let features = &self.world.content().features;
         let nightshade = features.id_numbered(16); // nightshade
-        for (p, _) in self.game.economy().city_area(at) {
+        for (p, _) in self.world.economy().city_area(at) {
             if !self.explored(p) {
                 continue;
             }
@@ -738,7 +739,7 @@ impl<'a> PlayerView<'a> {
                 out.rivers += 1;
             }
             out.terrain_production +=
-                self.game
+                self.world
                     .economy()
                     .square_production(grid, p.x as i32, p.y as i32, false) as f32;
             let Some(id) = grid.mineral(p.x as i32, p.y as i32) else {
@@ -760,38 +761,38 @@ impl<'a> PlayerView<'a> {
 
     /// Width and height of a plane of the map.
     pub fn map_size(&self) -> Option<(u32, u32)> {
-        self.game.map().map(|m| (m.width(), m.height()))
+        self.world.map().map(|m| (m.width(), m.height()))
     }
 
     /// The least distance between two cities in this game (the `min_city_distance` setting).
     pub fn min_city_distance(&self) -> u32 {
-        u32::from(self.game.settings().rules.min_city_distance)
+        u32::from(self.world.settings().rules.min_city_distance)
     }
 
     /// The size at which a city stops growing in this game (the `max_city_size` setting).
     pub fn max_city_size(&self) -> u32 {
-        u32::from(self.game.settings().rules.max_city_size)
+        u32::from(self.world.settings().rules.max_city_size)
     }
 
-    /// How many units may stand on `at` when a stack walks in (`Game::tile_limit`).
+    /// How many units may stand on `at` when a stack walks in (`World::tile_limit`).
     pub fn tile_limit(&self, at: crate::map::Position) -> usize {
-        self.game.tile_limit(at)
+        self.world.tile_limit(at)
     }
 
     /// Most units that may stand on one square in this game.
     pub fn max_tile(&self) -> usize {
-        self.game.max_tile()
+        self.world.max_tile()
     }
 
     /// Whether the unit keeps order in a city it stands in: only normal units and heroes do
     /// (half a rebel each; fantastic creatures defend but do not police).
     pub fn is_garrison(&self, unit: hecs::Entity) -> bool {
-        self.game.units().is_garrison(unit)
+        self.world.units().is_garrison(unit)
     }
 
     /// Most units one side fights with in a battle in this game.
     pub fn max_battle_side(&self) -> usize {
-        self.game.max_battle_side()
+        self.world.max_battle_side()
     }
 
     /// Hostile units or a hostile city on a square the player sees now (`None` if there is
@@ -801,11 +802,11 @@ impl<'a> PlayerView<'a> {
         if !self.sees(at) {
             return None;
         }
-        let units = self.game.economy().hostile_at(at, self.me)?;
+        let units = self.world.economy().hostile_at(at, self.me)?;
         Some(
             units
                 .into_iter()
-                .filter(|&u| self.game.economy().unit_visible_to(u, self.me))
+                .filter(|&u| self.world.economy().unit_visible_to(u, self.me))
                 .collect(),
         )
     }
@@ -826,7 +827,7 @@ impl<'a> PlayerView<'a> {
                 let units: Vec<_> = units
                     .into_iter()
                     .filter(|&u| {
-                        self.game
+                        self.world
                             .units()
                             .unit_owner(u)
                             .is_some_and(|o| at_war.contains(&o))
@@ -843,7 +844,7 @@ impl<'a> PlayerView<'a> {
     /// The class of terrain on an explored square.
     pub fn terrain_class(&self, at: Position) -> Option<TerrainClass> {
         self.explored(at)
-            .then(|| self.game.economy().terrain_class_at(at))
+            .then(|| self.world.economy().terrain_class_at(at))
             .flatten()
     }
 
@@ -851,7 +852,7 @@ impl<'a> PlayerView<'a> {
     pub fn has_river(&self, at: Position) -> bool {
         self.explored(at)
             && self
-                .game
+                .world
                 .map()
                 .is_some_and(|m| m.plane(at.plane).has_river(at.x as i32, at.y as i32))
     }
@@ -859,7 +860,7 @@ impl<'a> PlayerView<'a> {
     /// Is there an enchanted road on an explored square (every road on Myrror is one)?
     pub fn has_enchanted_road(&self, at: Position) -> bool {
         self.explored(at)
-            && self.game.map().is_some_and(|m| {
+            && self.world.map().is_some_and(|m| {
                 let grid = m.plane(at.plane);
                 (at.plane == crate::map::Plane::Myrror && grid.has_road(at.x as i32, at.y as i32))
                     || grid.has_enchanted_road(at.x as i32, at.y as i32)
@@ -868,18 +869,18 @@ impl<'a> PlayerView<'a> {
 
     /// Is an explored square under a magic node's influence?
     pub fn in_node(&self, at: Position) -> bool {
-        self.explored(at) && self.game.economy().node_covering(at).is_some()
+        self.explored(at) && self.world.economy().node_covering(at).is_some()
     }
 
     /// Is there a guarded site on an explored square?
     pub fn has_lair(&self, at: Position) -> bool {
-        self.explored(at) && self.game.economy().lair_at(at).is_some()
+        self.explored(at) && self.world.economy().lair_at(at).is_some()
     }
 
     /// The towers the player has seen, on the planes it has seen them on, and whether each still
     /// has its guards. A stack standing on a tower with none can change plane.
     pub fn towers(&self) -> Vec<(Position, bool)> {
-        let economy = self.game.economy();
+        let economy = self.world.economy();
         let mut found = Vec::new();
         for lair in economy.lairs() {
             if !economy.is_tower(lair.pos) {
@@ -899,48 +900,48 @@ impl<'a> PlayerView<'a> {
     pub fn can_shift_plane(&self, units: &[hecs::Entity]) -> bool {
         // Off a tower the game refuses a crossing into a square held by an enemy or one without
         // room (planar travel, an Astral Gate), so this asks the same.
-        let Ok(to) = self.game.economy().can_shift_plane(units) else {
+        let Ok(to) = self.world.economy().can_shift_plane(units) else {
             return false;
         };
         // In a tower the stack is on both planes already: nobody else can be there.
         if units
             .first()
-            .and_then(|&u| self.game.units().unit_position(u))
-            .is_some_and(|from| self.game.economy().tower_mirror(from).is_some())
+            .and_then(|&u| self.world.units().unit_position(u))
+            .is_some_and(|from| self.world.economy().tower_mirror(from).is_some())
         {
             return true;
         }
-        self.game.economy().hostile_at(to, self.me).is_none()
-            && self.game.units().units_at(to).len() + units.len() <= self.game.tile_limit(to)
+        self.world.economy().hostile_at(to, self.me).is_none()
+            && self.world.units().units_at(to).len() + units.len() <= self.world.tile_limit(to)
     }
 
     /// The explored stands nobody holds: a lair without guards, or a cleared node or tower with
     /// no owner. Monsters settle in them.
     pub fn vacant_zones(&self) -> Vec<Position> {
-        self.game
+        self.world
             .economy()
             .lairs()
             .into_iter()
             .map(|l| l.pos)
-            .filter(|&p| self.explored(p) && self.game.vacant_zone(p).is_some())
+            .filter(|&p| self.explored(p) && self.world.vacant_zone(p).is_some())
             .collect()
     }
 
     /// What guards the site on a square, once the player has fought for it (otherwise the
     /// player does not know).
     pub fn lair_guards(&self, at: Position) -> Option<Vec<(UnitId, u32)>> {
-        self.game.economy().lair_guards_known_to(at, self.me)
+        self.world.economy().lair_guards_known_to(at, self.me)
     }
 
     /// Could the player found a city on this explored square?
     pub fn can_found_city(&self, at: Position) -> bool {
-        self.explored(at) && self.game.can_found_city(at).is_ok()
+        self.explored(at) && self.world.can_found_city(at).is_ok()
     }
 
     /// The square `dx`, `dy` away from `from`: the map wraps east and west and ends at the poles
     /// (`None` there).
     pub fn shift(&self, from: Position, dx: i32, dy: i32) -> Option<Position> {
-        let grid = self.game.map()?.plane(from.plane);
+        let grid = self.world.map()?.plane(from.plane);
         let y = from.y as i32 + dy;
         (0..grid.height() as i32).contains(&y).then(|| Position {
             plane: from.plane,
@@ -954,35 +955,35 @@ impl<'a> PlayerView<'a> {
         if a.plane != b.plane {
             return None;
         }
-        let map = self.game.map()?;
+        let map = self.world.map()?;
         Some(map.plane(a.plane).chebyshev((a.x, a.y), (b.x, b.y)))
     }
 
     /// Is there a way for the stack to the square? (The game's own path check: the one an order
     /// to go there would use.)
     pub fn can_reach(&self, units: &[hecs::Entity], to: Position) -> bool {
-        self.game.find_path(units, to).is_some()
+        self.world.find_path(units, to).is_some()
     }
 
-    /// Every square the stack can walk to from where it stands (see `Game::reachable_squares`):
+    /// Every square the stack can walk to from where it stands (see `World::reachable_squares`):
     /// one search, for asking about many squares.
     pub fn reachable(&self, units: &[hecs::Entity]) -> crate::fast::FastSet<Position> {
-        self.game.reachable_squares(units)
+        self.world.reachable_squares(units)
     }
 
     /// Whether the stack can walk to any of the squares (one search that stops at the first).
     pub fn reaches_any(&self, units: &[hecs::Entity], targets: &[Position]) -> bool {
-        self.game.reaches_any(units, targets)
+        self.world.reaches_any(units, targets)
     }
 
     /// The squares the stack can walk to when it reaches none of `targets` (`None` when it
-    /// reaches one): see `Game::unreached_region`.
+    /// reaches one): see `World::unreached_region`.
     pub fn unreached_region(
         &self,
         units: &[hecs::Entity],
         targets: &[Position],
     ) -> Option<crate::fast::FastSet<Position>> {
-        self.game.unreached_region(units, targets)
+        self.world.unreached_region(units, targets)
     }
 
     /// What decides the squares a stack can walk to: stacks with an equal signature reach the
@@ -991,11 +992,11 @@ impl<'a> PlayerView<'a> {
         &self,
         units: &[hecs::Entity],
     ) -> Option<crate::unit::pathing::ReachSignature> {
-        self.game.reach_signature(units)
+        self.world.reach_signature(units)
     }
 
     /// A spell's definition (the content is public).
     pub fn spell(&self, spell: SpellId) -> &'a SpellDef {
-        self.game.content().rules.spells.get(spell)
+        self.world.content().rules.spells.get(spell)
     }
 }

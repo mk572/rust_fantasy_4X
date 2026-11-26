@@ -3,9 +3,9 @@
 //! stacks walking one way clears from its head, whatever the order of their creation.
 
 use crate::support::{around, WORLDS};
-use f4x_core::game::testutil::fresh;
-use f4x_core::game::{Command, Event};
 use f4x_core::rules::UnitId;
+use f4x_core::world::testutil::fresh;
+use f4x_core::world::{Command, Event};
 use f4x_def::half_int::HalfInt;
 
 #[test]
@@ -26,14 +26,14 @@ fn a_stack_that_finds_its_way_full_goes_in_once_the_stack_on_it_has_gone_on() {
         .2;
     let moved = |events: &[Event]| events.iter().any(|e| matches!(e, Event::UnitsMoved { .. }));
     // A unit that walks, a square `b` next to the city and a square `c` beyond it, found by trying.
-    let step = |g: &mut f4x_core::game::Game, unit: UnitId, from, to| {
-        g.apply(Command::CreateUnit {
+    let step = |w: &mut f4x_core::world::World, unit: UnitId, from, to| {
+        w.apply(Command::CreateUnit {
             owner: wizard,
             pos: from,
             unit,
         });
-        let u = *g.units().all_units().last().expect("the new unit");
-        moved(&g.apply(Command::MoveStack { units: vec![u], to }))
+        let u = *w.units().all_units().last().expect("the new unit");
+        moved(&w.apply(Command::MoveStack { units: vec![u], to }))
     };
     let mut found = None;
     'search: for def in base.content().rules.units.defs() {
@@ -54,38 +54,38 @@ fn a_stack_that_finds_its_way_full_goes_in_once_the_stack_on_it_has_gone_on() {
     }
     let (unit, b, c) = found.expect("a unit walks from the city over a square to another");
 
-    let mut g = fresh(wizards, seed).expect("a fresh game");
-    let limit = g.settings().rules.max_battle_side;
-    g.scenario_change_settings(|s| s.rules.max_tile = limit);
-    let before = g.units().units_at(b).len();
-    let make = |g: &mut f4x_core::game::Game, at, n: usize| -> Vec<_> {
+    let mut w = fresh(wizards, seed).expect("a fresh game");
+    let limit = w.settings().rules.max_battle_side;
+    w.scenario_change_settings(|s| s.rules.max_tile = limit);
+    let before = w.units().units_at(b).len();
+    let make = |w: &mut f4x_core::world::World, at, n: usize| -> Vec<_> {
         (0..n)
             .map(|_| {
-                g.apply(Command::CreateUnit {
+                w.apply(Command::CreateUnit {
                     owner: wizard,
                     pos: at,
                     unit,
                 });
-                *g.units().all_units().last().expect("the new unit")
+                *w.units().all_units().last().expect("the new unit")
             })
             .collect()
     };
     // The rear stack is the older: it is followed first, and finds the square before it full.
-    let rear = make(&mut g, a, 2);
-    let head = make(&mut g, b, limit.saturating_sub(before));
-    assert_eq!(g.units().units_at(b).len(), limit, "the square is full");
+    let rear = make(&mut w, a, 2);
+    let head = make(&mut w, b, limit.saturating_sub(before));
+    assert_eq!(w.units().units_at(b).len(), limit, "the square is full");
     // Orders given with no moves left stand until the turn starts.
     for &u in rear.iter().chain(&head) {
-        g.scenario_set_moves_left(u, HalfInt::ZERO);
+        w.scenario_set_moves_left(u, HalfInt::ZERO);
     }
     for (units, to) in [(rear.clone(), b), (head.clone(), c)] {
-        let events = g.apply(Command::GoTo { units, to });
+        let events = w.apply(Command::GoTo { units, to });
         assert!(
             !events.iter().any(|e| matches!(e, Event::Rejected(_))),
             "{events:?}"
         );
     }
-    let events = g.apply(Command::EndTurn);
+    let events = w.apply(Command::EndTurn);
     assert!(
         !events
             .iter()
@@ -93,35 +93,35 @@ fn a_stack_that_finds_its_way_full_goes_in_once_the_stack_on_it_has_gone_on() {
         "an order failed: the rear stack was not given another try"
     );
     for &u in &head {
-        assert_eq!(g.units().unit_position(u), Some(c), "the head stack");
+        assert_eq!(w.units().unit_position(u), Some(c), "the head stack");
     }
     for &u in &rear {
-        assert_eq!(g.units().unit_position(u), Some(b), "the rear stack");
+        assert_eq!(w.units().unit_position(u), Some(b), "the rear stack");
     }
 }
 
 #[test]
 fn a_stack_that_stays_blocked_is_told_why() {
     let (wizards, seed) = WORLDS[0];
-    let mut g = fresh(wizards, seed).expect("a fresh game");
-    let wizard = g
+    let mut w = fresh(wizards, seed).expect("a fresh game");
+    let wizard = w
         .player_ids()
         .into_iter()
-        .find(|&p| g.wizard(p).is_some())
+        .find(|&p| w.wizard(p).is_some())
         .expect("a wizard");
-    let a = g
+    let a = w
         .economy()
         .cities()
         .into_iter()
         .find(|c| c.1.owner == wizard)
         .expect("a city")
         .2;
-    let unit = UnitId::new(g.content().rules.units.defs()[0].num);
-    let limit = g.settings().rules.max_battle_side;
-    g.scenario_change_settings(|s| s.rules.max_tile = limit);
+    let unit = UnitId::new(w.content().rules.units.defs()[0].num);
+    let limit = w.settings().rules.max_battle_side;
+    w.scenario_change_settings(|s| s.rules.max_tile = limit);
     // A neighbour that takes the unit, filled by units that stay (no orders, no moves).
     let mut b = None;
-    for to in around(&g, a) {
+    for to in around(&w, a) {
         let mut probe = fresh(wizards, seed).expect("a fresh game");
         probe.apply(Command::CreateUnit {
             owner: wizard,
@@ -139,31 +139,31 @@ fn a_stack_that_stays_blocked_is_told_why() {
         }
     }
     let Some(b) = b else { return };
-    let have = g.units().units_at(b).len();
+    let have = w.units().units_at(b).len();
     for _ in have..limit {
-        g.apply(Command::CreateUnit {
+        w.apply(Command::CreateUnit {
             owner: wizard,
             pos: b,
             unit,
         });
     }
-    g.apply(Command::CreateUnit {
+    w.apply(Command::CreateUnit {
         owner: wizard,
         pos: a,
         unit,
     });
-    let walker = *g.units().all_units().last().expect("a unit");
-    g.scenario_set_moves_left(walker, HalfInt::ZERO);
-    g.apply(Command::GoTo {
+    let walker = *w.units().all_units().last().expect("a unit");
+    w.scenario_set_moves_left(walker, HalfInt::ZERO);
+    w.apply(Command::GoTo {
         units: vec![walker],
         to: b,
     });
-    let events = g.apply(Command::EndTurn);
+    let events = w.apply(Command::EndTurn);
     assert!(
         events
             .iter()
             .any(|e| matches!(e, Event::OrderFailed { units, .. } if units.contains(&walker))),
         "the blocked stack was not told"
     );
-    assert_eq!(g.units().unit_position(walker), Some(a));
+    assert_eq!(w.units().unit_position(walker), Some(a));
 }

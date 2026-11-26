@@ -1,14 +1,14 @@
 //! The learned battle player for the game (task 171): it plays the battles of AI wizards.
 //!
-//! `LearnedBrain::load` reads a checkpoint written by training; `Game::set_battle_brain` plugs it
+//! `LearnedBrain::load` reads a checkpoint written by training; `World::set_battle_brain` plugs it
 //! in. Without a checkpoint nothing changes: the game plays battles with the plain AI.
 
 use std::path::Path;
 
 use burn::prelude::*;
-use f4x_core::battle::game::BattleBrain;
+use f4x_core::battle::world::BattleBrain;
 use f4x_core::battle::BattleCommand;
-use f4x_core::game::Game;
+use f4x_core::world::World;
 use f4x_def::content::Content;
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
@@ -54,17 +54,18 @@ impl LearnedBrain {
 }
 
 impl BattleBrain for LearnedBrain {
-    fn command(&mut self, game: &Game) -> BattleCommand {
+    fn command(&mut self, world: &World) -> BattleCommand {
         let fallback = || {
-            game.battle()
+            world
+                .battle()
                 .map_or(BattleCommand::EndTurn, crate::policy::scripted_command)
         };
-        let Some(side) = game.battle().map(|b| b.active) else {
+        let Some(side) = world.battle().map(|b| b.active) else {
             return BattleCommand::EndTurn;
         };
         loop {
             let Ok(next) =
-                next_for_agent(game, &self.spec, side, self.brief, &mut self.wizard_turn)
+                next_for_agent(world, &self.spec, side, self.brief, &mut self.wizard_turn)
             else {
                 return fallback();
             };

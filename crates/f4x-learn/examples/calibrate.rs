@@ -35,8 +35,8 @@ fn main() {
     }
     for class in ["Even", "Overwhelming", "Overwhelmed"] {
         let of: Vec<_> = rows.iter().filter(|r| r.0 == class).collect();
-        let w = of.iter().filter(|r| r.1).count();
-        println!("{class}: {w}/{} attacker wins", of.len());
+        let width = of.iter().filter(|r| r.1).count();
+        println!("{class}: {width}/{} attacker wins", of.len());
         for ground in [false, true] {
             let g: Vec<_> = of.iter().filter(|r| r.4 == ground).collect();
             let gw = g.iter().filter(|r| r.1).count();

@@ -67,7 +67,7 @@ impl crate::modal::Modal for SitePick {
             PickStep::Picking(pick) => Some(Box::new(SitePick { pick, to })),
             PickStep::Back => None,
             PickStep::Done(units) => {
-                app.begin_battle(f4x_core::game::Command::EnterSite { units, to });
+                app.begin_battle(f4x_core::world::Command::EnterSite { units, to });
                 None
             }
         }
@@ -84,15 +84,15 @@ impl App {
     ) -> FighterPick {
         let mut sorted = units.to_vec();
         sorted.sort_by(|&a, &b| {
-            self.game
+            self.world
                 .units()
                 .unit_power(b)
-                .total_cmp(&self.game.units().unit_power(a))
+                .total_cmp(&self.world.units().unit_power(a))
         });
-        let preset = self.game.fighter_preset(units);
+        let preset = self.world.fighter_preset(units);
         let picked = sorted
             .iter()
-            .map(|u| preset[..self.game.max_battle_side().min(preset.len())].contains(u))
+            .map(|u| preset[..self.world.max_battle_side().min(preset.len())].contains(u))
             .collect();
         FighterPick {
             units: sorted,
@@ -105,7 +105,7 @@ impl App {
 
     /// One frame of the screen.
     pub(crate) fn fighter_pick_frame(&mut self, mut pick: FighterPick, input: &Input) -> PickStep {
-        let max = self.game.max_battle_side();
+        let max = self.world.max_battle_side();
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let light = Color::new(0.95, 0.93, 0.85, 1.0);
@@ -324,9 +324,9 @@ mod tests {
 
     /// A pick of `n` units, the first `ticked` of them ticked.
     fn pick_of(n: usize, ticked: usize, attacking: bool) -> FighterPick {
-        let mut world = hecs::World::new();
+        let mut ecs = hecs::World::new();
         FighterPick {
-            units: (0..n).map(|_| world.spawn(())).collect(),
+            units: (0..n).map(|_| ecs.spawn(())).collect(),
             picked: (0..n).map(|i| i < ticked).collect(),
             first: 0,
             attacking,
@@ -424,13 +424,13 @@ mod tests {
     fn the_list_is_strongest_first_and_ticks_the_nine_the_preset_takes() -> TestResult {
         let mut app = crate::view::App::for_test();
         let pos = app
-            .game
+            .world
             .units()
             .player_units(HUMAN)
             .first()
-            .and_then(|&u| app.game.units().unit_position(u))
+            .and_then(|&u| app.world.units().unit_position(u))
             .ok_or("the human has no unit")?;
-        let rules = &app.game.content().rules;
+        let rules = &app.world.content().rules;
         let kinds = [
             39, /* barbarian_spearmen */
             41, /* barbarian_bowmen */
@@ -442,22 +442,22 @@ mod tests {
                 .id_numbered(name)
                 .ok_or("a unit is not in the content")
         });
-        for i in 0..app.game.max_tile() {
-            app.game.spawn_unit(HUMAN, pos, kinds[i % 3]?);
+        for i in 0..app.world.max_tile() {
+            app.world.spawn_unit(HUMAN, pos, kinds[i % 3]?);
         }
         let units = app.own_units_at(pos);
-        assert!(units.len() > app.game.max_battle_side());
+        assert!(units.len() > app.world.max_battle_side());
         let pick = app.new_fighter_pick(&units, true, false);
         assert_eq!(pick.units.len(), units.len());
         let strength: Vec<f32> = pick
             .units
             .iter()
-            .map(|&u| app.game.units().unit_power(u))
+            .map(|&u| app.world.units().unit_power(u))
             .collect();
         assert!(strength.windows(2).all(|w| w[0] >= w[1]), "{strength:?}");
         assert_eq!(
             pick.picked.iter().filter(|&&p| p).count(),
-            app.game.max_battle_side()
+            app.world.max_battle_side()
         );
         Ok(())
     }

@@ -133,11 +133,11 @@ fn put(lines: &mut Vec<Line>, item: Item, amount: HalfInt) {
 impl Economy<'_> {
     /// Where `resource` of `city` comes from, with `farmers` farming as the city has them.
     pub fn city_breakdown(&self, city: hecs::Entity, resource: Resource) -> Option<Breakdown> {
-        let farmers = self.world.get::<&Farmers>(city).map_or(0, |f| f.0);
+        let farmers = self.ecs.get::<&Farmers>(city).map_or(0, |f| f.0);
         let eco = self.city_economy_with(city, farmers)?;
-        let at = *self.world.get::<&Position>(city).ok()?;
+        let at = *self.ecs.get::<&Position>(city).ok()?;
         let owner = self.city_owner(city)?;
-        let race_id = self.world.get::<&CityRace>(city).ok().map(|r| r.0);
+        let race_id = self.ecs.get::<&CityRace>(city).ok().map(|r| r.0);
         let rules = &self.content.rules;
         let race: Option<&RaceDef> = race_id.map(|r| rules.races.get(r));
         let mods = self.city_modifiers(city);
@@ -198,7 +198,7 @@ impl Economy<'_> {
                 });
             }
             Resource::Gold => {
-                let tax_rate = crate::player::component::<crate::player::Tax>(self.world, owner)
+                let tax_rate = crate::player::component::<crate::player::Tax>(self.ecs, owner)
                     .map_or(1, |t| t.0) as usize;
                 let taxes = HalfInt::HALF * ((figures as i32 - rebels as i32) * tax_rate as i32);
                 put(&mut lines, Item::Taxes, taxes);
@@ -220,7 +220,7 @@ impl Economy<'_> {
                 stepped(&mut lines, &tagged_mods, &|m| {
                     compute_half(Stat::CityGold, base, m)
                 });
-                if let Ok(p) = self.world.get::<&crate::city::production::Production>(city) {
+                if let Ok(p) = self.ecs.get::<&crate::city::production::Production>(city) {
                     if p.item == Some(crate::city::production::ProductionItem::TradeGoods) {
                         let base = per_worker * workers as i32 + HalfInt::HALF * farmers as i32;
                         let mut production_mods = mods.clone();

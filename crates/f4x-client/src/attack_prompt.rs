@@ -4,7 +4,7 @@
 
 use crate::input::Input;
 use crate::text::Args;
-use f4x_core::game::Command;
+use f4x_core::world::Command;
 use macroquad::prelude::*;
 
 use crate::fighter_pick::PickStep;
@@ -73,10 +73,10 @@ impl App {
     /// cast anything (the box that does is returned), else fight at once.
     fn start_auto_battle(&mut self, attack: PendingAttack) -> Option<AttackAsk> {
         let reserve = self
-            .game
+            .world
             .player(HUMAN)
             .map_or(0, |p| p.treasury().mana.floor());
-        match self.game.strategic_mana_default(HUMAN) {
+        match self.world.strategic_mana_default(HUMAN) {
             Some(amount) => Some(AttackAsk {
                 attack,
                 mana: Some(ManaAsk {
@@ -97,14 +97,14 @@ impl App {
     /// monster to the computer, which asks for the mana limit; `--attack-box` stops at the
     /// question before.
     pub fn open_test_auto_attack(&mut self, question_only: bool) {
-        let attackers = self.game.units().player_units(HUMAN);
+        let attackers = self.world.units().player_units(HUMAN);
         let Some(pos) = attackers
             .first()
-            .and_then(|&u| self.game.units().unit_position(u))
+            .and_then(|&u| self.world.units().unit_position(u))
         else {
             return;
         };
-        let rules = &self.game.content().rules;
+        let rules = &self.world.content().rules;
         let Some(kind) = rules
             .units
             .defs()
@@ -114,8 +114,8 @@ impl App {
         else {
             return;
         };
-        let defender = self.game.spawn_unit(f4x_core::player::MONSTERS, pos, kind);
-        if let Some(t) = self.game.treasury_mut(HUMAN) {
+        let defender = self.world.spawn_unit(f4x_core::player::MONSTERS, pos, kind);
+        if let Some(t) = self.world.treasury_mut(HUMAN) {
             t.mana = t.mana.max(f4x_def::half_int::HalfInt::from_int(120));
         }
         let attack = PendingAttack {
@@ -137,16 +137,16 @@ impl App {
     /// and attacks a monster, so the pick of who fights opens.
     pub fn open_test_pick(&mut self) {
         let Some(pos) = self
-            .game
+            .world
             .units()
             .player_units(HUMAN)
             .first()
-            .and_then(|&u| self.game.units().unit_position(u))
+            .and_then(|&u| self.world.units().unit_position(u))
         else {
             return;
         };
         let kinds: Vec<_> = {
-            let rules = &self.game.content().rules;
+            let rules = &self.world.content().rules;
             rules
                 .units
                 .defs()
@@ -156,11 +156,11 @@ impl App {
                 .collect()
         };
         for i in 0..14usize.saturating_sub(self.own_units_at(pos).len()) {
-            self.game.spawn_unit(HUMAN, pos, kinds[i % kinds.len()]);
+            self.world.spawn_unit(HUMAN, pos, kinds[i % kinds.len()]);
         }
         let attackers = self.own_units_at(pos);
         let defender = self
-            .game
+            .world
             .spawn_unit(f4x_core::player::MONSTERS, pos, kinds[0]);
         let pick = self.new_fighter_pick(&attackers, true, false);
         let attack = PendingAttack {
@@ -291,7 +291,7 @@ impl App {
         input: &Input,
     ) -> Option<AttackAsk> {
         // A unit that is gone (the game was loaded, a console command) cancels the question.
-        let alive = |u: &hecs::Entity| self.game.units().unit_owner(*u).is_some();
+        let alive = |u: &hecs::Entity| self.world.units().unit_owner(*u).is_some();
         if !attack.attackers.iter().all(alive) || !attack.defenders.iter().all(alive) {
             return None;
         }
@@ -401,7 +401,7 @@ impl App {
             } else {
                 &attack.attackers
             };
-            if mine.len() > self.game.max_battle_side() {
+            if mine.len() > self.world.max_battle_side() {
                 let pick = self.new_fighter_pick(mine, !attack.defending, auto);
                 return Some(AttackAsk {
                     attack,
@@ -430,10 +430,10 @@ impl App {
     }
 
     /// How the sides compare, when the game's setting asks for it: "The enemy is slightly
-    /// stronger." (`Game::combat_forecast`, by the combat ratings; the sides are the units that
+    /// stronger." (`World::combat_forecast`, by the combat ratings; the sides are the units that
     /// would fight, the human's the attackers or, when defending, the defenders).
     fn forecast_line(&self, attack: &PendingAttack) -> Option<String> {
-        if !self.game.settings().rules.combat_forecast {
+        if !self.world.settings().rules.combat_forecast {
             return None;
         }
         let (mine, theirs) = if attack.defending {
@@ -441,7 +441,7 @@ impl App {
         } else {
             (&attack.attackers, &attack.defenders)
         };
-        let forecast = self.game.combat_forecast(mine, theirs)?;
+        let forecast = self.world.combat_forecast(mine, theirs)?;
         Some(self.text(forecast.text_key()))
     }
 
@@ -450,7 +450,7 @@ impl App {
         let owner = attack
             .defenders
             .first()
-            .and_then(|&u| self.game.units().unit_owner(u));
+            .and_then(|&u| self.world.units().unit_owner(u));
         let counts = |args: Args| {
             args.count("attackers", attack.attackers.len())
                 .count("defenders", attack.defenders.len())
@@ -459,7 +459,7 @@ impl App {
             let by = attack
                 .attackers
                 .first()
-                .and_then(|&u| self.game.units().unit_owner(u))
+                .and_then(|&u| self.world.units().unit_owner(u))
                 .unwrap_or(f4x_core::player::MONSTERS);
             let args = counts(self.wizard_arg(Args::new(), "by", by));
             return self.text_with("attack.line_defending", &args);
@@ -485,8 +485,8 @@ mod tests {
         defender_owner: PlayerId,
         defending: bool,
     ) -> Result<PendingAttack, String> {
-        let mine = app.game.units().player_units(HUMAN);
-        let theirs = app.game.units().player_units(defender_owner);
+        let mine = app.world.units().player_units(HUMAN);
+        let theirs = app.world.units().player_units(defender_owner);
         if mine.is_empty() || theirs.is_empty() {
             return Err(format!("no units for {HUMAN:?} and {defender_owner:?}"));
         }
@@ -508,23 +508,23 @@ mod tests {
         let rival = PlayerId(1);
         let pending = attack(&app, rival, false)?;
         assert_eq!(app.forecast_line(&pending), None, "off by default");
-        let mut snapshot = app.game.snapshot();
+        let mut snapshot = app.world.snapshot();
         snapshot.settings.rules.combat_forecast = true;
-        app.game = crate::revised::Revised::new(snapshot.restore(app.game.content().clone())?);
+        app.world = crate::revised::Revised::new(snapshot.restore(app.world.content().clone())?);
         // The units of the restored game are new entities.
         let pending = attack(&app, rival, false)?;
         let line = app
             .forecast_line(&pending)
             .ok_or("no forecast with the setting on")?;
         let forecast = app
-            .game
+            .world
             .combat_forecast(&pending.attackers, &pending.defenders)
             .ok_or("the sides have no worth")?;
         assert_eq!(line, app.text(forecast.text_key()));
         // Defending, the human's side is the defenders: the forecast is the other way round.
         let defending = attack(&app, rival, true)?;
         let reverse = app
-            .game
+            .world
             .combat_forecast(&defending.defenders, &defending.attackers)
             .ok_or("the sides have no worth")?;
         assert_eq!(
@@ -550,18 +550,18 @@ mod tests {
         );
 
         let at = app
-            .game
+            .world
             .units()
-            .unit_position(app.game.units().player_units(HUMAN)[0])
+            .unit_position(app.world.units().player_units(HUMAN)[0])
             .ok_or("the human has no unit")?;
         let kind = app
-            .game
+            .world
             .content()
             .rules
             .units
             .id_numbered(154)
             .ok_or("no magic_spirit")?;
-        app.game.spawn_unit(MONSTERS, at, kind);
+        app.world.spawn_unit(MONSTERS, at, kind);
         let line = app.attack_line(&attack(&app, MONSTERS, false)?);
         assert_eq!(line, "2 of your units attack 1 monster unit.");
         Ok(())
@@ -571,7 +571,7 @@ mod tests {
     fn a_rivals_attack_is_asked_in_the_middle_of_the_round_and_the_round_goes_on_after_it(
     ) -> TestResult {
         let mut app = App::for_test();
-        let round = app.game.turn;
+        let round = app.world.turn;
         let pending = attack(&app, PlayerId(1), true)?;
         // A rival has attacked while the master waited: the turn is half way through.
         app.defences.push_back(pending.clone());
@@ -579,7 +579,7 @@ mod tests {
         app.resume_turn();
         assert!(app.modals.has(kind::ATTACK), "the attack is asked at once");
         assert!(app.turn_events.is_some(), "the round waits for the answer");
-        assert_eq!(app.game.turn, round, "the round has not ended");
+        assert_eq!(app.world.turn, round, "the round has not ended");
 
         // The player answers: the box goes. (The fight itself is not run here: the two stacks
         // of this test world are not next to each other, and the game refuses a battle then.)
@@ -597,7 +597,7 @@ mod tests {
         let mut stale = first.clone();
         // A defender that is no longer the human's.
         let rival_unit = *app
-            .game
+            .world
             .units()
             .player_units(PlayerId(1))
             .first()

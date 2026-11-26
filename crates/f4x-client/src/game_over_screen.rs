@@ -8,7 +8,7 @@ use crate::font::{rgb, Style};
 use crate::input::Input;
 use crate::page::Page;
 use crate::text::{Args, Texts};
-use f4x_core::game::endgame::EndKind;
+use f4x_core::world::endgame::EndKind;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;
@@ -45,10 +45,10 @@ pub(crate) fn bar_width(score: i32) -> i32 {
 impl App {
     /// For the screenshot check: end the game as a win by the Spell of Mastery now.
     pub fn open_test_game_over(&mut self) {
-        self.game.game_over = Some(f4x_core::game::endgame::GameOver {
+        self.world.game_over = Some(f4x_core::world::endgame::GameOver {
             winner: HUMAN,
             kind: EndKind::SpellOfMastery,
-            turn: self.game.turn,
+            turn: self.world.turn,
         });
     }
 }
@@ -58,7 +58,7 @@ pub(crate) struct GameOverPage;
 impl Page for GameOverPage {
     fn frame(&mut self, app: &mut App, input: &Input) {
         clear_background(BLACK);
-        let Some(over) = app.game.game_over else {
+        let Some(over) = app.world.game_over else {
             app.screen = Screen::Map;
             return;
         };
@@ -68,12 +68,12 @@ impl Page for GameOverPage {
             let r = lay.rect(crate::resolution::SCREEN);
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.1, 0.08, 0.06, 1.0));
         }
-        let wizard = app.game.wizard(HUMAN);
+        let wizard = app.world.wizard(HUMAN);
         let name = wizard.map_or_else(String::new, |w| w.name());
         let race = wizard.and_then(|w| w.capital_race());
         let race_icon = race.map_or(0, |r| 15 + r.num() as usize);
         app.draw_styled(view, &score_style(3).center(), &name, 160.0, 3.0);
-        let score = app.game.score(HUMAN);
+        let score = app.world.score(HUMAN);
 
         // One point for each spell known, a book each (fifty at most).
         app.draw_styled(
@@ -123,7 +123,7 @@ impl Page for GameOverPage {
             }
         }
         // Fifty points for each wizard banished.
-        let banished = app.game.banished_wizards(HUMAN);
+        let banished = app.world.banished_wizards(HUMAN);
         let count = banished.len();
         let args = Args::new()
             .count("n", count)
@@ -136,13 +136,13 @@ impl Page for GameOverPage {
             78.0,
         );
         for (i, id) in banished.iter().take(4).enumerate() {
-            let slot = app.game.wizard(*id).map_or(0, |w| w.portrait());
+            let slot = app.world.wizard(*id).map_or(0, |w| w.portrait());
             let hall = app.art.wizard(slot).hall;
             app.draw_pic(&lay, "halofam", hall, 0, X + 35.0 * i as f32, 87.0);
         }
         // Fame, time and the Spell of Mastery.
         app.draw_pic(&lay, "halofam", 31, 0, X, 123.0);
-        let fame = app.game.fame(HUMAN);
+        let fame = app.world.fame(HUMAN);
         app.draw_styled(
             view,
             &score_style(2),
@@ -204,7 +204,7 @@ impl Page for GameOverPage {
             // The score goes in the table once, then the table is shown.
             let race = race.map_or_else(String::new, |r| {
                 app.names
-                    .race(app.game.content().rules.races.get(r).num)
+                    .race(app.world.content().rules.races.get(r).num)
                     .to_string()
             });
             let entry = Entry {
@@ -231,7 +231,7 @@ impl App {
     /// log (the score is then lost, which the player should know).
     fn keep_score(&mut self, path: &std::path::Path, entry: Entry) {
         // A game that used the cheat mode never enters the table (the log is saved with the game).
-        if self.game.cheated() {
+        if self.world.cheated() {
             let line = self.text("end.hall_cheated");
             self.log.push(line);
             return;
@@ -309,7 +309,7 @@ mod tests {
         std::fs::create_dir_all(&dir)?;
         let path = dir.join("hall_of_fame.txt");
         let mut app = App::for_test();
-        app.game.record_override("mode override");
+        app.world.record_override("mode override");
         let entry = Entry {
             name: "Merlin".into(),
             race: "High Men".into(),

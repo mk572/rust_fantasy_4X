@@ -3,12 +3,12 @@
 //!
 //! Tests: below for the word and position reading; the rest in `tests.rs`.
 
-use f4x_core::game::serial::Serial;
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::PlayerId;
+use f4x_core::world::serial::Serial;
 
-use f4x_core::game::Game;
 use f4x_core::rules::exec::Target;
+use f4x_core::world::World;
 use f4x_def::rules::ids::Id;
 use f4x_def::rules::{Def, Registry};
 
@@ -132,27 +132,29 @@ pub fn parse_player(text: &str) -> Result<PlayerId, ConsoleError> {
         .map_err(|_| ConsoleError::Parse(format!("{text:?} is not a player number")))
 }
 
-pub fn unit_by_serial(game: &Game, serial: u64) -> Result<hecs::Entity, ConsoleError> {
-    game.units()
+pub fn unit_by_serial(world: &World, serial: u64) -> Result<hecs::Entity, ConsoleError> {
+    world
+        .units()
         .entity_of_serial(Serial(serial))
-        .filter(|&e| game.units().unit_position(e).is_some())
+        .filter(|&e| world.units().unit_position(e).is_some())
         .ok_or_else(|| ConsoleError::NoSuch(format!("unit {serial}")))
 }
 
-pub fn city_by_serial(game: &Game, serial: u64) -> Result<hecs::Entity, ConsoleError> {
-    game.units()
+pub fn city_by_serial(world: &World, serial: u64) -> Result<hecs::Entity, ConsoleError> {
+    world
+        .units()
         .entity_of_serial(Serial(serial))
-        .filter(|&e| game.economy().city_owner(e).is_some())
+        .filter(|&e| world.economy().city_owner(e).is_some())
         .ok_or_else(|| ConsoleError::NoSuch(format!("city {serial}")))
 }
 
 /// A unit list: creation numbers separated by commas (`12,13`), or `@x,y[,plane]` for every
 /// unit on that square (the owner is checked by the caller).
-pub fn parse_units(game: &Game, text: &str) -> Result<Vec<hecs::Entity>, ConsoleError> {
+pub fn parse_units(world: &World, text: &str) -> Result<Vec<hecs::Entity>, ConsoleError> {
     if let Some(at) = text.strip_prefix('@') {
         let pos = parse_pos(at, Plane::Arcanus)?;
-        let mut units = game.units().units_at(pos);
-        game.units().sort_by_serial(&mut units);
+        let mut units = world.units().units_at(pos);
+        world.units().sort_by_serial(&mut units);
         if units.is_empty() {
             return Err(ConsoleError::NoSuch(format!("units at {at}")));
         }
@@ -163,14 +165,14 @@ pub fn parse_units(game: &Game, text: &str) -> Result<Vec<hecs::Entity>, Console
         let n: u64 = part
             .parse()
             .map_err(|_| ConsoleError::Parse(format!("{part:?} is not a unit number")))?;
-        units.push(unit_by_serial(game, n)?);
+        units.push(unit_by_serial(world, n)?);
     }
     Ok(units)
 }
 
 /// A spell target: `unit:12` (`unit:12@x,y` with the summoning circle it is recalled to), `city:3`, `ward:3:chaos` (a Spell Ward's city and realm),
 /// `tile:x,y[,plane]` or `player:0`.
-pub fn parse_target(game: &Game, text: &str) -> Result<Target, ConsoleError> {
+pub fn parse_target(world: &World, text: &str) -> Result<Target, ConsoleError> {
     let (kind, rest) = text.split_once(':').ok_or_else(|| {
         ConsoleError::Parse(
             "a target is unit:N, city:N, ward:N:<realm>, tile:x,y, player:N or global:N:<spell>"
@@ -186,26 +188,26 @@ pub fn parse_target(game: &Game, text: &str) -> Result<Target, ConsoleError> {
         "unit" => match rest.split_once('@') {
             Some((n, at)) => Target::UnitAt(
                 unit_by_serial(
-                    game,
+                    world,
                     n.parse::<u64>()
                         .map_err(|_| ConsoleError::Parse(format!("{n:?} is not a number")))?,
                 )?,
                 parse_pos(at, Plane::Arcanus)?,
             ),
-            None => Target::Unit(unit_by_serial(game, num()?)?),
+            None => Target::Unit(unit_by_serial(world, num()?)?),
         },
-        "city" => Target::City(city_by_serial(game, num()?)?),
+        "city" => Target::City(city_by_serial(world, num()?)?),
         // A Spell Ward's target: the city and the realm it is set against, as `ward:3:chaos`.
         "ward" => {
             let (city, name) = rest.split_once(':').ok_or_else(|| {
                 ConsoleError::Parse("a ward target is ward:<city>:<realm>".into())
             })?;
             let city = city_by_serial(
-                game,
+                world,
                 city.parse::<u64>()
                     .map_err(|_| ConsoleError::Parse(format!("{city:?} is not a number")))?,
             )?;
-            let realm = resolve(&game.content().rules.realms, name, |d| &d.id, "realm")?;
+            let realm = resolve(&world.content().rules.realms, name, |d| &d.id, "realm")?;
             Target::CityRealm(city, realm)
         }
         "tile" => Target::Tile(parse_pos(rest, Plane::Arcanus)?),
@@ -215,9 +217,9 @@ pub fn parse_target(game: &Game, text: &str) -> Result<Target, ConsoleError> {
             let (who, name) = rest.split_once(':').ok_or_else(|| {
                 ConsoleError::Parse("a global target is global:<player>:<spell>".into())
             })?;
-            let spell = resolve(&game.content().rules.spells, name, |d| &d.id, "spell")?;
+            let spell = resolve(&world.content().rules.spells, name, |d| &d.id, "spell")?;
             let owner = parse_player(who)?;
-            Target::Spell(game.global_instance(owner, spell).ok_or_else(|| {
+            Target::Spell(world.global_instance(owner, spell).ok_or_else(|| {
                 ConsoleError::Parse(format!("player {} keeps no {name:?} going", owner.0))
             })?)
         }
@@ -281,7 +283,7 @@ pub fn resolve<T: Def>(
 /// A place for an item: `vault:3`, `award:1` (slots count from 1) or `hero:12:2` (the hero's
 /// unit number and its slot).
 pub fn parse_item_spot(
-    game: &Game,
+    world: &World,
     text: &str,
 ) -> Result<f4x_core::item::armory::ItemSpot, ConsoleError> {
     use f4x_core::item::armory::ItemSpot;
@@ -303,7 +305,10 @@ pub fn parse_item_spot(
         ["award", n] => Ok(ItemSpot::Award(number(n)?)),
         ["hero", unit, slot] => {
             let serial: u64 = unit.parse().map_err(|_| bad())?;
-            Ok(ItemSpot::Hero(unit_by_serial(game, serial)?, number(slot)?))
+            Ok(ItemSpot::Hero(
+                unit_by_serial(world, serial)?,
+                number(slot)?,
+            ))
         }
         _ => Err(bad()),
     }

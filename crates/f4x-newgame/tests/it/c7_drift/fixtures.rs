@@ -8,7 +8,7 @@
 use f4x_def::testdir::{shipped, TestResult};
 use f4x_newgame::setup::{new_game, NewGame};
 
-/// The file of the fresh game with `wizards` wizards on `seed` (`f4x_core::game::testutil::fresh`).
+/// The file of the fresh game with `wizards` wizards on `seed` (`f4x_core::world::testutil::fresh`).
 fn fresh_file(wizards: u8, seed: u64) -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../f4x-core/tests/saves")
@@ -23,7 +23,7 @@ fn the_fresh_games_core_loads_are_what_new_game_makes() -> TestResult {
     let refresh = std::env::var_os("F4X_REFRESH_FIXTURES").is_some();
     let mut stale = Vec::new();
     for &(wizards, seed) in FIXTURES {
-        let game = new_game(
+        let world = new_game(
             shipped(),
             &NewGame {
                 seed,
@@ -31,7 +31,7 @@ fn the_fresh_games_core_loads_are_what_new_game_makes() -> TestResult {
                 ..NewGame::with_wizards(wizards)
             },
         )?;
-        let text = game.snapshot().to_text()?;
+        let text = world.snapshot().to_text()?;
         let path = fresh_file(wizards, seed);
         if refresh {
             std::fs::create_dir_all(path.parent().ok_or("no folder")?)?;

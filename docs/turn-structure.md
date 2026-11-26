@@ -1,6 +1,6 @@
 # Turn structure design
 
-Status: design direction for task [477](TASKS.md). This describes the intended player-turn and round lifecycle; it is not yet implemented. The current pipeline remains as documented in [game-flow.md](game-flow.md).
+Status: design direction for task [477](TASKS.md), the player-turn and round lifecycle, which `f4x-master` and the four lifecycle operations of `f4x-core` carry out (section 7.1). The next step, the split of the game from the world (task 822), is in section 10; where it disagrees with an earlier section, section 10 is newer.
 
 ## 1. Goals
 
@@ -110,7 +110,7 @@ Elimination during a round must be handled explicitly. An eliminated player who 
 
 ## 7. Relationship to the existing turn pipeline
 
-The current `Game::end_turn` / `process_turn` pipeline mixes player-specific work with world-wide periodic work. It cannot simply be called in full once for each player: that would multiply global events, durations and other round-level effects by the number of players. `f4x-master` orchestrates the lifecycle, but it should call focused `f4x-core` operations for the work assigned to each boundary rather than move the simulation rules out of core.
+The current `World::end_turn` / `process_turn` pipeline mixes player-specific work with world-wide periodic work. It cannot simply be called in full once for each player: that would multiply global events, durations and other round-level effects by the number of players. `f4x-master` orchestrates the lifecycle, but it should call focused `f4x-core` operations for the work assigned to each boundary rather than move the simulation rules out of core.
 
 Task 475 separates the existing pre- and post-counter portions of current turn advancement. That is useful groundwork, but the final design must move orchestration to `f4x-master` and establish the lifecycle described here. `f4x-core` retains the game rules and focused state-changing operations; `f4x-master` owns the round counter, phase transitions and calls to player controllers. Use names that make player-turn, round-start and round-end boundaries unambiguous.
 
@@ -129,7 +129,7 @@ Update `game-flow.md` after implementation so it describes the new lifecycle rat
 Decisions: the economy of a player runs **per player** (at that player's turn end); the world-wide
 work runs once per round; the order of players is fixed (seat order, the human first) and the
 **neutral seat** (independent cities, the monsters, raiders) acts last, before round-end work. The
-core keeps `Game.turn` as the round counter; `Command::EndTurn` stays as a compatibility
+core keeps `World.turn` as the round counter; `Command::EndTurn` stays as a compatibility
 composition of the four phases for tests and tools (all players, in order).
 
 **Revision (7 November 2026, replaces the table's cadence for the steps below).** The original's
@@ -203,7 +203,7 @@ Phases (core operations, orchestrated by `f4x-master`): `start_round`, `start_pl
 Elimination: a defeated player gets no `start_player_turn`/`end_player_turn`; its cities and units
 are already gone or neutral. Time Stop: while it lasts, other wizards' turns still run their
 economy except where the table says "skipped"; the stopper's units are the only ones that move.
-Loading: the master state (round, phase, active seat) is saved with the game as `Game::flow` (`Snapshot.flow`, opaque text the master writes after every step; a save without it was made on the human's turn). The client's autosave is written when the master reaches the start of a round (`Master::checkpoints`, `Stopped::RoundStart`), the one moment no seat is half way through its turn; loading it plays on from there, so the round start and the human's turn start run again with the same random stream and the news is told as after any turn. The computer players' plans go with it: `Game::plans` (`Snapshot.plans`) holds one opaque text per AI (`Ai::to_text`, RON on one line, maps in key order so the text and the checksum are stable). The master collects them from the controllers (`Controller::plans`) at each round-start checkpoint, the client's manual save writes them (`Ai::remember`), and a load gives them back (`Ai::recall`); a save without plans, or plans that do not parse, gives an AI that starts afresh. A loaded game then plays on exactly as the saved one would have (pinned by a test in `f4x-ai`'s `rounds.rs`). About 1 to 2 KB per AI. A save made while a rival waits for the human to fight its attack (seat above 0) replays that rival's turn from its start.
+Loading: the master state (round, phase, active seat) is saved with the game as `World::flow` (`Snapshot.flow`, opaque text the master writes after every step; a save without it was made on the human's turn). The client's autosave is written when the master reaches the start of a round (`Master::checkpoints`, `Stopped::RoundStart`), the one moment no seat is half way through its turn; loading it plays on from there, so the round start and the human's turn start run again with the same random stream and the news is told as after any turn. The computer players' plans go with it: `World::plans` (`Snapshot.plans`) holds one opaque text per AI (`Ai::to_text`, RON on one line, maps in key order so the text and the checksum are stable). The master collects them from the controllers (`Controller::plans`) at each round-start checkpoint, the client's manual save writes them (`Ai::remember`), and a load gives them back (`Ai::recall`); a save without plans, or plans that do not parse, gives an AI that starts afresh. A loaded game then plays on exactly as the saved one would have (pinned by a test in `f4x-ai`'s `rounds.rs`). About 1 to 2 KB per AI. A save made while a rival waits for the human to fight its attack (seat above 0) replays that rival's turn from its start.
 
 ## 8. Determinism and tests
 
@@ -224,3 +224,58 @@ The lifecycle must be deterministic and testable without the client. At minimum,
 ## 9. Implementation boundary
 
 This document defines the lifecycle and design constraints, not a demand to rewrite every subsystem at once. Implement `f4x-master` and its controller interface first, then migrate existing turn-pipeline operations into focused core calls orchestrated at the appropriate master boundary according to the cadence inventory. Keep each migration small, tested and explicit. Record any deliberate exception to the player-turn/round distinction here or in the relevant system documentation.
+
+## 10. Splitting the game from the world (task 822)
+
+The **world** (`f4x-core`'s `World`, named `Game` until 26 November 2026) says what is in the world and what can be done in it. The **game** (a new `Game` in `f4x-master`, not yet built) owns a `World` and advances time.
+
+**Decided (26 November 2026):** the game owns the round counter and hands it to the world operations that need it. The world keeps no copy. This replaces "the core keeps `World.turn`" in section 7.1.
+
+### 10.1 Inventory
+
+| Item, today on `World` | Goes to | Note |
+|---|---|---|
+| `ecs`, `map`, `fog`, `content`, `names`, `player_index`, `monsters`, `next_serial`, `rng`, `settings` | world | |
+| `diplomacy`, `events`, `threat`, `battle`, `battle_brains`, `item_awards`, `prefab_taken`, `locations` | world | the clocks of the events and threats are state of the world |
+| `vision`, `net_gold_memo`, `budget_parts`, `tile_watch`, `confirmed` | world | caches and command state |
+| `undo_on`, `undo_stack`, `recording` | open (10.3) | |
+| `override_log` | world, open (10.2) | each line is stamped with the round |
+| `turn` | game | decided |
+| `flow` | game | becomes the master's typed `State`; the opaque text goes |
+| `plans` | game | belongs to the controllers |
+| `game_over` | game, open (10.3) | the world detects the win |
+| `turn_players()` | game | merged with `Master::players_of` |
+| `start_round`, `start_player_turn`, `end_player_turn`, `end_round` (`turn.rs`) | split | the order and the counter to the game; each step stays a world operation |
+| `end_turn` (`Command::EndTurn`) | game | becomes `Game::play_round` |
+| `Command::StartRound`, `StartPlayerTurn`, `EndPlayerTurn`, `EndRound` | leave the command set | |
+| `endgame.rs`: `finish`, `win_by_mastery`, `check_conquest` | split | detection in the world, the verdict in the game |
+| `endgame.rs`: `living_wizards`, `banished_wizards`, `score`, `aftermath` | world | `score` takes the round and the mastery winner |
+
+Users of the moving state outside core: `f4x-ai` reads the round in most of its modules (directly and through `PlayerView::turn` and `game_over`) and its tests set it; the client reads `turn`, `game_over` and `flow`; the console reads `turn` and `game_over` and its tests send `EndTurn`; `f4x-tools` (soak, metrics, contestants) reads `turn`, `game_over` and sets `plans`. `f4x-learn` is stale.
+
+### 10.2 Readers of the round inside the world
+
+| Reader | Runs | How it can get the round |
+|---|---|---|
+| events (`world_event/world.rs`), raiders, monsters, sea raids (`threat/`) | round start | argument |
+| growth is skipped in round 1 (`start_player_turn`), first offers (`player/offer.rs`) | turn start | argument |
+| `score` (`world/endgame.rs`) | query | argument |
+| `war_since` (`diplomacy`): stamped by a war declaration, read by `war_age` | **inside a player's command** | see below |
+| `GameOver.turn` (`finish`) | **inside a player's command** | the game stamps it |
+| the cheat log's prefix (`world/cheat.rs`) | **inside a cheat command** | see below |
+
+The last three run while a command is applied, so "pass it in" does not reach them by itself. Proposal: no command takes the round. `war_since` becomes a war age that `end_round` counts up (a change of the save's diplomacy field and of the pinned digests); the game stamps `GameOver`; the cheat log drops the round from its text, or the game adds it. The other way is `World::apply(command, round)`.
+
+### 10.3 Open points
+
+| Point | Proposal |
+|---|---|
+| The three readers inside commands (10.2) | war age counted by the world; no round in `apply` |
+| Who do the front ends and the AI send commands to? | `Game::apply`, which refuses after the end and for the wrong seat; they read through `game.world()`; `world_mut` for setup, cheats and tests only |
+| How do the AI and the views know the round? | `PlayerView::new` takes it, so `PlayerView::turn` stays; `f4x-ai` takes `&Game` or the round where it has only the world today |
+| Game over | the world records that a wizard has won and refuses further changes; the game turns it into `GameOver` with the round |
+| The battle in progress | the world's: it holds unit entities and is saved with them; the game does not advance while one is open |
+| Undo and replay | undo stays in the world, and the game clears it at turn boundaries; replay moves to the game, since a log with round steps cannot be played on a world alone |
+| Random numbers | stay in the world; the order of draws must not change |
+| Save | the same file and field names (`turn`, `game_over`, `flow`, `plans` assembled by the game), so older saves load |
+| Monsters' and neutral turns, first player of a round | unchanged: the neutral seat last, fixed seat order (section 7.1) |

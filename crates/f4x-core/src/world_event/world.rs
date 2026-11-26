@@ -5,19 +5,19 @@
 //! The draw picks a kind and a victim and vetoes what cannot happen; what it arms is played out
 //! at once, in the order of the table, together with the lasting events that were already going.
 //!
-//! Tests: in world_event/game/tests.rs.
+//! Tests: in world_event/world/tests.rs.
 
 use crate::city::conquest::city_size_class;
 use crate::city::economy::Population;
 use crate::city::production::{Production, ProductionItem};
-use crate::game::rng::GameRng;
 use crate::item::make::{make_item, Grade};
 use crate::map::{FeatureId, Position};
 use crate::player::PlayerId;
+use crate::world::rng::GameRng;
 use f4x_def::half_int::HalfInt;
 
-use crate::game::{Event, Game};
 use crate::rules::UnitKind;
+use crate::world::{Event, World};
 use crate::world_event::{
     donation, fires, flat_end, pick_victim, pirates_take, victim_weights, world_end, EventKind,
     EventNotice, Voice,
@@ -47,7 +47,7 @@ struct Armed {
     fresh: bool,
 }
 
-impl Game {
+impl World {
     /// The turn's events: a draw, if random events are on, and the playing out.
     pub(crate) fn process_events(&mut self) -> Vec<Event> {
         let mut out = Vec::new();
@@ -212,11 +212,7 @@ impl Game {
             .cities()
             .into_iter()
             .filter(|(e, c, _)| {
-                owned_by(c.owner)
-                    && self
-                        .world
-                        .get::<&Population>(*e)
-                        .is_ok_and(|p| p.figures > 0)
+                owned_by(c.owner) && self.ecs.get::<&Population>(*e).is_ok_and(|p| p.figures > 0)
             })
             .map(|(e, ..)| e)
             .collect();
@@ -322,7 +318,7 @@ impl Game {
                 kind: l.kind,
                 victim: l
                     .victim
-                    .and_then(|e| crate::player::id_of(&self.world, e))
+                    .and_then(|e| crate::player::id_of(&self.ecs, e))
                     .unwrap_or(PlayerId(0)),
                 city,
                 other: None,
@@ -501,7 +497,7 @@ impl Game {
         if let Some(c) = city {
             notice.city = Some(c);
             notice.city_name = self.city_name(c).unwrap_or_default();
-            let people = self.world.get::<&Population>(c).map_or(0, |p| p.figures);
+            let people = self.ecs.get::<&Population>(c).map_or(0, |p| p.figures);
             notice.city_size = city_size_class(&self.content.rules, people);
         }
         out.push(Event::RandomEvent(notice));
@@ -564,7 +560,7 @@ impl Game {
         notice: &mut EventNotice,
     ) -> bool {
         let kind = EventKind::Plague;
-        let figures = self.world.get::<&Population>(city).map_or(0, |p| p.figures);
+        let figures = self.ecs.get::<&Population>(city).map_or(0, |p| p.figures);
         if rng.roll(10) < figures && figures > 2 {
             self.set_figures(city, figures - 1);
         }
@@ -577,7 +573,7 @@ impl Game {
         let turns = self.events.get(kind).map_or(0, |l| l.turns);
         let mut over = flat_end(rng.roll(20), turns);
         self.events.age(kind);
-        if self.world.get::<&Population>(city).map_or(0, |p| p.figures) < 2 {
+        if self.ecs.get::<&Population>(city).map_or(0, |p| p.figures) < 2 {
             over = true;
             self.set_figures(city, 2);
         }

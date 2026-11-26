@@ -3,25 +3,25 @@
 
 use crate::support::worlds;
 use f4x_core::city::FoundCityError;
-use f4x_core::game::Command;
 use f4x_core::map::{Plane, Position};
+use f4x_core::world::Command;
 
 /// `min_city_distance`: a square that could hold a city under the loosest value holds one exactly
 /// when it is at least the setting away from every city, and is "too close" otherwise.
 #[test]
 fn the_least_distance_between_cities_follows_its_setting() {
-    for (name, mut g) in worlds().into_iter().step_by(2) {
-        let cities: Vec<Position> = g.economy().cities().into_iter().map(|c| c.2).collect();
+    for (name, mut w) in worlds().into_iter().step_by(2) {
+        let cities: Vec<Position> = w.economy().cities().into_iter().map(|c| c.2).collect();
         assert!(!cities.is_empty(), "{name}: no city");
         let (width, height) = {
-            let m = g.map().expect("a map");
+            let m = w.map().expect("a map");
             (m.width(), m.height())
         };
         let range = f4x_def::settings::MIN_CITY_DISTANCE_RANGE;
         // The squares, with their distance to the nearest city.
         let mut squares = Vec::new();
         for plane in [Plane::Arcanus, Plane::Myrror] {
-            let grid = g.map().expect("a map").plane(plane);
+            let grid = w.map().expect("a map").plane(plane);
             for y in 0..height {
                 for x in 0..width {
                     let near = cities
@@ -37,9 +37,9 @@ fn the_least_distance_between_cities_follows_its_setting() {
         }
         let mut tested = 0;
         for setting in range.clone() {
-            g.scenario_change_settings(|s| s.rules.min_city_distance = setting);
+            w.scenario_change_settings(|s| s.rules.min_city_distance = setting);
             for &(pos, d) in &squares {
-                let result = g.can_found_city(pos);
+                let result = w.can_found_city(pos);
                 match result {
                     Err(FoundCityError::TooCloseToCity) => {
                         // (A square with a city on it can also be too close to another: either
@@ -65,15 +65,15 @@ fn the_least_distance_between_cities_follows_its_setting() {
         assert!(tested > 100, "{name}: only {tested} squares were allowed");
         // And the setting does change something: the loosest value allows squares the strictest
         // does not.
-        let count = |g: &mut f4x_core::game::Game, s: u8| {
-            g.scenario_change_settings(|x| x.rules.min_city_distance = s);
+        let count = |w: &mut f4x_core::world::World, s: u8| {
+            w.scenario_change_settings(|x| x.rules.min_city_distance = s);
             squares
                 .iter()
-                .filter(|(p, _)| g.can_found_city(*p).is_ok())
+                .filter(|(p, _)| w.can_found_city(*p).is_ok())
                 .count()
         };
-        let loose = count(&mut g, *range.start());
-        let strict = count(&mut g, *range.end());
+        let loose = count(&mut w, *range.start());
+        let strict = count(&mut w, *range.end());
         assert!(loose > strict, "{name}: {loose} against {strict}");
     }
 }
@@ -83,10 +83,10 @@ fn the_least_distance_between_cities_follows_its_setting() {
 #[test]
 fn the_most_units_on_a_square_follows_its_setting() {
     use crate::support::around;
-    use f4x_core::game::testutil::fresh;
-    use f4x_core::game::{Event, Rejection};
     use f4x_core::rules::UnitId;
     use f4x_core::unit::movement::MoveError;
+    use f4x_core::world::testutil::fresh;
+    use f4x_core::world::{Event, Rejection};
     let (wizards, seed) = crate::support::WORLDS[0];
     let base = fresh(wizards, seed).expect("a fresh game");
     let wizard = base
@@ -102,14 +102,14 @@ fn the_most_units_on_a_square_follows_its_setting() {
         .expect("a city")
         .2;
     // A unit that walks, and a neighbouring square it can walk to: found by trying.
-    let walker = |g: &mut f4x_core::game::Game, unit: UnitId, to| {
-        g.apply(Command::CreateUnit {
+    let walker = |w: &mut f4x_core::world::World, unit: UnitId, to| {
+        w.apply(Command::CreateUnit {
             owner: wizard,
             pos: from,
             unit,
         });
-        let u = *g.units().all_units().last().expect("the new unit");
-        g.apply(Command::MoveStack { units: vec![u], to })
+        let u = *w.units().all_units().last().expect("the new unit");
+        w.apply(Command::MoveStack { units: vec![u], to })
     };
     let moved = |events: &[Event]| events.iter().any(|e| matches!(e, Event::UnitsMoved { .. }));
     let mut found = None;
@@ -127,13 +127,13 @@ fn the_most_units_on_a_square_follows_its_setting() {
     let low = base.settings().rules.max_battle_side;
     let default = f4x_def::settings::DEFAULT_MAX_TILE;
     for limit in f4x_def::testdir::spread(low..=f4x_def::settings::MAX_TILE_LIMIT, &default) {
-        let mut g = fresh(wizards, seed).expect("a fresh game");
-        g.scenario_change_settings(|s| s.rules.max_tile = limit);
-        let here = g.units().units_at(to).len();
+        let mut w = fresh(wizards, seed).expect("a fresh game");
+        w.scenario_change_settings(|s| s.rules.max_tile = limit);
+        let here = w.units().units_at(to).len();
         let mut accepted = 0;
         let mut refusal = None;
         for _ in 0..limit + 3 {
-            let events = walker(&mut g, unit, to);
+            let events = walker(&mut w, unit, to);
             match events.iter().find_map(|e| match e {
                 Event::Rejected(r) => Some(*r),
                 _ => None,
@@ -159,23 +159,23 @@ fn the_most_units_on_a_square_follows_its_setting() {
 #[test]
 fn a_city_stops_growing_at_its_setting() {
     for setting in f4x_def::settings::MAX_CITY_SIZE_RANGE {
-        let (_, mut g) = worlds().remove(0);
-        g.scenario_change_settings(|s| s.rules.max_city_size = setting);
-        let cities: Vec<_> = g.economy().cities().into_iter().map(|c| c.0).collect();
+        let (_, mut w) = worlds().remove(0);
+        w.scenario_change_settings(|s| s.rules.max_city_size = setting);
+        let cities: Vec<_> = w.economy().cities().into_iter().map(|c| c.0).collect();
         for &c in &cities {
-            g.scenario_set_citizens(c, u32::from(setting) - 1);
+            w.scenario_set_citizens(c, u32::from(setting) - 1);
         }
         for _ in 0..15 {
-            crate::support::busy_round(&mut g, 0);
+            crate::support::busy_round(&mut w, 0);
             for &c in &cities {
-                let size = g.economy().city_economy(c).map(|e| e.figures);
+                let size = w.economy().city_economy(c).map(|e| e.figures);
                 assert!(
                     size.is_none_or(|n| n <= u32::from(setting)),
                     "setting {setting}: a city of {size:?}"
                 );
             }
         }
-        let bad = f4x_core::check::world_problems(&g);
+        let bad = f4x_core::check::world_problems(&w);
         assert!(bad.is_empty(), "setting {setting}: {bad:#?}");
     }
 }

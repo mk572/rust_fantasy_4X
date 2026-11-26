@@ -1,6 +1,6 @@
 //! A value whose every mutable access moves a revision counter (task 692).
 //!
-//! The client holds its [`Game`](f4x_core::game::Game) in a [`Revised`]. A cache of something derived
+//! The client holds its [`World`](f4x_core::world::World) in a [`Revised`]. A cache of something derived
 //! from the game (the budget, the human's vision, the path under the pointer: tasks 693–695) keeps the
 //! revision it was made at and is stale when [`revision`] differs. The counter moves in `DerefMut`, so a
 //! call site that changes the game, now or later, cannot forget it; a read through `Deref` does not

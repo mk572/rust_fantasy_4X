@@ -53,7 +53,7 @@ and its AI is `f4x_ai::battle::order::next_command`, which is given only the `Ba
 ### 2.2 Battle AI (`f4x-ai/src/battle/order.rs`, 178 lines)
 
 Every unit goes for the nearest enemy and attacks, shoots when it cannot reach, and walks round
-walls. It does not cast spells (it has no `Game`), does not choose targets by value, does not
+walls. It does not cast spells (it has no `World`), does not choose targets by value, does not
 focus fire, does not hold the walls as a defender, never retreats and never flees. A wall
 crusher goes for the wall.
 
@@ -75,8 +75,8 @@ These numbers are the baseline of section 8.
 ## 3. Access: what the AI can ask the game
 
 The AI crate depends on `f4x-core` and uses `PlayerView` (`player/view.rs`) for every read. The
-view keeps the rule that lists are limited to what the player knows. It wraps `Game`'s own
-queries and the domain handles `Units` (`game.units()`) and `Economy` (`game.economy()`), so a
+view keeps the rule that lists are limited to what the player knows. It wraps `World`'s own
+queries and the domain handles `Units` (`world.units()`) and `Economy` (`world.economy()`), so a
 new query is added once, in the domain, and exposed on the view if the AI may know it.
 
 ### 3.1 Exposed today
@@ -92,24 +92,24 @@ nodes, lairs, `can_found_city`, `shift`, `distance`), other wizards' cities on e
 
 | Wanted by the AI | Why | Source in the core |
 |---|---|---|
-| Income: mana, research, skill, upkeep (`income`), and the split | choose the split; know what can be afforded | `Game::income`, `SetPowerSplit` |
+| Income: mana, research, skill, upkeep (`income`), and the split | choose the split; know what can be afforded | `World::income`, `SetPowerSplit` |
 | Research state: remaining points, the Spell of Mastery's cost | pick research; plan the win spell | `Magic`, new `som_research_cost` (section 7) |
 | Spell facts: known set, castable now, target rules, upkeep | cast beyond summons | `check_target`, `spell_needs_target`, `SpellDef` |
 | Spell categories | the original's weights are by category | derive from the `SpellDef` effects (section 5.3) |
-| Enemy wizards: contact, relations, their visible globals, who is casting the Spell of Mastery | war target, disjunction, the race | `diplomacy`, `Game::magic` of others (only what a player sees) |
+| Enemy wizards: contact, relations, their visible globals, who is casting the Spell of Mastery | war target, disjunction, the race | `diplomacy`, `World::magic` of others (only what a player sees) |
 | Remembered enemy garrisons | a city out of sight is not forgotten | new memory kept by the AI, or in the view |
 | Unit levels, experience, mana, hero data | stack value | `Units` |
 | Lairs and nodes: guard strength, reward | free growth for a strong stack | `feature/lair.rs`, `feature/node.rs` |
 | Threat map: where enemy stacks are near my cities | defend, recall | derived in the AI from `hostile_at` |
 | Ships and transports | reach other land masses | `unit/transport.rs`, `unit/movement.rs` |
-| Battle: legal casts, spell costs, field state | the battle AI as a wizard | `Game::legal_battle_casts`, `battle_spells` |
+| Battle: legal casts, spell costs, field state | the battle AI as a wizard | `World::legal_battle_casts`, `battle_spells` |
 
 **Added so far** (all read-only methods on `PlayerView`, each a call into a domain function):
 `income` (split, research, mana upkeep), `research_cost` (the Spell of Mastery's depends on the
 spells known), `paid_spell` and `spell_needs_target` (a cast paid over turns waits for its
 aim), `can_aim` (the game's own target check, so the AI never guesses), `unit_enchantments` and
 `city_enchantments`. The AI crate reads nothing else of the game, and writes only `Command`s.
-`Game::explored_squares` and the `Fog::explore_block` the special spells use are in the core.
+`World::explored_squares` and the `Fog::explore_block` the special spells use are in the core.
 
 Each addition is a read-only method on `PlayerView` that calls a domain function. None gives
 the AI a fact a human could not read off a screen; where a domain function answers more than the
@@ -118,7 +118,7 @@ screen shows (for example `reachable_squares` ignores the fog), the view limits 
 ### 3.3 The battle AI needs the game, not only the battle
 
 `next_command(&Battle)` cannot cast: spells need the wizard's mana, skill and known spells, which
-live in `Game`. `Game::next_battle_command` already calls a brain with the whole `Game`; the
+live in `World`. `World::next_battle_command` already calls a brain with the whole `World`; the
 scripted AI becomes a second brain of that kind (section 6.2).
 
 ## 4. What ReMoM's AI does (reference)
@@ -292,14 +292,14 @@ after wars happen (task 64 covers personalities).
 
 ### 6.1 Principles
 
-Same inputs as a player: the `Battle` and, for spells, the `Game`. No randomness of its own. A
+Same inputs as a player: the `Battle` and, for spells, the `World`. No randomness of its own. A
 step is kept if the new AI beats the old one in mirrored fights (section 8.2) and the battle
 and learn tests still pass.
 
 ### 6.2 A brain with the game (step 9)
 
-Built as `f4x_ai::battle::cast::next_command(&Game)`, which `Game::next_battle_command` calls for every
-wizard that has no learned brain set (the game holds it as a function pointer, `battle::game::set_battle_ai`,
+Built as `f4x_ai::battle::cast::next_command(&World)`, which `World::next_battle_command` calls for every
+wizard that has no learned brain set (the game holds it as a function pointer, `battle::world::set_battle_ai`,
 set by `f4x_ai::battle::install()`, which `Ai::new`, `play_round`, `NeutralSeat`, `Console::new` and the client's `main` call) (it is not itself a `BattleBrain` object: it needs no state).
 It does: (1) if the wizard may cast this turn, choose a cast from `legal_battle_casts` (section
 6.5); (2) otherwise the unit orders of `ai::next_command`. `ai::next_command(&Battle)` stays for
@@ -428,7 +428,7 @@ Three changes make the Spell of Mastery winnable by the AI and by anyone else.
    the announcement arrives (step 6 target value).
 
 4. **The race (task 61).** When a rival starts casting the Spell of Mastery everyone is told
-   (`Event::MasteryStarted`), and the AI can read the mana the caster has left (`Game::mastery_casters`;
+   (`Event::MasteryStarted`), and the AI can read the mana the caster has left (`World::mastery_casters`;
    the original's AI only reads that the spell is being cast, so this is more than it knows). Each turn
    `race.rs` compares the turns the AI needs (casting at its skill and mana income; plus the research
    when the spell is only offered) with the rival's (its mana left over the pace seen since the last
@@ -506,7 +506,7 @@ after a change to `assault.rs` to test it): reference only, new in the first hal
 new in the second half, new only. The report gives per wizard and game the counts of
 `crates/f4x-tools/src/metrics.rs` for the reference, for the new AI and for both in the mixed
 games, who won the mixed games, and the first snapshot (every 50 turns, `soak-out/`) that differs
-from the reference-only game. `f4x-tools soak-diff A B` compares two snapshots. A snapshot is an ordinary game save (`Game::snapshot`), with the plans of the AIs that can write them in it (`Game::plans`; not the frozen reference), so the client can load it. `soak --from SAVE` (also `soak-versus`) goes on from such a save instead of a new game: the game is loaded by the game's own `load_game`, the AIs take their plans back with `Ai::recall`, and the rounds run in the same master as ever; one game, played to `--turns`. The snapshots of a run that went on from a save equal the straight run's (a test pins it). The learned battle
+from the reference-only game. `f4x-tools soak-diff A B` compares two snapshots. A snapshot is an ordinary game save (`World::snapshot`), with the plans of the AIs that can write them in it (`World::plans`; not the frozen reference), so the client can load it. `soak --from SAVE` (also `soak-versus`) goes on from such a save instead of a new game: the game is loaded by the game's own `load_game`, the AIs take their plans back with `Ai::recall`, and the rounds run in the same master as ever; one game, played to `--turns`. The snapshots of a run that went on from a save equal the straight run's (a test pins it). The learned battle
 brain is not part of this; only the strategic AI. There is
 one reference at a time; fork again to replace it.
 
@@ -657,7 +657,7 @@ unit tests in `wizardry.rs` and `f4x-ai/src/battle/order.rs`, `crates/f4x-learn/
   an ordinary move onto the land next to the target. What the AI would have to add: a port, the
   buildings, a gathering of nine or more units over several trips, and a landing area it holds
   until the force is whole. Built in `naval.rs` (port, ship, one landing at a time); a ship loaded for a rival's city declares war first; what stays open is a second ship, planes (a sea scout lands a fighter on empty land, a ship takes a party to a guarded tower, a scout changes plane on a cleared one; an army does not cross yet), and why seeds 2 and 8 make no landing on the other wizard (task 230).
-- **Ship bridges** (21 November 2026, task 738). A computer player's walkers are never routed over a ship that merely stands at sea (the game's pathfinder stops them at its square: `Game::ship_stops`), because the units a job sends over it would be passengers no job knows about. Where one sea square lies between the land of a waiting unit and the land of its target, `bridge.rs` sends a free ship there and parks it (`Command::SetBridge`, `Role::Bridge`, `Crossing::Bridge` for the units that wait for it): the walkers are then routed over the ship as over a land square, as many at a time as it has places, and step ashore on the other side; no pickup or voyage takes the ship, and it is released after 40 turns without a request. A longer crossing stays a ferry (`pickup.rs`). The human's walkers use any waiting ship, as before.
+- **Ship bridges** (21 November 2026, task 738). A computer player's walkers are never routed over a ship that merely stands at sea (the game's pathfinder stops them at its square: `World::ship_stops`), because the units a job sends over it would be passengers no job knows about. Where one sea square lies between the land of a waiting unit and the land of its target, `bridge.rs` sends a free ship there and parks it (`Command::SetBridge`, `Role::Bridge`, `Crossing::Bridge` for the units that wait for it): the walkers are then routed over the ship as over a land square, as many at a time as it has places, and step ashore on the other side; no pickup or voyage takes the ship, and it is released after 40 turns without a request. A longer crossing stays a ferry (`pickup.rs`). The human's walkers use any waiting ship, as before.
 - **Settlers by sea** (31 October 2026, rebuilt 18 November 2026: `colony.rs` is gone, task 665). A site on another landmass that a ship from a coastal city can reach over explored water is on the ranked list of `city_site.rs` with a crossing cost, below the sites of the home land. When no site is left on the home land a settler is given the best of them and tagged `Crossing::Sea`; the port builds the ship by the general rule for units waiting for one, the pickup planner (`pickup.rs`) fetches the settler first of all the groups, and after landing it is an ordinary settler (`expand.rs`). The sea scout is called off for the ship (`pickup.rs`, `naval::release_scouts`), and a landing on a rival's city waits for it (`naval::run`).
 - **Memory of enemy garrisons** and a **threat map** (section 5.2): a city out of sight is
   guessed at three average units.
@@ -700,7 +700,7 @@ numbers are from `f4x-tools soak` on the shipped content, release build.
   whole games.
 - **A bug found by the soak: a battle left open.** A cast, a field refresh or an end-of-turn effect could
   settle a battle without the command's events saying so; the battle then stayed open and every later
-  fight was refused for the rest of the game (4 players, seed 2, from turn 219). `Game::finish_if_over`
+  fight was refused for the rest of the game (4 players, seed 2, from turn 219). `World::finish_if_over`
   closes it (`docs/KNOWLEDGE.md`). The soak now reports "rounds ended with a battle open".
 - **Refused orders cut from 100+ a game to 0 to 4.** The neutral cities' raiders sent `EnterSite` every
   turn to an unguarded site (they now walk onto it), and a raiding party that cannot find its way home
@@ -719,7 +719,7 @@ numbers are from `f4x-tools soak` on the shipped content, release build.
   strike army (Maniacal +2 to Peaceful -1). Tests: `objective.rs`, `diplomacy.rs`, `economy.rs`,
   `wizardry.rs`.
 - **AI decisions out of the core's diplomacy** (design.md section 8). The rating of a proposal
-  (`Diplomacy_Test`) moved from `Game::rate_proposal` to `f4x-ai` (`diplomacy::rate`; the asker's patience is
+  (`Diplomacy_Test`) moved from `World::rate_proposal` to `f4x-ai` (`diplomacy::rate`; the asker's patience is
   worn down by the core when a proposal is answered, whoever answers); the 11 percent war on a caster of
   the Spell of Mastery, which the core rolled for the offended wizard, is now the wizard's own roll
   (`diplomacy::mastery_scare`). Section 12.3 lists what remains.

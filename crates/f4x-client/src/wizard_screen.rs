@@ -85,9 +85,9 @@ impl App {
     /// Open the sheet of `who`: yours, or a rival you have met.
     pub fn open_wizard(&mut self, who: PlayerId) {
         let known = who == HUMAN
-            || (self.game.have_met(HUMAN, who)
-                && self.game.has_player(who)
-                && self.game.is_wizard(who));
+            || (self.world.have_met(HUMAN, who)
+                && self.world.has_player(who)
+                && self.world.is_wizard(who));
         if !known {
             return;
         }
@@ -124,15 +124,15 @@ impl Page for WizardUi {
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.18, 0.2, 0.3, 1.0));
             let _ = (pw, ph);
         }
-        let Some(wallet) = app.game.player(ui.who).map(|p| p.treasury()) else {
+        let Some(wallet) = app.world.player(ui.who).map(|p| p.treasury()) else {
             return;
         };
         let Some((owned_books, owned_retorts)) =
-            app.game.wizard(ui.who).map(|w| (w.books(), w.retorts()))
+            app.world.wizard(ui.who).map(|w| (w.books(), w.retorts()))
         else {
             return;
         };
-        let me = app.game.player(ui.who);
+        let me = app.world.player(ui.who);
         let (portrait, banner) = (
             me.map_or(0, |p| p.portrait()),
             me.map_or(NEUTRAL_BANNER, |p| p.banner()),
@@ -149,15 +149,15 @@ impl Page for WizardUi {
 
         if ui.who != HUMAN {
             let relation = app.text(relation_key(app.feeling(ui.who)));
-            let treaty = app.text(app.game.treaty(HUMAN, ui.who).key());
+            let treaty = app.text(app.world.treaty(HUMAN, ui.who).key());
             let personality = app.text(
-                app.game
+                app.world
                     .wizard(ui.who)
                     .map_or_else(Default::default, |w| w.personality())
                     .key(),
             );
             let objective = app
-                .game
+                .world
                 .wizard(ui.who)
                 .and_then(|w| w.objective())
                 .map_or_else(String::new, |o| app.text(o.key()));
@@ -225,7 +225,7 @@ impl Page for WizardUi {
                 py + 66.0,
             );
         }
-        let fame = app.game.fame(ui.who);
+        let fame = app.world.fame(ui.who);
         if fame > 0 {
             app.draw_styled(
                 view,
@@ -269,7 +269,7 @@ impl Page for WizardUi {
             px + 74.0,
             py + 131.0,
         );
-        for (i, hero) in app.game.wizard_heroes(ui.who).iter().enumerate() {
+        for (i, hero) in app.world.wizard_heroes(ui.who).iter().enumerate() {
             let hero = app.names.unit(hero.num()).to_string();
             app.draw_styled(
                 view,

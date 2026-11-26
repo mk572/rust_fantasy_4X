@@ -5,8 +5,8 @@
 //! slides and draws each moving unit part of the way along its step until the slide is over.
 //! The original takes five or six screen flips a step; ours takes `STEP_SECONDS`.
 
-use f4x_core::game::Event;
 use f4x_core::map::Position;
+use f4x_core::world::Event;
 use macroquad::prelude::*;
 
 use crate::preferences::Pref;
@@ -44,12 +44,12 @@ impl App {
         }
         let mine = units
             .iter()
-            .any(|&u| self.game.units().unit_owner(u) == Some(HUMAN));
+            .any(|&u| self.world.units().unit_owner(u) == Some(HUMAN));
         if !mine {
-            let seen = self.game.is_explored(HUMAN, *from) || self.game.is_explored(HUMAN, *to);
+            let seen = self.world.is_explored(HUMAN, *from) || self.world.is_explored(HUMAN, *to);
             let visible = units
                 .iter()
-                .any(|&u| self.game.economy().unit_visible_to(u, HUMAN));
+                .any(|&u| self.world.economy().unit_visible_to(u, HUMAN));
             if !(self.prefs.get(Pref::EnemyMoves) && seen && visible) {
                 return;
             }
@@ -113,7 +113,7 @@ impl App {
     /// enchantment of its own is on it.
     pub(crate) fn unit_glow_realm(&self, unit: hecs::Entity) -> Option<usize> {
         let ids: Vec<f4x_def::rules::SpellId> = self
-            .game
+            .world
             .units()
             .unit_enchantments(unit)
             .into_iter()
@@ -139,12 +139,12 @@ mod tests {
     fn only_a_single_step_on_one_plane_slides() -> TestResult {
         let mut app = App::for_test();
         let unit = *app
-            .game
+            .world
             .units()
             .player_units(HUMAN)
             .first()
             .ok_or("the human has no unit")?;
-        let from = app.game.units().unit_position(unit).ok_or("no position")?;
+        let from = app.world.units().unit_position(unit).ok_or("no position")?;
         let moved = |units: Vec<hecs::Entity>, to| Event::UnitsMoved { units, from, to };
         let far = Position {
             x: from.x + 2,
@@ -176,12 +176,16 @@ mod tests {
     fn a_rivals_step_slides_only_with_enemy_moves_on() -> TestResult {
         let mut app = App::for_test();
         let rival = *app
-            .game
+            .world
             .units()
             .player_units(f4x_core::player::PlayerId(1))
             .first()
             .ok_or("the rival has no unit")?;
-        let from = app.game.units().unit_position(rival).ok_or("no position")?;
+        let from = app
+            .world
+            .units()
+            .unit_position(rival)
+            .ok_or("no position")?;
         let step = Event::UnitsMoved {
             units: vec![rival],
             from,

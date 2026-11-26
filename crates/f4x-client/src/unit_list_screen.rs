@@ -46,11 +46,11 @@ impl App {
     /// Open the list for the units of `pos` that the human can see, if any are not his own.
     pub(crate) fn open_unit_list(&mut self, pos: Position) -> bool {
         let units: Vec<_> = self
-            .game
+            .world
             .units()
             .units_at(pos)
             .into_iter()
-            .filter(|&u| self.game.economy().unit_visible_to(u, crate::view::HUMAN))
+            .filter(|&u| self.world.economy().unit_visible_to(u, crate::view::HUMAN))
             .collect();
         if units.is_empty() {
             return false;
@@ -62,24 +62,24 @@ impl App {
     /// For the screenshot check: the stack of the nearest foreign unit, if there is one.
     pub fn open_first_unit_list(&mut self) {
         let at = self
-            .game
+            .world
             .units()
             .all_units()
             .into_iter()
-            .filter(|&u| self.game.units().unit_owner(u) != Some(crate::view::HUMAN))
-            .find_map(|u| self.game.units().unit_position(u));
+            .filter(|&u| self.world.units().unit_owner(u) != Some(crate::view::HUMAN))
+            .find_map(|u| self.world.units().unit_position(u));
         if let Some(at) = at {
             // A crowded square, to see the list scroll.
-            let owner = self.game.units().units_at(at).first().and_then(|&u| {
+            let owner = self.world.units().units_at(at).first().and_then(|&u| {
                 Some((
-                    self.game.units().unit_owner(u)?,
-                    self.game.units().unit_def(u)?.num,
+                    self.world.units().unit_owner(u)?,
+                    self.world.units().unit_def(u)?.num,
                 ))
             });
             if let Some((owner, id)) = owner {
-                if let Some(kind) = self.game.content().rules.units.id_numbered(id) {
+                if let Some(kind) = self.world.content().rules.units.id_numbered(id) {
                     for _ in 0..12 {
-                        self.game.spawn_unit(owner, at, kind);
+                        self.world.spawn_unit(owner, at, kind);
                     }
                 }
             }
@@ -95,7 +95,7 @@ impl App {
         UnitList(mut units, mut first): UnitList,
         input: &Input,
     ) -> Option<UnitList> {
-        units.retain(|&u| self.game.units().unit_position(u).is_some());
+        units.retain(|&u| self.world.units().unit_position(u).is_some());
         if units.is_empty() {
             return None;
         }
@@ -158,11 +158,11 @@ impl App {
             );
         }
 
-        let owner = self.game.units().unit_owner(units[0]);
+        let owner = self.world.units().unit_owner(units[0]);
         let neutral = owner == Some(f4x_core::player::MONSTERS);
         let title = if neutral {
             let fantastic = self
-                .game
+                .world
                 .units()
                 .unit_def(units[0])
                 .is_some_and(|d| d.kind == f4x_def::rules::UnitKind::Fantastic);

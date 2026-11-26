@@ -7,10 +7,10 @@ use crate::font::{rgb, Ink, Style};
 use crate::font_ramp;
 use crate::input::Input;
 use crate::text::{Args, Texts};
-use f4x_core::game::Command;
 use f4x_core::player::shortfall::{ItemOverflow, TreasuryShortfall};
 use f4x_core::player::upkeep::Shortfall;
 use f4x_core::spell::cast::UpkeepKind;
+use f4x_core::world::Command;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -176,13 +176,13 @@ impl App {
         let spell = |s: f4x_def::rules::SpellId| self.names.spell(s.num()).to_string();
         let spell_term = |s: f4x_def::rules::SpellId| self.names.spell_term(s.num());
         let unit = |u: hecs::Entity| {
-            self.game
+            self.world
                 .units()
                 .unit_def(u)
                 .map_or_else(String::new, |d| self.names.unit(d.num).to_string())
         };
         let unit_term = |u: hecs::Entity| {
-            self.game
+            self.world
                 .units()
                 .unit_def(u)
                 .map_or_else(Default::default, |d| self.names.unit_term(d.num))
@@ -205,7 +205,7 @@ impl App {
 
     /// What a troop line of the gold and food shortfall says: its unit's name.
     fn troop_label(&self, line: &f4x_core::player::shortfall::TroopLine) -> String {
-        self.game
+        self.world
             .units()
             .unit_def(line.unit)
             .map_or_else(String::new, |d| self.names.unit(d.num).to_string())
@@ -417,7 +417,7 @@ impl App {
     /// Ends the turn, first asking what to give up if a reserve cannot pay the upkeep.
     pub(crate) fn request_end_turn(&mut self) {
         let starving = self
-            .game
+            .world
             .treasury_shortfall(HUMAN)
             .is_some_and(|t| t.missing(&[]).0 > f4x_def::half_int::HalfInt::ZERO);
         if starving && !self.modals.has(FOOD_WARNING) {
@@ -429,8 +429,8 @@ impl App {
 
     /// The question of what to give up, or the end of the turn if nothing is short.
     fn ask_for_upkeep(&mut self) {
-        let mana = self.game.upkeep_shortfall(HUMAN);
-        let troops = self.game.treasury_shortfall(HUMAN);
+        let mana = self.world.upkeep_shortfall(HUMAN);
+        let troops = self.world.treasury_shortfall(HUMAN);
         if (mana.is_some() || troops.is_some()) && !self.modals.has(kind::UPKEEP) {
             self.modals.open(UpkeepPrompt::new(mana, troops));
         } else {
@@ -441,10 +441,10 @@ impl App {
     /// For screenshots: run the human out of gold and mana, with a hero and some troops to lose,
     /// and open the prompt.
     pub(crate) fn open_test_upkeep(&mut self) {
-        let Some(at) = self.game.economy().cities().first().map(|c| c.2) else {
+        let Some(at) = self.world.economy().cities().first().map(|c| c.2) else {
             return;
         };
-        let rules = &self.game.content().rules;
+        let rules = &self.world.content().rules;
         let troops: Vec<_> = [
             104, /* high_men_spearmen */
             105, /* high_men_swordsmen */
@@ -462,21 +462,21 @@ impl App {
             .filter_map(|s| rules.spells.id_numbered(s.num))
             .collect();
         for u in troops.iter().cycle().take(6) {
-            self.game.spawn_unit(HUMAN, at, *u);
+            self.world.spawn_unit(HUMAN, at, *u);
         }
         self.spawn_test_hero(at);
-        if let Some(t) = self.game.treasury_mut(HUMAN) {
+        if let Some(t) = self.world.treasury_mut(HUMAN) {
             t.gold = f4x_def::half_int::HalfInt::ZERO;
             t.mana = f4x_def::half_int::HalfInt::ZERO;
         }
         for spell in spells {
-            self.game.attach_enchantment(
+            self.world.attach_enchantment(
                 f4x_core::rules::exec::Target::Player(HUMAN),
                 spell,
                 HUMAN,
             );
         }
-        self.game.apply(Command::SetTaxRate {
+        self.world.apply(Command::SetTaxRate {
             player: HUMAN,
             rate: 0,
         });
@@ -502,7 +502,7 @@ impl App {
     fn answer_upkeep(&mut self, prompt: &UpkeepPrompt) {
         let items = prompt.released_upkeep();
         if !items.is_empty() {
-            let events = self.game.apply(Command::ReleaseUpkeep {
+            let events = self.world.apply(Command::ReleaseUpkeep {
                 player: HUMAN,
                 items,
             });
@@ -511,7 +511,7 @@ impl App {
         let units = prompt.released_units();
         let scrap = prompt.scrapped();
         if !units.is_empty() {
-            let events = self.game.apply(Command::ReleaseTroops {
+            let events = self.world.apply(Command::ReleaseTroops {
                 player: HUMAN,
                 units,
                 scrap,
@@ -529,8 +529,8 @@ impl App {
     ) -> Option<UpkeepPrompt> {
         // The game may have changed under it (a building sold, a spell turned off): the prompt
         // goes if nothing is short any more.
-        if self.game.upkeep_shortfall(HUMAN).is_none()
-            && self.game.treasury_shortfall(HUMAN).is_none()
+        if self.world.upkeep_shortfall(HUMAN).is_none()
+            && self.world.treasury_shortfall(HUMAN).is_none()
         {
             return None;
         }
@@ -601,7 +601,7 @@ impl App {
         if confirm {
             if prompt.items.is_none() {
                 let released = prompt.released_units();
-                if let Some(over) = self.game.item_overflow(HUMAN, &released) {
+                if let Some(over) = self.world.item_overflow(HUMAN, &released) {
                     prompt.item_marked = over
                         .lines
                         .iter()

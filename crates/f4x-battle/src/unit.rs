@@ -87,7 +87,7 @@ pub enum WarpKind {
 pub struct BattleUnit {
     pub id: usize,
     pub side: Side,
-    /// The overland unit this was copied from (a list index, not an entity: see `game.rs`).
+    /// The overland unit this was copied from (a list index, not an entity: see `world.rs`).
     pub source: Option<usize>,
     /// The unit definition (`None` for a plain unit made for a test); the client names it.
     pub unit_id: Option<UnitId>,

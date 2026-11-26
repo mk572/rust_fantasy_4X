@@ -18,9 +18,9 @@ use rand_pcg::Pcg64Mcg;
 
 use crate::place::Placed;
 use f4x_core::feature::def::FeatureKind;
-use f4x_core::game::rng::random;
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::{Map, Plane};
+use f4x_core::world::rng::random;
 use f4x_def::content::Content;
 
 use super::{place_lakes, place_rivers, scaled_count, GenParams};

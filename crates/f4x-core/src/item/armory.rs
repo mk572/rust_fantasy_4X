@@ -5,16 +5,16 @@
 //!
 //! The items are entities held by [`HeldBy`] (`item/entity.rs`); [`Armory`] is the
 //! vault and the award list read as one value (`ItemView::armory`), which the move rules look at,
-//! and `Game::move_item` and `Game::give_item` are what the commands call.
+//! and `World::move_item` and `World::give_item` are what the commands call.
 
 use serde::{Deserialize, Serialize};
 
-use crate::game::Game;
 use crate::item::entity::HeldBy;
 use crate::item::{Item, ItemView};
 use crate::map::Position;
 use crate::player::PlayerId;
 use crate::rules::SlotKind;
+use crate::world::World;
 
 /// The wizard's items that are not on a hero, as one value (`ItemView::armory`).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -56,7 +56,7 @@ pub enum ItemSpot {
     Award(usize),
     /// A slot (0 to 2) of a hero unit.
     Hero(
-        #[serde(with = "crate::game::replay::stable_ref::one")] hecs::Entity,
+        #[serde(with = "crate::world::replay::stable_ref::one")] hecs::Entity,
         usize,
     ),
 }
@@ -237,7 +237,7 @@ impl ItemWorld for ItemView<'_> {
     }
 
     fn fortress(&self, player: PlayerId) -> Option<Position> {
-        crate::wizard::entity::find(self.world, player)?.fortress()
+        crate::wizard::entity::find(self.ecs, player)?.fortress()
     }
 
     fn transfer_mana(&self) -> i32 {
@@ -245,7 +245,7 @@ impl ItemWorld for ItemView<'_> {
     }
 }
 
-impl Game {
+impl World {
     /// Who holds a spot of the player's.
     fn holder_of(player: PlayerId, spot: ItemSpot) -> HeldBy {
         match spot {
@@ -298,8 +298,9 @@ impl Game {
                 _ => None,
             })
             .collect();
-        let stranded = |game: &Game| -> Vec<hecs::Entity> {
-            game.economy()
+        let stranded = |world: &World| -> Vec<hecs::Entity> {
+            world
+                .economy()
                 .stranded()
                 .into_iter()
                 .map(|(_, unit)| unit)

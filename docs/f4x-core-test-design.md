@@ -1,7 +1,7 @@
 # f4x-core: test design
 
 `f4x-core` is the game: the deterministic simulation every other crate sits on. All change goes through
-`Game::apply(Command) -> Vec<Event>` (53 commands); a refused command comes back as `Event::Rejected(Rejection)`,
+`World::apply(Command) -> Vec<Event>` (53 commands); a refused command comes back as `Event::Rejected(Rejection)`,
 where `Rejection` wraps the 22 per-feature error enums and gives each a text key. Around `apply` are the save and
 load of a game (`Snapshot`), replay (a snapshot plus the commands since), undo, the turn processing (`turn`), and the
 subsystems: map, units and movement, cities and the economy, wizards and spells, items and heroes, features and
@@ -20,7 +20,7 @@ So the method is a clean sweep, not a port:
 
 1. All 1165 tests were **removed** in one commit (22 November 2026). The old files are kept for reference, git-ignored,
    in `reference/f4x-core-before-test-rebuild/` (the whole `src` and `tests/it`). The test helpers stay
-   (`game/testutil.rs`, `feature/testutil.rs`, the `put_*` and `tr` methods): they show as unused until used again.
+   (`world/testutil.rs`, `feature/testutil.rs`, the `put_*` and `tr` methods): they show as unused until used again.
 2. A test comes back **only for a need**: a way the crate can fail that this document names. The old names are the
    checklist of what the game once cared about, read for needs, not copied. Where several old tests say one thing
    they come back as one; where a test pins a rule it comes back reading that rule from the shipped content, or not
@@ -43,7 +43,7 @@ value in a test, a test performs an action and checks what the player sees.
   scripted plays and hand-made situations. What core gives those multi-crate tests is the **checkers**:
   `world_problems` (class 2) and the digest of a game (class 8) are public in core (behind the `testutil`
   feature), so the long plays call them after every command or turn without carrying a copy.
-- **Small worlds by hand** are made by the `put_*` helpers on a `Game` loaded from a fresh save, never by
+- **Small worlds by hand** are made by the `put_*` helpers on a `World` loaded from a fresh save, never by
   editing the rule set.
 
 ## The failure classes (objectives)
@@ -68,7 +68,7 @@ gold, upkeep) equal the sum of their parts; mana, gold and population are not ne
 books and retorts fit the sheet; no hero holds an item twice; battle units are in the cell they claim; the order
 queues name things that exist.
 
-Guard: an **independent checker** `world_problems(&Game) -> Vec<Problem>`, written from the rules and not from the
+Guard: an **independent checker** `world_problems(&World) -> Vec<Problem>`, written from the rules and not from the
 code under test, with negative tests in core (each invariant broken on purpose is found). Core runs it after every
 command of short scripted plays on the four fresh saves; the **long seeded plays** (many turns, the AI, a matrix of
 worlds and rule settings, `F4X_WORLDS=N` for more) are integration tests in `f4x-ai/tests/it` that call the same
@@ -94,7 +94,7 @@ that restores everything but the random stream or the fog.
 Guard:
 - **Round trip over everything**: for each fresh save and for games played on for N turns, `snapshot -> text ->
   restore` gives an equal snapshot, and playing both on gives equal events (the saved game against the live one).
-- **A field census**, as a compile-time guard rather than a test: `Game::snapshot` destructures `Game` with every
+- **A field census**, as a compile-time guard rather than a test: `World::snapshot` destructures `World` with every
   field named and none left to `..`, so a new field breaks the build until it is put on a side (kept, or left out
   for a reason given there: a cache, the session, given again at the load). The census states what is left out;
   the round-trip tests below show that what is kept is kept whole.

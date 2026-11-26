@@ -9,9 +9,9 @@
 //! soldiers standing in it hold the role too, so that no raid or scout takes them out. A city
 //! that cannot be saved is helped all the same: the AI has no better judgement of a lost cause.
 
-use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
+use f4x_core::world::{Command, Event, World};
 
 use crate::roles::Role;
 use crate::view::{fighting_strength, is_fighter, unit_strength, ReachCache};
@@ -19,14 +19,14 @@ use crate::Ai;
 
 /// One turn: the soldiers that are no longer needed are released, the free ones in a threatened
 /// city stay, and each city that wants more is sent some.
-pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     let me = ai.player;
-    let threatened: Vec<(Position, f32)> = crate::military::threats(&PlayerView::new(game, me));
-    release(ai, game, &threatened);
-    keep_home(ai, game, &threatened);
-    let mut pool = crate::dispatch::soldiers(ai, game, |roles, s| roles.is_free(s));
+    let threatened: Vec<(Position, f32)> = crate::military::threats(&PlayerView::new(world, me));
+    release(ai, world, &threatened);
+    keep_home(ai, world, &threatened);
+    let mut pool = crate::dispatch::soldiers(ai, world, |roles, s| roles.is_free(s));
     let needs: Vec<(Position, f32)> = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         let mut cities: Vec<Position> = view.my_cities().into_iter().map(|(_, p)| p).collect();
         cities.sort_by_key(|p| (p.plane as u8, p.y, p.x));
         cities
@@ -66,8 +66,8 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     for (city, mut need) in needs {
         // The pool by distance from the city, the nearest first.
         let order: Vec<hecs::Entity> = {
-            let view = PlayerView::new(game, me);
-            let mut near: Vec<(u32, f4x_core::game::serial::Serial, hecs::Entity)> = pool
+            let view = PlayerView::new(world, me);
+            let mut near: Vec<(u32, f4x_core::world::serial::Serial, hecs::Entity)> = pool
                 .iter()
                 .copied()
                 .filter(|&u| view.unit_position(u) != Some(city))
@@ -82,13 +82,13 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         // Soldiers that can walk to the city go first; the ones that cannot, on this plane, are
         // tagged for a ship (`pickup.rs`) only when walkers are not enough.
         let (walkers, sailors): (Vec<hecs::Entity>, Vec<hecs::Entity>) = {
-            let view = PlayerView::new(game, me);
+            let view = PlayerView::new(world, me);
             order
                 .into_iter()
                 .partition(|&u| reached.can_reach(&view, &[u], city))
         };
         let by_sea: Vec<hecs::Entity> = {
-            let view = PlayerView::new(game, me);
+            let view = PlayerView::new(world, me);
             sailors
                 .into_iter()
                 .filter(|&u| {
@@ -106,28 +106,28 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             if need <= 0.0 {
                 break;
             }
-            let cap = crate::garrison::city_cap(&PlayerView::new(game, me), city);
+            let cap = crate::garrison::city_cap(&PlayerView::new(world, me), city);
             let on_the_way = sent_to
                 .iter()
                 .find(|(p, _)| *p == city)
                 .map_or(0, |&(_, n)| n);
-            if game.units().units_at(city).len() + on_the_way >= cap {
+            if world.units().units_at(city).len() + on_the_way >= cap {
                 break;
             }
-            let strength = unit_strength(&PlayerView::new(game, me), unit);
+            let strength = unit_strength(&PlayerView::new(world, me), unit);
             if !sails {
                 let go = Command::GoTo {
                     units: vec![unit],
                     to: city,
                 };
-                if ai.send(game, go, events).is_err() {
+                if ai.send(world, go, events).is_err() {
                     continue;
                 }
             }
-            let serial = PlayerView::new(game, me).serial_of(unit);
+            let serial = PlayerView::new(world, me).serial_of(unit);
             let _ = ai
                 .roles
-                .claim(serial, Role::Reinforce, game.turn, Some(city));
+                .claim(serial, Role::Reinforce, world.turn, Some(city));
             ai.roles.set_target(serial, Role::Reinforce, Some(city));
             if sails {
                 ai.roles
@@ -145,8 +145,8 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 
 /// A soldier that stands in a city no enemy threatens, or whose city is no longer ours, has done
 /// its task.
-fn release(ai: &mut Ai, game: &Game, threatened: &[(Position, f32)]) {
-    let view = PlayerView::new(game, ai.player);
+fn release(ai: &mut Ai, world: &World, threatened: &[(Position, f32)]) {
+    let view = PlayerView::new(world, ai.player);
     let cities: Vec<Position> = view.my_cities().into_iter().map(|(_, p)| p).collect();
     for u in view.my_units() {
         let serial = view.serial_of(u);
@@ -162,16 +162,18 @@ fn release(ai: &mut Ai, game: &Game, threatened: &[(Position, f32)]) {
 }
 
 /// The free soldiers standing in a threatened city stay in it.
-fn keep_home(ai: &mut Ai, game: &Game, threatened: &[(Position, f32)]) {
-    let free = crate::dispatch::soldiers(ai, game, |roles, s| roles.is_free(s));
-    let view = PlayerView::new(game, ai.player);
+fn keep_home(ai: &mut Ai, world: &World, threatened: &[(Position, f32)]) {
+    let free = crate::dispatch::soldiers(ai, world, |roles, s| roles.is_free(s));
+    let view = PlayerView::new(world, ai.player);
     for u in free {
         let Some(at) = view.unit_position(u) else {
             continue;
         };
         if threatened.iter().any(|&(p, _)| p == at) {
             let serial = view.serial_of(u);
-            let _ = ai.roles.claim(serial, Role::Reinforce, game.turn, Some(at));
+            let _ = ai
+                .roles
+                .claim(serial, Role::Reinforce, world.turn, Some(at));
         }
     }
 }
@@ -184,73 +186,73 @@ mod tests {
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
     /// A coast city with `n` spearmen and a second, empty city inland.
-    fn two_cities(n: usize) -> Result<(Game, Ai), Box<dyn std::error::Error>> {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let events = g.apply(Command::FoundCity {
+    fn two_cities(n: usize) -> Result<(World, Ai), Box<dyn std::error::Error>> {
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let events = w.apply(Command::FoundCity {
             owner: P0,
             pos: at(INLAND_CITY.0, INLAND_CITY.1),
             name: "Inland".into(),
-            race: g.content().rules.races.id_numbered(8),
+            race: w.content().rules.races.id_numbered(8),
             population: 8,
         });
         assert!(!events.iter().any(|e| matches!(e, Event::Rejected(_))));
         spawn(
-            &mut g,
+            &mut w,
             P0,
             at(COAST_CITY.0, COAST_CITY.1),
             104, /* high_men_spearmen */
             n,
         );
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &g);
-        Ok((g, ai))
+        crate::roles::register(&mut ai, &w);
+        Ok((w, ai))
     }
 
     #[test]
     fn an_empty_city_is_sent_a_soldier_from_the_pool_and_only_one() -> TestResult {
-        let (mut g, mut ai) = two_cities(4)?;
+        let (mut w, mut ai) = two_cities(4)?;
         let inland = at(INLAND_CITY.0, INLAND_CITY.1);
-        run(&mut ai, &mut g, &mut Vec::new());
+        run(&mut ai, &mut w, &mut Vec::new());
         assert_eq!(ai.roles.targets(Role::Reinforce), vec![inland]);
         // The one on its way is counted as held: the next turn sends no more.
-        crate::roles::register(&mut ai, &g);
-        run(&mut ai, &mut g, &mut Vec::new());
+        crate::roles::register(&mut ai, &w);
+        run(&mut ai, &mut w, &mut Vec::new());
         assert_eq!(ai.roles.count(Role::Reinforce), 1);
         Ok(())
     }
 
     #[test]
     fn a_soldier_that_has_arrived_is_released() -> TestResult {
-        let (mut g, mut ai) = two_cities(4)?;
+        let (mut w, mut ai) = two_cities(4)?;
         let inland = at(INLAND_CITY.0, INLAND_CITY.1);
-        let unit = spawn(&mut g, P0, inland, 104, 1)[0];
-        let serial = PlayerView::new(&g, P0).serial_of(unit);
+        let unit = spawn(&mut w, P0, inland, 104, 1)[0];
+        let serial = PlayerView::new(&w, P0).serial_of(unit);
         let _ = ai.roles.claim(serial, Role::Reinforce, 1, Some(inland));
-        run(&mut ai, &mut g, &mut Vec::new());
+        run(&mut ai, &mut w, &mut Vec::new());
         assert!(!ai.roles.is(serial, Role::Reinforce));
         Ok(())
     }
 
     /// West's city holds one spearman; five of East's swordsmen stand two squares away and three
     /// of West's own wait three squares from them.
-    fn besieged() -> (Game, Vec<hecs::Entity>) {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        spawn(&mut g, P0, at(10, 6), 104 /* high_men_spearmen */, 1);
-        spawn(&mut g, P1, at(8, 6), 105 /* high_men_swordsmen */, 5);
-        let spare = spawn(&mut g, P0, at(6, 3), 105, 3);
-        g.make_contact(P0, P1);
-        g.declare_war(P0, P1);
-        (g, spare)
+    fn besieged() -> (World, Vec<hecs::Entity>) {
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        spawn(&mut w, P0, at(10, 6), 104 /* high_men_spearmen */, 1);
+        spawn(&mut w, P1, at(8, 6), 105 /* high_men_swordsmen */, 5);
+        let spare = spawn(&mut w, P0, at(6, 3), 105, 3);
+        w.make_contact(P0, P1);
+        w.declare_war(P0, P1);
+        (w, spare)
     }
 
     /// The enemy near a city is worth more than it holds: the spare soldiers go into it.
     #[test]
     fn a_stronger_enemy_near_a_city_brings_the_spare_soldiers_into_it() {
-        let (mut g, spare) = besieged();
+        let (mut w, spare) = besieged();
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &g);
-        run(&mut ai, &mut g, &mut Vec::new());
-        let view = PlayerView::new(&g, P0);
+        crate::roles::register(&mut ai, &w);
+        run(&mut ai, &mut w, &mut Vec::new());
+        let view = PlayerView::new(&w, P0);
         for &u in &spare {
             assert!(view.unit_has_order(u));
             assert_eq!(
@@ -263,12 +265,12 @@ mod tests {
     /// The free soldiers a threatened city holds beyond its post stay in it.
     #[test]
     fn the_free_soldiers_of_a_threatened_city_stay_in_it() {
-        let (mut g, _) = besieged();
-        let extra = spawn(&mut g, P0, at(10, 6), 105, 2);
+        let (mut w, _) = besieged();
+        let extra = spawn(&mut w, P0, at(10, 6), 105, 2);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &g);
-        run(&mut ai, &mut g, &mut Vec::new());
-        let view = PlayerView::new(&g, P0);
+        crate::roles::register(&mut ai, &w);
+        run(&mut ai, &mut w, &mut Vec::new());
+        let view = PlayerView::new(&w, P0);
         let held = extra
             .iter()
             .filter(|&&u| {
@@ -281,30 +283,30 @@ mod tests {
     }
 
     /// The empty home city and two soldiers on the far island.
-    fn overseas() -> Result<(Game, Vec<hecs::Entity>), Box<dyn std::error::Error>> {
+    fn overseas() -> Result<(World, Vec<hecs::Entity>), Box<dyn std::error::Error>> {
         use crate::testworld::ENEMY_CITY;
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.reveal_map(P0);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.reveal_map(P0);
         let far = {
-            let view = PlayerView::new(&g, P0);
+            let view = PlayerView::new(&w, P0);
             crate::naval::landing(&view, at(ENEMY_CITY.0, ENEMY_CITY.1))
                 .ok_or("a shore on the far island")?
                 .0
         };
-        let soldiers = spawn(&mut g, P0, far, 104 /* spearmen */, 2);
-        Ok((g, soldiers))
+        let soldiers = spawn(&mut w, P0, far, 104 /* spearmen */, 2);
+        Ok((w, soldiers))
     }
 
     /// Soldiers on another island go to an under-defended city when none can walk there: one is
     /// tagged for a ship, as many as the city wants.
     #[test]
     fn soldiers_across_the_sea_are_tagged_for_a_ship_when_no_walker_is_there() -> TestResult {
-        let (mut g, overseas) = overseas()?;
+        let (mut w, overseas) = overseas()?;
         let city = at(COAST_CITY.0, COAST_CITY.1);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &g);
-        run(&mut ai, &mut g, &mut Vec::new());
-        let view = PlayerView::new(&g, P0);
+        crate::roles::register(&mut ai, &w);
+        run(&mut ai, &mut w, &mut Vec::new());
+        let view = PlayerView::new(&w, P0);
         let tagged: Vec<_> = overseas
             .iter()
             .filter(|&&u| {
@@ -323,12 +325,12 @@ mod tests {
     /// With a walker in reach, the walker goes and nobody is tagged.
     #[test]
     fn a_walker_in_reach_is_sent_before_anyone_is_tagged_for_a_ship() -> TestResult {
-        let (mut g, overseas) = overseas()?;
-        let walker = spawn(&mut g, P0, at(8, 6), 104, 1)[0];
+        let (mut w, overseas) = overseas()?;
+        let walker = spawn(&mut w, P0, at(8, 6), 104, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &g);
-        run(&mut ai, &mut g, &mut Vec::new());
-        let view = PlayerView::new(&g, P0);
+        crate::roles::register(&mut ai, &w);
+        run(&mut ai, &mut w, &mut Vec::new());
+        let view = PlayerView::new(&w, P0);
         assert_eq!(
             ai.roles.target_of(view.serial_of(walker), Role::Reinforce),
             Some(at(COAST_CITY.0, COAST_CITY.1))

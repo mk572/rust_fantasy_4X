@@ -14,15 +14,15 @@ mod original;
 
 use crate::error::NewGameError;
 use crate::mapgen::{generate, GenParams, PlaneParams};
-use f4x_core::game::setting::GameSettings;
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::PlayerId;
 use f4x_core::rules::RealmId;
+use f4x_core::world::setting::GameSettings;
 use f4x_def::content::Content;
 
-use f4x_core::game::{Command, Game};
 use f4x_core::wizard::magic::Retort;
 use f4x_core::wizard::WizardBuild;
+use f4x_core::world::{Command, World};
 
 pub const HUMAN: PlayerId = PlayerId(0);
 pub const RIVAL: PlayerId = PlayerId(1);
@@ -45,7 +45,7 @@ pub fn parse_retort(rules: &f4x_core::rules::Rules, text: &str) -> Option<Retort
 
 /// The original's land sizes, as a share of each plane's tiles (`NEWG_CreateLands`: 360, 480 and
 /// 720 of 2400).
-pub use f4x_core::game::setting::{LAND_LARGE, LAND_MEDIUM, LAND_SMALL};
+pub use f4x_core::world::setting::{LAND_LARGE, LAND_MEDIUM, LAND_SMALL};
 
 /// What a new game is made from. Everything but the seed is optional.
 #[derive(Debug, Clone, Default)]
@@ -119,7 +119,7 @@ pub fn gen_params(settings: &GameSettings) -> GenParams {
     }
 }
 
-pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, NewGameError> {
+pub fn new_game(content: &Content, spec: &NewGame) -> Result<World, NewGameError> {
     let problems = spec.settings.validate();
     if !problems.is_empty() {
         return Err(NewGameError::Settings(problems));
@@ -157,7 +157,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, NewGameError>
     let wizards = settings.basic.opponents + 1;
     let params = gen_params(&settings);
     let map = generate(spec.seed, &params, content)?;
-    let mut game = Game::begin_world(
+    let mut world = World::begin_world(
         spec.seed,
         settings,
         content,
@@ -171,7 +171,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, NewGameError>
             (0, false) => "player".to_string(),
             _ => format!("wizard_{}", k + 1),
         };
-        game.add_player(PlayerId(k), name);
+        world.add_player(PlayerId(k), name);
     }
     let fixed = || WizardBuild {
         name: String::new(),
@@ -183,7 +183,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, NewGameError>
         portrait: None,
         preset: true,
     };
-    let preset_ids: Vec<u16> = game
+    let preset_ids: Vec<u16> = world
         .content()
         .rules
         .wizards
@@ -205,7 +205,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, NewGameError>
                 build.clone()
             } else if let Some(&num) = spec.preset.as_ref() {
                 taken.push(num);
-                let mut build = game
+                let mut build = world
                     .preset_build(num)
                     .ok_or(NewGameError::NoPreset { num })?;
                 // Over the most books in a realm, it loses the surplus and has picks to spend:
@@ -239,9 +239,9 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, NewGameError>
                     let plain = |i: usize| plain_computer_build(&spec.names, spec.seed, first + i);
                     let plain: Vec<WizardBuild> = (0..computers).map(plain).collect();
                     let human_myrran = !spec.all_ai && builds.first().is_some_and(myrran_build);
-                    let presets = game.content().rules.wizards.defs().to_vec();
+                    let presets = world.content().rules.wizards.defs().to_vec();
                     crate::computer_wizard::make(
-                        &mut game,
+                        &mut world,
                         &presets,
                         &settings,
                         &mut taken,
@@ -261,11 +261,11 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, NewGameError>
             let free: Vec<&u16> = preset_ids.iter().filter(|id| !taken.contains(id)).collect();
             let pick = free
                 .get(seed_offset(spec.seed, k) % free.len().max(1))
-                .and_then(|&&id| game.preset_build(id).map(|b| (id, b)));
+                .and_then(|&&id| world.preset_build(id).map(|b| (id, b)));
             match pick {
                 Some((id, mut b)) => {
                     taken.push(id);
-                    crate::computer_wizard::fit_books_and_refill(&mut game, &mut b);
+                    crate::computer_wizard::fit_books_and_refill(&mut world, &mut b);
                     b
                 }
                 None => plain_computer_build(&spec.names, spec.seed, k),
@@ -279,7 +279,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, NewGameError>
         let first = usize::from(!spec.all_ai);
         let human_myrran = first == 1 && builds.first().is_some_and(myrran_build);
         crate::computer_wizard::balance_planes(
-            &mut game,
+            &mut world,
             &mut builds[first..],
             human_myrran,
             usize::from(wizards),
@@ -288,19 +288,19 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, NewGameError>
         );
     }
     for (k, build) in builds.iter().enumerate() {
-        game.create_wizard(PlayerId(k as u8), build)?;
+        world.create_wizard(PlayerId(k as u8), build)?;
     }
     // Every wizard has a banner of their own.
     let mut used = BTreeSet::new();
     for k in 0..wizards {
         let id = PlayerId(k);
-        let mut banner = game.player(id).map_or(0, |p| p.banner());
+        let mut banner = world.player(id).map_or(0, |p| p.banner());
         // Each wizard has a colour of their own while there are colours left.
         while used.len() < usize::from(f4x_core::player::BANNER_CHOICES) && used.contains(&banner) {
             banner = (banner + 1) % f4x_core::player::BANNER_CHOICES;
         }
         used.insert(banner);
-        if let Some(mut w) = game.wizard_mut(id) {
+        if let Some(mut w) = world.wizard_mut(id) {
             w.put(Some(f4x_core::wizard::entity::Banner(banner)));
         }
     }
@@ -308,38 +308,38 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, NewGameError>
     let mut shown = BTreeSet::new();
     for k in 0..wizards {
         let id = PlayerId(k);
-        let mut portrait = game.player(id).map_or(0, |p| p.portrait());
+        let mut portrait = world.player(id).map_or(0, |p| p.portrait());
         while shown.contains(&portrait) {
             portrait = (portrait + 1) % f4x_core::player::PORTRAITS;
         }
         shown.insert(portrait);
-        if let Some(mut w) = game.wizard_mut(id) {
+        if let Some(mut w) = world.wizard_mut(id) {
             w.put(Some(f4x_core::wizard::entity::Portrait(portrait)));
         }
     }
-    game.set_human((!spec.all_ai).then_some(HUMAN));
-    game.apply_wizard_settings();
+    world.set_human((!spec.all_ai).then_some(HUMAN));
+    world.apply_wizard_settings();
     for k in 0..wizards {
-        crate::main_realm_spell::give_main_realm_spell(&mut game, PlayerId(k));
+        crate::main_realm_spell::give_main_realm_spell(&mut world, PlayerId(k));
     }
     for k in 0..wizards {
         let id = PlayerId(k);
-        let human = game.human() == Some(id);
+        let human = world.human() == Some(id);
         let (gold, mana) = (
             settings.wizards.starting_gold.of(human),
             settings.wizards.starting_mana.of(human),
         );
-        if let Some(t) = game.treasury_mut(id) {
+        if let Some(t) = world.treasury_mut(id) {
             t.gold = HalfInt::from_int(gold);
             t.mana = HalfInt::from_int(mana);
         }
     }
     // Races: player 0's choice, then the others in turn, skipping races already taken. A
     // Myrran wizard has a Myrror race and starts there; everyone else an Arcanus one.
-    let race_defs = game.content().rules.races.defs().to_vec();
+    let race_defs = world.content().rules.races.defs().to_vec();
     let mut races: Vec<u16> = Vec::new();
     for k in 0..wizards as usize {
-        let myrran = is_myrran(&game, PlayerId(k as u8));
+        let myrran = is_myrran(&world, PlayerId(k as u8));
         let on_plane = |r: &&f4x_core::rules::RaceDef| r.myrror == myrran;
         let id = match spec.race.as_ref().filter(|_| k == 0) {
             Some(want) => {
@@ -361,8 +361,8 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, NewGameError>
                     .map(|r| r.num)
                     .filter(|n| {
                         !limited
-                            || game.human() == Some(PlayerId(k as u8))
-                            || game.content().rules.config.limited_ai_races.contains(n)
+                            || world.human() == Some(PlayerId(k as u8))
+                            || world.content().rules.config.limited_ai_races.contains(n)
                     })
                     .collect();
                 let free: Vec<u16> = all.iter().copied().filter(|r| !races.contains(r)).collect();
@@ -379,39 +379,39 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, NewGameError>
     let rolled = settings.basic.original_map_generator.then(|| {
         let planes: Vec<Plane> = (0..wizards)
             .map(|k| {
-                if is_myrran(&game, PlayerId(k)) {
+                if is_myrran(&world, PlayerId(k)) {
                     Plane::Myrror
                 } else {
                     Plane::Arcanus
                 }
             })
             .collect();
-        original::fortress_sites(&mut game, &planes)
+        original::fortress_sites(&mut world, &planes)
     });
     for k in 0..wizards {
         let site = rolled.clone().flatten().map(|v| v[k as usize]);
-        start_player(&mut game, PlayerId(k), wizards, races[k as usize], site)?;
+        start_player(&mut world, PlayerId(k), wizards, races[k as usize], site)?;
         if settings.rules.extend_tiny_islands {
-            build_out_start_island(&mut game, PlayerId(k));
+            build_out_start_island(&mut world, PlayerId(k));
         }
-        reveal_start(&mut game, PlayerId(k), settings.world.start_reveal_radius);
+        reveal_start(&mut world, PlayerId(k), settings.world.start_reveal_radius);
     }
     // Independent cities on both planes, once the wizards' fortresses are down.
     for plane in [Plane::Arcanus, Plane::Myrror] {
-        crate::neutral::generate_neutral_cities(&mut game, plane);
+        crate::neutral::generate_neutral_cities(&mut world, plane);
     }
     // The roads between them come after every city of the start is down.
     if settings.rules.roads_at_start {
         for plane in [Plane::Arcanus, Plane::Myrror] {
-            game.lay_start_roads(plane);
+            world.lay_start_roads(plane);
         }
     }
-    crate::temperament::assign_temperaments(&mut game);
+    crate::temperament::assign_temperaments(&mut world);
     // The heroes' abilities are rolled last, so the map and the wizards' start stay as they were.
-    init_heroes(&mut game);
+    init_heroes(&mut world);
     // Undo takes a snapshot of the whole game for every command: only a person needs it.
-    game.set_undo(!spec.all_ai);
-    Ok(game)
+    world.set_undo(!spec.all_ai);
+    Ok(world)
 }
 
 /// The seed moved on by `k`, as an index to be taken modulo a count. A seed is any `u64`: the sum
@@ -424,9 +424,9 @@ fn seed_offset(seed: u64, k: usize) -> usize {
 /// wizard or a life and nature one, with a name from the lists.
 /// Make the game's heroes (`Init_Heroes`): one of each hero type, in the template order, which is
 /// the order the original draws their abilities in.
-fn init_heroes(game: &mut Game) {
-    for kind in 0..game.content().rules.hero_templates.len() {
-        game.add_hero(kind);
+fn init_heroes(world: &mut World) {
+    for kind in 0..world.content().rules.hero_templates.len() {
+        world.add_hero(kind);
     }
 }
 
@@ -487,8 +487,9 @@ fn fallback_name(
 }
 
 /// Whether the wizard has the Myrran retort (and so starts on Myrror).
-fn is_myrran(game: &Game, player: PlayerId) -> bool {
-    game.wizard(player)
+fn is_myrran(world: &World, player: PlayerId) -> bool {
+    world
+        .wizard(player)
         .is_some_and(|w| w.has(Retort::new(9) /* myrran */))
 }
 
@@ -526,11 +527,11 @@ fn anchor(width: u32, height: u32, k: u8, n: u8) -> (u32, u32) {
 
 /// A wizard's first view of the world: only the land within `radius` of their fortress (what
 /// founding the capital and creating its army revealed is replaced).
-fn reveal_start(game: &mut Game, player: PlayerId, radius: HalfInt) {
-    let Some(fortress) = game.wizard(player).and_then(|w| w.fortress()) else {
+fn reveal_start(world: &mut World, player: PlayerId, radius: HalfInt) {
+    let Some(fortress) = world.wizard(player).and_then(|w| w.fortress()) else {
         return;
     };
-    game.restrict_view(player, fortress, radius);
+    world.restrict_view(player, fortress, radius);
 }
 
 /// Found a wizard's fortress near their start point, as the original's `Generate_Home_Cities`
@@ -540,42 +541,48 @@ fn reveal_start(game: &mut Game, player: PlayerId, radius: HalfInt) {
 /// fortresses and of nodes, towers and lairs; those distances relax if nothing fits.
 /// A start town on a speck of land gets the island built out (`island::MIN_LAND`), so its wizard
 /// has ground to build on.
-fn build_out_start_island(game: &mut Game, player: PlayerId) {
-    let Some(at) = game.wizard(player).and_then(|w| w.fortress()) else {
+fn build_out_start_island(world: &mut World, player: PlayerId) {
+    let Some(at) = world.wizard(player).and_then(|w| w.fortress()) else {
         return;
     };
-    crate::island::build_out(game, at);
+    crate::island::build_out(world, at);
 }
 
 fn start_player(
-    game: &mut Game,
+    world: &mut World,
     player: PlayerId,
     count: u8,
     race: u16,
     site: Option<Position>,
 ) -> Result<(), NewGameError> {
-    let rules = &game.content().rules;
+    let rules = &world.content().rules;
     let race_def = rules
         .races
         .by_num(race)
         .ok_or(NewGameError::NoRace { race })?;
     let race_id = rules.races.id_numbered(race_def.num);
-    let name = game.names().city(race_def.num, &race_def.id, 0);
+    let name = world.names().city(race_def.num, &race_def.id, 0);
     let army = race_def.start_army.clone();
-    let buildings: Vec<_> = game.content().rules.config.wizard.capital_buildings.clone();
-    let plane = if is_myrran(game, player) {
+    let buildings: Vec<_> = world
+        .content()
+        .rules
+        .config
+        .wizard
+        .capital_buildings
+        .clone();
+    let plane = if is_myrran(world, player) {
         Plane::Myrror
     } else {
         Plane::Arcanus
     };
-    let (width, height) = game
+    let (width, height) = world
         .map()
         .map(|m| (m.width(), m.height()))
         .ok_or(NewGameError::NoMap)?;
     // Wizards on the same plane are spread round it, whatever the others do on the other.
     let (mates, index) = {
         let same: Vec<u8> = (0..count)
-            .filter(|&k| is_myrran(game, PlayerId(k)) == (plane == Plane::Myrror))
+            .filter(|&k| is_myrran(world, PlayerId(k)) == (plane == Plane::Myrror))
             .collect();
         let index = same.iter().position(|&k| k == player.0).unwrap_or(0);
         (same.len().max(1) as u8, index as u8)
@@ -589,10 +596,10 @@ fn start_player(
         .flat_map(|y| (0..width).map(move |x| (x, y)))
         .collect();
     spots.sort_by_key(|&(x, y)| (wrap(x, cx).pow(2) + y.abs_diff(cy).pow(2), y, x));
-    let fortresses: Vec<Position> = game
+    let fortresses: Vec<Position> = world
         .player_ids()
         .into_iter()
-        .filter_map(|p| game.wizard(p)?.fortress())
+        .filter_map(|p| world.wizard(p)?.fortress())
         .filter(|f| f.plane == plane)
         .collect();
     let need = 8 - u32::from(player.0) / 3;
@@ -619,35 +626,35 @@ fn start_player(
             if fortresses
                 .iter()
                 .any(|f| wrap(f.x, x).max(f.y.abs_diff(y)) < apart)
-                || game.can_found_city(pos).is_err()
-                || !crate::neutral::clear_of_sites(game, pos, clear)
-                || game.economy().site_max_size(pos) < size
+                || world.can_found_city(pos).is_err()
+                || !crate::neutral::clear_of_sites(world, pos, clear)
+                || world.economy().site_max_size(pos) < size
             {
                 continue;
             }
-            let events = game.apply(Command::PlaceFortress {
+            let events = world.apply(Command::PlaceFortress {
                 player,
                 pos,
                 name: name.clone(),
                 race: race_id,
-                population: game.content().rules.config.wizard.capital_figures,
+                population: world.content().rules.config.wizard.capital_figures,
             });
             let Some(city) = events.iter().find_map(|e| match e {
-                f4x_core::game::Event::FortressPlaced { .. } => None,
-                f4x_core::game::Event::CityFounded { city, .. } => Some(*city),
+                f4x_core::world::Event::FortressPlaced { .. } => None,
+                f4x_core::world::Event::CityFounded { city, .. } => Some(*city),
                 _ => None,
             }) else {
                 continue;
             };
-            game.apply(Command::SetFarmers {
+            world.apply(Command::SetFarmers {
                 city,
-                farmers: game.content().rules.config.wizard.capital_farmers,
+                farmers: world.content().rules.config.wizard.capital_farmers,
             });
             for building in buildings {
-                game.scenario_set_building(city, building, true);
+                world.scenario_set_building(city, building, true);
             }
             for &unit in &army {
-                game.apply(Command::CreateUnit {
+                world.apply(Command::CreateUnit {
                     owner: player,
                     pos,
                     unit,
@@ -675,18 +682,18 @@ mod tests {
     #[test]
     fn a_game_is_dealt_its_names_from_the_bundle_and_falls_back_to_ids_without_one() -> TestResult {
         let content = shipped();
-        let capital_race = |g: &Game| {
-            g.economy()
+        let capital_race = |w: &World| {
+            w.economy()
                 .cities()
                 .into_iter()
                 .find(|(_, c, _)| c.owner == PlayerId(0))
                 .map(|(_, c, _)| c.name.clone())
         };
         let bare = new_game(content, &spec(3, 2))?;
-        let race_id = |g: &Game| {
-            g.wizard(PlayerId(0))
-                .and_then(|w| w.capital_race())
-                .map(|r| g.content().rules.races.get(r).id.clone())
+        let race_id = |w: &World| {
+            w.wizard(PlayerId(0))
+                .and_then(|wizard| wizard.capital_race())
+                .map(|r| w.content().rules.races.get(r).id.clone())
         };
         let id = race_id(&bare).ok_or("no capital race")?;
         assert_eq!(capital_race(&bare), Some(format!("{id}_city_00")));
@@ -700,10 +707,10 @@ mod tests {
                 .insert(race.num, vec![format!("Town of {}", race.id)]);
         }
         named.names.heroes.insert(0, vec!["Brax".into()]);
-        let g = new_game(content, &named)?;
-        assert_eq!(capital_race(&g), Some(format!("Town of {id}")));
-        assert_eq!(g.units().hero_type_name(0).as_deref(), Some("Brax"));
-        assert_eq!(g.names().heroes[&0], ["Brax"]);
+        let w = new_game(content, &named)?;
+        assert_eq!(capital_race(&w), Some(format!("Town of {id}")));
+        assert_eq!(w.units().hero_type_name(0).as_deref(), Some("Brax"));
+        assert_eq!(w.names().heroes[&0], ["Brax"]);
         Ok(())
     }
 
@@ -717,13 +724,13 @@ mod tests {
                 let mut sp = spec(seed, 5);
                 sp.settings.basic.difficulty = difficulty;
                 sp.settings.rules.limit_ai_races = limit;
-                let g = new_game(content, &sp)?;
+                let w = new_game(content, &sp)?;
                 for k in 0..5 {
-                    let race = g
+                    let race = w
                         .wizard(PlayerId(k))
-                        .and_then(|w| w.capital_race())
+                        .and_then(|wizard| wizard.capital_race())
                         .ok_or("no race")?;
-                    let def = g.content().rules.races.get(race);
+                    let def = w.content().rules.races.get(race);
                     if !def.myrror {
                         out.push(def.num);
                     }
@@ -928,14 +935,14 @@ mod tests {
         for seed in 0..40 {
             let mut spec = spec(seed, 4);
             spec.settings.rules.extend_tiny_islands = true;
-            let g = new_game(shipped(), &spec)?;
-            let map = g.map().ok_or("no map")?;
+            let w = new_game(shipped(), &spec)?;
+            let map = w.map().ok_or("no map")?;
             for k in 0..4 {
-                let at = g
+                let at = w
                     .wizard(PlayerId(k))
-                    .and_then(|w| w.fortress())
+                    .and_then(|wizard| wizard.fortress())
                     .ok_or("no fortress")?;
-                let mass = crate::island::land_mass(map, g.content(), at, usize::MAX);
+                let mass = crate::island::land_mass(map, w.content(), at, usize::MAX);
                 assert!(
                     mass.len() >= crate::island::MIN_LAND,
                     "seed {seed}, wizard {k}: {} squares",
@@ -954,9 +961,9 @@ mod tests {
         for seed in 0..30 {
             let mut spec = spec(seed, 3);
             spec.settings.rules.extend_tiny_islands = true;
-            let g = new_game(shipped(), &spec)?;
-            let map = g.map().ok_or("no map")?;
-            let cities: Vec<Position> = g
+            let w = new_game(shipped(), &spec)?;
+            let map = w.map().ok_or("no map")?;
+            let cities: Vec<Position> = w
                 .economy()
                 .cities()
                 .iter()
@@ -968,13 +975,13 @@ mod tests {
                 .collect();
             assert!(cities.len() > 3, "seed {seed}: neutral cities were placed");
             for at in cities {
-                let mass = crate::island::land_mass(map, g.content(), at, usize::MAX);
+                let mass = crate::island::land_mass(map, w.content(), at, usize::MAX);
                 assert!(
                     mass.len() >= crate::island::MIN_LAND,
                     "seed {seed}, {at:?}: {} squares",
                     mass.len()
                 );
-                let near = crate::island::land_near(map, g.content(), at);
+                let near = crate::island::land_near(map, w.content(), at);
                 assert!(
                     near >= crate::island::MIN_NEAR,
                     "seed {seed}, {at:?}: {near} squares to work"
@@ -1002,8 +1009,8 @@ mod tests {
             for seed in 0..10 {
                 let mut spec = spec(seed, 4);
                 spec.settings.rules.extend_tiny_islands = on;
-                let g = new_game(content, &spec)?;
-                let map = g.map().ok_or("no map")?;
+                let w = new_game(content, &spec)?;
+                let map = w.map().ok_or("no map")?;
                 for plane in [Plane::Arcanus, Plane::Myrror] {
                     for y in 0..map.height() {
                         for x in 0..map.width() {
@@ -1027,28 +1034,28 @@ mod tests {
 
     #[test]
     fn every_wizard_starts_with_a_capital_an_army_and_a_small_view() -> TestResult {
-        let g = new_game(shipped(), &spec(2, 3))?;
+        let w = new_game(shipped(), &spec(2, 3))?;
         for k in 0..3 {
             let p = PlayerId(k);
-            let fortress = g
+            let fortress = w
                 .wizard(p)
-                .and_then(|w| w.fortress())
+                .and_then(|wizard| wizard.fortress())
                 .ok_or("no fortress")?;
-            let city = g.economy().city_at(fortress).ok_or("no capital")?;
-            let start = &g.content().rules.config.wizard;
-            assert_eq!(g.city_population(city).figures, start.capital_figures);
-            assert_eq!(g.city_farmers(city), start.capital_farmers);
-            let built = g.city_buildings(city);
+            let city = w.economy().city_at(fortress).ok_or("no capital")?;
+            let start = &w.content().rules.config.wizard;
+            assert_eq!(w.city_population(city).figures, start.capital_figures);
+            assert_eq!(w.city_farmers(city), start.capital_farmers);
+            let built = w.city_buildings(city);
             for &b in &start.capital_buildings {
                 assert!(built.contains(&b), "wizard {k} lacks building {}", b.num());
             }
-            let army = g.units().units_at(fortress);
+            let army = w.units().units_at(fortress);
             assert!(!army.is_empty() && army.len() <= 2, "{} units", army.len());
-            assert!(g.is_explored(p, fortress));
-            let seen = g.explored_squares(p);
+            assert!(w.is_explored(p, fortress));
+            let seen = w.explored_squares(p);
             let all = 2
-                * g.map().ok_or("no map")?.width() as usize
-                * g.map().ok_or("no map")?.height() as usize;
+                * w.map().ok_or("no map")?.width() as usize
+                * w.map().ok_or("no map")?.height() as usize;
             assert!(
                 seen > 0 && seen < all / 4,
                 "wizard {k} sees {seen} of {all}"
@@ -1065,10 +1072,10 @@ mod tests {
         s.all_ai = false;
         s.books.insert(RealmId::new(0 /* nature */), 8);
         s.settings.ai.wizards.randomise = false;
-        let g = new_game(shipped(), &s)?;
+        let w = new_game(shipped(), &s)?;
         let plane = |k| {
-            g.wizard(PlayerId(k))
-                .and_then(|w| w.fortress())
+            w.wizard(PlayerId(k))
+                .and_then(|wizard| wizard.fortress())
                 .map(|f| f.plane)
         };
         assert_eq!(plane(0), Some(Plane::Myrror));

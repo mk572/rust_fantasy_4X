@@ -1,7 +1,7 @@
 //! Deterministic game simulation. No I/O, no rendering.
 //!
-//! All state changes go through [`game::Game::apply`] as [`game::Command`]s, which yield
-//! [`game::Event`]s. The command log plus the seed fully reproduces a game.
+//! All state changes go through [`world::World::apply`] as [`world::Command`]s, which yield
+//! [`world::Event`]s. The command log plus the seed fully reproduces a game.
 //!
 //! Tests: none, because it only declares modules.
 
@@ -16,7 +16,6 @@ pub mod city;
 pub mod diplomacy;
 pub mod fast;
 pub mod feature;
-pub mod game;
 pub mod hero;
 pub mod hook;
 pub mod item;
@@ -29,4 +28,5 @@ pub mod threat;
 pub mod turn;
 pub mod unit;
 pub mod wizard;
+pub mod world;
 pub mod world_event;

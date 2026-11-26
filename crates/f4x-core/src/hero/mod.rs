@@ -9,8 +9,8 @@
 //! `unit/mod.rs` (fame) and `wizard/magic_income.rs` (research) call. A hero's three items are the
 //! separate [`HeroItems`](crate::item::HeroItems) component.
 
-pub(crate) mod game;
 pub mod kind;
+pub(crate) mod world;
 
 use crate::rules::SpellId;
 use serde::{Deserialize, Serialize};

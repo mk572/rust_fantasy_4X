@@ -6,7 +6,7 @@
 //! each refusal is checked against the text of the game from before.
 
 use crate::support::{commands, text, worlds};
-use f4x_core::game::Event;
+use f4x_core::world::Event;
 
 /// Try every command of the sweep on each world, warmed up with `warm` rounds of play first, and check
 /// each refusal. Returns how many commands were tried and how many were refused.
@@ -16,13 +16,13 @@ fn sweep(every: usize, warm: usize) -> (usize, usize) {
     let mut recorded = 0;
     // The item commands: (refused, accepted).
     let mut item = (0usize, 0usize);
-    for (name, mut g) in worlds().into_iter().step_by(every) {
+    for (name, mut w) in worlds().into_iter().step_by(every) {
         for _ in 0..warm {
-            crate::support::busy_round(&mut g, 6);
+            crate::support::busy_round(&mut w, 6);
         }
         // Something in the vaults, so that the item commands are refused for what they ask and not
         // for an empty place.
-        let items: Vec<_> = g
+        let items: Vec<_> = w
             .content()
             .rules
             .items
@@ -32,27 +32,27 @@ fn sweep(every: usize, warm: usize) -> (usize, usize) {
             .take(3)
             .map(f4x_core::item::Item::from_def)
             .collect();
-        for p in g.wizards() {
+        for p in w.wizards() {
             for item in &items {
-                g.give_item(p, item.clone());
+                w.give_item(p, item.clone());
             }
         }
         // Recording and undo are on, so that a refused command is also checked for what it leaves
         // there: nothing in the replay, nothing to undo.
-        g.start_recording().expect("recording starts");
-        g.set_undo(true);
+        w.start_recording().expect("recording starts");
+        w.set_undo(true);
         // The game goes on changing as commands are accepted (a unit is dismissed, a city founded), so
         // later commands name things that are gone: a stale handle is one more kind of bad input.
-        for command in commands(&g) {
+        for command in commands(&w) {
             let label = format!("{command:?}");
-            let before = text(&g);
+            let before = text(&w);
             let history = (
-                g.replay_so_far().ok().map(|r| r.commands.len()),
-                g.can_undo(),
-                g.undo_label().map(str::to_owned),
+                w.replay_so_far().ok().map(|r| r.commands.len()),
+                w.can_undo(),
+                w.undo_label().map(str::to_owned),
             );
             let events =
-                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| g.apply(command)))
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| w.apply(command)))
                     .unwrap_or_else(|_| panic!("{name}: {label} panicked"));
             tried += 1;
             let rejected = events.iter().any(|e| matches!(e, Event::Rejected(_)));
@@ -69,13 +69,13 @@ fn sweep(every: usize, warm: usize) -> (usize, usize) {
             if rejected {
                 refused += 1;
                 assert_eq!(
-                    text(&g),
+                    text(&w),
                     before,
                     "{name}: {label} was refused, and changed the game"
                 );
                 // A command that cannot be written down (it names a unit that is gone) ends the
                 // recording; as long as there is one, a refusal adds nothing to it.
-                if let (Some(was), Ok(now)) = (history.0, g.replay_so_far()) {
+                if let (Some(was), Ok(now)) = (history.0, w.replay_so_far()) {
                     recorded += 1;
                     assert_eq!(
                         now.commands.len(),
@@ -84,7 +84,7 @@ fn sweep(every: usize, warm: usize) -> (usize, usize) {
                     );
                 }
                 assert_eq!(
-                    (g.can_undo(), g.undo_label().map(str::to_owned)),
+                    (w.can_undo(), w.undo_label().map(str::to_owned)),
                     (history.1, history.2),
                     "{name}: {label} was refused and changed the undo history"
                 );
@@ -146,7 +146,7 @@ const NOT_TRIED: &[(&str, &str)] = &[
 
 /// The variants of `Command`, read from its source.
 fn command_names() -> Vec<String> {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/game/command.rs");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/world/command.rs");
     let source = std::fs::read_to_string(path).expect("the command source");
     let body = source.split("pub enum Command {").nth(1).expect("the enum");
     body.lines()
@@ -168,8 +168,8 @@ fn command_names() -> Vec<String> {
 
 #[test]
 fn every_command_is_in_the_sweep_or_named_as_missing() {
-    let (_, g) = worlds().remove(0);
-    let tried: std::collections::HashSet<String> = commands(&g)
+    let (_, w) = worlds().remove(0);
+    let tried: std::collections::HashSet<String> = commands(&w)
         .iter()
         .map(|c| {
             format!("{c:?}")
@@ -211,21 +211,21 @@ fn a_refused_move_leaves_the_standby_of_the_unit() {
     use crate::support::around;
     use f4x_core::unit::Standby;
     let mut refused = 0;
-    for (name, mut g) in worlds() {
-        for u in g.units().all_units().into_iter().take(40) {
-            let Some(at) = g.units().unit_position(u) else {
+    for (name, mut w) in worlds() {
+        for u in w.units().all_units().into_iter().take(40) {
+            let Some(at) = w.units().unit_position(u) else {
                 continue;
             };
-            for to in around(&g, at) {
-                g.apply(f4x_core::game::Command::SetStandby {
+            for to in around(&w, at) {
+                w.apply(f4x_core::world::Command::SetStandby {
                     units: vec![u],
                     standby: Some(Standby::Done),
                 });
-                let before = text(&g);
-                let events = g.apply(f4x_core::game::Command::MoveStack { units: vec![u], to });
+                let before = text(&w);
+                let events = w.apply(f4x_core::world::Command::MoveStack { units: vec![u], to });
                 if events.iter().any(|e| matches!(e, Event::Rejected(_))) {
                     refused += 1;
-                    assert_eq!(text(&g), before, "{name}: a refused move to {to:?}");
+                    assert_eq!(text(&w), before, "{name}: a refused move to {to:?}");
                 }
             }
         }

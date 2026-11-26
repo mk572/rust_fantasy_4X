@@ -14,10 +14,10 @@
 //! rows); the window here shows all of them.
 //!
 //! The layout lives here, with the battle; `f4x-core` gathers the facts from the game
-//! (`Game::battle_info`) and hands them to [`build`].
+//! (`World::battle_info`) and hands them to [`build`].
 //!
 //! Tests: none here, because `build` only lays facts out; the facts are read from real battles
-//! in `f4x-core` (`battle/tests.rs`, `Game::battle_info`).
+//! in `f4x-core` (`battle/tests.rs`, `World::battle_info`).
 
 use f4x_def::rules::realm::Realm;
 

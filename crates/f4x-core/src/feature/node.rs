@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::feature::entity::NodeInfo;
 use crate::player::PlayerId;
 
-use crate::game::{Event, Game};
+use crate::world::{Event, World};
 
 /// A magic node: a component of the feature entity on the node's square, with an aura of squares
 /// around it. A wizard who melds a spirit into it owns it (the entity's `Owner`) and draws power
@@ -61,7 +61,7 @@ impl MeldError {
     }
 }
 
-impl Game {
+impl World {
     /// Power one node yields to its owner this turn.
     pub fn node_power(&self, node: &NodeInfo) -> i32 {
         if node.warped {
@@ -153,7 +153,7 @@ impl Game {
             if let Some(player) = self.player_entity(owner) {
                 self.put(node.entity, crate::player::Owner(player));
             }
-            if let Ok(mut n) = self.world.get::<&mut Node>(node.entity) {
+            if let Ok(mut n) = self.ecs.get::<&mut Node>(node.entity) {
                 // A rival's guardian is gone with the successful meld; ours stands again.
                 n.guardian = guardian.is_some();
             }

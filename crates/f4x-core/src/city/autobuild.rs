@@ -12,11 +12,11 @@ use f4x_def::half_int::HalfInt;
 use serde::{Deserialize, Serialize};
 
 use crate::city::production::ProductionItem;
-use crate::game::Game;
 use crate::map::Position;
 use crate::player::PlayerId;
 use crate::rules::effects::Effect;
 use crate::rules::{BuildingId, ModOp, MovementType, Stat, UnitId, UnitKind};
+use crate::world::World;
 use f4x_def::content::Content;
 
 /// Net gold of the treasury under which the city builds gold first.
@@ -759,11 +759,11 @@ pub fn choose(
 
 // ---- gathering the facts from a game -------------------------------------------------------
 
-impl Game {
+impl World {
     /// The auto-builder of a city: its own plan, or the Vizier's default when its owner has the
     /// Vizier on.
     pub fn autobuild_of(&self, city: hecs::Entity) -> Option<AutoBuild> {
-        if let Ok(a) = self.world.get::<&AutoBuild>(city) {
+        if let Ok(a) = self.ecs.get::<&AutoBuild>(city) {
             return Some(*a);
         }
         let owner = self.economy().city_owner(city)?;
@@ -775,7 +775,7 @@ impl Game {
     /// The owner's net gold: worked out afresh, except while the player's cities build, when it
     /// is kept until something is completed.
     fn net_gold_of(&self, owner: PlayerId, city: hecs::Entity) -> HalfInt {
-        use crate::game::NetGoldMemo;
+        use crate::world::NetGoldMemo;
         match self.net_gold_memo.get() {
             NetGoldMemo::Known(p, gold) if p == owner => {
                 if crate::player::finance::check_budget() {
@@ -801,15 +801,15 @@ impl Game {
         let eco = self.economy();
         let e = eco.city_economy(city).filter(|e| e.figures > 0)?;
         let content = &self.content;
-        let at = *self.world.get::<&Position>(city).ok()?;
+        let at = *self.ecs.get::<&Position>(city).ok()?;
         let view = crate::player::view::PlayerView::new(self, owner);
         let race = self
-            .world
+            .ecs
             .get::<&crate::city::economy::CityRace>(city)
             .ok()
             .map(|r| r.0);
         let built = self
-            .world
+            .ecs
             .get::<&crate::city::economy::Buildings>(city)
             .map(|b| b.0.clone())
             .unwrap_or_default();
@@ -933,14 +933,14 @@ impl Game {
         city: hecs::Entity,
         plan: Option<BuildPlan>,
     ) -> Result<(), crate::city::production::ProductionError> {
-        if self.world.get::<&crate::city::City>(city).is_err() {
+        if self.ecs.get::<&crate::city::City>(city).is_err() {
             return Err(crate::city::production::ProductionError::NotACity);
         }
         match plan {
             Some(plan) => {
                 // A new plan keeps what the city has spent so far.
                 let mut auto = AutoBuild::new(plan);
-                if let Ok(old) = self.world.get::<&AutoBuild>(city) {
+                if let Ok(old) = self.ecs.get::<&AutoBuild>(city) {
                     auto.spent_units = old.spent_units;
                     auto.spent_buildings = old.spent_buildings;
                 }
@@ -980,7 +980,7 @@ impl Game {
 
     /// Note what a finished item cost, so `Mix::Both` can keep the sides level.
     pub(crate) fn autobuild_spent(&mut self, city: hecs::Entity, item: ProductionItem, cost: u32) {
-        if let Ok(mut a) = self.world.get::<&mut AutoBuild>(city) {
+        if let Ok(mut a) = self.ecs.get::<&mut AutoBuild>(city) {
             match item {
                 ProductionItem::Unit(_) => a.spent_units += cost,
                 ProductionItem::Building(_) => a.spent_buildings += cost,

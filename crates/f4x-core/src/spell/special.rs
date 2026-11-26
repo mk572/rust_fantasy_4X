@@ -4,9 +4,9 @@
 
 use crate::map::{Plane, Position};
 
-use crate::game::{Event, Game};
 use crate::spell::target_error::TargetError;
 use crate::unit::Hurt;
+use crate::world::{Event, World};
 
 pub use f4x_def::rules::hook_name::{RECALL, RECALL_ANYONE, RECALL_HERO};
 /// The hook of the Spell of Mastery, which wins the game when the casting is done.
@@ -25,7 +25,7 @@ pub const MOVE_CIRCLE: &str = "summoning_circle";
 const LORE_WIDTH: u32 = 12;
 const LORE_HEIGHT: u32 = 10;
 
-impl Game {
+impl World {
     /// The mineral Transmute makes of the one on `at`, or why there is none it can change.
     pub fn transmute_result(&self, at: Position) -> Result<crate::map::FeatureId, TargetError> {
         let map = self.map.as_ref().ok_or(TargetError::OffMap)?;
@@ -172,7 +172,7 @@ impl Game {
         &mut self,
         caster: crate::player::PlayerId,
         unit: hecs::Entity,
-    ) -> Option<crate::game::Event> {
+    ) -> Option<crate::world::Event> {
         let from = self.units().unit_position(unit)?;
         let to = self.plane_shift_destination(unit).ok()?;
         let units = self.units().units_at(from);
@@ -180,7 +180,7 @@ impl Game {
             self.put(u, to);
         }
         self.explore(caster, to, crate::map::fog::sight_for(1));
-        Some(crate::game::Event::PlaneShifted {
+        Some(crate::world::Event::PlaneShifted {
             player: caster,
             from,
             to,

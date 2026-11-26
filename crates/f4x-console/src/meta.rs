@@ -4,7 +4,7 @@
 
 use std::path::PathBuf;
 
-use f4x_core::game::setting::EventFrequency;
+use f4x_core::world::setting::EventFrequency;
 
 use crate::args::{resolve, Args};
 use crate::setup::{new_game, parse_retort, NewGame};
@@ -169,7 +169,7 @@ fn mode(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         )));
     }
     if wanted == Mode::Override && ctx.session.mode != Mode::Override {
-        ctx.game.record_override("mode override");
+        ctx.world.record_override("mode override");
     }
     ctx.session.mode = wanted;
     ctx.say(match wanted {
@@ -181,7 +181,7 @@ fn mode(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 }
 
 fn history(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
-    let log: Vec<String> = ctx.game.override_log().to_vec();
+    let log: Vec<String> = ctx.world.override_log().to_vec();
     if log.is_empty() {
         ctx.say("no override commands used");
     }
@@ -192,7 +192,7 @@ fn history(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
 }
 
 fn settings(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
-    let b = ctx.game.settings().basic;
+    let b = ctx.world.settings().basic;
     let level = |names: &[(&'static str, u8)], i: u8| {
         names
             .iter()
@@ -228,7 +228,7 @@ fn settings(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
         b.magic_strength,
         level(MAGIC, b.magic_strength)
     ));
-    let e = ctx.game.settings().events;
+    let e = ctx.world.settings().events;
     if e.random_events {
         let chance = |turns| {
             f4x_core::world_event::scaled_pressure(turns, e.pressure_percent, e.frequency) as f32
@@ -268,7 +268,7 @@ fn named_path(ctx: &Ctx, name: Option<&str>) -> Result<PathBuf, ConsoleError> {
 
 fn save(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let path = save_path(ctx, a)?;
-    f4x_core::game::save::save_game(&path, ctx.game)
+    f4x_core::world::save::save_game(&path, ctx.world)
         .map_err(|e| ConsoleError::Failed(e.to_string()))?;
     ctx.say(format!("saved to {}", path.display()));
     Ok(())
@@ -287,18 +287,18 @@ fn replaces_game(ctx: &Ctx) -> Result<(), ConsoleError> {
 fn load(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     replaces_game(ctx)?;
     let path = save_path(ctx, a)?;
-    let content = ctx.game.content().clone();
-    let (mut game, integrity) = f4x_core::game::save::load_game(&path, content)
+    let content = ctx.world.content().clone();
+    let (mut world, integrity) = f4x_core::world::save::load_game(&path, content)
         .map_err(|e| ConsoleError::Failed(e.to_string()))?;
-    game.ensure_human(ctx.session.player);
-    game.set_undo(true);
-    *ctx.game = game;
+    world.ensure_human(ctx.session.player);
+    world.set_undo(true);
+    *ctx.world = world;
     ctx.say(format!(
         "loaded {} (turn {})",
         path.display(),
-        ctx.game.turn
+        ctx.world.turn
     ));
-    if integrity != f4x_core::game::save::Integrity::Intact {
+    if integrity != f4x_core::world::save::Integrity::Intact {
         ctx.say("warning: this save was edited since the game wrote it".to_string());
     }
     Ok(())
@@ -310,20 +310,20 @@ fn replay_path(ctx: &Ctx, name: Option<&str>) -> Result<PathBuf, ConsoleError> {
 }
 
 fn record(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
-    let failed = |e: f4x_core::game::replay::ReplayError| ConsoleError::Refused(format!("{e:?}"));
+    let failed = |e: f4x_core::world::replay::ReplayError| ConsoleError::Refused(format!("{e:?}"));
     match a.get(0).unwrap_or("start") {
         "start" => {
-            ctx.game.start_recording().map_err(failed)?;
+            ctx.world.start_recording().map_err(failed)?;
             ctx.say("recording".to_string());
         }
-        "status" => match ctx.game.replay_so_far() {
+        "status" => match ctx.world.replay_so_far() {
             Ok(r) => ctx.say(format!("recording, {} commands so far", r.commands.len())),
             Err(_) => ctx.say("not recording".to_string()),
         },
         "stop" => {
             let path = replay_path(ctx, a.get(1))?;
             let replay = ctx
-                .game
+                .world
                 .stop_recording()
                 .ok_or_else(|| ConsoleError::Refused("not recording".into()))?;
             let text = replay
@@ -357,19 +357,19 @@ fn replay(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         None => usize::MAX,
     };
     let text = std::fs::read_to_string(&path).map_err(|e| ConsoleError::Failed(e.to_string()))?;
-    let replay = f4x_core::game::replay::Replay::from_text(&text)
+    let replay = f4x_core::world::replay::Replay::from_text(&text)
         .map_err(|e| ConsoleError::Failed(format!("{e:?}")))?;
-    let (mut game, events) = replay
-        .play(ctx.game.content().clone(), count)
+    let (mut world, events) = replay
+        .play(ctx.world.content().clone(), count)
         .map_err(|e| ConsoleError::Failed(format!("{e:?}")))?;
-    game.ensure_human(ctx.session.player);
-    game.set_undo(true);
-    *ctx.game = game;
+    world.ensure_human(ctx.session.player);
+    world.set_undo(true);
+    *ctx.world = world;
     ctx.say(format!(
         "played {} commands from {} (turn {})",
         events.len(),
         path.display(),
-        ctx.game.turn
+        ctx.world.turn
     ));
     Ok(())
 }
@@ -382,7 +382,7 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             Some(s) => s
                 .parse()
                 .map_err(|_| ConsoleError::Parse(format!("{s:?} is not a seed")))?,
-            None => ctx.game.seed().wrapping_add(1),
+            None => ctx.world.seed().wrapping_add(1),
         },
         ..NewGame::default()
     };
@@ -404,19 +404,19 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
                 })
             }
             "wizard" => {
-                let wizards = &ctx.game.content().rules.wizards;
+                let wizards = &ctx.world.content().rules.wizards;
                 spec.preset = Some(resolve(wizards, v, |d| &d.id, "wizard")?.num());
             }
             "name" => spec.name = Some(v.to_string()),
             "race" => {
-                let races = &ctx.game.content().rules.races;
+                let races = &ctx.world.content().rules.races;
                 spec.race = Some(resolve(races, v, |d| &d.id, "race")?.num());
             }
             "players" => {
                 let n: u8 = v.parse().map_err(|_| {
                     ConsoleError::Parse(format!("{v:?} is not a number of wizards"))
                 })?;
-                let most = ctx.game.content().settings.max_opponents + 1;
+                let most = ctx.world.content().settings.max_opponents + 1;
                 if !(2..=most).contains(&n) {
                     return Err(ConsoleError::Parse(format!(
                         "a game has 2 to {most} wizards"
@@ -426,7 +426,7 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             }
             "land" => {
                 // The sizes of `rules_settings.ron`, by lower-case name.
-                let sizes = &ctx.game.content().settings.land_sizes;
+                let sizes = &ctx.world.content().settings.land_sizes;
                 let names: Vec<String> = sizes.iter().map(|s| s.id.clone()).collect();
                 let table: Vec<(&str, u8)> = names
                     .iter()
@@ -438,7 +438,7 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             "map" => {
                 // A size of `rules_settings.ron` by lower-case name, or `<width>x<height>`.
                 let lower = v.to_lowercase();
-                let sizes = &ctx.game.content().settings.map_sizes;
+                let sizes = &ctx.world.content().settings.map_sizes;
                 let by_name = sizes.iter().find(|s| s.id == lower);
                 let (width, height) = match by_name {
                     Some(s) => (s.width, s.height),
@@ -451,7 +451,7 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
                             ))
                         })?,
                 };
-                use f4x_core::game::setting::{MAP_HEIGHTS, MAP_WIDTHS};
+                use f4x_core::world::setting::{MAP_HEIGHTS, MAP_WIDTHS};
                 if !MAP_WIDTHS.contains(&width) || !MAP_HEIGHTS.contains(&height) {
                     return Err(ConsoleError::Parse(format!(
                         "a map is {MAP_WIDTHS:?} by {MAP_HEIGHTS:?} squares"
@@ -477,11 +477,11 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
                 // A level brings its figures for it; the other basic choices stay.
                 let level = parse_choice(v, "difficulty", DIFFICULTY, 0, 5)?;
                 let basic = spec.settings.basic;
-                spec.settings = f4x_core::game::setting::GameSettings::for_difficulty(
-                    &ctx.game.content().settings,
+                spec.settings = f4x_core::world::setting::GameSettings::for_difficulty(
+                    &ctx.world.content().settings,
                     level,
                 );
-                spec.settings.basic = f4x_core::game::setting::BasicSettings {
+                spec.settings.basic = f4x_core::world::setting::BasicSettings {
                     difficulty: level,
                     ..basic
                 };
@@ -495,14 +495,14 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
                     let n = n
                         .parse()
                         .map_err(|_| ConsoleError::Parse(format!("{n:?} is not a count")))?;
-                    let realm = crate::args::alias_id(&ctx.game.content().rules.realms, realm)
+                    let realm = crate::args::alias_id(&ctx.world.content().rules.realms, realm)
                         .ok_or_else(|| ConsoleError::NoSuch(format!("realm {realm:?}")))?;
                     spec.books.insert(realm, n);
                 }
             }
             "retorts" => {
                 for r in v.split(',').filter(|r| !r.is_empty()) {
-                    let retort = parse_retort(&ctx.game.content().rules, r)
+                    let retort = parse_retort(&ctx.world.content().rules, r)
                         .ok_or_else(|| ConsoleError::NoSuch(format!("retort {r:?}")))?;
                     spec.retorts.insert(retort);
                 }
@@ -516,9 +516,9 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     if let Some(f) = frequency {
         spec.settings.events.frequency = f;
     }
-    let content = ctx.game.content().clone();
-    let game = new_game(&content, &spec).map_err(|e| ConsoleError::Failed(e.to_string()))?;
-    *ctx.game = game;
+    let content = ctx.world.content().clone();
+    let world = new_game(&content, &spec).map_err(|e| ConsoleError::Failed(e.to_string()))?;
+    *ctx.world = world;
     ctx.session.player = crate::setup::HUMAN;
     ctx.say(format!("new game, seed {}", spec.seed));
     if let Some(each) = spec.settings.basic.crowding() {

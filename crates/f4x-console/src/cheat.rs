@@ -4,7 +4,7 @@
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::PlayerId;
 
-use f4x_core::game::Command;
+use f4x_core::world::Command;
 
 use crate::args::{city_by_serial, parse_player, parse_pos, parse_units, resolve, Args};
 use crate::describe;
@@ -59,7 +59,7 @@ fn player_arg(ctx: &Ctx, a: &Args, i: usize) -> Result<PlayerId, ConsoleError> {
         Some(p) => parse_player(p)?,
         None => ctx.session.player,
     };
-    ctx.game
+    ctx.world
         .player_entity(id)
         .map(|_| id)
         .ok_or_else(|| ConsoleError::NoSuch(format!("player {}", id.0)))
@@ -79,11 +79,11 @@ fn name_and_wizard<'a>(
 }
 
 fn spell_of(ctx: &Ctx, name: &str) -> Result<f4x_core::rules::SpellId, ConsoleError> {
-    resolve(&ctx.game.content().rules.spells, name, |d| &d.id, "spell")
+    resolve(&ctx.world.content().rules.spells, name, |d| &d.id, "spell")
 }
 
 fn retort_of(ctx: &Ctx, name: &str) -> Result<f4x_core::wizard::magic::Retort, ConsoleError> {
-    crate::setup::parse_retort(&ctx.game.content().rules, name)
+    crate::setup::parse_retort(&ctx.world.content().rules, name)
         .ok_or_else(|| ConsoleError::NoSuch(format!("retort {name:?}")))
 }
 
@@ -92,17 +92,17 @@ fn give_kept(ctx: &mut Ctx, a: &Args, what: &str) -> Result<(), ConsoleError> {
     let (name, id) = name_and_wizard(ctx, plain.get(1..).unwrap_or(&[]))?;
     if what == "spell" {
         let spell = spell_of(ctx, &name)?;
-        if !ctx.game.cheat_learn_spell(id, spell) {
+        if !ctx.world.cheat_learn_spell(id, spell) {
             return Err(ConsoleError::NoSuch(format!("wizard {}", id.0)));
         }
         ctx.say(format!(
             "{} learned {}",
-            describe::player(ctx.game, id),
-            describe::spell(ctx.game, spell)
+            describe::player(ctx.world, id),
+            describe::spell(ctx.world, spell)
         ));
     } else {
         let retort = retort_of(ctx, &name)?;
-        if !ctx.game.cheat_set_retort(id, retort, true) {
+        if !ctx.world.cheat_set_retort(id, retort, true) {
             return Err(ConsoleError::Failed(format!(
                 "wizard {} has no sheet, or has {name:?} already",
                 id.0
@@ -110,7 +110,7 @@ fn give_kept(ctx: &mut Ctx, a: &Args, what: &str) -> Result<(), ConsoleError> {
         }
         ctx.say(format!(
             "{} now has the retort {name}",
-            describe::player(ctx.game, id)
+            describe::player(ctx.world, id)
         ));
     }
     Ok(())
@@ -123,7 +123,7 @@ fn remove(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     match what {
         "spell" => {
             let spell = spell_of(ctx, &name)?;
-            if !ctx.game.cheat_forget_spell(id, spell) {
+            if !ctx.world.cheat_forget_spell(id, spell) {
                 return Err(ConsoleError::Failed(format!(
                     "wizard {} does not know {name:?}",
                     id.0
@@ -131,13 +131,13 @@ fn remove(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             }
             ctx.say(format!(
                 "{} forgot {}",
-                describe::player(ctx.game, id),
-                describe::spell(ctx.game, spell)
+                describe::player(ctx.world, id),
+                describe::spell(ctx.world, spell)
             ));
         }
         "retort" => {
             let retort = retort_of(ctx, &name)?;
-            if !ctx.game.cheat_set_retort(id, retort, false) {
+            if !ctx.world.cheat_set_retort(id, retort, false) {
                 return Err(ConsoleError::Failed(format!(
                     "wizard {} does not have the retort {name:?}",
                     id.0
@@ -145,7 +145,7 @@ fn remove(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             }
             ctx.say(format!(
                 "{} no longer has the retort {name}",
-                describe::player(ctx.game, id)
+                describe::player(ctx.world, id)
             ));
         }
         other => {
@@ -161,7 +161,7 @@ fn set(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     match a.need(0, "books")? {
         "books" => {
             let realm = resolve(
-                &ctx.game.content().rules.realms,
+                &ctx.world.content().rules.realms,
                 a.need(1, "realm")?,
                 |d| &d.id,
                 "realm",
@@ -169,13 +169,13 @@ fn set(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             let books = u8::try_from(a.int(2, "books")?)
                 .map_err(|_| ConsoleError::Parse("books are 0 to 255".into()))?;
             let id = player_arg(ctx, a, 3)?;
-            if !ctx.game.cheat_set_books(id, realm, books) {
+            if !ctx.world.cheat_set_books(id, realm, books) {
                 return Err(ConsoleError::NoSuch(format!("wizard {}", id.0)));
             }
-            let now = ctx.game.wizard(id).map_or(0, |w| w.books_in(realm));
+            let now = ctx.world.wizard(id).map_or(0, |w| w.books_in(realm));
             ctx.say(format!(
                 "{} now has {now} books in {}",
-                describe::player(ctx.game, id),
+                describe::player(ctx.world, id),
                 a.need(1, "realm")?
             ));
             Ok(())
@@ -191,7 +191,7 @@ fn give(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     }
     let amount = a.int(1, "amount")? as i32;
     let id = player_arg(ctx, a, 2)?;
-    let t = ctx.game.treasury_mut(id).expect("checked");
+    let t = ctx.world.treasury_mut(id).expect("checked");
     let now = match what {
         "gold" => {
             t.gold += amount;
@@ -202,8 +202,8 @@ fn give(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             t.mana.to_string()
         }
         "fame" => {
-            ctx.game.add_fame(id, amount);
-            ctx.game.wizard(id).map_or(0, |w| w.fame()).to_string()
+            ctx.world.add_fame(id, amount);
+            ctx.world.wizard(id).map_or(0, |w| w.fame()).to_string()
         }
         other => {
             return Err(ConsoleError::Usage(format!(
@@ -213,14 +213,14 @@ fn give(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     };
     ctx.say(format!(
         "{} now has {now} {what}",
-        describe::player(ctx.game, id)
+        describe::player(ctx.world, id)
     ));
     Ok(())
 }
 
 fn spawn(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let unit = resolve(
-        &ctx.game.content().rules.units,
+        &ctx.world.content().rules.units,
         a.need(0, "unit")?,
         |d| &d.id,
         "unit",
@@ -231,42 +231,42 @@ fn spawn(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 }
 
 fn kill(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
-    let units = parse_units(ctx.game, a.need(0, "units")?)?;
+    let units = parse_units(ctx.world, a.need(0, "units")?)?;
     for u in units {
-        let line = describe::unit(ctx.game, u);
-        ctx.game.cheat_remove_unit(u);
+        let line = describe::unit(ctx.world, u);
+        ctx.world.cheat_remove_unit(u);
         ctx.say(format!("removed {line}"));
     }
     Ok(())
 }
 
 fn restore(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
-    for u in parse_units(ctx.game, a.need(0, "units")?)? {
-        ctx.game.cheat_restore_unit(u);
-        let line = describe::unit(ctx.game, u);
+    for u in parse_units(ctx.world, a.need(0, "units")?)? {
+        ctx.world.cheat_restore_unit(u);
+        let line = describe::unit(ctx.world, u);
         ctx.say(format!("restored {line}"));
     }
     Ok(())
 }
 
 fn undead(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
-    for u in parse_units(ctx.game, a.need(0, "units")?)? {
-        ctx.game.make_undead(u);
-        let line = describe::unit(ctx.game, u);
+    for u in parse_units(ctx.world, a.need(0, "units")?)? {
+        ctx.world.make_undead(u);
+        let line = describe::unit(ctx.world, u);
         ctx.say(format!("made undead: {line}"));
     }
     Ok(())
 }
 
 fn teleport(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
-    let units = parse_units(ctx.game, a.need(0, "units")?)?;
+    let units = parse_units(ctx.world, a.need(0, "units")?)?;
     let first = units
         .first()
-        .and_then(|&u| ctx.game.units().unit_position(u))
+        .and_then(|&u| ctx.world.units().unit_position(u))
         .map_or(Plane::Arcanus, |p| p.plane);
     let to = parse_pos(a.need(1, "position")?, first)?;
     for u in units {
-        ctx.game.cheat_move_unit(u, to);
+        ctx.world.cheat_move_unit(u, to);
     }
     ctx.explore_for_units(to);
     ctx.say(format!("moved to {}", describe::pos(to)));
@@ -276,7 +276,7 @@ fn teleport(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 impl Ctx<'_> {
     fn explore_for_units(&mut self, at: Position) {
         let me = self.session.player;
-        self.game
+        self.world
             .explore(me, at, f4x_def::half_int::HalfInt::from_int(2));
     }
 }
@@ -299,7 +299,7 @@ fn newcity(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         match k {
             "race" => {
                 race = Some(resolve(
-                    &ctx.game.content().rules.races,
+                    &ctx.world.content().rules.races,
                     v,
                     |d| &d.id,
                     "race",
@@ -318,7 +318,7 @@ fn newcity(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     }
     if race.is_none() {
         race = ctx
-            .game
+            .world
             .content()
             .rules
             .races
@@ -336,20 +336,20 @@ fn newcity(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 }
 
 fn build(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
-    let city = city_by_serial(ctx.game, a.int(0, "city number")? as u64)?;
+    let city = city_by_serial(ctx.world, a.int(0, "city number")? as u64)?;
     let b = resolve(
-        &ctx.game.content().rules.buildings,
+        &ctx.world.content().rules.buildings,
         &a.rest(1),
         |d| &d.id,
         "building",
     )?;
-    if !ctx.game.cheat_add_building(city, b) {
+    if !ctx.world.cheat_add_building(city, b) {
         return Err(ConsoleError::Failed("could not add the building".into()));
     }
     ctx.say(format!(
         "{} now has {}",
-        describe::city_name(ctx.game, city),
-        ctx.game.content().rules.buildings.get(b).id
+        describe::city_name(ctx.world, city),
+        ctx.world.content().rules.buildings.get(b).id
     ));
     Ok(())
 }
@@ -357,14 +357,14 @@ fn build(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 fn terrain(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let pos = parse_pos(a.need(0, "position")?, Plane::Arcanus)?;
     let name = a.need(1, "terrain id")?;
-    let terrains = &ctx.game.content().terrains;
+    let terrains = &ctx.world.content().terrains;
     let id = terrains
         .defs()
         .iter()
         .find(|d| d.id == name)
         .and_then(|d| terrains.id_numbered(d.num))
         .ok_or_else(|| ConsoleError::NoSuch(format!("terrain {name:?}")))?;
-    if !ctx.game.cheat_set_terrain(pos, id) {
+    if !ctx.world.cheat_set_terrain(pos, id) {
         return Err(ConsoleError::Failed("that square is off the map".into()));
     }
     ctx.say(format!("{} is now {name}", describe::pos(pos)));
@@ -380,7 +380,7 @@ fn learn(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         _ => (plain.join(" "), None),
     };
     let spell = resolve(
-        &ctx.game.content().rules.spells,
+        &ctx.world.content().rules.spells,
         &spell_text,
         |d| &d.id,
         "spell",
@@ -389,20 +389,20 @@ fn learn(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         Some(p) => parse_player(p)?,
         None => ctx.session.player,
     };
-    if !ctx.game.cheat_learn_spell(id, spell) {
+    if !ctx.world.cheat_learn_spell(id, spell) {
         return Err(ConsoleError::NoSuch(format!("wizard {}", id.0)));
     }
     ctx.say(format!(
         "{} learned {}",
-        describe::player(ctx.game, id),
-        describe::spell(ctx.game, spell)
+        describe::player(ctx.world, id),
+        describe::spell(ctx.world, spell)
     ));
     Ok(())
 }
 
 fn reveal(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let id = player_arg(ctx, a, 0)?;
-    ctx.game.cheat_reveal(id);
+    ctx.world.cheat_reveal(id);
     ctx.say("map revealed");
     Ok(())
 }
@@ -412,13 +412,13 @@ fn contact(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let others = match a.get(0) {
         Some(p) => {
             let id = parse_player(p)?;
-            ctx.game
+            ctx.world
                 .player_entity(id)
                 .ok_or_else(|| ConsoleError::NoSuch(format!("player {}", id.0)))?;
             vec![id]
         }
         None => ctx
-            .game
+            .world
             .wizards()
             .into_iter()
             .filter(|&w| w != me)
@@ -426,9 +426,9 @@ fn contact(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     };
     let (mut first, mut already, mut refused) = (0, 0, 0);
     for id in others {
-        if ctx.game.make_contact(me, id) {
+        if ctx.world.make_contact(me, id) {
             first += 1;
-        } else if ctx.game.have_met(me, id) {
+        } else if ctx.world.have_met(me, id) {
             already += 1;
         } else {
             refused += 1;
@@ -453,12 +453,12 @@ fn contact(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 fn eliminate(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let id = parse_player(a.need(0, "player")?)?;
     let by = ctx.session.player;
-    let events = ctx.game.cheat_eliminate(id, by);
+    let events = ctx.world.cheat_eliminate(id, by);
     if events.is_empty() {
         return Err(ConsoleError::Refused("no such active wizard".into()));
     }
     for e in &events {
-        let line = describe::event(ctx.game, e);
+        let line = describe::event(ctx.world, e);
         ctx.say(line);
     }
     ctx.events.extend(events);
@@ -467,12 +467,12 @@ fn eliminate(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 
 fn win(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let id = parse_player(a.need(0, "player")?)?;
-    let events = ctx.game.win_by_mastery(id);
+    let events = ctx.world.win_by_mastery(id);
     if events.is_empty() {
         return Err(ConsoleError::Refused("the game is already over".into()));
     }
     for e in &events {
-        let line = describe::event(ctx.game, e);
+        let line = describe::event(ctx.world, e);
         ctx.say(line);
     }
     ctx.events.extend(events);
@@ -482,7 +482,7 @@ fn win(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 fn act_as(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let id = player_arg(ctx, a, 0)?;
     ctx.session.player = id;
-    ctx.say(format!("now playing {}", describe::player(ctx.game, id)));
+    ctx.say(format!("now playing {}", describe::player(ctx.world, id)));
     Ok(())
 }
 
@@ -494,7 +494,7 @@ fn fortress(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             .ok_or(ConsoleError::Usage("missing position".into()))?,
         Plane::Arcanus,
     )?;
-    let rules = &ctx.game.content().rules;
+    let rules = &ctx.world.content().rules;
     let race = match opts.iter().find(|(k, _)| *k == "race") {
         Some((_, id)) => resolve(&rules.races, id, |d| &d.id, "race")?,
         None => rules
@@ -536,13 +536,13 @@ fn event(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         ))
     })?;
     let id = player_arg(ctx, a, 1)?;
-    ctx.game
+    ctx.world
         .cheat_event(kind, id)
         .map_err(ConsoleError::Failed)?;
     ctx.say(format!(
         "{} happens to {}",
         name.replace('_', " "),
-        describe::player(ctx.game, id)
+        describe::player(ctx.world, id)
     ));
     Ok(())
 }
@@ -560,12 +560,12 @@ fn offer(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         }
     };
     let id = player_arg(ctx, a, 1)?;
-    match ctx.game.cheat_offer(id, what) {
+    match ctx.world.cheat_offer(id, what) {
         Some(o) => {
-            let line = describe::offer(ctx.game, &o);
+            let line = describe::offer(ctx.world, &o);
             ctx.say(format!(
                 "{} is offered: {line}",
-                describe::player(ctx.game, id)
+                describe::player(ctx.world, id)
             ));
             Ok(())
         }
@@ -574,43 +574,43 @@ fn offer(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 }
 
 fn enchant(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
-    let units = parse_units(ctx.game, a.need(0, "units")?)?;
+    let units = parse_units(ctx.world, a.need(0, "units")?)?;
     let spell = resolve(
-        &ctx.game.content().rules.spells,
+        &ctx.world.content().rules.spells,
         a.need(1, "spell")?,
         |d| &d.id,
         "spell",
     )?;
     let caster = player_arg(ctx, a, 2)?;
     for u in units {
-        let line = describe::unit(ctx.game, u);
-        if !ctx.game.cheat_enchant_unit(u, spell, caster) {
+        let line = describe::unit(ctx.world, u);
+        if !ctx.world.cheat_enchant_unit(u, spell, caster) {
             return Err(ConsoleError::NoSuch(line));
         }
         ctx.say(format!(
             "{line} now has {}",
-            describe::spell(ctx.game, spell)
+            describe::spell(ctx.world, spell)
         ));
     }
     Ok(())
 }
 
 fn citizens(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
-    let city = city_by_serial(ctx.game, a.int(0, "city number")? as u64)?;
+    let city = city_by_serial(ctx.world, a.int(0, "city number")? as u64)?;
     let n = a.int(1, "citizens")?;
     let n = u32::try_from(n).map_err(|_| ConsoleError::Parse(format!("{n} is not a size")))?;
-    if !ctx.game.cheat_set_citizens(city, n) {
+    if !ctx.world.cheat_set_citizens(city, n) {
         return Err(ConsoleError::Failed("that is not a city".into()));
     }
     ctx.say(format!(
         "{} now has {n} citizens",
-        describe::city_name(ctx.game, city)
+        describe::city_name(ctx.world, city)
     ));
     Ok(())
 }
 
 fn feature_id(ctx: &Ctx, name: &str) -> Result<f4x_core::map::FeatureId, ConsoleError> {
-    let features = &ctx.game.content().features;
+    let features = &ctx.world.content().features;
     features
         .defs()
         .iter()
@@ -631,7 +631,7 @@ fn lair(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             )))
         }
     };
-    ctx.game
+    ctx.world
         .cheat_add_lair(pos, id, strong)
         .map_err(ConsoleError::Failed)?;
     ctx.say(format!("a lair stands at {}", describe::pos(pos)));
@@ -640,7 +640,7 @@ fn lair(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 
 fn unlair(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let pos = parse_pos(a.need(0, "position")?, Plane::Arcanus)?;
-    if !ctx.game.cheat_remove_lair(pos) {
+    if !ctx.world.cheat_remove_lair(pos) {
         return Err(ConsoleError::Failed(
             "there is no lair on that square".into(),
         ));
@@ -656,7 +656,7 @@ fn feature(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         "none" => None,
         other => Some(feature_id(ctx, other)?),
     };
-    if !ctx.game.cheat_set_feature(pos, id) {
+    if !ctx.world.cheat_set_feature(pos, id) {
         return Err(ConsoleError::Failed("that square is off the map".into()));
     }
     ctx.say(format!("{} now has {name}", describe::pos(pos)));
@@ -665,7 +665,7 @@ fn feature(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 
 /// The hero type a hero's id or number names (a hero type is also its unit's number).
 fn hero_kind(ctx: &Ctx, text: &str) -> Result<usize, ConsoleError> {
-    let rules = &ctx.game.content().rules;
+    let rules = &ctx.world.content().rules;
     let unit = resolve(&rules.units, text, |d| &d.id, "hero")?;
     f4x_core::hero::kind::kind_of(rules, unit)
         .ok_or_else(|| ConsoleError::NoSuch(format!("hero {text:?}")))
@@ -680,7 +680,7 @@ fn hire(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let id = match player_word {
         Some(p) => {
             let id = parse_player(p)?;
-            ctx.game
+            ctx.world
                 .player_entity(id)
                 .map(|_| id)
                 .ok_or_else(|| ConsoleError::NoSuch(format!("player {}", id.0)))?
@@ -692,10 +692,10 @@ fn hire(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         None => None,
     };
     let unit = ctx
-        .game
+        .world
         .cheat_hire_hero(id, kind, at)
         .map_err(ConsoleError::Failed)?;
-    let line = describe::unit(ctx.game, unit);
+    let line = describe::unit(ctx.world, unit);
     ctx.say(format!("hired: {line}"));
     Ok(())
 }
@@ -703,40 +703,40 @@ fn hire(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 fn dismiss(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let kind = hero_kind(ctx, a.need(0, "hero")?)?;
     let hero = ctx
-        .game
+        .world
         .units()
         .hero_entity(kind)
-        .filter(|&h| ctx.game.units().unit_owner(h).is_some())
+        .filter(|&h| ctx.world.units().unit_owner(h).is_some())
         .ok_or_else(|| ConsoleError::Failed("that hero is not in anyone's service".into()))?;
-    let line = describe::unit(ctx.game, hero);
-    ctx.game.dismiss_unit(hero);
+    let line = describe::unit(ctx.world, hero);
+    ctx.world.dismiss_unit(hero);
     ctx.say(format!("dismissed: {line}"));
     Ok(())
 }
 
 fn reroll(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let kind = hero_kind(ctx, a.need(0, "hero")?)?;
-    ctx.game
+    ctx.world
         .cheat_reroll_hero(kind)
         .map_err(ConsoleError::Failed)?;
-    let hero = ctx.game.units().hero_entity(kind);
-    let line = hero.map_or_else(String::new, |h| describe::unit(ctx.game, h));
+    let hero = ctx.world.units().hero_entity(kind);
+    let line = hero.map_or_else(String::new, |h| describe::unit(ctx.world, h));
     ctx.say(format!("rerolled: {line}"));
     Ok(())
 }
 
 fn treasury(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let id = player_arg(ctx, a, 0)?;
-    let wallet = ctx.game.player(id).map(|p| p.treasury());
+    let wallet = ctx.world.player(id).map(|p| p.treasury());
     let (gold, mana) = wallet.map_or_else(
         || ("0".to_string(), "0".to_string()),
         |w| (w.gold.to_string(), w.mana.to_string()),
     );
-    let net = ctx.game.budget(id).net_gold();
-    let fame = ctx.game.fame(id);
+    let net = ctx.world.budget(id).net_gold();
+    let fame = ctx.world.fame(id);
     ctx.say(format!(
         "{}: gold {gold} (net {net:+}), mana {mana}, fame {fame}",
-        describe::player(ctx.game, id)
+        describe::player(ctx.world, id)
     ));
     Ok(())
 }

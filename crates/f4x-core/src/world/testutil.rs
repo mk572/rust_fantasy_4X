@@ -5,9 +5,9 @@
 use f4x_def::content::Content;
 
 /// The game's own `content/` folder, loaded by the real loader (`f4x_def::testdir::shipped`), as
-/// a copy for a `Game`, which owns its content.
+/// a copy for a `World`, which owns its content.
 pub fn shipped() -> Content {
-    crate::battle::game::set_battle_ai(battle_policy);
+    crate::battle::world::set_battle_ai(battle_policy);
     f4x_def::testdir::shipped().clone()
 }
 
@@ -15,10 +15,10 @@ pub fn shipped() -> Content {
 /// or walks at the nearest enemy, with no walls and no spells. It stands in for the scripted
 /// battle AI (`f4x_ai::battle`), which core cannot use, wherever a test only needs a fight to
 /// get played to the end.
-pub fn battle_policy(game: &crate::game::Game) -> Option<crate::battle::BattleCommand> {
+pub fn battle_policy(world: &crate::world::World) -> Option<crate::battle::BattleCommand> {
     use crate::battle::map::distance;
     use crate::battle::{BattleCommand, RangedKind};
-    let battle = game.battle()?;
+    let battle = world.battle()?;
     let side = battle.active;
     for unit in battle.active_units(side) {
         if unit.moves_left == 0 {
@@ -80,10 +80,10 @@ pub fn fresh_file(wizards: u8, seed: u64) -> std::path::PathBuf {
 /// Core cannot make one itself (the crate that does sits above it); the test `fixtures` of
 /// `f4x-newgame` keeps these files equal to what it makes, and rewrites them with
 /// `F4X_REFRESH_FIXTURES=1 cargo test -p f4x-newgame --test it fixtures`.
-pub fn fresh(wizards: u8, seed: u64) -> Result<crate::game::Game, String> {
+pub fn fresh(wizards: u8, seed: u64) -> Result<crate::world::World, String> {
     let path = fresh_file(wizards, seed);
-    crate::game::save::file::load_game(&path, shipped())
-        .map(|(game, _)| game)
+    crate::world::save::file::load_game(&path, shipped())
+        .map(|(world, _)| world)
         .map_err(|e| {
             format!(
                 "{}: {e} (rewrite the fresh games with F4X_REFRESH_FIXTURES=1 cargo test -p f4x-newgame --test it fixtures)",

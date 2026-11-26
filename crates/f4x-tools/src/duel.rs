@@ -21,10 +21,10 @@ use f4x_ai::battle::order::next_command;
 use f4x_battle::battle::{Battle, BattleEvent};
 use f4x_battle::map::{BattleMap, Pos};
 use f4x_battle::Side;
-use f4x_core::game::{Command, Game};
 use f4x_core::map::{Grid, Map, Plane, Position};
 use f4x_core::player::PlayerId;
 use f4x_core::rules::damage_type::{DamageType, DamageTypes};
+use f4x_core::world::{Command, World};
 use f4x_def::content::Content;
 use f4x_def::rules::immunity::Immunities;
 
@@ -195,13 +195,13 @@ pub fn make_battle(
         }
         g
     };
-    let mut game = Game::new(seed);
-    game.set_content(Arc::clone(content));
-    game.set_map(Map::new(grid(), grid()));
-    game.add_player(P0, "West");
-    game.add_player(P1, "East");
+    let mut world = World::new(seed);
+    world.set_content(Arc::clone(content));
+    world.set_map(Map::new(grid(), grid()));
+    world.add_player(P0, "West");
+    world.add_player(P1, "East");
     for (owner, x, name) in [(P0, 10, "Westport"), (P1, 28, "Eastport")] {
-        game.apply(Command::FoundCity {
+        world.apply(Command::FoundCity {
             owner,
             pos: Position {
                 plane: Plane::Arcanus,
@@ -221,7 +221,7 @@ pub fn make_battle(
                     .units
                     .id_numbered(num)
                     .ok_or(format!("no unit {num}"))?;
-                Ok(game.spawn_unit(
+                Ok(world.spawn_unit(
                     owner,
                     Position {
                         plane: Plane::Arcanus,
@@ -235,11 +235,11 @@ pub fn make_battle(
     };
     let attackers = spawn(P0, 4, ours)?;
     let defenders = spawn(P1, 5, theirs)?;
-    game.apply(Command::BeginBattle {
+    world.apply(Command::BeginBattle {
         attackers,
         defenders,
     });
-    let mut b = game.battle().ok_or("no battle began")?.clone();
+    let mut b = world.battle().ok_or("no battle began")?.clone();
     b.map = BattleMap::open();
     let mut placed = vec![false; b.units.len()];
     let mut order = Vec::new();
@@ -511,7 +511,7 @@ fn print_groups(r: &Report) {
                 Side::Defender
             };
             match g.winner {
-                Some(w) if w == larger => t[0] += 1,
+                Some(side) if side == larger => t[0] += 1,
                 Some(_) => t[1] += 1,
                 None => t[2] += 1,
             }
@@ -535,8 +535,11 @@ fn print_groups(r: &Report) {
     line("formula", tally(&by_formula, 0.0, f32::INFINITY));
     println!("by how much larger the sum of the ratings is (larger over smaller):");
     let edges = [1.0, 1.2, 1.5, 2.0, 3.0, 5.0, f32::INFINITY];
-    for w in edges.windows(2) {
-        line(&format!("{}-{}", w[0], w[1]), tally(&by_rating, w[0], w[1]));
+    for pair in edges.windows(2) {
+        line(
+            &format!("{}-{}", pair[0], pair[1]),
+            tally(&by_rating, pair[0], pair[1]),
+        );
     }
 }
 

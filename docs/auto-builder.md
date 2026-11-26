@@ -226,7 +226,7 @@ building. Off by default; the garrison rule alone reacts then.
    (`city/autobuild.rs`, `autobuild/tests.rs`, and `f4x-core/tests/it/autobuild.rs` against the shipped
    content). The event prompt flag is stored but does nothing yet.
 3. Hooking it to production: the choice after each item, the Vizier default, the news message.
-   **Done**: `apply_production` asks `Game::autobuild_choice` after a building and after a unit;
+   **Done**: `apply_production` asks `World::autobuild_choice` after a building and after a unit;
    the news line is the existing "city: item complete" message.
 4. The dialog in the client. **Done** (`autobuild_dialog.rs`: the Auto button at the bottom
    left of the production screen (`production_screen.rs`, Change on the city screen) opens it; `--shot --city

@@ -17,7 +17,7 @@ fn a_game_of_another_seed_is_not_the_pinned_fresh_game() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../f4x-core/tests/saves/fresh_w3_s7.save");
     let pinned = std::fs::read_to_string(path).expect("the pinned game");
-    let other = World {
+    let other = WorldCase {
         seed: 8,
         wizards: 3,
         ..standard()

@@ -20,9 +20,9 @@ use f4x_ai::battle::order::next_command;
 use f4x_battle::battle::{Battle, BattleCommand, BattleEvent, RangedKind, SpellAim};
 use f4x_battle::map::{distance, BattleMap, Pos, Wall, GRID_H, GRID_W};
 use f4x_battle::{BattleUnit, Confusion, Fate, Side};
-use f4x_core::game::{Command, Event};
 use f4x_core::map::Plane;
 use f4x_core::rules::damage_type::DamageType;
+use f4x_core::world::{Command, Event};
 use f4x_def::rules::defs::SpellTarget;
 use f4x_def::rules::SpellId;
 use macroquad::prelude::*;
@@ -600,9 +600,9 @@ impl App {
 
     /// Start a battle for the stack the human just moved, or for a site's guards.
     pub(crate) fn begin_battle(&mut self, command: Command) {
-        let events = self.game.apply(command);
+        let events = self.world.apply(command);
         self.note(events);
-        if self.game.in_battle() {
+        if self.world.in_battle() {
             self.open_battle_screen();
         }
     }
@@ -610,7 +610,7 @@ impl App {
     /// Fight a battle to the end without the battle screen (strategic combat only, or an
     /// attack the player left to the computer).
     pub(crate) fn auto_battle(&mut self, command: Command) {
-        let events = self.game.apply(command);
+        let events = self.world.apply(command);
         self.record_combat_results(&events);
         let won = events.iter().find_map(|e| match e {
             Event::BattleEnded { winner, .. } => Some(*winner == HUMAN),
@@ -634,7 +634,7 @@ impl App {
     /// The page for the battle in progress (it may have been started by the console).
     fn new_battle_page(&self) -> BattleUi {
         let mut ui = BattleUi::default();
-        if let Some(battle) = self.game.battle() {
+        if let Some(battle) = self.world.battle() {
             ui.names = battle
                 .units
                 .iter()
@@ -657,15 +657,15 @@ impl App {
     /// `id` (a tower, node or encounter site) there, so the battle has its building.
     pub fn set_test_feature(&mut self, id: &str) {
         let Some(pos) = self
-            .game
+            .world
             .units()
             .player_units(HUMAN)
             .first()
-            .and_then(|&u| self.game.units().unit_position(u))
+            .and_then(|&u| self.world.units().unit_position(u))
         else {
             return;
         };
-        let features = &self.game.content().features;
+        let features = &self.world.content().features;
         let Some(feature) = features
             .defs()
             .iter()
@@ -679,10 +679,10 @@ impl App {
             x: pos.x + 3,
             ..pos
         };
-        for unit in self.game.units().player_units(HUMAN) {
-            self.game.cheat_move_unit(unit, to);
+        for unit in self.world.units().player_units(HUMAN) {
+            self.world.cheat_move_unit(unit, to);
         }
-        self.game.cheat_set_feature(to, Some(feature));
+        self.world.cheat_set_feature(to, Some(feature));
     }
 
     /// For the screenshot check: the kind of field the test battle is fought on. `river` and
@@ -690,11 +690,11 @@ impl App {
     /// `mud` put the city's magic walls and a patch of mud on the field (after it).
     pub fn set_test_field(&mut self, kind: &str) {
         let Some(pos) = self
-            .game
+            .world
             .units()
             .player_units(HUMAN)
             .first()
-            .and_then(|&u| self.game.units().unit_position(u))
+            .and_then(|&u| self.world.units().unit_position(u))
         else {
             return;
         };
@@ -708,35 +708,35 @@ impl App {
         if kind == "river-myrror" {
             to.plane = f4x_core::map::Plane::Myrror;
         }
-        for unit in self.game.units().player_units(HUMAN) {
-            self.game.cheat_move_unit(unit, to);
+        for unit in self.world.units().player_units(HUMAN) {
+            self.world.cheat_move_unit(unit, to);
         }
         if kind.starts_with("river") {
-            let grass = self.game.content().terrains.id_numbered(4) /* grassland */;
+            let grass = self.world.content().terrains.id_numbered(4) /* grassland */;
             if let Some(t) = grass {
-                self.game.cheat_set_terrain(to, t);
+                self.world.cheat_set_terrain(to, t);
             }
             for dx in [-1i32, 0, 1] {
                 let at = f4x_core::map::Position {
                     x: (to.x as i32 + dx) as u32,
                     ..to
                 };
-                self.game.cheat_set_river(at, true);
+                self.world.cheat_set_river(at, true);
             }
         } else {
-            if let Some(t) = self.game.content().terrains.id_numbered(8)
+            if let Some(t) = self.world.content().terrains.id_numbered(8)
             /* ocean */
             {
-                self.game.cheat_set_terrain(to, t);
+                self.world.cheat_set_terrain(to, t);
             }
             // The human sails a galley and a warship and brings a Floating Island.
-            let rules = &self.game.content().rules;
+            let rules = &self.world.content().rules;
             let ships: Vec<_> = ["galley", "warship", "floating_island"]
                 .iter()
                 .filter_map(|id| crate::alias::id_of(&rules.units, id))
                 .collect();
             for id in ships {
-                self.game.spawn_unit(HUMAN, to, id);
+                self.world.spawn_unit(HUMAN, to, id);
             }
             self.test_sea = true;
         }
@@ -763,7 +763,7 @@ impl App {
             return;
         }
         use f4x_battle::battlemagic::field::Field;
-        let spells = &self.game.content().rules.spells;
+        let spells = &self.world.content().rules.spells;
         let raised: Vec<_> = [
             (Side::Attacker, SpellId::new(140) /* prayer */),
             (Side::Attacker, SpellId::new(51) /* blur */),
@@ -784,7 +784,7 @@ impl App {
         .into_iter()
         .filter_map(|id| crate::alias::id_of(spells, id))
         .collect();
-        let Some(active) = self.game.battle.as_mut() else {
+        let Some(active) = self.world.battle.as_mut() else {
             return;
         };
         let battle = &mut active.battle;
@@ -860,7 +860,7 @@ impl App {
         let unwalled = if id == 3
         /* wall_of_stone */
         {
-            let Some(active) = self.game.battle.as_mut() else {
+            let Some(active) = self.world.battle.as_mut() else {
                 return;
             };
             let map = std::mem::replace(&mut active.battle.map, BattleMap::open());
@@ -879,7 +879,7 @@ impl App {
             {
                 return None;
             }
-            let active = self.game.battle.as_mut()?;
+            let active = self.world.battle.as_mut()?;
             let before = active.battle.clone();
             if fire {
                 active.battle.wall_of_fire = true;
@@ -888,10 +888,10 @@ impl App {
             }
             Some(before)
         });
-        let Some(battle) = unwalled.or_else(|| self.game.battle().cloned()) else {
+        let Some(battle) = unwalled.or_else(|| self.world.battle().cloned()) else {
             return;
         };
-        let Some(spell) = self.game.content().rules.spells.id_numbered(id) else {
+        let Some(spell) = self.world.content().rules.spells.id_numbered(id) else {
             return;
         };
         ui.cast_target = battle
@@ -919,7 +919,7 @@ impl App {
         let Some(&first) = self.selection.first() else {
             return;
         };
-        if let Some(at) = self.game.units().unit_position(first) {
+        if let Some(at) = self.world.units().unit_position(first) {
             self.spawn_test_hero(at);
         }
     }
@@ -927,21 +927,21 @@ impl App {
     /// For screenshots: the first hero joins the human's army at `at`. A hero that cannot come
     /// (not free) is said on the console, as the other screenshot setups do.
     pub(crate) fn spawn_test_hero(&mut self, at: f4x_core::map::Position) {
-        if let Err(e) = self.game.spawn_hero(HUMAN, at, 0) {
+        if let Err(e) = self.world.spawn_hero(HUMAN, at, 0) {
             eprintln!("cannot bring in a hero: {e:?}");
         }
     }
 
     /// Pit the human's units against monsters on the same square (for screenshots and tests).
     pub fn open_test_battle(&mut self) {
-        let mine = self.game.units().player_units(HUMAN);
+        let mine = self.world.units().player_units(HUMAN);
         let Some(pos) = mine
             .first()
-            .and_then(|&u| self.game.units().unit_position(u))
+            .and_then(|&u| self.world.units().unit_position(u))
         else {
             return;
         };
-        let rules = &self.game.content().rules;
+        let rules = &self.world.content().rules;
         let ids: Vec<_> = rules
             .units
             .defs()
@@ -961,12 +961,12 @@ impl App {
         }
         let defenders: Vec<_> = ids
             .into_iter()
-            .map(|id| self.game.spawn_unit(f4x_core::player::MONSTERS, pos, id))
+            .map(|id| self.world.spawn_unit(f4x_core::player::MONSTERS, pos, id))
             .collect();
         self.begin_battle(Command::BeginBattle {
             attackers: mine
                 .into_iter()
-                .filter(|&u| self.game.units().unit_position(u) == Some(pos))
+                .filter(|&u| self.world.units().unit_position(u) == Some(pos))
                 .collect(),
             defenders,
         });
@@ -979,7 +979,7 @@ impl App {
 
     /// `battle_order`, after the player confirmed a cast that would do nothing when `confirmed`.
     fn battle_order_as(&mut self, ui: &mut BattleUi, order: BattleCommand, confirmed: bool) {
-        let before = self.game.battle().cloned();
+        let before = self.world.battle().cloned();
         ui.cast_target = match (&order, &before) {
             (BattleCommand::Cast { aim, .. } | BattleCommand::UnitCast { aim, .. }, Some(b)) => {
                 match *aim {
@@ -991,14 +991,14 @@ impl App {
             _ => None,
         };
         let command = Command::Battle(order.clone());
-        let events = self.game.apply(if confirmed {
+        let events = self.world.apply(if confirmed {
             Command::Anyway(Box::new(command))
         } else {
             command
         });
         self.record_combat_results(&events);
         // A summoned creature has a name too.
-        if let Some(b) = self.game.battle() {
+        if let Some(b) = self.world.battle() {
             if b.units.len() != ui.names.len() {
                 ui.names = b.units.iter().map(|u| self.battle_unit_term(u)).collect();
             }
@@ -1019,7 +1019,7 @@ impl App {
                 Event::Battle(e) => {
                     let spell_name = |id: SpellId| {
                         self.names
-                            .spell_term(self.game.content().rules.spells.get(id).num)
+                            .spell_term(self.world.content().rules.spells.get(id).num)
                     };
                     if let Some(line) = describe(&self.texts, &names, &spell_name, e) {
                         ui.log.push(line);
@@ -1037,7 +1037,7 @@ impl App {
                     ui.log.push(line.clone());
                     self.log.push(line);
                 }
-                Event::Rejected(f4x_core::game::Rejection::Battle(
+                Event::Rejected(f4x_core::world::Rejection::Battle(
                     f4x_battle::battle::BattleError::Spell(why),
                 )) if why.is_pointless() && !confirmed => {
                     // The player is asked, not told.
@@ -1226,13 +1226,13 @@ impl App {
     fn shown_unit<'a>(&'a self, ui: &'a BattleUi, id: usize) -> Option<&'a BattleUnit> {
         ui.shown
             .as_ref()
-            .or_else(|| self.game.battle())
+            .or_else(|| self.world.battle())
             .and_then(|b| b.unit(id))
     }
 
     fn unit_sound(&self, ui: &mut BattleUi, id: usize) -> Option<f4x_extract::sound::UnitSound> {
         let unit = self.shown_unit(ui, id)?;
-        let def = self.game.content().rules.units.get(unit.unit_id?);
+        let def = self.world.content().rules.units.get(unit.unit_id?);
         self.audio.table.units.get(&def.id).copied()
     }
 
@@ -1248,7 +1248,7 @@ impl App {
             Anim::Shot { attacker, .. } => self.shown_unit(ui, *attacker).and_then(|u| {
                 let number = u
                     .unit_id
-                    .map(|id| self.game.content().rules.units.get(id).num);
+                    .map(|id| self.world.content().rules.units.get(id).num);
                 number
                     .and_then(crate::audio::cannon_sound)
                     .or_else(|| crate::audio::shot_sound(missile_type(u)))
@@ -1269,7 +1269,7 @@ impl App {
 
     /// The animation that plays the cast sound of a spell, if the table has one.
     fn spell_cast_sound(&self, spell: f4x_def::rules::SpellId) -> Option<Anim> {
-        let id = &self.game.content().rules.spells.get(spell).id;
+        let id = &self.world.content().rules.spells.get(spell).id;
         self.audio
             .table
             .spells
@@ -1348,7 +1348,7 @@ impl App {
     /// Pick the next thing to move: my unfinished units in turn, then my vortices that have not
     /// moved, then round to the first unit again.
     fn select_next(&mut self, ui: &mut BattleUi, after: Option<usize>) {
-        let Some(battle) = self.game.battle() else {
+        let Some(battle) = self.world.battle() else {
             return;
         };
         let ids: Vec<usize> = battle
@@ -1391,7 +1391,7 @@ impl App {
         let Some(battle) = ui
             .shown
             .clone()
-            .or_else(|| self.game.battle().cloned())
+            .or_else(|| self.world.battle().cloned())
             .or_else(|| over.then(|| ui.last_drawn.clone()).flatten())
         else {
             ui.last_drawn = None;
@@ -1431,11 +1431,11 @@ impl App {
         if !animating
             && (auto || mine != Some(battle.active))
             && ui.ai_timer <= 0.0
-            && self.game.in_battle()
+            && self.world.in_battle()
         {
             ui.ai_timer = AI_DELAY;
             let order = self
-                .game
+                .world
                 .next_battle_command()
                 .unwrap_or_else(|| next_command(&battle));
             self.battle_order(ui, order);
@@ -1463,12 +1463,12 @@ impl App {
         let battle = ui
             .shown
             .clone()
-            .or_else(|| self.game.battle().cloned())
+            .or_else(|| self.world.battle().cloned())
             .unwrap_or(battle);
         self.draw_battle(ui, &battle, my_turn, hovered, input);
         self.draw_battle_pointer(ui, &battle, my_turn && !ui.info_open, hovered, input);
         if ui.info_open {
-            if let Some(info) = self.game.battle_info(HUMAN) {
+            if let Some(info) = self.world.battle_info(HUMAN) {
                 if self.draw_battle_info(&info, input) {
                     ui.info_open = false;
                 }
@@ -1658,7 +1658,7 @@ impl App {
     /// otherwise wait for the target (and the amount of mana).
     fn pick_spell(&mut self, ui: &mut BattleUi, spell: &f4x_core::battle::spell::BattleSpell) {
         ui.spell_list = false;
-        let cost = self.game.content().rules.spells.get(spell.spell).cost as i32;
+        let cost = self.world.content().rules.spells.get(spell.spell).cost as i32;
         let unit = ui.spell_unit.take();
         let aimless = matches!(spell.target, SpellTarget::None | SpellTarget::Battlefield);
         if aimless && !spell.takes_extra_mana {
@@ -1679,26 +1679,26 @@ impl App {
         }
         let most = match unit {
             Some(u) => self
-                .game
+                .world
                 .battle()
                 .and_then(|b| b.unit(u))
                 .map_or(cost, |u| u.mana.max(cost)),
             None => self
-                .game
+                .world
                 .battle_spell_most_mana(HUMAN, spell.spell)
                 .max(cost),
         };
         let tiles = if spell.target == SpellTarget::Tile {
             let aims: Vec<SpellAim> = match unit {
                 Some(u) => self
-                    .game
+                    .world
                     .legal_unit_casts()
                     .into_iter()
                     .filter(|(id, c)| *id == u && c.spell == spell.spell)
                     .flat_map(|(_, c)| c.aims)
                     .collect(),
                 None => self
-                    .game
+                    .world
                     .legal_battle_casts()
                     .into_iter()
                     .filter(|c| c.spell == spell.spell)
@@ -1745,7 +1745,7 @@ impl App {
             return;
         };
         // More or less mana: Up/Down by one, Page Up/Down by five.
-        let cost = self.game.content().rules.spells.get(aim.spell).cost as i32;
+        let cost = self.world.content().rules.spells.get(aim.spell).cost as i32;
         let step = |up: KeyCode, down: KeyCode, by: i32| {
             i32::from(input.key_pressed(up)) * by - i32::from(input.key_pressed(down)) * by
         };
@@ -1805,13 +1805,13 @@ impl App {
         target: usize,
     ) -> bool {
         let recall = self
-            .game
+            .world
             .content()
             .rules
             .spells
             .get(aim.spell)
             .has_hook(f4x_core::spell::special::RECALL);
-        if !recall || !self.game.has_several_circles(HUMAN) {
+        if !recall || !self.world.has_several_circles(HUMAN) {
             return false;
         }
         let cities: Vec<hecs::Entity> = self
@@ -1874,7 +1874,7 @@ impl App {
         let unit = ui.spell_unit;
         let spells: Vec<f4x_core::battle::spell::BattleSpell> = match unit {
             Some(u) => self
-                .game
+                .world
                 .battle_unit_spells(u)
                 .into_iter()
                 .map(|s| f4x_core::battle::spell::BattleSpell {
@@ -1885,7 +1885,7 @@ impl App {
                     castable: s.castable,
                 })
                 .collect(),
-            None => self.game.battle_spells(HUMAN),
+            None => self.world.battle_spells(HUMAN),
         };
         // How many times the caster could pay: the skill left and the mana, or the unit's mana.
         let caster = Self::my_caster(battle);
@@ -1974,7 +1974,7 @@ impl App {
             .map_or(0, |u| u.casting.demons);
         if let (Some(u), true) = (unit, demons > 0) {
             let label = self.text_with("battle.summon_demon", &Args::new().count("n", demons));
-            let can = self.game.can_summon_demon(u);
+            let can = self.world.can_summon_demon(u);
             if self.red_button_face_sized(&lay, &label, (100.0, 170.0), can, 70.0, input) {
                 ui.spell_list = false;
                 ui.spell_unit = None;
@@ -1993,7 +1993,7 @@ impl App {
         input: &Input,
     ) {
         let fallen: Vec<usize> = self
-            .game
+            .world
             .legal_battle_casts()
             .into_iter()
             .find(|c| c.spell == spell)
@@ -2009,7 +2009,7 @@ impl App {
             .unwrap_or_default();
         let name_term = self
             .names
-            .spell_term(self.game.content().rules.spells.get(spell).num);
+            .spell_term(self.world.content().rules.spells.get(spell).num);
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let bw = self
@@ -2132,7 +2132,7 @@ impl App {
         }
         let name_term = self
             .names
-            .spell_term(self.game.content().rules.spells.get(aim.spell).num);
+            .spell_term(self.world.content().rules.spells.get(aim.spell).num);
         let aimless = matches!(aim.target, SpellTarget::None | SpellTarget::Battlefield);
         let mut text = self.text_with(
             if aimless {
@@ -2166,7 +2166,7 @@ impl App {
     /// Keep the selection on a unit that can still act.
     fn after_order(&mut self, ui: &mut BattleUi, unit: usize) {
         let still = self
-            .game
+            .world
             .battle()
             .and_then(|b| b.unit(unit))
             .is_some_and(unfinished);
@@ -2254,7 +2254,7 @@ impl App {
         let rising = ui.rising_wall();
         let after = rising
             .filter(|&(kind, _)| kind == battle_ground::STONE)
-            .and_then(|_| self.game.battle().cloned());
+            .and_then(|_| self.world.battle().cloned());
         let mut items = self.scenery_pieces(after.as_ref().unwrap_or(battle), rising, turn);
         let mut looks: HashMap<(usize, bool), Visual> = HashMap::new();
         let viewer = Self::human_side(battle);
@@ -2428,7 +2428,7 @@ impl App {
         };
         let name_term = self
             .names
-            .spell_term(self.game.content().rules.spells.get(spell).num);
+            .spell_term(self.world.content().rules.spells.get(spell).num);
         let text = self.text_with(
             "spell.cast_anyway",
             &Args::new().term("spell", name_term.clone()),
@@ -2494,7 +2494,7 @@ impl App {
         let owner = battle.player_of(u.side).0;
         let banner = self.banner_color(owner);
         let banner_index = self.banner_index(owner);
-        let units = &self.game.content().rules.units;
+        let units = &self.world.content().rules.units;
         let art = u
             .unit_id
             .and_then(|id| self.art.unit_entry(&units.get(id).id));
@@ -2529,7 +2529,7 @@ impl App {
             let step = (get_time() * 8.0) as usize;
             let figure = (ty, ui.turn.facing(vis.facing), frame, banner_index);
             // Black Sleep greys a figure, Warp Creature turns it red and inside out.
-            let effects = u.effects(&self.game.content().rules);
+            let effects = u.effects(&self.world.content().rules);
             let effect = if battle.now_of(u).is_invisible() {
                 Some(FigureEffect::Revealed)
             } else if effects.contains(UnitEffect::WarpCreature) {
@@ -2829,7 +2829,7 @@ impl Page for BattleUi {
     fn test_effect(&mut self, app: &mut App, kind: &str) {
         if let Some(alias) = kind.strip_prefix("fx-") {
             let num = {
-                let spells = &app.game.content().rules.spells;
+                let spells = &app.world.content().rules.spells;
                 spells
                     .iter()
                     .find(|(_, d)| d.id == alias)
@@ -2841,7 +2841,7 @@ impl Page for BattleUi {
             return;
         }
         if let Some(id) = kind.strip_prefix("sheet-").and_then(|n| n.parse().ok()) {
-            if let Some(battle) = app.game.battle().cloned() {
+            if let Some(battle) = app.world.battle().cloned() {
                 self.sheet = app.battle_sheet_over(&battle, id);
             }
             return;
@@ -2858,7 +2858,7 @@ impl Page for BattleUi {
             "spell-book" => self.spell_list = true,
             "info" => self.info_open = true,
             "shot" => {
-                let Some(battle) = app.game.battle() else {
+                let Some(battle) = app.world.battle() else {
                     return;
                 };
                 let sides = |side| battle.units.iter().find(|u| u.side == side).map(|u| u.id);
@@ -2903,24 +2903,24 @@ mod tests {
     /// A real battle (a fight with a monster outside any city) and a unit of the human's in it.
     fn real_battle() -> Result<(App, Battle), Box<dyn std::error::Error>> {
         let mut app = App::for_test();
-        let attackers = app.game.units().player_units(crate::view::HUMAN);
+        let attackers = app.world.units().player_units(crate::view::HUMAN);
         let pos = attackers
             .first()
-            .and_then(|&u| app.game.units().unit_position(u))
+            .and_then(|&u| app.world.units().unit_position(u))
             .ok_or("the human has no unit")?;
         let kind = app
-            .game
+            .world
             .content()
             .rules
             .units
             .id_numbered(39)
             .ok_or("barbarian_spearmen is not in the content")?;
-        let defenders = vec![app.game.spawn_unit(f4x_core::player::MONSTERS, pos, kind)];
-        app.game.apply(Command::BeginBattle {
+        let defenders = vec![app.world.spawn_unit(f4x_core::player::MONSTERS, pos, kind)];
+        app.world.apply(Command::BeginBattle {
             attackers,
             defenders,
         });
-        let battle = app.game.battle().ok_or("no battle began")?.clone();
+        let battle = app.world.battle().ok_or("no battle began")?.clone();
         Ok((app, battle))
     }
 

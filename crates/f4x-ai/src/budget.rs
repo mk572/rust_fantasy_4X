@@ -155,15 +155,15 @@ mod tests {
     }
 
     use crate::testworld::{at, game, spawn, COAST_CITY, ENEMY_CITY, P0, P1};
-    use f4x_core::game::Game;
+    use f4x_core::world::World;
 
     /// The limit P0 gets for `n` spearmen against `m` of P1 on `target`, with 500 mana.
-    fn limit(g: &mut Game, from: Position, target: Position, n: usize, m: usize) -> Option<u32> {
-        g.treasury_mut(P0).expect("a treasury").mana = f4x_def::half_int::HalfInt::from_int(500);
-        let ours = spawn(g, P0, from, 104 /* high_men_spearmen */, n);
-        let theirs = spawn(g, P1, target, 104 /* high_men_spearmen */, m);
-        g.reveal_map(P0);
-        for_attack(&PlayerView::new(g, P0), &ours, &theirs).map(|(who, mana)| {
+    fn limit(w: &mut World, from: Position, target: Position, n: usize, m: usize) -> Option<u32> {
+        w.treasury_mut(P0).expect("a treasury").mana = f4x_def::half_int::HalfInt::from_int(500);
+        let ours = spawn(w, P0, from, 104 /* high_men_spearmen */, n);
+        let theirs = spawn(w, P1, target, 104 /* high_men_spearmen */, m);
+        w.reveal_map(P0);
+        for_attack(&PlayerView::new(w, P0), &ours, &theirs).map(|(who, mana)| {
             assert_eq!(who, P0);
             mana
         })
@@ -171,20 +171,20 @@ mod tests {
 
     #[test]
     fn a_fight_in_the_open_away_from_home_gets_a_part_of_the_reserve_and_a_city_all_of_it() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let open = limit(&mut g, at(2, 2), at(3, 2), 1, 1);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let open = limit(&mut w, at(2, 2), at(3, 2), 1, 1);
         assert!(open.is_some_and(|m| m <= 200), "{open:?}");
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let city = limit(&mut g, at(27, 6), at(ENEMY_CITY.0, ENEMY_CITY.1), 1, 1);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let city = limit(&mut w, at(27, 6), at(ENEMY_CITY.0, ENEMY_CITY.1), 1, 1);
         assert_eq!(city, None, "an even fight for a city: no limit");
     }
 
     #[test]
     fn a_sure_win_gets_less_than_a_close_fight() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let close = limit(&mut g, at(2, 2), at(3, 2), 1, 1).expect("a limit");
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let sure = limit(&mut g, at(2, 2), at(3, 2), 6, 1).expect("a limit");
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let close = limit(&mut w, at(2, 2), at(3, 2), 1, 1).expect("a limit");
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let sure = limit(&mut w, at(2, 2), at(3, 2), 6, 1).expect("a limit");
         assert!(sure < close, "sure {sure}, close {close}");
     }
 }

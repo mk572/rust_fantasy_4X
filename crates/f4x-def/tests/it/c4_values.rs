@@ -999,26 +999,26 @@ fn the_smallest_and_largest_amounts_are_read_back_and_one_beyond_is_refused() {
 fn counts_scaled_to_a_map_do_not_overflow_for_any_size() {
     use f4x_def::settings::{scaled_count, BasicSettings, GameSettings};
     for base in [0, 1, 6, u32::MAX] {
-        for w in [0, 1, 90, u32::from(u16::MAX), u32::MAX] {
+        for width in [0, 1, 90, u32::from(u16::MAX), u32::MAX] {
             for h in [0, 1, 60, u32::from(u16::MAX), u32::MAX] {
                 let exact =
-                    (u128::from(base) * u128::from(w) * u128::from(h) + 1200).div_euclid(2400);
+                    (u128::from(base) * u128::from(width) * u128::from(h) + 1200).div_euclid(2400);
                 assert_eq!(
-                    u128::from(scaled_count(base, w, h)),
+                    u128::from(scaled_count(base, width, h)),
                     exact.min(u128::from(u32::MAX)),
-                    "{base} {w} {h}"
+                    "{base} {width} {h}"
                 );
             }
         }
     }
-    for (w, h, opponents) in [
+    for (width, h, opponents) in [
         (0, 0, 0),
         (u16::MAX, u16::MAX, 0),
         (u16::MAX, u16::MAX, u8::MAX),
         (1, 1, u8::MAX),
     ] {
         let b = BasicSettings {
-            map_width: w,
+            map_width: width,
             map_height: h,
             opponents,
             ..BasicSettings::default()

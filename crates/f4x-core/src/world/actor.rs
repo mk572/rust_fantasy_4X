@@ -4,10 +4,10 @@
 //!
 //! Tests: in actor/tests.rs.
 
-use crate::game::{Command, Game};
 use crate::player::PlayerId;
+use crate::world::{Command, World};
 
-impl Game {
+impl World {
     /// The player a command acts for, or `None` when the command names none (the round's own
     /// work, a battle's commands, diplomacy between two wizards, and entities that are gone).
     pub fn command_actor(&self, command: &Command) -> Option<PlayerId> {

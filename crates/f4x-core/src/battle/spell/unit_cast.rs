@@ -7,7 +7,7 @@
 use super::*;
 pub use f4x_battle::battlemagic::unit_cast::{SpellSource, UnitSpell};
 
-impl Game {
+impl World {
     /// The spells a battle unit can cast, in the order of its sources. Those the battle cannot
     /// play are left out. While it is the unit's side to play, `castable` says whether it can
     /// cast each now.
@@ -18,7 +18,7 @@ impl Game {
 
     /// The casts the units of the side to play may make now: for each unit and spell it could
     /// cast, every aim the spell accepts and the mana that may go in. Like
-    /// [`Game::legal_battle_casts`], for the AI and the console.
+    /// [`World::legal_battle_casts`], for the AI and the console.
     pub fn legal_unit_casts(&self) -> Vec<(usize, LegalCast)> {
         self.battle().map_or_else(Vec::new, |b| {
             b.legal_unit_casts(self, self.evil_omens_active())

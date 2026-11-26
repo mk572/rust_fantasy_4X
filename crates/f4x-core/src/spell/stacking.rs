@@ -3,13 +3,13 @@
 //! already, one it is not cumulative with, and one the unit's own ability makes pointless.
 //!
 //! Tests: in spell/stacking/tests.rs.
-use crate::game::Game;
 use crate::rules::exec::Target;
 use crate::rules::{Duration, SpellId, SpellTarget};
 use crate::wizard::magic::MagicError;
+use crate::world::World;
 pub(crate) use f4x_def::rules::stacking::{stacking_refusal, unit_only_refusal, Carrier, Stacking};
 
-impl Game {
+impl World {
     /// Whether `spell`, a lasting one, may be put on `target` by `player`.
     pub(crate) fn check_stacking(
         &self,
@@ -74,7 +74,7 @@ impl crate::unit::UnitView<'_> {
     pub(crate) fn unit_spell_superseded(&self, unit: hecs::Entity, spell: SpellId) -> bool {
         let def = self.content.rules.spells.get(spell);
         def.not_with.clone().into_iter().any(|other| {
-            crate::spell::instance::Spells::new(self.world).unit_has(unit, other)
+            crate::spell::instance::Spells::new(self.ecs).unit_has(unit, other)
                 || self.items().spells(unit).contains(&other)
         })
     }

@@ -12,9 +12,9 @@
 //!
 //! Tests: below.
 
-use crate::game::Game;
 use crate::map::terrain::TerrainClass;
 use crate::map::{Plane, Position};
+use crate::world::World;
 
 /// Cities at a range of this much or more get no road between them.
 const MAX_ROAD_RANGE: u32 = 10;
@@ -76,7 +76,7 @@ pub fn path_wrap(x1: i32, y1: i32, mut x2: i32, y2: i32, width: i32) -> Vec<(i32
     out
 }
 
-impl Game {
+impl World {
     /// Lay the roads a new world starts with on `plane` (see the module).
     pub fn lay_start_roads(&mut self, plane: Plane) {
         let Some(width) = self.map.as_ref().map(|m| m.plane(plane).width()) else {

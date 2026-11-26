@@ -16,7 +16,7 @@
 //! The files themselves (crash-safe write, checksum check on read, the save slot summary) are in
 //! `file`.
 //!
-//! Tests: in game/save/tests.rs and game/save/file.rs.
+//! Tests: in world/save/tests.rs and world/save/file.rs.
 
 use f4x_def::half_int::HalfInt;
 use std::collections::BTreeMap;
@@ -26,24 +26,24 @@ use serde::{Deserialize, Serialize};
 use crate::city::economy::{Buildings, CityRace, Farmers, Population};
 use crate::city::production::{Production, ProductionItem};
 use crate::city::City;
-use crate::game::serial::Serial;
 use crate::map::fog::Fog;
 use crate::map::{FeatureId, Grid, Map, Position, TerrainId};
 use crate::player::{Defeat, History, Offers, Owner, PlayerId, Tax, Treasury};
 use crate::spell::instance::{Extra, Owed, SpellTarget};
 use crate::wizard::entity::{Banner, CapitalRace, Portrait};
 use crate::wizard::fortress::{Banishment, Fortress, SummonAt};
+use crate::world::serial::Serial;
 use f4x_def::content::Content;
 
 use crate::rules::SpellId;
 use crate::unit::{Experience, Hurt, MovesLeft, Order, Unit};
 
-use crate::game::Game;
 use crate::wizard::entity::Wizard;
 use crate::wizard::magic::Retort;
 use crate::wizard::sheet::{
     Books, Candidates, KnownSpells, PowerSplit, Research, Retorts, Skill, WizardMut,
 };
+use crate::world::World;
 
 /// Bumped when the snapshot layout changes in a way old files cannot be read. Version 2 saves each
 /// kind of entity as its own list (`docs/ecs-structure.md` section 3.9). Version 4 writes everything
@@ -101,7 +101,7 @@ pub struct Snapshot {
     pub turn: u32,
     pub next_serial: u64,
     /// The settings the game is played with.
-    pub settings: crate::game::setting::GameSettings,
+    pub settings: crate::world::setting::GameSettings,
     /// The fingerprint of the content files the game was made with (`Content::fingerprint`). A save
     /// without it (from before this was written, or content not loaded from files) is not checked.
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -111,7 +111,7 @@ pub struct Snapshot {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub degraded: Vec<(String, u16)>,
     /// Set once the game has ended.
-    pub game_over: Option<crate::game::endgame::GameOver>,
+    pub game_over: Option<crate::world::endgame::GameOver>,
     pub human: Option<u8>,
     /// Contact, relations, treaties and pending proposals between wizards.
     pub diplomacy: crate::diplomacy::DiplomacySave,
@@ -120,15 +120,15 @@ pub struct Snapshot {
     /// The clocks of the raiders and the roaming monsters.
     #[serde(default)]
     pub threat: crate::threat::Threat,
-    /// Where the game is in its round, written by the master (`Game::flow`). A save without it
+    /// Where the game is in its round, written by the master (`World::flow`). A save without it
     /// was made on the human's turn.
     #[serde(default)]
     pub flow: Option<String>,
-    /// What each computer player has in mind (`Game::plans`). A save without it loads with
+    /// What each computer player has in mind (`World::plans`). A save without it loads with
     /// computer players that start afresh.
     #[serde(default)]
     pub plans: Vec<(crate::player::PlayerId, String)>,
-    /// The map locations the players saved (`Game::locations`).
+    /// The map locations the players saved (`World::locations`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub locations: Vec<(crate::player::PlayerId, u8, crate::map::Position)>,
     /// Override (cheat) commands used in this game.
@@ -600,12 +600,12 @@ fn is_zero_u8(n: &u8) -> bool {
 }
 
 fn effects_load(
-    world: &mut hecs::World,
+    ecs: &mut hecs::World,
     e: hecs::Entity,
     list: Vec<crate::spell::temp_effect::TempEffect>,
 ) {
     if !list.is_empty() {
-        crate::game::put_in(world, e, crate::spell::temp_effect::TempEffects(list));
+        crate::world::put_in(ecs, e, crate::spell::temp_effect::TempEffects(list));
     }
 }
 
@@ -725,12 +725,12 @@ fn intern(list: &mut Vec<u16>, num: u16) -> u16 {
     }
 }
 
-impl Game {
+impl World {
     /// The item entities, oldest first.
     fn item_saves(&self) -> Vec<MagicItemSave> {
         use crate::item::entity::HeldBy;
         let mut items: Vec<MagicItemSave> = self
-            .world
+            .ecs
             .query::<(&crate::item::Item, &HeldBy, &Serial)>()
             .iter()
             .map(|(_, (item, by, serial))| MagicItemSave {
@@ -761,7 +761,7 @@ impl Game {
                 let target = match spells.target(i)? {
                     SpellTarget::Global => SpellTargetSave::Global,
                     SpellTarget::Wizard(w) => SpellTargetSave::Wizard(
-                        crate::wizard::entity::player_id_of(&self.world, w)?.0,
+                        crate::wizard::entity::player_id_of(&self.ecs, w)?.0,
                     ),
                     SpellTarget::City(e) => SpellTargetSave::City(self.units().serial_of(e).0),
                     SpellTarget::Unit(e) => SpellTargetSave::Unit(self.units().serial_of(e).0),
@@ -775,8 +775,8 @@ impl Game {
                     spell: spells.def(i)?.num(),
                     caster: spells.caster_player(i)?.0,
                     target,
-                    owed: self.world.get::<&Owed>(i).ok().map(|o| o.0),
-                    extra: self.world.get::<&Extra>(i).ok().map(|e| e.0),
+                    owed: self.ecs.get::<&Owed>(i).ok().map(|o| o.0),
+                    extra: self.ecs.get::<&Extra>(i).ok().map(|e| e.0),
                 })
             })
             .collect()
@@ -786,15 +786,15 @@ impl Game {
     fn feature_saves(&self) -> Vec<FeatureSave> {
         let eco = self.economy();
         let mut found: Vec<(Serial, hecs::Entity)> = self
-            .world
+            .ecs
             .query::<&Serial>()
             .iter()
             .filter(|(e, _)| {
-                self.world
+                self.ecs
                     .satisfies::<&crate::feature::entity::TerrainFeature>(*e)
                     .unwrap_or(false)
                     || self
-                        .world
+                        .ecs
                         .satisfies::<&crate::feature::entity::Volcano>(*e)
                         .unwrap_or(false)
             })
@@ -804,19 +804,19 @@ impl Game {
         found
             .into_iter()
             .filter_map(|(serial, e)| {
-                let at = *self.world.get::<&Position>(e).ok()?;
-                let feature = match self.world.get::<&crate::feature::entity::TerrainFeature>(e) {
+                let at = *self.ecs.get::<&Position>(e).ok()?;
+                let feature = match self.ecs.get::<&crate::feature::entity::TerrainFeature>(e) {
                     Ok(f) => Some(f.0 .0),
                     Err(_) => None,
                 };
                 let owner = self
-                    .world
+                    .ecs
                     .get::<&crate::player::Owner>(e)
                     .ok()
-                    .and_then(|o| crate::player::id_of(&self.world, o.0))
+                    .and_then(|o| crate::player::id_of(&self.ecs, o.0))
                     .map(|p| p.0);
                 let node = self
-                    .world
+                    .ecs
                     .get::<&crate::feature::node::Node>(e)
                     .ok()
                     .map(|n| NodeSave {
@@ -827,7 +827,7 @@ impl Game {
                         warped: n.warped,
                     });
                 let lair = self
-                    .world
+                    .ecs
                     .get::<&crate::feature::lair::Lair>(e)
                     .ok()
                     .map(|l| LairSave {
@@ -859,9 +859,9 @@ impl Game {
         // Every field of the game is named here, so a new one breaks the build until it is put on a
         // side: kept in the snapshot, or left out for the reason given. A field forgotten here is lost
         // by every save, and shows only when a loaded game plays differently.
-        let Game {
+        let World {
             // Kept (the world is read in parts: players, units, cities, wizards).
-            world: _,
+            ecs: _,
             turn: _,
             map: _,
             fog: _,
@@ -1017,32 +1017,29 @@ impl Game {
                     unit: self.units().unit_def(u)?.num,
                     owner: self.units().unit_owner(u)?.0,
                     pos: self.units().unit_position(u)?,
-                    hurt: self.world.get::<&Hurt>(u).map_or(0, |h| h.0),
-                    xp: self.world.get::<&Experience>(u).map_or(0, |x| x.0),
+                    hurt: self.ecs.get::<&Hurt>(u).map_or(0, |h| h.0),
+                    xp: self.ecs.get::<&Experience>(u).map_or(0, |x| x.0),
                     weapon: self.units().unit_weapon_quality(u),
                     moves: self.units().unit_moves_left(u),
-                    order: self.world.get::<&Order>(u).ok().map(|o| (*o).clone()),
+                    order: self.ecs.get::<&Order>(u).ok().map(|o| (*o).clone()),
                     aboard: self
-                        .world
+                        .ecs
                         .get::<&crate::unit::transport::Aboard>(u)
                         .ok()
                         .map(|a| a.0 .0),
                     road_work: self
-                        .world
+                        .ecs
                         .get::<&crate::map::road::RoadWork>(u)
                         .ok()
                         .map(|w| (*w).clone()),
                     effects: self.units().temp_effects(u),
                     undead: self.units().unit_is_undead(u),
                     standby: self.units().unit_standby(u),
-                    marooned: self
-                        .world
-                        .get::<&crate::unit::transport::Marooned>(u)
-                        .is_ok(),
+                    marooned: self.ecs.get::<&crate::unit::transport::Marooned>(u).is_ok(),
                     unpaid: self.units().unit_is_unpaid(u),
-                    bridge: self.world.get::<&crate::unit::transport::Bridge>(u).is_ok(),
+                    bridge: self.ecs.get::<&crate::unit::transport::Bridge>(u).is_ok(),
                     stasis: self
-                        .world
+                        .ecs
                         .get::<&crate::unit::stasis::Stasis>(u)
                         .ok()
                         .map(|s| *s),
@@ -1065,10 +1062,10 @@ impl Game {
         let cities = city_entities
             .into_iter()
             .filter_map(|e| {
-                let city = self.world.get::<&City>(e).ok()?;
-                let pos = *self.world.get::<&Position>(e).ok()?;
+                let city = self.ecs.get::<&City>(e).ok()?;
+                let pos = *self.ecs.get::<&Position>(e).ok()?;
                 let pop = self
-                    .world
+                    .ecs
                     .get::<&Population>(e)
                     .map(|p| *p)
                     .unwrap_or_default();
@@ -1080,10 +1077,10 @@ impl Game {
                     pos,
                     figures: pop.figures,
                     tens: pop.tens,
-                    farmers: self.world.get::<&Farmers>(e).map_or(0, |f| f.0),
-                    race: self.world.get::<&CityRace>(e).ok().map(|r| r.0.num()),
+                    farmers: self.ecs.get::<&Farmers>(e).map_or(0, |f| f.0),
+                    race: self.ecs.get::<&CityRace>(e).ok().map(|r| r.0.num()),
                     buildings: self
-                        .world
+                        .ecs
                         .get::<&Buildings>(e)
                         .map(|b| b.0.iter().map(|b| b.num()).collect())
                         .unwrap_or_default(),
@@ -1097,14 +1094,14 @@ impl Game {
                     progress: production.progress,
                     effects: self.units().temp_effects(e),
                     conquered: self
-                        .world
+                        .ecs
                         .get::<&crate::city::conquest::Conquered>(e)
                         .ok()
-                        .and_then(|c| crate::player::id_of(&self.world, c.0))
+                        .and_then(|c| crate::player::id_of(&self.ecs, c.0))
                         .map(|p| p.0),
                     sold_building: self.economy().sold_building(e).map(|b| b.num()),
                     autobuild: self
-                        .world
+                        .ecs
                         .get::<&crate::city::autobuild::AutoBuild>(e)
                         .ok()
                         .map(|a| *a),
@@ -1130,9 +1127,7 @@ impl Game {
             game_over: self.game_over,
             human: self.human().map(|h| h.0),
             diplomacy: self.diplomacy_to_save(),
-            events: self
-                .events
-                .to_save(|e| crate::player::id_of(&self.world, e)),
+            events: self.events.to_save(|e| crate::player::id_of(&self.ecs, e)),
             threat: self.threat,
             flow: self.flow.clone(),
             plans: self.plans.clone(),
@@ -1154,7 +1149,7 @@ impl Game {
                     Some(HeroSave {
                         serial: self.units().serial_of(h).0,
                         state: self.units().hero_state(h)?,
-                        hero: (*self.world.get::<&crate::hero::Hero>(h).ok()?).clone(),
+                        hero: (*self.ecs.get::<&crate::hero::Hero>(h).ok()?).clone(),
                         xp: self.units().hero_xp(h),
                     })
                 })
@@ -1303,9 +1298,9 @@ impl Snapshot {
 
     /// Rebuild the game, resolving every id against `content`. Refuses a save whose settings are
     /// out of range or that was made with other content files; see [`Snapshot::restore_with`].
-    pub fn restore(self, content: impl Into<std::sync::Arc<Content>>) -> Result<Game, LoadError> {
+    pub fn restore(self, content: impl Into<std::sync::Arc<Content>>) -> Result<World, LoadError> {
         self.restore_with(content, ContentCheck::Strict)
-            .map(|(game, _)| game)
+            .map(|(world, _)| world)
     }
 
     /// The checks of a save against the content, then [`Snapshot::restore`]'s rebuild, and what the
@@ -1314,12 +1309,12 @@ impl Snapshot {
         self,
         content: impl Into<std::sync::Arc<Content>>,
         check: ContentCheck,
-    ) -> Result<(Game, Vec<f4x_def::load::ContentIssue>), LoadError> {
+    ) -> Result<(World, Vec<f4x_def::load::ContentIssue>), LoadError> {
         let content = content.into();
         self.check_against(&content, check)?;
         let notes = self.notes_for(&content);
-        let game = self.rebuild(content)?;
-        Ok((game, notes))
+        let world = self.rebuild(content)?;
+        Ok((world, notes))
     }
 
     /// Every value out of range in the save's settings and, when asked, a content that is not the
@@ -1378,34 +1373,34 @@ impl Snapshot {
         notes
     }
 
-    fn rebuild(self, content: std::sync::Arc<Content>) -> Result<Game, LoadError> {
+    fn rebuild(self, content: std::sync::Arc<Content>) -> Result<World, LoadError> {
         if self.version != SAVE_VERSION {
             return Err(LoadError::Version {
                 found: self.version,
                 supported: SAVE_VERSION,
             });
         }
-        let mut game = Game::new(self.seed);
-        game.set_content(content);
-        game.turn = self.turn;
-        game.settings = self.settings.normalised();
-        game.apply_content_settings();
-        game.game_over = self.game_over;
-        game.override_log = self.override_log;
-        game.prefab_taken = self.prefab_taken;
-        game.threat = self.threat;
-        game.flow = self.flow;
-        game.plans = self.plans;
-        game.locations = self.locations;
-        game.next_serial = self.next_serial;
+        let mut world = World::new(self.seed);
+        world.set_content(content);
+        world.turn = self.turn;
+        world.settings = self.settings.normalised();
+        world.apply_content_settings();
+        world.game_over = self.game_over;
+        world.override_log = self.override_log;
+        world.prefab_taken = self.prefab_taken;
+        world.threat = self.threat;
+        world.flow = self.flow;
+        world.plans = self.plans;
+        world.locations = self.locations;
+        world.next_serial = self.next_serial;
         // Resume the random stream where it stopped.
-        game.rng = crate::game::rng::GameRng::resume(self.seed, self.draws);
+        world.rng = crate::world::rng::GameRng::resume(self.seed, self.draws);
 
-        game.map = self
+        world.map = self
             .map
-            .map(|m| restore_map(m, &game.content))
+            .map(|m| restore_map(m, &world.content))
             .transpose()?;
-        game.fog = restore_fog(self.fog, game.map.as_ref())?;
+        world.fog = restore_fog(self.fog, world.map.as_ref())?;
         let mut wizards: std::collections::BTreeMap<u8, WizardSave> = BTreeMap::new();
         for w in self.wizards {
             let id = w.player;
@@ -1417,7 +1412,7 @@ impl Snapshot {
         }
         for p in self.players {
             let id = PlayerId(p.id);
-            if game.player_entity(id).is_some() {
+            if world.player_entity(id).is_some() {
                 return Err(LoadError::Inconsistent(format!(
                     "player {} appears twice",
                     p.id
@@ -1425,8 +1420,8 @@ impl Snapshot {
             }
             let wizard = wizards.remove(&p.id);
             let entity = match (&wizard, p.neutral) {
-                (None, true) => game.add_neutral_player(id),
-                (Some(w), false) => game.add_player(id, w.name.clone()),
+                (None, true) => world.add_neutral_player(id),
+                (Some(w), false) => world.add_player(id, w.name.clone()),
                 (Some(_), true) => {
                     return Err(LoadError::Inconsistent(format!(
                         "neutral player {} has a wizard",
@@ -1440,7 +1435,7 @@ impl Snapshot {
                     )))
                 }
             };
-            game.put_bundle(
+            world.put_bundle(
                 entity,
                 (
                     Treasury {
@@ -1457,7 +1452,8 @@ impl Snapshot {
                     .capital_race
                     .as_ref()
                     .map(|r| {
-                        game.content
+                        world
+                            .content
                             .rules
                             .races
                             .id_numbered(*r)
@@ -1470,19 +1466,19 @@ impl Snapshot {
                     w.portrait.min(crate::player::PORTRAITS - 1),
                     w.gender,
                 );
-                game.set_fame(id, fame);
-                let rules = &game.content.rules;
-                let entity = crate::wizard::entity::of_player(&game.world, entity)
+                world.set_fame(id, fame);
+                let rules = &world.content.rules;
+                let entity = crate::wizard::entity::of_player(&world.ecs, entity)
                     .ok_or_else(|| LoadError::Inconsistent("a wizard without its entity".into()))?;
-                w.put(WizardMut::new(&mut game.world, entity), rules)?;
-                game.wizard_set(id, Banner(banner));
-                game.wizard_set(id, Portrait(portrait));
-                game.wizard_set(id, gender);
-                game.wizard_set(id, CapitalRace(capital_race));
+                w.put(WizardMut::new(&mut world.ecs, entity), rules)?;
+                world.wizard_set(id, Banner(banner));
+                world.wizard_set(id, Portrait(portrait));
+                world.wizard_set(id, gender);
+                world.wizard_set(id, CapitalRace(capital_race));
             }
-            game.set_grand_vizier(id, p.grand_vizier);
+            world.set_grand_vizier(id, p.grand_vizier);
             if p.defeated {
-                game.put(
+                world.put(
                     entity,
                     Defeat {
                         by: p.defeated_by.map(PlayerId),
@@ -1495,10 +1491,10 @@ impl Snapshot {
                 "a wizard plays as the missing player {id}"
             )));
         }
-        game.set_human(self.human.map(PlayerId));
+        world.set_human(self.human.map(PlayerId));
 
         let mut serials = std::collections::BTreeSet::new();
-        let next_serial = game.next_serial;
+        let next_serial = world.next_serial;
         let mut take = |serial: u64, what: &str| -> Result<Serial, LoadError> {
             if serial == 0 || serial >= next_serial || !serials.insert(serial) {
                 return Err(LoadError::Inconsistent(format!(
@@ -1509,7 +1505,7 @@ impl Snapshot {
         };
         for f in self.features {
             let serial = take(f.serial, "a feature")?;
-            if game
+            if world
                 .map
                 .as_ref()
                 .is_none_or(|m| f.at.x >= m.width() || f.at.y >= m.height())
@@ -1517,7 +1513,7 @@ impl Snapshot {
                 return Err(LoadError::Inconsistent("a feature is off the map".into()));
             }
             if let Some(n) = &f.node {
-                let m = game.map.as_ref().expect("checked above");
+                let m = world.map.as_ref().expect("checked above");
                 if n.aura
                     .iter()
                     .any(|&(x, y)| x >= m.width() || y >= m.height())
@@ -1525,7 +1521,7 @@ impl Snapshot {
                     return Err(LoadError::Inconsistent("a node is off the map".into()));
                 }
             }
-            let rules = &game.content.rules;
+            let rules = &world.content.rules;
             let node = f
                 .node
                 .map(|n| {
@@ -1570,12 +1566,12 @@ impl Snapshot {
                     .transpose()?;
             let entity = match &f.feature {
                 Some(num) => {
-                    let feature = game
+                    let feature = world
                         .content
                         .features
                         .id_numbered(*num)
                         .ok_or(LoadError::UnknownId("feature", num.to_string()))?;
-                    game.spawn_feature_with(
+                    world.spawn_feature_with(
                         serial,
                         crate::feature::entity::Placement {
                             at: f.at,
@@ -1590,33 +1586,35 @@ impl Snapshot {
                         .owner
                         .map(PlayerId)
                         .ok_or_else(|| LoadError::Inconsistent("a volcano has no owner".into()))?;
-                    game.spawn_volcano_with(serial, owner, f.at)
+                    world
+                        .spawn_volcano_with(serial, owner, f.at)
                         .ok_or_else(|| {
                             LoadError::Inconsistent("a volcano belongs to a missing player".into())
                         })?
                 }
             };
             if let (Some(owner), true) = (f.owner, f.feature.is_some()) {
-                if game.player_entity(PlayerId(owner)).is_none() {
+                if world.player_entity(PlayerId(owner)).is_none() {
                     return Err(LoadError::Inconsistent("a feature has a bad owner".into()));
                 }
-                game.set_feature_owner(entity, PlayerId(owner));
+                world.set_feature_owner(entity, PlayerId(owner));
             }
         }
         for h in self.heroes {
             let serial = take(h.serial, "a hero")?;
-            if h.hero.kind >= game.content.rules.hero_templates.len()
-                || game.units().hero_entity(h.hero.kind).is_some()
+            if h.hero.kind >= world.content.rules.hero_templates.len()
+                || world.units().hero_entity(h.hero.kind).is_some()
             {
                 return Err(LoadError::Inconsistent(format!(
                     "a hero of type {} is missing or twice",
                     h.hero.kind
                 )));
             }
-            game.make_hero_with(serial, h.hero, h.state, h.xp);
+            world.make_hero_with(serial, h.hero, h.state, h.xp);
         }
-        let in_map = |game: &Game, pos: Position| -> bool {
-            game.map
+        let in_map = |world: &World, pos: Position| -> bool {
+            world
+                .map
                 .as_ref()
                 .is_none_or(|m| pos.x < m.width() && pos.y < m.height())
         };
@@ -1624,33 +1622,33 @@ impl Snapshot {
         units.sort_by_key(|u| u.serial);
         for u in units {
             // A hero's body is its own entity already, made with its serial.
-            let hero_entity = game
+            let hero_entity = world
                 .units()
                 .all_heroes()
                 .into_iter()
-                .find(|&h| game.units().serial_of(h).0 == u.serial);
+                .find(|&h| world.units().serial_of(h).0 == u.serial);
             let serial = match hero_entity {
                 Some(_) => Serial(u.serial),
                 None => take(u.serial, "a unit")?,
             };
-            let id = game
+            let id = world
                 .content
                 .rules
                 .units
                 .id_numbered(u.unit)
                 .ok_or(LoadError::UnknownId("unit", u.unit.to_string()))?;
-            if !in_map(&game, u.pos) {
+            if !in_map(&world, u.pos) {
                 return Err(LoadError::Inconsistent(format!(
                     "unit {} is off the map",
                     u.unit
                 )));
             }
-            let owner = game.player_entity(PlayerId(u.owner)).ok_or_else(|| {
+            let owner = world.player_entity(PlayerId(u.owner)).ok_or_else(|| {
                 LoadError::Inconsistent(format!("a unit belongs to the missing player {}", u.owner))
             })?;
             let entity = match hero_entity {
                 Some(hero) => {
-                    game.put_bundle(
+                    world.put_bundle(
                         hero,
                         (
                             Owner(owner),
@@ -1663,7 +1661,7 @@ impl Snapshot {
                     );
                     hero
                 }
-                None => game.world.spawn((
+                None => world.ecs.spawn((
                     Unit(id),
                     Owner(owner),
                     u.pos,
@@ -1674,41 +1672,41 @@ impl Snapshot {
                 )),
             };
             if u.weapon > 0 {
-                game.put(entity, crate::unit::WeaponQuality(u.weapon));
+                world.put(entity, crate::unit::WeaponQuality(u.weapon));
             }
             if let Some(ship) = u.aboard {
-                game.put(entity, crate::unit::transport::Aboard(Serial(ship)));
+                world.put(entity, crate::unit::transport::Aboard(Serial(ship)));
             }
-            effects_load(&mut game.world, entity, u.effects);
+            effects_load(&mut world.ecs, entity, u.effects);
             if let Some(standby) = u.standby {
-                game.put(entity, standby);
+                world.put(entity, standby);
             }
             if u.undead {
-                game.put(entity, crate::unit::undead::Undead);
+                world.put(entity, crate::unit::undead::Undead);
             }
             if u.unpaid {
-                game.put(entity, crate::unit::Unpaid);
+                world.put(entity, crate::unit::Unpaid);
             }
             if u.marooned {
-                game.put(entity, crate::unit::transport::Marooned);
+                world.put(entity, crate::unit::transport::Marooned);
             }
             if u.bridge {
-                game.put(entity, crate::unit::transport::Bridge);
+                world.put(entity, crate::unit::transport::Bridge);
             }
             if let Some(stasis) = u.stasis {
-                game.put(entity, stasis);
+                world.put(entity, stasis);
             }
             if let Some(work) = u.road_work {
-                game.put(entity, work);
+                world.put(entity, work);
             }
             if let Some(order) = u.order {
-                game.put(entity, order);
+                world.put(entity, order);
             }
         }
         // A hero serves exactly when it has its body.
-        for hero in game.units().all_heroes() {
-            let serving = game.units().hero_state(hero) == Some(crate::hero::HeroState::Serving);
-            if serving != game.world.get::<&Unit>(hero).is_ok() {
+        for hero in world.units().all_heroes() {
+            let serving = world.units().hero_state(hero) == Some(crate::hero::HeroState::Serving);
+            if serving != world.ecs.get::<&Unit>(hero).is_ok() {
                 return Err(LoadError::Inconsistent(
                     "a hero's state and its unit do not agree".into(),
                 ));
@@ -1720,7 +1718,8 @@ impl Snapshot {
             use crate::item::entity::HeldBy;
             let serial = take(i.serial, "an item")?;
             let player = |p: u8| -> Result<PlayerId, LoadError> {
-                game.player_entity(PlayerId(p))
+                world
+                    .player_entity(PlayerId(p))
                     .map(|_| PlayerId(p))
                     .ok_or_else(|| {
                         LoadError::Inconsistent(format!(
@@ -1730,14 +1729,14 @@ impl Snapshot {
             };
             let held = match i.held {
                 HeldSave::Hero(unit, slot) => {
-                    let found = game
-                        .world
+                    let found = world
+                        .ecs
                         .query::<&Serial>()
                         .iter()
                         .find(|(_, s)| s.0 == unit)
                         .map(|(e, _)| e);
                     let hero = found
-                        .filter(|&e| game.world.get::<&Unit>(e).is_ok())
+                        .filter(|&e| world.ecs.get::<&Unit>(e).is_ok())
                         .filter(|_| slot < 3)
                         .ok_or_else(|| {
                             LoadError::Inconsistent(
@@ -1751,13 +1750,13 @@ impl Snapshot {
                 HeldSave::Crafting(p) => HeldBy::Crafting(player(p)?),
                 HeldSave::Offered(p) => HeldBy::Offered(player(p)?),
             };
-            game.spawn_item_with(serial, i.item, held);
+            world.spawn_item_with(serial, i.item, held);
         }
         let mut cities = self.cities;
         cities.sort_by_key(|c| c.serial);
         for c in cities {
             let serial = take(c.serial, "a city")?;
-            if !in_map(&game, c.pos) {
+            if !in_map(&world, c.pos) {
                 return Err(LoadError::Inconsistent(format!(
                     "city {} is off the map",
                     c.name
@@ -1769,7 +1768,7 @@ impl Snapshot {
                     c.name
                 )));
             }
-            let rules = &game.content.rules;
+            let rules = &world.content.rules;
             let buildings = c
                 .buildings
                 .iter()
@@ -1806,10 +1805,10 @@ impl Snapshot {
                         .ok_or(LoadError::UnknownId("race", r.to_string()))
                 })
                 .transpose()?;
-            let owner = game.player_entity(PlayerId(c.owner)).ok_or_else(|| {
+            let owner = world.player_entity(PlayerId(c.owner)).ok_or_else(|| {
                 LoadError::Inconsistent(format!("a city belongs to the missing player {}", c.owner))
             })?;
-            let entity = game.world.spawn((
+            let entity = world.ecs.spawn((
                 serial,
                 City { name: c.name },
                 Owner(owner),
@@ -1826,9 +1825,9 @@ impl Snapshot {
                 },
             ));
             if let Some(r) = race {
-                crate::game::put_in(&mut game.world, entity, CityRace(r));
+                crate::world::put_in(&mut world.ecs, entity, CityRace(r));
             }
-            effects_load(&mut game.world, entity, c.effects);
+            effects_load(&mut world.ecs, entity, c.effects);
             if !c.wards.is_empty() {
                 let wards = c
                     .wards
@@ -1840,8 +1839,8 @@ impl Snapshot {
                             .ok_or(LoadError::UnknownId("realm", n.to_string()))
                     })
                     .collect::<Result<Vec<_>, _>>()?;
-                crate::game::put_in(
-                    &mut game.world,
+                crate::world::put_in(
+                    &mut world.ecs,
                     entity,
                     crate::spell::city::SpellWards(wards),
                 );
@@ -1851,17 +1850,17 @@ impl Snapshot {
                     .buildings
                     .id_numbered(b)
                     .ok_or(LoadError::UnknownId("building", b.to_string()))?;
-                game.put(entity, crate::city::production::SoldBuilding(b));
+                world.put(entity, crate::city::production::SoldBuilding(b));
             }
             if let Some(a) = c.autobuild {
-                game.put(entity, a);
+                world.put(entity, a);
             }
-            if let Some(by) = c.conquered.and_then(|p| game.player_entity(PlayerId(p))) {
-                game.put(entity, crate::city::conquest::Conquered(by));
+            if let Some(by) = c.conquered.and_then(|p| world.player_entity(PlayerId(p))) {
+                world.put(entity, crate::city::conquest::Conquered(by));
             }
         }
-        let by_serial: std::collections::HashMap<u64, hecs::Entity> = game
-            .world
+        let by_serial: std::collections::HashMap<u64, hecs::Entity> = world
+            .ecs
             .query::<&Serial>()
             .iter()
             .map(|(e, s)| (s.0, e))
@@ -1871,13 +1870,13 @@ impl Snapshot {
         spells.sort_by_key(|i| i.serial);
         for i in spells {
             let serial = take(i.serial, "a spell")?;
-            let def = game
+            let def = world
                 .content
                 .rules
                 .spells
                 .id_numbered(i.spell)
                 .ok_or_else(|| LoadError::UnknownId("spell", i.spell.to_string()))?;
-            let caster = game
+            let caster = world
                 .wizard(PlayerId(i.caster))
                 .map(|w| w.entity())
                 .ok_or_else(|| {
@@ -1896,11 +1895,11 @@ impl Snapshot {
                     })
             };
             let has =
-                |e: hecs::Entity, c: &dyn Fn(&hecs::World, hecs::Entity) -> bool| c(&game.world, e);
+                |e: hecs::Entity, c: &dyn Fn(&hecs::World, hecs::Entity) -> bool| c(&world.ecs, e);
             let target = match i.target {
                 SpellTargetSave::Global => SpellTarget::Global,
                 SpellTargetSave::Wizard(p) => {
-                    SpellTarget::Wizard(game.wizard(PlayerId(p)).map(|w| w.entity()).ok_or_else(
+                    SpellTarget::Wizard(world.wizard(PlayerId(p)).map(|w| w.entity()).ok_or_else(
                         || {
                             LoadError::Inconsistent(
                                 "a spell is on a wizard who is not there".into(),
@@ -1925,34 +1924,29 @@ impl Snapshot {
                     })
                 })?),
             };
-            let instance = crate::spell::instance::spawn_instance(
-                &mut game.world,
-                def,
-                caster,
-                target,
-                serial,
-            );
+            let instance =
+                crate::spell::instance::spawn_instance(&mut world.ecs, def, caster, target, serial);
             if let Some(owed) = i.owed {
                 if target != SpellTarget::Wizard(caster) || !owing.insert(caster) {
                     return Err(LoadError::Inconsistent(
                         "a cast in progress is not the one of its own wizard".into(),
                     ));
                 }
-                game.put(instance, Owed(owed));
+                world.put(instance, Owed(owed));
                 if let Some(extra) = i.extra.filter(|&e| e > 0) {
-                    game.put(instance, Extra(extra));
+                    world.put(instance, Extra(extra));
                 }
             }
         }
-        for id in game.player_ids() {
-            let Some(w) = game.wizard(id) else {
+        for id in world.player_ids() {
+            let Some(w) = world.wizard(id) else {
                 continue;
             };
             for pos in w.fortress().into_iter().chain(w.summon_circles()) {
-                let ok = game
+                let ok = world
                     .economy()
                     .city_at(pos)
-                    .is_some_and(|c| game.economy().city_owner(c) == Some(id));
+                    .is_some_and(|c| world.economy().city_owner(c) == Some(id));
                 if !ok {
                     return Err(LoadError::Inconsistent(format!(
                         "player {} has a fortress or summoning circle where they have no city",
@@ -1966,17 +1960,17 @@ impl Snapshot {
                 ));
             }
         }
-        game.events =
-            crate::world_event::Events::from_save(&self.events, |p| game.player_entity(p))
+        world.events =
+            crate::world_event::Events::from_save(&self.events, |p| world.player_entity(p))
                 .ok_or_else(|| LoadError::Inconsistent("an unknown event".into()))?;
-        game.diplomacy_from_save(self.diplomacy);
-        game.apply_wizard_settings();
+        world.diplomacy_from_save(self.diplomacy);
+        world.apply_wizard_settings();
         if let Some(battle) = self.battle {
-            game.restore_battle(battle)?;
+            world.restore_battle(battle)?;
         }
         // A save that holds a crowded square (edited by hand) has it dealt with by the next command.
-        game.tile_watch = game.crowded_anywhere();
-        Ok(game)
+        world.tile_watch = world.crowded_anywhere();
+        Ok(world)
     }
 }
 

@@ -10,7 +10,7 @@
 
 use crate::support::{busy_round, commands, text, worlds};
 use f4x_core::check::digest;
-use f4x_core::game::{Command, Game};
+use f4x_core::world::{Command, World};
 use std::collections::BTreeMap;
 
 const PINS: &str = "tests/pins/core_drift.txt";
@@ -20,14 +20,14 @@ fn pins_path() -> std::path::PathBuf {
 }
 
 /// A play: its name, the rounds at whose end the game is digested, and the way it goes on one round.
-type Round = fn(&mut Game);
+type Round = fn(&mut World);
 
-fn walking(g: &mut Game) {
-    busy_round(g, 6);
+fn walking(w: &mut World) {
+    busy_round(w, 6);
 }
 
-fn ending_turns(g: &mut Game) {
-    g.apply(Command::EndTurn);
+fn ending_turns(w: &mut World) {
+    w.apply(Command::EndTurn);
 }
 
 const PLAYS: [(&str, &[usize], Round); 2] = [
@@ -36,8 +36,8 @@ const PLAYS: [(&str, &[usize], Round); 2] = [
 ];
 
 /// The line of a game at a checkpoint: `field=hash` for each field of its digest.
-fn line(g: &Game) -> String {
-    digest(g)
+fn line(w: &World) -> String {
+    digest(w)
         .into_iter()
         .map(|(k, v)| format!("{k}={v}"))
         .collect::<Vec<_>>()
@@ -50,29 +50,29 @@ fn today() -> BTreeMap<String, String> {
     for (world, fresh) in worlds() {
         let world = world.replace(' ', "").replace(',', "_");
         for (play, checkpoints, step) in PLAYS {
-            let mut g = crate::support::worlds()
+            let mut w = crate::support::worlds()
                 .into_iter()
                 .find(|(n, _)| n.replace(' ', "").replace(',', "_") == world)
                 .expect("the world")
                 .1;
             let last = *checkpoints.last().expect("a checkpoint");
             for round in 1..=last {
-                step(&mut g);
+                step(&mut w);
                 if checkpoints.contains(&round) {
-                    out.insert(format!("{world} {play}@{round}"), line(&g));
+                    out.insert(format!("{world} {play}@{round}"), line(&w));
                 }
             }
         }
         // Every command of the sweep, then three turns: what the commands changed, and what the turns made of it.
-        let mut g = fresh;
-        for command in commands(&g) {
-            g.apply(command);
+        let mut w = fresh;
+        for command in commands(&w) {
+            w.apply(command);
         }
-        out.insert(format!("{world} commands@all"), line(&g));
+        out.insert(format!("{world} commands@all"), line(&w));
         for _ in 0..3 {
-            g.apply(Command::EndTurn);
+            w.apply(Command::EndTurn);
         }
-        out.insert(format!("{world} commands@+3turns"), line(&g));
+        out.insert(format!("{world} commands@+3turns"), line(&w));
     }
     out
 }
@@ -141,13 +141,13 @@ fn the_scripted_plays_end_where_they_ended() {
 
 #[test]
 fn the_digest_is_the_same_for_the_same_game_and_names_what_differs() {
-    let (_, g) = worlds().remove(0);
-    let copy = f4x_core::game::save::Snapshot::from_text(&text(&g))
+    let (_, w) = worlds().remove(0);
+    let copy = f4x_core::world::save::Snapshot::from_text(&text(&w))
         .expect("reads")
         .restore(crate::support::content())
         .expect("restores");
-    assert_eq!(digest(&g), digest(&copy));
-    let names: Vec<String> = digest(&g).into_iter().map(|(k, _)| k).collect();
+    assert_eq!(digest(&w), digest(&copy));
+    let names: Vec<String> = digest(&w).into_iter().map(|(k, _)| k).collect();
     for wanted in ["seed", "draws", "turn", "units", "cities", "players", "map"] {
         assert!(
             names.iter().any(|n| n == wanted),
@@ -157,7 +157,7 @@ fn the_digest_is_the_same_for_the_same_game_and_names_what_differs() {
     // One turn moves the clock, the random generator and the units' moves, not the settings or the seed.
     let mut later = copy;
     later.apply(Command::EndTurn);
-    let (a, b) = (digest(&g), digest(&later));
+    let (a, b) = (digest(&w), digest(&later));
     let moved: Vec<&str> = a
         .iter()
         .zip(&b)

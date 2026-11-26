@@ -15,9 +15,9 @@ use crate::modal::Modal;
 use crate::scroll::{self, Window};
 use crate::ui::{self, GOLD};
 use crate::view::{App, Screen, HUMAN};
-use f4x_core::game::Command;
 use f4x_core::player::PlayerId;
 use f4x_core::rules::exec::Target;
+use f4x_core::world::Command;
 use f4x_def::rules::SpellId;
 use macroquad::prelude::*;
 
@@ -107,14 +107,14 @@ pub(crate) fn title_lines(title: &str) -> Vec<String> {
 impl App {
     /// The rivals the panel lists: every wizard but the human, the monsters left out.
     pub(crate) fn opponent_wizards(&self) -> Vec<(PlayerId, Standing)> {
-        self.game
+        self.world
             .player_ids()
             .into_iter()
-            .filter(|&id| id != HUMAN && self.game.is_wizard(id))
+            .filter(|&id| id != HUMAN && self.world.is_wizard(id))
             .map(|id| {
-                let standing = if self.game.player(id).is_some_and(|p| p.is_defeated()) {
+                let standing = if self.world.player(id).is_some_and(|p| p.is_defeated()) {
                     Standing::Defeated
-                } else if self.game.have_met(HUMAN, id) {
+                } else if self.world.have_met(HUMAN, id) {
                     Standing::Pickable
                 } else {
                     Standing::Unmet
@@ -155,20 +155,20 @@ impl App {
     /// For screenshots: the picker for Subversion with the wizards met.
     pub(crate) fn open_test_wizard_pick(&mut self) {
         let Some(spell) = self
-            .game
+            .world
             .content()
             .rules
             .spells
             .defs()
             .iter()
             .find(|d| f4x_core::spell::wizard::WizardEffect::Subversion.is_in(d))
-            .and_then(|d| self.game.content().rules.spells.id_numbered(d.num))
+            .and_then(|d| self.world.content().rules.spells.id_numbered(d.num))
         else {
             return;
         };
-        for id in self.game.player_ids() {
+        for id in self.world.player_ids() {
             if id != HUMAN {
-                self.game.make_contact(HUMAN, id);
+                self.world.make_contact(HUMAN, id);
             }
         }
         self.open_wizard_pick(spell, false);
@@ -195,7 +195,7 @@ impl App {
         at: (f32, f32),
     ) -> Rect {
         let (portrait, banner) = self
-            .game
+            .world
             .player(id)
             .map_or((0, 0), |p| (p.portrait(), p.banner()));
         let drawn = match standing {
@@ -243,7 +243,7 @@ impl Modal for WizardPick {
         if !rivals.iter().any(|&(_, s)| s == Standing::Pickable) {
             return None;
         }
-        let def = app.game.content().rules.spells.get(spell);
+        let def = app.world.content().rules.spells.get(spell);
         let blast = f4x_core::spell::wizard::WizardEffect::SpellBlast.is_in(def);
         let name_term = app.names.spell_term(def.num);
         let lay = Layout::new();
@@ -283,7 +283,7 @@ impl Modal for WizardPick {
             let at = slot_at(slot);
             let rect = app.draw_rival_gem(&lay, id, standing, at);
             let who = app
-                .game
+                .world
                 .player(id)
                 .map_or_else(String::new, |p| p.name().to_string());
             app.draw_styled(
@@ -318,7 +318,7 @@ impl Modal for WizardPick {
                     extra: 0,
                 }
             };
-            let events = app.game.apply(command);
+            let events = app.world.apply(command);
             app.note(events);
             return None;
         }

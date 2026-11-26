@@ -41,17 +41,17 @@ fn bounded<T: Send + 'static>(secs: u64, f: impl FnOnce() -> T + Send + 'static)
 fn every_seed_makes_a_game_for_every_kind_of_game() {
     for &seed in SEEDS {
         for all_ai in [true, false] {
-            let world = World {
+            let case = WorldCase {
                 seed,
                 all_ai,
                 ..standard()
             };
             let problems = bounded(60, move || {
-                let g = new_game(content(), &world.spec())
+                let w = new_game(content(), &case.spec())
                     .unwrap_or_else(|e| panic!("seed {seed}: {e}"));
-                start_problems(&g, world)
+                start_problems(&w, case)
             });
-            assert!(problems.is_empty(), "{world:?}: {problems:?}");
+            assert!(problems.is_empty(), "{case:?}: {problems:?}");
         }
     }
 }
@@ -67,8 +67,8 @@ fn every_setting_at_either_end_makes_a_game_that_keeps_the_rules() {
         let name = knob.name;
         for (end, value) in [("low", low), ("high", high)] {
             for variant in [Variant::Plain, Variant::OriginalGenerator] {
-                let world = World { variant, ..std };
-                let mut settings = world.settings();
+                let case = WorldCase { variant, ..std };
+                let mut settings = case.settings();
                 (knob.set)(&mut settings, value);
                 // The original generator is asked for no more land than it can make.
                 if settings.basic.original_map_generator {
@@ -86,13 +86,13 @@ fn every_setting_at_either_end_makes_a_game_that_keeps_the_rules() {
                         settings,
                         ..Default::default()
                     };
-                    let g = new_game(content(), &spec)?;
-                    let w = World {
+                    let w = new_game(content(), &spec)?;
+                    let case = WorldCase {
                         wizards,
                         seed,
-                        ..world
+                        ..case
                     };
-                    let mut problems = start_problems(&g, w);
+                    let mut problems = start_problems(&w, case);
                     let map = generate(seed, &gen_params(&settings), content())
                         .map_err(|e| e.to_string())?;
                     problems.extend(map_problems(&map, content(), &gen_params(&settings), true));
@@ -181,10 +181,10 @@ fn every_ready_made_wizard_starts_a_game_for_a_human() {
         };
         let num = def.num;
         let problems = bounded(60, move || {
-            let g = new_game(content(), &spec).unwrap_or_else(|e| panic!("wizard {num}: {e}"));
+            let w = new_game(content(), &spec).unwrap_or_else(|e| panic!("wizard {num}: {e}"));
             start_problems(
-                &g,
-                World {
+                &w,
+                WorldCase {
                     all_ai: false,
                     ..standard()
                 },
@@ -221,10 +221,10 @@ fn every_race_of_the_planes_can_be_chosen_by_a_human() {
         };
         let num = def.num;
         let problems = bounded(60, move || {
-            let g = new_game(content(), &spec).unwrap_or_else(|e| panic!("race {num}: {e}"));
+            let w = new_game(content(), &spec).unwrap_or_else(|e| panic!("race {num}: {e}"));
             start_problems(
-                &g,
-                World {
+                &w,
+                WorldCase {
                     all_ai: false,
                     ..standard()
                 },
@@ -323,8 +323,8 @@ fn name_lists_that_are_empty_or_odd_give_a_game() {
             ..Default::default()
         };
         let problems = bounded(60, move || {
-            let g = new_game(content(), &spec).expect("a game with these names");
-            start_problems(&g, standard())
+            let w = new_game(content(), &spec).expect("a game with these names");
+            start_problems(&w, standard())
         });
         assert!(problems.is_empty(), "{problems:?}");
     }
@@ -343,14 +343,14 @@ fn the_map_generator_takes_the_ends_of_its_sizes_and_shares() {
         (hi, lo),
         (lo * 25, lo * 19),
     ];
-    for (w, h) in sizes {
+    for (width, h) in sizes {
         let land_middle = (LAND_RANGE.start() + LAND_RANGE.end()) / 2;
         for land in [*LAND_RANGE.start(), land_middle, *LAND_RANGE.end()] {
             for minerals in [0u8, MINERAL_MOST] {
                 let outcome = bounded(60, move || {
                     let mut p = GenParams {
                         land_percent: land,
-                        ..GenParams::sized(w, h)
+                        ..GenParams::sized(width, h)
                     };
                     for plane in &mut p.planes {
                         plane.mineral_percent = minerals;
@@ -358,10 +358,10 @@ fn the_map_generator_takes_the_ends_of_its_sizes_and_shares() {
                     let g = generate(5, &p, content()).map_err(|e| e.to_string())?;
                     Ok::<_, String>(map_problems(&g, content(), &p, true))
                 });
-                let problems = outcome.unwrap_or_else(|e| panic!("{w}x{h} land {land}: {e}"));
+                let problems = outcome.unwrap_or_else(|e| panic!("{width}x{h} land {land}: {e}"));
                 assert!(
                     problems.is_empty(),
-                    "{w}x{h} land {land} minerals {minerals}: {problems:?}"
+                    "{width}x{h} land {land} minerals {minerals}: {problems:?}"
                 );
             }
         }
@@ -584,7 +584,7 @@ fn the_original_generator_makes_the_land_it_may_be_asked_for_on_every_size() {
     let most = f4x_def::settings::ORIGINAL_GENERATOR_MAX_LAND;
     for (width, height) in sizes() {
         for seed in 0..40u64 {
-            let world = World {
+            let case = WorldCase {
                 seed,
                 width,
                 height,
@@ -592,11 +592,11 @@ fn the_original_generator_makes_the_land_it_may_be_asked_for_on_every_size() {
                 variant: Variant::OriginalGenerator,
                 ..standard()
             };
-            let g = generated(world);
+            let g = generated(case);
             for plane in f4x_core::map::Plane::all() {
                 let got =
                     f4x_newgame::mapgen::land_percent(g.map.plane(plane), &content().terrains);
-                assert!(got + 1 >= u32::from(most), "{world:?} {plane:?}: {got}%");
+                assert!(got + 1 >= u32::from(most), "{case:?} {plane:?}: {got}%");
             }
         }
     }

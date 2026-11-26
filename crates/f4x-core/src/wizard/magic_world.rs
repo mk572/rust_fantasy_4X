@@ -3,15 +3,15 @@
 //! change, and the glue to the wizard's sheet (`wizard/sheet.rs`), which holds the wizard's components and their rules.
 //! Spell resolution is in `spell/cast.rs`, `spell/dispel.rs` and `spell/city.rs`.
 //!
-//! Tests: in wizard/magic_game/tests.rs.
+//! Tests: in wizard/magic_world/tests.rs.
 
-use crate::game::{Event, Game};
 use crate::player::PlayerId;
 use crate::rules::{CastContext, RealmId, SpellId};
 use crate::wizard::magic::{upkeep_plan, CastStart, MagicError, PowerShares, Retort};
+use crate::world::{Event, World};
 use f4x_def::half_int::HalfInt;
 
-impl Game {
+impl World {
     /// Set up a new wizard (see [`WizardMut::found`] and [`WizardMut::init_library`]), with the
     /// starting spells given instead of drawn at random when `start_spells` is `Some`, and the
     /// first offer for research.
@@ -32,9 +32,9 @@ impl Game {
         let entity = self
             .player_index
             .get(&player)
-            .and_then(|&e| crate::wizard::entity::of_player(&self.world, e))
+            .and_then(|&e| crate::wizard::entity::of_player(&self.ecs, e))
             .ok_or(MagicError::UnknownPlayer)?;
-        let mut w = crate::wizard::sheet::WizardMut::new(&mut self.world, entity);
+        let mut w = crate::wizard::sheet::WizardMut::new(&mut self.ecs, entity);
         w.found(&content.rules, &books, retorts);
         w.init_library(content, rng, start_spells);
         self.refill_research(player);
@@ -102,8 +102,8 @@ impl Game {
         let mut w = self
             .player_index
             .get(&player)
-            .and_then(|&e| crate::wizard::entity::of_player(&self.world, e))
-            .map(|e| crate::wizard::sheet::WizardMut::new(&mut self.world, e))
+            .and_then(|&e| crate::wizard::entity::of_player(&self.ecs, e))
+            .map(|e| crate::wizard::sheet::WizardMut::new(&mut self.ecs, e))
             .ok_or(MagicError::UnknownPlayer)?;
         w.choose_research(content, spell)
     }
@@ -127,8 +127,8 @@ impl Game {
         if let Some(mut w) = self
             .player_index
             .get(&player)
-            .and_then(|&e| crate::wizard::entity::of_player(&self.world, e))
-            .map(|e| crate::wizard::sheet::WizardMut::new(&mut self.world, e))
+            .and_then(|&e| crate::wizard::entity::of_player(&self.ecs, e))
+            .map(|e| crate::wizard::sheet::WizardMut::new(&mut self.ecs, e))
         {
             w.refill_research(content, rng, income, mastery_open);
         }
@@ -152,7 +152,7 @@ impl Game {
 
     /// One wizard's magic at the end of their turn: income (mana, research points, skill), mana
     /// upkeep, casting. The research is learned at the next turn's start
-    /// ([`Game::process_research`]); the temporary effects, global spells and experience that used
+    /// ([`World::process_research`]); the temporary effects, global spells and experience that used
     /// to start here are the round's (`turn.rs`).
     pub(crate) fn process_magic(&mut self, player: PlayerId) -> Vec<Event> {
         let mut events = Vec::new();
@@ -229,7 +229,7 @@ impl Game {
         if !dropped.is_empty() {
             events.push(Event::Shortage {
                 player,
-                what: crate::game::Shortage::Mana,
+                what: crate::world::Shortage::Mana,
             });
         }
         for item in dropped {

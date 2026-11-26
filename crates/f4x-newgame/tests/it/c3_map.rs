@@ -30,19 +30,19 @@ fn class_at(g: &Generated, c: &Content, plane: Plane, x: u32, y: u32) -> Option<
 /// numbers of towers, nodes and sites with what the parameters ask for.
 pub fn map_problems(g: &Generated, c: &Content, p: &GenParams, count_rules: bool) -> Vec<String> {
     let mut bad = Vec::new();
-    let (w, h) = (g.map.width(), g.map.height());
+    let (width, h) = (g.map.width(), g.map.height());
     let mut say = |rule: &str, what: String| bad.push(format!("{rule}: {what}"));
 
-    if (w, h) != (p.width, p.height) {
-        say("size", format!("{w}x{h} for {}x{}", p.width, p.height));
+    if (width, h) != (p.width, p.height) {
+        say("size", format!("{width}x{h} for {}x{}", p.width, p.height));
     }
     for plane in Plane::all() {
         let grid = g.map.plane(plane);
-        if (grid.width(), grid.height()) != (w, h) {
+        if (grid.width(), grid.height()) != (width, h) {
             say("size", format!("{plane:?} has another size"));
         }
         for y in 0..h {
-            for x in 0..w {
+            for x in 0..width {
                 if class_at(g, c, plane, x, y).is_none() {
                     say("terrain", format!("{plane:?} ({x},{y}) is no terrain"));
                 }
@@ -76,7 +76,7 @@ pub fn map_problems(g: &Generated, c: &Content, p: &GenParams, count_rules: bool
     let mut seen = std::collections::BTreeSet::new();
     for s in &sites {
         let (plane, x, y) = (s.at.plane, s.at.x, s.at.y);
-        if x >= w || y >= h {
+        if x >= width || y >= h {
             say("on-map", format!("{:?} at {x},{y}", s.kind));
             continue;
         }
@@ -112,7 +112,7 @@ pub fn map_problems(g: &Generated, c: &Content, p: &GenParams, count_rules: bool
             say("tower-pole", format!("tower at {a:?} is in the polar rows"));
         }
         for &b in &towers[i + 1..] {
-            if dist_sq(w, a, b) < TOWER_SPACING * TOWER_SPACING {
+            if dist_sq(width, a, b) < TOWER_SPACING * TOWER_SPACING {
                 say("tower-spacing", format!("towers at {a:?} and {b:?}"));
             }
         }
@@ -125,11 +125,11 @@ pub fn map_problems(g: &Generated, c: &Content, p: &GenParams, count_rules: bool
         // Fewer is right only when the map has no square left that is far enough from the others.
         if towers.len() < want {
             let free = (POLE_MARGIN..h.saturating_sub(POLE_MARGIN))
-                .flat_map(|y| (0..w).map(move |x| (x, y)))
+                .flat_map(|y| (0..width).map(move |x| (x, y)))
                 .find(|&sq| {
                     towers
                         .iter()
-                        .all(|&t| dist_sq(w, t, sq) >= TOWER_SPACING * TOWER_SPACING)
+                        .all(|&t| dist_sq(width, t, sq) >= TOWER_SPACING * TOWER_SPACING)
                 });
             if let Some(sq) = free {
                 say(
@@ -162,14 +162,14 @@ pub fn map_problems(g: &Generated, c: &Content, p: &GenParams, count_rules: bool
             say("node-pole", format!("node at {x},{y}"));
         }
         for &t in &towers {
-            if dist_sq(w, t, (x, y)) < NODE_SPACING * NODE_SPACING {
+            if dist_sq(width, t, (x, y)) < NODE_SPACING * NODE_SPACING {
                 say("node-spacing", format!("node {x},{y} near the tower {t:?}"));
             }
         }
         for o in of_kind(FeatureKind::Node) {
             if o.at != s.at
                 && o.at.plane == plane
-                && dist_sq(w, (o.at.x, o.at.y), (x, y)) < NODE_SPACING * NODE_SPACING
+                && dist_sq(width, (o.at.x, o.at.y), (x, y)) < NODE_SPACING * NODE_SPACING
             {
                 say(
                     "node-spacing",
@@ -207,9 +207,9 @@ pub fn map_problems(g: &Generated, c: &Content, p: &GenParams, count_rules: bool
             );
         }
         for &(ax, ay) in &aura {
-            if ax >= w
+            if ax >= width
                 || ay >= h
-                || chebyshev(w, (ax, ay), (x, y)) > f4x_newgame::node::AURA_REACH as u32
+                || chebyshev(width, (ax, ay), (x, y)) > f4x_newgame::node::AURA_REACH as u32
             {
                 say("aura", format!("the aura of {x},{y} reaches {ax},{ay}"));
             }
@@ -255,7 +255,7 @@ pub fn map_problems(g: &Generated, c: &Content, p: &GenParams, count_rules: bool
         }
         for o in &every {
             // Apart from every tower, node and site of either plane, the one square counted once.
-            if o.at != s.at && chebyshev(w, (o.at.x, o.at.y), at) < SITE_SPACING {
+            if o.at != s.at && chebyshev(width, (o.at.x, o.at.y), at) < SITE_SPACING {
                 say("site-spacing", format!("site {at:?} near {:?}", o.kind));
             }
         }
@@ -301,7 +301,7 @@ pub fn map_problems(g: &Generated, c: &Content, p: &GenParams, count_rules: bool
     for plane in Plane::all() {
         let grid = g.map.plane(plane);
         for y in 0..h {
-            for x in 0..w {
+            for x in 0..width {
                 let Some(m) = grid.mineral(x as i32, y as i32) else {
                     continue;
                 };
@@ -349,7 +349,7 @@ pub fn map_problems(g: &Generated, c: &Content, p: &GenParams, count_rules: bool
     for plane in Plane::all() {
         let grid = g.map.plane(plane);
         for y in 0..h {
-            for x in 0..w {
+            for x in 0..width {
                 let (xi, yi) = (x as i32, y as i32);
                 if grid.has_river(xi, yi)
                     && class_at(g, c, plane, x, y) == Some(TerrainClass::Ocean)
@@ -375,7 +375,7 @@ pub fn map_problems(g: &Generated, c: &Content, p: &GenParams, count_rules: bool
         // `Generate_Climate_Terrain_Types`: a walk of up to ten steps from a square eight or more rows
         // in, with nothing to stop it at the pole). The rule is the noise generator's.
         for y in [0, h - 1].into_iter().filter(|_| !p.original_generator) {
-            for x in 0..w {
+            for x in 0..width {
                 let class = class_at(g, c, plane, x, y);
                 if !matches!(class, Some(TerrainClass::Tundra | TerrainClass::Ocean)) {
                     say("pole", format!("{plane:?} {x},{y} is {class:?}"));
@@ -395,9 +395,9 @@ fn free_node_square(
     plane: Plane,
     sites: &[Site],
 ) -> Option<(u32, u32)> {
-    let (w, h) = (g.map.width(), g.map.height());
+    let (width, h) = (g.map.width(), g.map.height());
     for y in POLE_MARGIN..h.saturating_sub(POLE_MARGIN) {
-        for x in 0..w {
+        for x in 0..width {
             if matches!(
                 class_at(g, c, plane, x, y),
                 Some(TerrainClass::Ocean) | None
@@ -409,7 +409,7 @@ fn free_node_square(
                     && (s.at.plane == plane || s.kind == FeatureKind::Tower);
                 let too_near = (s.kind == FeatureKind::Tower
                     || (s.kind == FeatureKind::Node && s.at.plane == plane))
-                    && dist_sq(w, (s.at.x, s.at.y), (x, y)) < NODE_SPACING * NODE_SPACING;
+                    && dist_sq(width, (s.at.x, s.at.y), (x, y)) < NODE_SPACING * NODE_SPACING;
                 (on_it && s.kind != FeatureKind::Encounter) || too_near
             });
             if !blocked {
@@ -423,10 +423,10 @@ fn free_node_square(
 /// A square where one more encounter site could stand, by the rules: land that some site kind is
 /// allowed on, off the margins, apart from every tower, node and site of either plane.
 fn free_site_square(g: &Generated, c: &Content, sites: &[Site]) -> Option<(Plane, u32, u32)> {
-    let (w, h) = (g.map.width(), g.map.height());
+    let (width, h) = (g.map.width(), g.map.height());
     for plane in Plane::all() {
         for y in SITE_MARGIN..h.saturating_sub(SITE_MARGIN) {
-            for x in 0..w {
+            for x in 0..width {
                 let Some(class) = class_at(g, c, plane, x, y).filter(|&k| k != TerrainClass::Ocean)
                 else {
                     continue;
@@ -441,7 +441,7 @@ fn free_site_square(g: &Generated, c: &Content, sites: &[Site]) -> Option<(Plane
                     matches!(
                         s.kind,
                         FeatureKind::Tower | FeatureKind::Node | FeatureKind::Encounter
-                    ) && chebyshev(w, (s.at.x, s.at.y), (x, y)) < SITE_SPACING
+                    ) && chebyshev(width, (s.at.x, s.at.y), (x, y)) < SITE_SPACING
                 });
                 let taken = sites.iter().any(|s| {
                     (s.at.x, s.at.y) == (x, y)
@@ -461,18 +461,18 @@ fn tag(problems: &[String], rule: &str) -> bool {
 }
 
 /// What the problems of a world say, with the world, so a failure can be repeated.
-fn report(world: World, problems: &[String]) -> String {
-    format!("{world:?}\n  {}", problems.join("\n  "))
+fn report(case: WorldCase, problems: &[String]) -> String {
+    format!("{case:?}\n  {}", problems.join("\n  "))
 }
 
 #[test]
 fn every_world_of_the_matrix_keeps_the_placement_rules() {
     let mut failures = Vec::new();
-    for world in worlds() {
-        let g = generated(world);
-        let problems = map_problems(&g, content(), &params(world), true);
+    for case in worlds() {
+        let g = generated(case);
+        let problems = map_problems(&g, content(), &params(case), true);
         if !problems.is_empty() {
-            failures.push(report(world, &problems));
+            failures.push(report(case, &problems));
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
@@ -694,13 +694,13 @@ fn the_land_is_the_share_asked_for_or_a_little_more() {
     // The noise generator takes the top share of the open sea and adds the polar caps on top; the
     // original's walks stop short by at most a point. Never less than asked, less one.
     let mut failures = Vec::new();
-    for world in worlds() {
-        let g = generated(world);
+    for case in worlds() {
+        let g = generated(case);
         for plane in Plane::all() {
             let got = land_percent(g.map.plane(plane), &content().terrains);
-            let asked = u32::from(world.settings().basic.land_percent);
+            let asked = u32::from(case.settings().basic.land_percent);
             if got + 1 < asked {
-                failures.push(format!("{world:?} {plane:?}: {got}% for {asked}"));
+                failures.push(format!("{case:?} {plane:?}: {got}% for {asked}"));
             }
         }
     }
@@ -710,13 +710,16 @@ fn the_land_is_the_share_asked_for_or_a_little_more() {
 #[test]
 fn more_land_asked_for_is_more_land_made() {
     let share = |variant, land| {
-        let w = World {
+        let case = WorldCase {
             land,
             variant,
             seed: 5,
             ..standard()
         };
-        land_percent(generated(w).map.plane(Plane::Arcanus), &content().terrains)
+        land_percent(
+            generated(case).map.plane(Plane::Arcanus),
+            &content().terrains,
+        )
     };
     // The noise generator: every step up is more land, all the way to 99.
     let noise: Vec<u32> = [10, 30, 60, 90, 99]
@@ -733,11 +736,11 @@ fn more_land_asked_for_is_more_land_made() {
 
 #[test]
 fn the_two_planes_are_not_the_same_land() {
-    for world in worlds()
+    for case in worlds()
         .into_iter()
-        .filter(|w| w.width * w.height >= 45 * 30)
+        .filter(|case| case.width * case.height >= 45 * 30)
     {
-        let g = generated(world);
+        let g = generated(case);
         let (a, b) = (g.map.plane(Plane::Arcanus), g.map.plane(Plane::Myrror));
         // Their terrain ids differ by plane, so compare the land and the sea.
         let is_land = |grid: &f4x_core::map::Grid, x, y| {
@@ -746,7 +749,7 @@ fn the_two_planes_are_not_the_same_land() {
         let same = (0..a.height())
             .flat_map(|y| (0..a.width()).map(move |x| (x, y)))
             .all(|(x, y)| is_land(a, x, y) == is_land(b, x, y));
-        assert!(!same, "{world:?}: both planes have the same coast");
+        assert!(!same, "{case:?}: both planes have the same coast");
     }
 }
 
@@ -759,14 +762,14 @@ fn the_minerals_are_the_share_of_the_land_the_settings_ask_for() {
     // Without an island built out afterwards, the number of minerals of a plane is the share of
     // the free land squares a mineral may stand on, rounded down (what the placing could use).
     let c = content();
-    for world in worlds().into_iter().filter(|w| {
+    for case in worlds().into_iter().filter(|case| {
         !matches!(
-            w.variant,
+            case.variant,
             Variant::OriginalGenerator | Variant::ExtendTinyIslands
-        ) && !params(*w).extend_tiny_islands
+        ) && !params(*case).extend_tiny_islands
     }) {
-        let g = generated(world);
-        let p = params(world);
+        let g = generated(case);
+        let p = params(case);
         for plane in Plane::all() {
             let grid = g.map.plane(plane);
             let minerals = (0..grid.height())
@@ -799,7 +802,7 @@ fn the_minerals_are_the_share_of_the_land_the_settings_ask_for() {
             let share = usize::from(p.planes[plane.index()].mineral_percent);
             // The share is taken of the squares before the minerals were laid, and a mineral
             // square is among those `free` now: the count is that share of `free`.
-            assert_eq!(minerals, free * share / 100, "{world:?} {plane:?}");
+            assert_eq!(minerals, free * share / 100, "{case:?} {plane:?}");
         }
     }
 }
@@ -809,9 +812,9 @@ fn every_node_kind_has_its_share_of_the_nodes() {
     // "Every kind of node gets the same share of the map's nodes": the kinds differ by one at
     // most, when the land had room for them all.
     let c = content();
-    for world in worlds().into_iter().filter(|w| w.land >= 30) {
-        let g = generated(world);
-        let p = params(world);
+    for case in worlds().into_iter().filter(|case| case.land >= 30) {
+        let g = generated(case);
+        let p = params(case);
         let want: usize = p.planes.iter().map(|x| usize::from(x.node_count)).sum();
         let mut by_kind = std::collections::BTreeMap::new();
         for s in &g.placements {
@@ -830,15 +833,15 @@ fn every_node_kind_has_its_share_of_the_nodes() {
             by_kind.values().min().copied().unwrap_or(0),
             by_kind.values().max().copied().unwrap_or(0),
         );
-        assert!(max - min <= 1, "{world:?}: {by_kind:?}");
+        assert!(max - min <= 1, "{case:?}: {by_kind:?}");
     }
 }
 
 #[test]
 fn nodes_of_myrror_are_stronger_than_nodes_of_arcanus_on_the_whole() {
     let (mut arcanus, mut myrror) = ((0usize, 0usize), (0usize, 0usize));
-    for world in worlds() {
-        for s in &generated(world).placements {
+    for case in worlds() {
+        for s in &generated(case).placements {
             if let Some(n) = &s.node {
                 let side = if s.at.plane == Plane::Arcanus {
                     &mut arcanus
@@ -907,8 +910,8 @@ fn rivers_and_lakes_exist_on_the_standard_map() {
 fn every_mineral_kind_a_plane_allows_is_made_on_it_somewhere_in_the_matrix() {
     let c = content();
     let mut made = std::collections::BTreeSet::new();
-    for world in worlds() {
-        let g = generated(world);
+    for case in worlds() {
+        let g = generated(case);
         for plane in Plane::all() {
             let grid = g.map.plane(plane);
             for y in 0..grid.height() {
@@ -949,14 +952,14 @@ fn every_size_the_settings_allow_makes_a_map_that_keeps_the_rules() {
     );
     for width in ws.clone().step_by(7).chain([*ws.end()]) {
         for height in hs.clone().step_by(7).chain([*hs.end()]) {
-            let world = World {
+            let case = WorldCase {
                 width,
                 height,
                 seed: 9,
                 ..std
             };
-            let problems = map_problems(&generated(world), content(), &params(world), true);
-            assert!(problems.is_empty(), "{world:?}: {problems:?}");
+            let problems = map_problems(&generated(case), content(), &params(case), true);
+            assert!(problems.is_empty(), "{case:?}: {problems:?}");
         }
     }
 }

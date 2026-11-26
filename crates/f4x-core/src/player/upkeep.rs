@@ -1,16 +1,16 @@
 //! The wizard's choice of what to give up when the mana reserve cannot pay the upkeep.
 //!
 //! The turn end drops the highest upkeep by itself (the cheapest to replace first among equals) until the reserve covers the rest
-//! (`magic::upkeep_plan`). A player who would like to choose asks [`Game::upkeep_shortfall`]
+//! (`magic::upkeep_plan`). A player who would like to choose asks [`World::upkeep_shortfall`]
 //! before ending the turn, and answers with `Command::ReleaseUpkeep`: what is released goes
 //! at once, so the turn change finds the reserve enough (or drops only what is still short).
 //!
-//! Tests: in wizard/magic_game/tests.rs.
+//! Tests: in wizard/magic_world/tests.rs.
 
-use crate::game::{Event, Game};
 use crate::player::PlayerId;
 use crate::spell::cast::{UpkeepItem, UpkeepKind};
 use crate::wizard::magic::MagicError;
+use crate::world::{Event, World};
 use f4x_def::half_int::HalfInt;
 
 /// One thing the wizard pays mana for each turn.
@@ -53,7 +53,7 @@ impl Shortfall {
     }
 }
 
-impl Game {
+impl World {
     /// The shortfall the wizard faces at the next turn change, or `None` when the reserve
     /// (with the coming mana income) pays the whole upkeep.
     pub fn upkeep_shortfall(&self, player: PlayerId) -> Option<Shortfall> {
@@ -108,7 +108,7 @@ impl Game {
         if self.upkeep_shortfall(player).is_some() {
             events.push(Event::Shortage {
                 player,
-                what: crate::game::Shortage::Mana,
+                what: crate::world::Shortage::Mana,
             });
         }
         for item in chosen {

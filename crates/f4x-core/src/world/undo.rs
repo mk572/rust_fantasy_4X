@@ -1,13 +1,13 @@
 //! Undoing orders within a turn.
 //!
-//! When undo is switched on (`Game::set_undo`), every command saves a snapshot of the game
-//! first, and `Game::undo` goes back one command. Undo never gives an unfair look at hidden
+//! When undo is switched on (`World::set_undo`), every command saves a snapshot of the game
+//! first, and `World::undo` goes back one command. Undo never gives an unfair look at hidden
 //! things or a second try at luck, so a command that explored new squares, drew from the
 //! random generator, or started a battle cannot be taken back, and neither can anything
 //! before it. Ending the turn clears the history.
 
-use crate::game::save::Snapshot;
-use crate::game::{Command, Event, Game};
+use crate::world::save::Snapshot;
+use crate::world::{Command, Event, World};
 
 /// How many commands back one can go.
 const DEPTH: usize = 32;
@@ -35,7 +35,7 @@ fn label_of(command: &Command) -> String {
         .to_string()
 }
 
-impl Game {
+impl World {
     /// A refused command changed nothing, so it is not part of the record.
     fn forget_if_rejected(&mut self, events: &[Event]) {
         if events.iter().any(|e| matches!(e, Event::Rejected(_))) {
@@ -80,7 +80,7 @@ impl Game {
     /// Run a command, recording how to take it back when that is allowed.
     pub fn apply(&mut self, command: Command) -> Vec<Event> {
         if self.game_over.is_some() {
-            return vec![Event::Rejected(crate::game::Rejection::GameOver)];
+            return vec![Event::Rejected(crate::world::Rejection::GameOver)];
         }
         self.record_command(&command);
         if !self.undo_on || self.battle.is_some() {
@@ -134,11 +134,11 @@ impl Game {
         let recording = self.recording.take();
         let content = self.content.clone();
         match entry.snapshot.restore(content) {
-            Ok(mut game) => {
-                game.undo_on = true;
-                game.undo_stack = rest;
-                game.recording = recording;
-                *self = game;
+            Ok(mut world) => {
+                world.undo_on = true;
+                world.undo_stack = rest;
+                world.recording = recording;
+                *self = world;
                 self.forget_last_command();
                 Ok(entry.label)
             }

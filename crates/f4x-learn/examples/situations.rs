@@ -1,4 +1,4 @@
-//! Fights the scripted battle AI (`Game::next_battle_command`, both sides) in the situations the
+//! Fights the scripted battle AI (`World::next_battle_command`, both sides) in the situations the
 //! generated scenarios do not hold: each terrain class, each kind of site (lair, tower, node),
 //! with and without a hero carrying an item. Prints one line for each situation and flags the
 //! battles that were refused a command, panicked, stalled or hit the command limit.
@@ -6,8 +6,8 @@
 //! `cargo run --release -p f4x-learn --example situations -- [--seeds N] [--content DIR]`
 
 use f4x_core::battle::{BattleCommand, BattleEvent};
-use f4x_core::game::{Event, Game};
 use f4x_core::map::terrain::TerrainClass;
+use f4x_core::world::{Event, World};
 use f4x_learn::build::{build_at, Spot};
 use f4x_learn::scenario::generate_raw;
 
@@ -29,10 +29,10 @@ struct Tally {
     panicked: u32,
 }
 
-fn fight(game: &mut Game, tally: &mut Tally) {
+fn fight(world: &mut World, tally: &mut Tally) {
     let mut steps = 0u32;
-    while game.in_battle() && steps < LIMIT {
-        let Some(command) = game.next_battle_command() else {
+    while world.in_battle() && steps < LIMIT {
+        let Some(command) = world.next_battle_command() else {
             break;
         };
         if matches!(command, BattleCommand::EndTurn) {
@@ -41,7 +41,7 @@ fn fight(game: &mut Game, tally: &mut Tally) {
         if matches!(command, BattleCommand::UnitCast { .. }) {
             tally.unit_casts += 1;
         }
-        match game.battle_command(command.clone()) {
+        match world.battle_command(command.clone()) {
             Ok(events) => {
                 for e in &events {
                     match e {
@@ -65,7 +65,7 @@ fn fight(game: &mut Game, tally: &mut Tally) {
     }
     tally.commands += u64::from(steps);
     tally.longest = tally.longest.max(steps);
-    if game.in_battle() && tally.refused.is_empty() {
+    if world.in_battle() && tally.refused.is_empty() {
         tally.stalled += 1;
     }
 }
@@ -131,13 +131,13 @@ fn main() {
             let mut tally = Tally::default();
             for seed in 0..seeds {
                 let scenario = generate_raw(&content, seed);
-                let Ok(mut game) = build_at(&content, &scenario, spot, seed as usize, hero) else {
+                let Ok(mut world) = build_at(&content, &scenario, spot, seed as usize, hero) else {
                     tally.no_square += 1;
                     continue;
                 };
                 tally.fights += 1;
                 let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    fight(&mut game, &mut tally)
+                    fight(&mut world, &mut tally)
                 }));
                 if caught.is_err() {
                     tally.panicked += 1;

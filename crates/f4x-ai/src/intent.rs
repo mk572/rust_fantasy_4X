@@ -274,7 +274,7 @@ mod tests {
         at, game, game_rival_across, shipped, spawn, COAST_CITY, ENEMY_CITY, P0, P1,
     };
     use f4x_core::diplomacy::DiplomacyCommand;
-    use f4x_core::game::{Command, Game};
+    use f4x_core::world::{Command, World};
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -286,26 +286,26 @@ mod tests {
             .ok_or(format!("spell {num} is shipped"))
     }
 
-    fn war(g: &mut Game) {
-        g.make_contact(P0, P1);
-        g.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+    fn war(w: &mut World) {
+        w.make_contact(P0, P1);
+        w.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
             player: P0,
             on: P1,
         }));
     }
 
-    fn books(g: &mut Game, player: f4x_core::player::PlayerId, books: &[(u16, u8)]) {
+    fn books(w: &mut World, player: f4x_core::player::PlayerId, books: &[(u16, u8)]) {
         let realms: Vec<_> = books.iter().map(|&(r, n)| (RealmId::new(r), n)).collect();
-        if let Some(mut w) = g.wizard_mut(player) {
-            w.found(&shipped().rules, &realms, &[]);
+        if let Some(mut wizard) = w.wizard_mut(player) {
+            wizard.found(&shipped().rules, &realms, &[]);
         }
     }
 
-    fn wanted(g: &Game, num: u16) -> Result<bool, String> {
+    fn wanted(w: &World, num: u16) -> Result<bool, String> {
         let id = spell(num)?;
         Ok(global_wanted(
-            &PlayerView::new(g, P0),
-            g.content().rules.spells.get(id),
+            &PlayerView::new(w, P0),
+            w.content().rules.spells.get(id),
         ))
     }
 
@@ -352,45 +352,45 @@ mod tests {
     #[test]
     fn a_boon_is_wanted_at_peace_a_realm_spell_by_a_wizard_of_the_realm_a_strike_at_war(
     ) -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.make_contact(P0, P1);
-        assert!(wanted(&g, 34 /* nature_awareness */)?, "a boon, at peace");
-        assert!(!wanted(&g, 199 /* death_wish */)?, "a strike needs a war");
-        books(&mut g, P0, &[(3 /* life */, 5)]);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.make_contact(P0, P1);
+        assert!(wanted(&w, 34 /* nature_awareness */)?, "a boon, at peace");
+        assert!(!wanted(&w, 199 /* death_wish */)?, "a strike needs a war");
+        books(&mut w, P0, &[(3 /* life */, 5)]);
         assert!(
-            !wanted(&g, 116 /* chaos_surge */)?,
+            !wanted(&w, 116 /* chaos_surge */)?,
             "a life wizard has no use for it"
         );
-        books(&mut g, P0, &[(2 /* chaos */, 5)]);
-        assert!(wanted(&g, 116 /* chaos_surge */)?, "a chaos wizard does");
-        war(&mut g);
-        assert!(wanted(&g, 199 /* death_wish */)?, "at war");
-        assert!(!wanted(&g, 135 /* planar_seal */)?, "never");
+        books(&mut w, P0, &[(2 /* chaos */, 5)]);
+        assert!(wanted(&w, 116 /* chaos_surge */)?, "a chaos wizard does");
+        war(&mut w);
+        assert!(wanted(&w, 199 /* death_wish */)?, "at war");
+        assert!(!wanted(&w, 135 /* planar_seal */)?, "never");
         Ok(())
     }
 
     #[test]
     fn a_spell_against_a_realm_needs_an_enemy_with_its_books_and_a_caster_it_does_not_hurt(
     ) -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        war(&mut g);
-        books(&mut g, P1, &[(3 /* life */, 5)]);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        war(&mut w);
+        books(&mut w, P1, &[(3 /* life */, 5)]);
         assert!(
-            !wanted(&g, 156 /* life_force */)?,
+            !wanted(&w, 156 /* life_force */)?,
             "no death books on the other side"
         );
         assert!(
-            wanted(&g, 198 /* evil_omens */)?,
+            wanted(&w, 198 /* evil_omens */)?,
             "life books on the other side"
         );
-        books(&mut g, P0, &[(0 /* nature */, 3)]);
+        books(&mut w, P0, &[(0 /* nature */, 3)]);
         assert!(
-            !wanted(&g, 198 /* evil_omens */)?,
+            !wanted(&w, 198 /* evil_omens */)?,
             "it would cost the caster's own nature spells as well"
         );
-        books(&mut g, P1, &[(4 /* death */, 5)]);
+        books(&mut w, P1, &[(4 /* death */, 5)]);
         assert!(
-            wanted(&g, 156 /* life_force */)?,
+            wanted(&w, 156 /* life_force */)?,
             "death books on the other side"
         );
         Ok(())
@@ -398,18 +398,18 @@ mod tests {
 
     #[test]
     fn great_unsummoning_is_not_cast_while_the_wizard_has_creatures_of_its_own() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        war(&mut g);
-        assert!(wanted(&g, 75 /* great_unsummoning */)?);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        war(&mut w);
+        assert!(wanted(&w, 75 /* great_unsummoning */)?);
         spawn(
-            &mut g,
+            &mut w,
             P0,
             at(COAST_CITY.0, COAST_CITY.1),
             179, /* war_bears */
             1,
         );
         assert!(
-            !wanted(&g, 75 /* great_unsummoning */)?,
+            !wanted(&w, 75 /* great_unsummoning */)?,
             "it would banish the bears too"
         );
         Ok(())
@@ -417,25 +417,25 @@ mod tests {
 
     #[test]
     fn a_storm_goes_to_an_enemy_stack_by_a_city_and_only_at_war() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.make_contact(P0, P1);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.make_contact(P0, P1);
         let storm = spell(25 /* ice_storm */)?;
         spawn(
-            &mut g,
+            &mut w,
             P1,
             at(COAST_CITY.0 + 1, COAST_CITY.1),
             104, /* high_men_spearmen */
             4,
         );
-        g.reveal_map(P0);
+        w.reveal_map(P0);
         assert_eq!(
-            strike_square(&PlayerView::new(&g, P0), storm),
+            strike_square(&PlayerView::new(&w, P0), storm),
             None,
             "at peace"
         );
-        war(&mut g);
+        war(&mut w);
         assert_eq!(
-            strike_square(&PlayerView::new(&g, P0), storm),
+            strike_square(&PlayerView::new(&w, P0), storm),
             Some(Target::Tile(at(COAST_CITY.0 + 1, COAST_CITY.1)))
         );
         Ok(())
@@ -443,17 +443,17 @@ mod tests {
 
     #[test]
     fn corruption_goes_to_the_land_beside_an_enemy_city_at_war() -> TestResult {
-        let mut g = game_rival_across(COAST_CITY, 8 /* high_men */);
-        g.make_contact(P0, P1);
-        g.reveal_map(P0);
+        let mut w = game_rival_across(COAST_CITY, 8 /* high_men */);
+        w.make_contact(P0, P1);
+        w.reveal_map(P0);
         let corruption = spell(85 /* corruption */)?;
         assert_eq!(
-            land_curse_target(&PlayerView::new(&g, P0), corruption),
+            land_curse_target(&PlayerView::new(&w, P0), corruption),
             None,
             "at peace"
         );
-        war(&mut g);
-        let Some(Target::Tile(square)) = land_curse_target(&PlayerView::new(&g, P0), corruption)
+        war(&mut w);
+        let Some(Target::Tile(square)) = land_curse_target(&PlayerView::new(&w, P0), corruption)
         else {
             return Err("no square for Corruption".into());
         };
@@ -470,9 +470,9 @@ mod tests {
 
     #[test]
     fn a_volcano_goes_to_a_free_square_beside_an_own_city() -> TestResult {
-        let g = game(COAST_CITY, 8 /* high_men */);
+        let w = game(COAST_CITY, 8 /* high_men */);
         let Some(Target::Tile(square)) =
-            land_boost_target(&PlayerView::new(&g, P0), spell(98 /* raise_volcano */)?)
+            land_boost_target(&PlayerView::new(&w, P0), spell(98 /* raise_volcano */)?)
         else {
             return Err("no square for a volcano".into());
         };

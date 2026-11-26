@@ -10,8 +10,8 @@
 //!
 //! Structure (`docs/archive/architecture-plan.md`): the rules are methods of [`Diplomacy`], which
 //! owns the state and takes a [`DiplomacyCtx`] with what it needs of the rest of the game: a
-//! read-only [`Game`], the random numbers and a list of changes it asks the game to make
-//! ([`Outcome`]: gold moved, a spell learned). `Game` only lends it out for a call
+//! read-only [`World`], the random numbers and a list of changes it asks the game to make
+//! ([`Outcome`]: gold moved, a spell learned). `World` only lends it out for a call
 //! (`with_diplomacy`) and has thin methods for the other modules and the
 //! crates around. Tests of the rules run on a real game.
 //!
@@ -23,12 +23,12 @@ pub use trade::Goods;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-use crate::game::rng::GameRng;
-use crate::game::{Event, Game};
 use crate::map::Position;
 use crate::player::PlayerId;
 use crate::rules::SpellId;
 use crate::wizard::objective::Personality;
+use crate::world::rng::GameRng;
+use crate::world::{Event, World};
 
 /// What a wizard is bound to with another.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -361,11 +361,11 @@ fn key(a: PlayerId, b: PlayerId) -> (u8, u8) {
 const ORIGINAL_PLANE_SQUARES: i32 = 60 * 40;
 
 /// The land size of the game: 0 small, 1 medium, 2 large.
-fn land_size(view: &Game) -> i32 {
+fn land_size(view: &World) -> i32 {
     let land = view.settings.basic.land_percent;
-    if land <= crate::game::setting::LAND_SMALL {
+    if land <= crate::world::setting::LAND_SMALL {
         0
-    } else if land <= crate::game::setting::LAND_MEDIUM {
+    } else if land <= crate::world::setting::LAND_MEDIUM {
         1
     } else {
         2
@@ -374,7 +374,7 @@ fn land_size(view: &Game) -> i32 {
 
 /// The cities a wizard may hold before the others take it amiss (`(landsize + 1) * 3` on a medium
 /// map, more on a larger one, in step with its land).
-fn city_allowance(view: &Game) -> i32 {
+fn city_allowance(view: &World) -> i32 {
     let basic = &view.settings.basic;
     let squares = i32::from(basic.map_width) * i32::from(basic.map_height);
     ((land_size(view) + 1) * 3 * squares / ORIGINAL_PLANE_SQUARES).max(3)
@@ -400,11 +400,11 @@ impl Diplomacy {
 
 /// The wizards `player` meets by what it sees now: the owners of the cities and of the units it
 /// can make out on the squares in its sight, in player order.
-pub fn met_in_sight(view: &Game, player: PlayerId) -> Vec<PlayerId> {
+pub fn met_in_sight(view: &World, player: PlayerId) -> Vec<PlayerId> {
     owners(view.foreign_sightings(player))
 }
 
-fn owners(sightings: Vec<crate::game::view::Sighting>) -> Vec<PlayerId> {
+fn owners(sightings: Vec<crate::world::view::Sighting>) -> Vec<PlayerId> {
     let mut met: Vec<PlayerId> = sightings.into_iter().map(|s| s.owner).collect();
     met.sort();
     met.dedup();
@@ -412,7 +412,7 @@ fn owners(sightings: Vec<crate::game::view::Sighting>) -> Vec<PlayerId> {
 }
 
 /// The total cost of a wizard's units.
-pub fn army_strength(view: &Game, player: PlayerId) -> i32 {
+pub fn army_strength(view: &World, player: PlayerId) -> i32 {
     view.units_of(player).iter().map(|u| u.cost as i32).sum()
 }
 
@@ -420,7 +420,7 @@ pub fn army_strength(view: &Game, player: PlayerId) -> i32 {
 /// view of the world, the random numbers, and the difficulty. What they must change outside
 /// diplomacy (gold, a spell learned) they leave in `out` for the game to apply.
 pub struct DiplomacyCtx<'a> {
-    pub view: &'a Game,
+    pub view: &'a World,
     pub rng: &'a mut GameRng,
     pub out: Vec<Outcome>,
 }
@@ -432,17 +432,17 @@ pub enum Outcome {
     Item {
         from: PlayerId,
         to: PlayerId,
-        item: crate::game::serial::Serial,
+        item: crate::world::serial::Serial,
     },
     /// A unit changes owner and appears in `to`'s closest city with room.
     Unit {
         to: PlayerId,
-        unit: crate::game::serial::Serial,
+        unit: crate::world::serial::Serial,
     },
     /// A hero changes owner the same way, with its experience and its items.
     Hero {
         to: PlayerId,
-        hero: crate::game::serial::Serial,
+        hero: crate::world::serial::Serial,
     },
     /// Move gold from one wizard's treasury to another's.
     Gold {
@@ -458,14 +458,14 @@ pub enum Outcome {
 }
 
 /// Every wizard still in the game, in player order.
-pub fn wizards(view: &Game) -> Vec<PlayerId> {
+pub fn wizards(view: &World) -> Vec<PlayerId> {
     let mut out = view.living_wizards();
     out.sort();
     out
 }
 
 impl Diplomacy {
-    fn pair_mut(&mut self, _view: &Game, a: PlayerId, b: PlayerId) -> &mut Pair {
+    fn pair_mut(&mut self, _view: &World, a: PlayerId, b: PlayerId) -> &mut Pair {
         self.pairs.entry(key(a, b)).or_insert_with(|| Pair {
             contacted: false,
             status: Treaty::None,
@@ -484,7 +484,7 @@ impl Diplomacy {
     }
 
     /// How many turns the two have been at war (none when they are not).
-    pub fn war_age(&self, view: &Game, a: PlayerId, b: PlayerId) -> Option<u32> {
+    pub fn war_age(&self, view: &World, a: PlayerId, b: PlayerId) -> Option<u32> {
         self.pair(a, b)
             .and_then(|p| p.war_since)
             .map(|since| view.turn.saturating_sub(since))
@@ -492,7 +492,7 @@ impl Diplomacy {
 
     /// How many cities `a` has gained since its war with `b` began (negative: lost). None when
     /// they are not at war.
-    pub fn war_gain(&self, view: &Game, a: PlayerId, b: PlayerId) -> Option<i32> {
+    pub fn war_gain(&self, view: &World, a: PlayerId, b: PlayerId) -> Option<i32> {
         let pair = self.pair(a, b)?;
         pair.war_since?;
         let at_start = pair.war_cities[usize::from(a.0 > b.0)];
@@ -669,7 +669,7 @@ impl Diplomacy {
     /// Whether `from` may put `kind` to `to` now: the entries the original greys out.
     pub fn check_proposal(
         &self,
-        view: &Game,
+        view: &World,
         from: PlayerId,
         to: PlayerId,
         kind: ProposalKind,
@@ -925,7 +925,7 @@ impl Diplomacy {
         Ok(())
     }
 
-    fn check_gift(&self, view: &Game, from: PlayerId, to: PlayerId) -> Result<(), DiplomacyError> {
+    fn check_gift(&self, view: &World, from: PlayerId, to: PlayerId) -> Result<(), DiplomacyError> {
         if !view.takes_part_in_diplomacy(from) || !view.takes_part_in_diplomacy(to) {
             return Err(DiplomacyError::NotWizards);
         }
@@ -958,7 +958,7 @@ impl Diplomacy {
             | DiplomacyCommand::Remark { from, .. } => Some(from),
         };
         if actor.is_some_and(|a| ctx.view.wizard(a).is_some_and(|w| w.is_banished())) {
-            return vec![Event::Rejected(crate::game::Rejection::Diplomacy(
+            return vec![Event::Rejected(crate::world::Rejection::Diplomacy(
                 DiplomacyError::Banished,
             ))];
         }
@@ -1018,7 +1018,7 @@ impl Diplomacy {
         };
         let mut events = Vec::new();
         if let Err(e) = result {
-            events.push(Event::Rejected(crate::game::Rejection::Diplomacy(e)));
+            events.push(Event::Rejected(crate::world::Rejection::Diplomacy(e)));
         }
         events
     }
@@ -1099,7 +1099,7 @@ impl Diplomacy {
     }
 
     /// A battle between two wizards: they meet. A treaty between them is never broken here: an attack
-    /// on a treaty partner is refused until a player has broken the treaty (`Game::bound_by_treaty`).
+    /// on a treaty partner is refused until a player has broken the treaty (`World::bound_by_treaty`).
     pub(crate) fn attack_relations(
         &mut self,
         ctx: &mut DiplomacyCtx<'_>,
@@ -1198,7 +1198,7 @@ impl Diplomacy {
     }
 }
 
-impl Game {
+impl World {
     /// Lend diplomacy out for one call: its state and the random numbers are taken out of the
     /// game, so the rules can run over a read-only view of what is left (`design.md` section 3),
     /// and what they ask of the rest of the game is applied afterwards.
@@ -1241,7 +1241,7 @@ impl Game {
     }
 
     /// An item of `from` goes to `to` (a trade): out of the armory, into the other's.
-    fn pass_item(&mut self, from: PlayerId, to: PlayerId, serial: crate::game::serial::Serial) {
+    fn pass_item(&mut self, from: PlayerId, to: PlayerId, serial: crate::world::serial::Serial) {
         let Some((entity, item)) = trade::armory_item(self, from, serial) else {
             return;
         };
@@ -1251,7 +1251,7 @@ impl Game {
 
     /// A unit of a city goes to `to` (a trade): it changes owner, appears at the delivery square
     /// and drops its orders.
-    fn pass_unit(&mut self, to: PlayerId, serial: crate::game::serial::Serial) {
+    fn pass_unit(&mut self, to: PlayerId, serial: crate::world::serial::Serial) {
         let Some(unit) = self.units().entity_of_serial(serial) else {
             return;
         };
@@ -1263,9 +1263,9 @@ impl Game {
             return;
         };
         self.set_owner(unit, to);
-        let _ = self.world.insert_one(unit, at);
+        let _ = self.ecs.insert_one(unit, at);
         self.watch_tile(at);
-        let _ = self.world.remove_one::<crate::unit::Order>(unit);
+        let _ = self.ecs.remove_one::<crate::unit::Order>(unit);
     }
 
     /// Take off every city the spells that `a` and `b` cast on each other's cities.
@@ -1568,7 +1568,7 @@ impl Diplomacy {
     }
 }
 
-impl Game {
+impl World {
     pub(crate) fn diplomacy_to_save(&self) -> DiplomacySave {
         let mut save = self.diplomacy.to_save();
         for id in self.player_ids() {
@@ -1613,13 +1613,13 @@ impl Game {
 #[cfg(test)]
 mod fact_tests {
     use super::*;
-    use crate::game::testutil::fresh;
+    use crate::world::testutil::fresh;
 
     /// The diplomacy events a closure raises.
-    fn raised(g: &mut Game, f: impl FnOnce(&mut Game)) -> Vec<DiplomacyEvent> {
-        g.drain_diplomacy_events();
-        f(g);
-        g.drain_diplomacy_events()
+    fn raised(w: &mut World, f: impl FnOnce(&mut World)) -> Vec<DiplomacyEvent> {
+        w.drain_diplomacy_events();
+        f(w);
+        w.drain_diplomacy_events()
             .into_iter()
             .filter_map(|e| match e {
                 Event::Diplomacy(d) => Some(d),
@@ -1630,44 +1630,44 @@ mod fact_tests {
 
     #[test]
     fn the_hooks_report_what_happened_for_the_ais_opinions() {
-        let mut g = fresh(3, 3).expect("a game");
-        let w = g.wizards();
-        let (a, b, c) = (w[0], w[1], w[2]);
-        for &x in &w {
-            for &y in &w {
-                g.make_contact(x, y);
+        let mut w = fresh(3, 3).expect("a game");
+        let ids = w.wizards();
+        let (a, b, c) = (ids[0], ids[1], ids[2]);
+        for &x in &ids {
+            for &y in &ids {
+                w.make_contact(x, y);
             }
         }
         let spell = SpellId::new(85);
-        let events = raised(&mut g, |g| g.city_held_relations(a, b, true));
+        let events = raised(&mut w, |w| w.city_held_relations(a, b, true));
         assert!(events.contains(&DiplomacyEvent::AssaultFailed {
             attacker: a,
             defender: b,
             fortress: true
         }));
-        let events = raised(&mut g, |g| g.conquest_relations(a, b, false));
+        let events = raised(&mut w, |w| w.conquest_relations(a, b, false));
         assert!(events.contains(&DiplomacyEvent::FortressTaken {
             winner: a,
             loser: b
         }));
-        let events = raised(&mut g, |g| g.conquest_relations(a, c, true));
+        let events = raised(&mut w, |w| w.conquest_relations(a, c, true));
         assert!(events.contains(&DiplomacyEvent::WizardDestroyed {
             winner: a,
             loser: c
         }));
-        let events = raised(&mut g, |g| g.cast_relations(a, spell, Some(b)));
+        let events = raised(&mut w, |w| w.cast_relations(a, spell, Some(b)));
         assert!(events.contains(&DiplomacyEvent::CitySpellCast {
             caster: a,
             owner: b,
             spell
         }));
-        let events = raised(&mut g, |g| g.subvert(a, b));
+        let events = raised(&mut w, |w| w.subvert(a, b));
         assert!(events.contains(&DiplomacyEvent::Subverted {
             caster: a,
             target: b
         }));
         // A spell nobody was hit by says nothing about a city.
-        let events = raised(&mut g, |g| g.cast_relations(a, spell, None));
+        let events = raised(&mut w, |w| w.cast_relations(a, spell, None));
         assert!(!events
             .iter()
             .any(|e| matches!(e, DiplomacyEvent::CitySpellCast { .. })));

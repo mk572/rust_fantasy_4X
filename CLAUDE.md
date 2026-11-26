@@ -41,7 +41,7 @@ Refer to `docs/ecs-structure.md`
 - **Rust and testing rules** (safe coding, error handling, testing on the actual game data and rules,
   error handling and quality of tests) are in `docs/rust_coding_rules.md`; follow them when writing or
   changing code and tests. A test never carries a game rule of its own (a limit, a count, a price): it reads
-  it from the game (`g.max_tile()`, the shipped content); `scripts/imaginary_tests.py` flags the offenders.
+  it from the game (`w.max_tile()`, the shipped content); `scripts/imaginary_tests.py` flags the offenders.
 
 - **The `.ron` content is hash-guarded**: each crate with `.ron` files has a `content.sha256` and a test
   that fails when a file differs. After a change of content made on purpose, run

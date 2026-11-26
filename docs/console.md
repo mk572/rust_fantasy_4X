@@ -10,7 +10,7 @@ command, and the commands are split by what they let you do:
 | Kind | Meaning | When it runs |
 |---|---|---|
 | **query** | Reads the game (and the console's own settings). | always |
-| **legal** | Anything a player may do in normal play. Sent through `Game::apply` as the same `Command`s the client uses, with ownership checked. | always (unless the console is read-only) |
+| **legal** | Anything a player may do in normal play. Sent through `World::apply` as the same `Command`s the client uses, with ownership checked. | always (unless the console is read-only) |
 
 `help` lists every command with its kind; `help <command>` describes one.
 
@@ -138,7 +138,7 @@ wizard's units) and queries see everything.
 
 **A cheated game stays marked.** Switching the mode on writes `mode override` to the game's override log,
 and every override command after it; the log is saved, so the mark survives save and load
-(`Game::cheated()`, true when the log is not empty). Going back to `mode legal` does not clear it. When a
+(`World::cheated()`, true when the log is not empty). Going back to `mode legal` does not clear it. When a
 cheated game ends, the score is **not entered in the Hall of Fame** and the game log says so
 (`end.hall_cheated`). Debug mutators called from tests or the client's debug screens do not write the
 log, only the console and `cheat_event` do.
@@ -155,7 +155,7 @@ let all = f4x_console::commands();                      // the table: name, kind
 let hits = console.complete("spa");                     // names this console may run
 ```
 
-- **One entry point.** `Console::execute(&mut Game, &str) -> Reply` parses, checks the kind
+- **One entry point.** `Console::execute(&mut World, &str) -> Reply` parses, checks the kind
   against the access and mode, runs, and returns text lines, the core `Event`s and a typed
   `ConsoleError` (`Unknown`, `Usage`, `Parse`, `NoSuch`, `NotAllowed`, `Refused`, `Failed`).
 - **Introspection.** `commands()` is the same table the console runs, with each command's
@@ -163,11 +163,11 @@ let hits = console.complete("spa");                     // names this console ma
   server maps each command to a tool, the `commands` query gives the same as text).
 - **Access, not trust.** A front end is given the access it may use and nothing can raise it
   from inside; an AI player gets `Play`, a remote spectator `ReadOnly`.
-- **One path to the rules.** Legal commands call `Game::apply`. The debug mutators in
-  `f4x-core/src/game/cheat.rs` are not reachable from the console.
+- **One path to the rules.** Legal commands call `World::apply`. The debug mutators in
+  `f4x-core/src/world/cheat.rs` are not reachable from the console.
 - **Same state.** The console holds no game state of its own (only the player it acts as, the
-  mode and the access); `load` and `new` replace the `Game` it was given, so a front end can
-  keep its own copy in step by reading `Game` after each line.
+  mode and the access); `load` and `new` replace the `World` it was given, so a front end can
+  keep its own copy in step by reading `World` after each line.
 
 To add a command: write a handler `fn(&mut Ctx, &Args) -> Result<(), ConsoleError>` in the
 fitting module (`query.rs`, `legal.rs`, `meta.rs`), add it to that module's

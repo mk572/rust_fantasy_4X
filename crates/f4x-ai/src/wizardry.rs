@@ -5,11 +5,11 @@
 //! whole wizard.
 
 use f4x_core::diplomacy::Treaty;
-use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::rules::exec::Target;
 use f4x_core::spell::unit_effect::UnitEffect;
+use f4x_core::world::{Command, Event, World};
 use f4x_def::rules::effects::Effect;
 use f4x_def::rules::{CastContext, Duration, SpellDef, SpellId, SpellTarget};
 
@@ -395,15 +395,15 @@ fn cast_rank(k: Kind, traits: &crate::objective::Traits) -> i32 {
 }
 
 /// Everything the wizard does with its magic in a turn.
-pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
-    fund_return(ai, game, events);
-    alchemy(ai, game, events);
-    stop_aimless(ai, game, events);
-    resolve_paid(ai, game, events);
-    split(ai, game, events);
-    research(ai, game, events);
-    cast(ai, game, events);
-    crate::craft::run(ai, game, events);
+pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
+    fund_return(ai, world, events);
+    alchemy(ai, world, events);
+    stop_aimless(ai, world, events);
+    resolve_paid(ai, world, events);
+    split(ai, world, events);
+    research(ai, world, events);
+    cast(ai, world, events);
+    crate::craft::run(ai, world, events);
 }
 
 /// Gold a wizard keeps; what is above it, once the cities have bought what they can, is turned
@@ -439,9 +439,9 @@ fn mana_wanted(view: &PlayerView, blocked: &[f4x_core::map::Plane]) -> i32 {
 /// A wizard rich in gold and short of the mana for a summon it could cast turns just enough of the
 /// surplus gold into mana for it (Alchemy returns a percent of what is put in). Mana it has no use
 /// for is not bought.
-fn alchemy(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
+fn alchemy(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
     let gold = {
-        let view = PlayerView::new(game, ai.player);
+        let view = PlayerView::new(world, ai.player);
         let Some(w) = view.wizard() else {
             return;
         };
@@ -458,7 +458,7 @@ fn alchemy(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     };
     if gold > 0 {
         ai.order(
-            game,
+            world,
             Command::Alchemy {
                 player: ai.player,
                 amount: gold,
@@ -472,16 +472,16 @@ fn alchemy(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 /// A banished wizard pays the Spell of Return from its mana reserve and has no income. When the
 /// reserve does not cover this turn's payment it turns as much gold as it needs into mana, and no
 /// more (a choice of the script, not a rule).
-fn fund_return(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
+fn fund_return(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
     let me = ai.player;
     let gold = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         let Some(w) = view.wizard() else {
             return;
         };
         let Some(casting) = w
             .casting()
-            .filter(|c| game.spell_has_hook(c.spell, f4x_core::spell::special::SPELL_OF_RETURN))
+            .filter(|c| world.spell_has_hook(c.spell, f4x_core::spell::special::SPELL_OF_RETURN))
         else {
             return;
         };
@@ -505,7 +505,7 @@ fn fund_return(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     };
     if gold > 0 {
         ai.order(
-            game,
+            world,
             Command::Alchemy {
                 player: me,
                 amount: gold,
@@ -518,16 +518,16 @@ fn fund_return(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 
 /// The game asks a wizard whose spell has nothing to aim at whether to stop casting it; the AI
 /// answers yes, as a human would.
-fn stop_aimless(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
-    let Some(spell) = game
+fn stop_aimless(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
+    let Some(spell) = world
         .wizard(ai.player)
         .and_then(|m| m.casting())
         .map(|c| c.spell)
     else {
         return;
     };
-    if game.spell_needs_target(ai.player, spell) && !game.spell_has_target(ai.player, spell) {
-        ai.order(game, Command::CancelCast { player: ai.player }, events);
+    if world.spell_needs_target(ai.player, spell) && !world.spell_has_target(ai.player, spell) {
+        ai.order(world, Command::CancelCast { player: ai.player }, events);
     }
 }
 
@@ -591,10 +591,10 @@ fn split_target(view: &PlayerView, traits: &crate::objective::Traits) -> [i32; 3
     t
 }
 
-fn split(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
+fn split(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
     let me = ai.player;
     let (casting_mastery, racing) = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         let Some(m) = view.wizard() else {
             return;
         };
@@ -605,28 +605,28 @@ fn split(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         )
     };
     if casting_mastery {
-        ai.order(game, set_split(me, MASTERY_SPLIT), events);
+        ai.order(world, set_split(me, MASTERY_SPLIT), events);
         return;
     }
     // Nothing left to research: research points go to waste, so the power goes to mana and to the
     // casting skill that spends it (a wizard that knows every spell, seen in the soaks, put 70% of
     // 378 power into research and had 38 mana a turn).
     let nothing_to_research = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         view.wizard()
             .is_some_and(|m| m.researching().is_none() && !m.known().is_empty())
             && view.research_choices().is_empty()
     };
     if nothing_to_research {
-        ai.order(game, set_split(me, DONE_RESEARCHING), events);
+        ai.order(world, set_split(me, DONE_RESEARCHING), events);
         return;
     }
     if racing {
-        ai.order(game, set_split(me, RACING_SPLIT), events);
+        ai.order(world, set_split(me, RACING_SPLIT), events);
         return;
     }
     let mut target = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         split_target(&view, &crate::objective::traits(&view))
     };
     // The income must cover the upkeep of the lasting spells and creatures (a reserve pays for a
@@ -634,8 +634,8 @@ fn split(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let mut chosen = target;
     for _ in 0..40 {
         chosen = target;
-        game.apply(set_split(me, as_split(chosen)));
-        let view = PlayerView::new(game, me);
+        world.apply(set_split(me, as_split(chosen)));
+        let view = PlayerView::new(world, me);
         let income = view.income();
         let deficit_allowed = f4x_def::half_int::HalfInt::from_int(
             view.treasury().mana.floor().max(0) / MANA_HORIZON,
@@ -652,7 +652,7 @@ fn split(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             shift(&mut target, 2, 0, STEP);
         }
     }
-    ai.order(game, set_split(me, as_split(chosen)), events);
+    ai.order(world, set_split(me, as_split(chosen)), events);
 }
 
 fn as_split(share: [i32; 3]) -> (u8, u8, u8) {
@@ -744,9 +744,9 @@ fn liked(def: &SpellDef, kind: Kind, traits: &crate::objective::Traits) -> bool 
     })
 }
 
-fn research(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
+fn research(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
     let spell = {
-        let view = PlayerView::new(game, ai.player);
+        let view = PlayerView::new(world, ai.player);
         let Some(m) = view.wizard() else {
             return;
         };
@@ -764,7 +764,7 @@ fn research(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     };
     if let Some(spell) = spell {
         ai.order(
-            game,
+            world,
             Command::SetResearch {
                 player: ai.player,
                 spell,
@@ -777,27 +777,27 @@ fn research(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 // ---- casting --------------------------------------------------------------------
 
 /// A spell that has been paid for over turns and waits for its target.
-fn resolve_paid(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
+fn resolve_paid(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
     // Resurrection: the last of the dead heroes, chosen now that the cost is paid.
-    let paid = PlayerView::new(game, ai.player).paid_spell();
+    let paid = PlayerView::new(world, ai.player).paid_spell();
     if paid.is_some_and(|s| {
-        f4x_core::spell::hero::HeroSummon::Resurrection.is_in(game.content().rules.spells.get(s))
+        f4x_core::spell::hero::HeroSummon::Resurrection.is_in(world.content().rules.spells.get(s))
     }) {
-        if let Some(kind) = game.units().ai_resurrection_pick() {
-            let target = raise_target(&PlayerView::new(game, ai.player), kind);
+        if let Some(kind) = world.units().ai_resurrection_pick() {
+            let target = raise_target(&PlayerView::new(world, ai.player), kind);
             let command = Command::ResolveCast {
                 player: ai.player,
                 target,
             };
-            ai.order(game, command, events);
+            ai.order(world, command, events);
         }
         return;
     }
     // The Spell of Return: the fortress goes to the biggest city (the game refuses a city that
     // is not the wizard's). Left unaimed it waited for ever, with no income all the while.
-    if paid.is_some_and(|s| game.spell_has_hook(s, f4x_core::spell::special::SPELL_OF_RETURN)) {
+    if paid.is_some_and(|s| world.spell_has_hook(s, f4x_core::spell::special::SPELL_OF_RETURN)) {
         let city = {
-            let view = PlayerView::new(game, ai.player);
+            let view = PlayerView::new(world, ai.player);
             let mut cities = view.my_cities();
             cities.sort_by_key(|&(c, _)| {
                 (
@@ -812,12 +812,12 @@ fn resolve_paid(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 player: ai.player,
                 target: Target::City(city),
             };
-            ai.order(game, command, events);
+            ai.order(world, command, events);
         }
         return;
     }
     let target = {
-        let view = PlayerView::new(game, ai.player);
+        let view = PlayerView::new(world, ai.player);
         let Some(spell) = view.paid_spell() else {
             return;
         };
@@ -833,7 +833,7 @@ fn resolve_paid(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     };
     if let Some(target) = target {
         ai.order(
-            game,
+            world,
             Command::ResolveCast {
                 player: ai.player,
                 target,
@@ -1185,7 +1185,7 @@ fn island_target(
     ai: &Ai,
     view: &PlayerView,
     spell: SpellId,
-    waiting: &[(f4x_core::game::serial::Serial, Position)],
+    waiting: &[(f4x_core::world::serial::Serial, Position)],
 ) -> Option<Target> {
     let mine = view.my_units();
     let spare = mine.iter().any(|&u| {
@@ -1407,45 +1407,45 @@ fn upkeep_ok(view: &PlayerView, def: &SpellDef) -> bool {
 /// one lies dead. The last of the raisable heroes is raised (`ai_resurrection_pick`); a cast that
 /// is paid over turns picks its hero when it is done (`resolve_paid`). Returns whether it began: a
 /// cast the game refuses is not begun, and the wizard goes on to its other spells.
-fn resurrect(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
+fn resurrect(ai: &Ai, world: &mut World, events: &mut Vec<Event>) -> bool {
     let me = ai.player;
     let kind = {
         let Some(spell) =
-            f4x_core::spell::hero::HeroSummon::Resurrection.spell_in(&game.content().rules)
+            f4x_core::spell::hero::HeroSummon::Resurrection.spell_in(&world.content().rules)
         else {
             return false;
         };
-        let knows = game
+        let knows = world
             .wizard(me)
             .is_some_and(|m| m.casting().is_none() && m.knows(spell));
-        if !knows || game.units().hero_spell_blocked(me, spell).is_some() {
+        if !knows || world.units().hero_spell_blocked(me, spell).is_some() {
             return false;
         }
-        let mana = game.player(me).map_or(0, |p| p.treasury().mana.floor());
-        let cost = game.casting_cost(me, spell, false);
+        let mana = world.player(me).map_or(0, |p| p.treasury().mana.floor());
+        let cost = world.casting_cost(me, spell, false);
         // The same gate as the other spells: paid from the reserve, not more than fifty turns.
-        let per_turn = mana / 10 + game.income(me).split.mana.floor();
+        let per_turn = mana / 10 + world.income(me).split.mana.floor();
         if cost * 3 / 2 > mana || cost / 50 > per_turn {
             return false;
         }
-        game.units().ai_resurrection_pick()
+        world.units().ai_resurrection_pick()
     };
     let Some(kind) = kind else {
         return false;
     };
     let Some(spell) =
-        f4x_core::spell::hero::HeroSummon::Resurrection.spell_in(&game.content().rules)
+        f4x_core::spell::hero::HeroSummon::Resurrection.spell_in(&world.content().rules)
     else {
         return false;
     };
-    let target = raise_target(&PlayerView::new(game, me), kind);
+    let target = raise_target(&PlayerView::new(world, me), kind);
     let command = Command::CastSpell {
         extra: 0,
         player: me,
         spell,
         target: Some(target),
     };
-    ai.send(game, command, events).is_ok()
+    ai.send(world, command, events).is_ok()
 }
 
 /// Where the spell would go in the situation of the wizard, if anywhere.
@@ -1488,12 +1488,12 @@ const SITUATION_KINDS: &[(Kind, &str)] = &[
 /// Count the situations the wizard could use a spell for and knows none of the kind: for each kind
 /// of `SITUATION_KINDS` that no known spell has, a spell of that kind (the first in the rules)
 /// is aimed as if it were known, and a target counts as one want, once a turn.
-fn note_unmet(ai: &Ai, view: &PlayerView, game: &Game, known: &[(Kind, i32, SpellId)]) {
+fn note_unmet(ai: &Ai, view: &PlayerView, world: &World, known: &[(Kind, i32, SpellId)]) {
     for &(k, name) in SITUATION_KINDS {
         if known.iter().any(|&(have, ..)| have == k) {
             continue;
         }
-        let Some(spell) = game
+        let Some(spell) = world
             .content()
             .rules
             .spells
@@ -1509,18 +1509,18 @@ fn note_unmet(ai: &Ai, view: &PlayerView, game: &Game, known: &[(Kind, i32, Spel
     }
 }
 
-fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
+fn cast(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
     let me = ai.player;
-    if resurrect(ai, game, events) {
+    if resurrect(ai, world, events) {
         return;
     }
     let choice: Option<(SpellId, Option<Target>)> = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         let Some(magic) = view.wizard() else {
             return;
         };
         // A banished wizard casts nothing but the Spell of Return, which the game begins and keeps
-        // casting for it (`Game::resume_return`).
+        // casting for it (`World::resume_return`).
         if magic.casting().is_some() || magic.is_banished() {
             return;
         }
@@ -1539,7 +1539,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             .map(|s| (kind(view.spell(s)), view.casting_cost(s), s))
             .filter(|&(k, cost, _)| k != Kind::Other && cost > 0)
             .collect();
-        note_unmet(ai, &view, game, &options);
+        note_unmet(ai, &view, world, &options);
         let traits = crate::objective::traits(&view);
         // The intents in the order the wizard's objective ranks them; within an intent the helper's
         // rating puts the best spell first.
@@ -1693,7 +1693,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     };
     if let Some((spell, target)) = choice {
         ai.order(
-            game,
+            world,
             Command::CastSpell {
                 extra: 0,
                 player: me,
@@ -1719,9 +1719,9 @@ mod tests {
 
     /// A wizard of the fresh game that knows the dearest summon the rules have, with the given
     /// gold and mana.
-    fn summoner(gold: i32, mana: i32) -> Result<(Game, i32), Box<dyn std::error::Error>> {
-        let mut g = fresh_game()?;
-        let summon = g
+    fn summoner(gold: i32, mana: i32) -> Result<(World, i32), Box<dyn std::error::Error>> {
+        let mut w = fresh_game()?;
+        let summon = w
             .content()
             .rules
             .spells
@@ -1730,20 +1730,20 @@ mod tests {
             .map(|(id, _)| id)
             .next()
             .ok_or("a summon")?;
-        g.cheat_learn_spell(P1, summon);
-        let t = g.treasury_mut(P1).ok_or("a treasury")?;
+        w.cheat_learn_spell(P1, summon);
+        let t = w.treasury_mut(P1).ok_or("a treasury")?;
         t.gold = HalfInt::from_int(gold);
         t.mana = HalfInt::from_int(mana);
-        let wanted = mana_wanted(&PlayerView::new(&g, P1), &[]);
-        Ok((g, wanted))
+        let wanted = mana_wanted(&PlayerView::new(&w, P1), &[]);
+        Ok((w, wanted))
     }
 
     #[test]
     fn a_wizard_with_much_gold_buys_the_mana_for_its_summon_and_no_more() -> TestResult {
-        let (mut g, wanted) = summoner(50_000, 0)?;
+        let (mut w, wanted) = summoner(50_000, 0)?;
         assert!(wanted > 0, "the summon can be aimed");
-        alchemy(&Ai::new(P1), &mut g, &mut Vec::new());
-        let t = g.treasury_mut(P1).ok_or("a treasury")?;
+        alchemy(&Ai::new(P1), &mut w, &mut Vec::new());
+        let t = w.treasury_mut(P1).ok_or("a treasury")?;
         assert!(
             t.mana.floor() >= wanted,
             "mana {} for {wanted}",
@@ -1756,10 +1756,10 @@ mod tests {
 
     #[test]
     fn a_wizard_with_enough_mana_buys_none() -> TestResult {
-        let (mut g, wanted) = summoner(50_000, 5_000)?;
+        let (mut w, wanted) = summoner(50_000, 5_000)?;
         assert!(wanted < 5_000);
-        alchemy(&Ai::new(P1), &mut g, &mut Vec::new());
-        let t = g.treasury_mut(P1).ok_or("a treasury")?;
+        alchemy(&Ai::new(P1), &mut w, &mut Vec::new());
+        let t = w.treasury_mut(P1).ok_or("a treasury")?;
         assert_eq!(t.gold.floor(), 50_000);
         assert_eq!(t.mana.floor(), 5_000);
         Ok(())
@@ -1767,11 +1767,11 @@ mod tests {
 
     #[test]
     fn a_wizard_with_little_gold_keeps_it() -> TestResult {
-        let mut g = fresh_game()?;
+        let mut w = fresh_game()?;
         let ai = Ai::new(P1);
-        g.treasury_mut(P1).ok_or("a treasury")?.gold = HalfInt::from_int(900);
-        alchemy(&ai, &mut g, &mut Vec::new());
-        assert_eq!(g.treasury_mut(P1).ok_or("a treasury")?.gold.floor(), 900);
+        w.treasury_mut(P1).ok_or("a treasury")?.gold = HalfInt::from_int(900);
+        alchemy(&ai, &mut w, &mut Vec::new());
+        assert_eq!(w.treasury_mut(P1).ok_or("a treasury")?.gold.floor(), 900);
         Ok(())
     }
 
@@ -1783,17 +1783,17 @@ mod tests {
             .ok_or(format!("{id} is shipped"))
     }
 
-    fn treasury(g: &mut Game, player: PlayerId) -> Result<&mut Treasury, &'static str> {
-        g.treasury_mut(player).ok_or("the player has a treasury")
+    fn treasury(w: &mut World, player: PlayerId) -> Result<&mut Treasury, &'static str> {
+        w.treasury_mut(player).ok_or("the player has a treasury")
     }
 
     #[test]
     fn an_open_node_and_no_spirit_make_the_spirit_the_first_summon() -> TestResult {
         use f4x_core::feature::entity::Placement;
-        let mut g = fresh_game()?;
+        let mut w = fresh_game()?;
         let spirit = spell(201 /* magic_spirit */)?;
-        g.cheat_learn_spell(P1, spirit);
-        let dearest = g
+        w.cheat_learn_spell(P1, spirit);
+        let dearest = w
             .content()
             .rules
             .spells
@@ -1802,23 +1802,23 @@ mod tests {
             .map(|(id, _)| id)
             .next()
             .ok_or("another summon")?;
-        g.cheat_learn_spell(P1, dearest);
-        treasury(&mut g, P1)?.mana = HalfInt::from_int(5_000);
+        w.cheat_learn_spell(P1, dearest);
+        treasury(&mut w, P1)?.mana = HalfInt::from_int(5_000);
         let mut ai = Ai::new(P1);
         ai.frontier_closed = true;
-        assert!(!crate::meld::spirit_wanted(&ai, &PlayerView::new(&g, P1)));
-        let feature = g
+        assert!(!crate::meld::spirit_wanted(&ai, &PlayerView::new(&w, P1)));
+        let feature = w
             .content()
             .features
             .id_numbered(20 /* sorcery_node */)
             .ok_or("a node feature")?;
-        let circle = PlayerView::new(&g, P1)
+        let circle = PlayerView::new(&w, P1)
             .wizard()
             .and_then(|m| m.summon_at())
             .ok_or("a summoning circle")?;
         let spot = at(circle.x + 2, circle.y);
-        g.explore(P1, spot, HalfInt::from_int(5));
-        g.spawn_feature(Placement {
+        w.explore(P1, spot, HalfInt::from_int(5));
+        w.spawn_feature(Placement {
             at: spot,
             feature,
             node: Some(f4x_core::feature::node::Node {
@@ -1830,9 +1830,9 @@ mod tests {
             }),
             lair: None,
         });
-        assert!(crate::meld::spirit_wanted(&ai, &PlayerView::new(&g, P1)));
-        cast(&ai, &mut g, &mut Vec::new());
-        let view = PlayerView::new(&g, P1);
+        assert!(crate::meld::spirit_wanted(&ai, &PlayerView::new(&w, P1)));
+        cast(&ai, &mut w, &mut Vec::new());
+        let view = PlayerView::new(&w, P1);
         let casting = view
             .wizard()
             .and_then(|m| m.casting())
@@ -1947,19 +1947,19 @@ mod tests {
     #[test]
     fn a_banished_wizard_does_not_begin_resurrection_and_so_goes_on_to_other_spells() -> TestResult
     {
-        let mut g = fresh_game()?;
+        let mut w = fresh_game()?;
         let ai = Ai::new(P1);
         let resurrection = f4x_def::rules::SpellId::new(133) /* resurrection */;
-        treasury(&mut g, P1)?.mana = f4x_def::half_int::HalfInt::from_int(5_000);
-        let hero = g.hire_hero(P1, 1).map_err(|e| format!("{e:?}"))?;
-        g.cheat_slay_unit(hero);
-        g.cheat_learn_spell(P1, resurrection);
-        g.wizard_mut(P1)
+        treasury(&mut w, P1)?.mana = f4x_def::half_int::HalfInt::from_int(5_000);
+        let hero = w.hire_hero(P1, 1).map_err(|e| format!("{e:?}"))?;
+        w.cheat_slay_unit(hero);
+        w.cheat_learn_spell(P1, resurrection);
+        w.wizard_mut(P1)
             .ok_or("player 1 is a wizard")?
             .put(Some(f4x_core::wizard::fortress::Banishment { by: None }));
         let mut events = Vec::new();
-        assert!(!resurrect(&ai, &mut g, &mut events), "{events:?}");
-        assert!(g
+        assert!(!resurrect(&ai, &mut w, &mut events), "{events:?}");
+        assert!(w
             .wizard(P1)
             .ok_or("player 1 is a wizard")?
             .casting()
@@ -1969,23 +1969,23 @@ mod tests {
 
     #[test]
     fn a_wizard_that_knows_resurrection_raises_the_last_dead_hero() -> TestResult {
-        let mut g = fresh_game()?;
+        let mut w = fresh_game()?;
         let ai = Ai::new(P1);
         let resurrection = f4x_def::rules::SpellId::new(133) /* resurrection */;
-        treasury(&mut g, P1)?.gold = f4x_def::half_int::HalfInt::from_int(50_000);
-        treasury(&mut g, P1)?.mana = f4x_def::half_int::HalfInt::from_int(5_000);
+        treasury(&mut w, P1)?.gold = f4x_def::half_int::HalfInt::from_int(50_000);
+        treasury(&mut w, P1)?.mana = f4x_def::half_int::HalfInt::from_int(5_000);
         for k in [1, 4] {
-            let hero = g
+            let hero = w
                 .hire_hero(P1, k)
                 .map_err(|e| format!("hiring hero {k}: {e:?}"))?;
-            g.cheat_slay_unit(hero);
+            w.cheat_slay_unit(hero);
         }
         // Not known: nothing happens. Known: the spell is begun for the last dead hero.
         let mut events = Vec::new();
-        assert!(!resurrect(&ai, &mut g, &mut events));
-        g.cheat_learn_spell(P1, resurrection);
-        assert!(resurrect(&ai, &mut g, &mut events), "{events:?}");
-        let started = g
+        assert!(!resurrect(&ai, &mut w, &mut events));
+        w.cheat_learn_spell(P1, resurrection);
+        assert!(resurrect(&ai, &mut w, &mut events), "{events:?}");
+        let started = w
             .wizard(P1)
             .ok_or("player 1 is a wizard")?
             .casting()
@@ -1999,32 +1999,32 @@ mod tests {
     fn a_wizard_that_knows_summon_hero_casts_it_whatever_the_number_of_its_heroes() -> TestResult {
         let summon_hero = f4x_def::rules::SpellId::new(208) /* summon_hero */;
         for hired in [0, 6] {
-            let mut g = fresh_game()?;
+            let mut w = fresh_game()?;
             let mut ai = Ai::new(P1);
             // Nothing left to scout: no spirit is wanted ahead of the hero.
             ai.frontier_closed = true;
-            treasury(&mut g, P1)?.gold = f4x_def::half_int::HalfInt::from_int(50_000);
-            treasury(&mut g, P1)?.mana = f4x_def::half_int::HalfInt::from_int(5_000);
-            g.wizard_mut(P1)
+            treasury(&mut w, P1)?.gold = f4x_def::half_int::HalfInt::from_int(50_000);
+            treasury(&mut w, P1)?.mana = f4x_def::half_int::HalfInt::from_int(5_000);
+            w.wizard_mut(P1)
                 .ok_or("player 1 is a wizard")?
                 .set_split(20, 40, 40)
                 .map_err(|e| format!("{e:?}"))?;
-            g.cheat_learn_spell(P1, summon_hero);
+            w.cheat_learn_spell(P1, summon_hero);
             for k in 0..hired {
-                g.hire_hero(P1, k)
+                w.hire_hero(P1, k)
                     .map_err(|e| format!("hiring hero {k}: {e:?}"))?;
             }
-            let heroes = |g: &Game| PlayerView::new(g, P1).my_heroes().len();
-            let before = heroes(&g);
+            let heroes = |w: &World| PlayerView::new(w, P1).my_heroes().len();
+            let before = heroes(&w);
             let mut events = Vec::new();
-            cast(&ai, &mut g, &mut events);
-            let begun = g
+            cast(&ai, &mut w, &mut events);
+            let begun = w
                 .wizard(P1)
                 .ok_or("player 1 is a wizard")?
                 .casting()
                 .is_some_and(|c| c.spell == summon_hero);
             assert!(
-                begun || heroes(&g) > before,
+                begun || heroes(&w) > before,
                 "with {hired} heroes a hero is summoned or the spell begun: {events:?}"
             );
         }
@@ -2034,14 +2034,14 @@ mod tests {
     #[test]
     fn a_militarist_gives_more_power_to_mana_than_a_pragmatist() -> TestResult {
         let research_share = |objective: Objective| -> Result<_, Box<dyn std::error::Error>> {
-            let mut g = game(COAST_CITY, 8 /* high_men */);
-            g.wizard_mut(P0)
+            let mut w = game(COAST_CITY, 8 /* high_men */);
+            w.wizard_mut(P0)
                 .ok_or("player 0 is a wizard")?
                 .put(Some(objective));
             // A big reserve needs no spare mana income: the first candidate that pays is taken.
-            treasury(&mut g, P0)?.mana = f4x_def::half_int::HalfInt::from_int(1_000);
-            split(&Ai::new(P0), &mut g, &mut Vec::new());
-            Ok(g.wizard(P0)
+            treasury(&mut w, P0)?.mana = f4x_def::half_int::HalfInt::from_int(1_000);
+            split(&Ai::new(P0), &mut w, &mut Vec::new());
+            Ok(w.wizard(P0)
                 .ok_or("player 0 is a wizard")?
                 .power_split()
                 .research)
@@ -2052,8 +2052,8 @@ mod tests {
 
     /// Puts lasting spells with an upkeep on the wizard until its mana income at the split that
     /// gives mana the most is below the upkeep.
-    fn overburdened(g: &mut Game, player: PlayerId) -> Result<(), Box<dyn std::error::Error>> {
-        let loaded: Vec<_> = g
+    fn overburdened(w: &mut World, player: PlayerId) -> Result<(), Box<dyn std::error::Error>> {
+        let loaded: Vec<_> = w
             .content()
             .rules
             .spells
@@ -2062,15 +2062,15 @@ mod tests {
             .filter(|(_, d)| d.target == f4x_def::rules::SpellTarget::None)
             .map(|(id, _)| id)
             .collect();
-        g.apply(set_split(player, (80, 0, 20)));
+        w.apply(set_split(player, (80, 0, 20)));
         for spell in loaded {
-            let income = g.income(player);
+            let income = w.income(player);
             if income.split.mana < income.mana_upkeep {
                 return Ok(());
             }
-            g.attach_enchantment(f4x_core::rules::exec::Target::Player(player), spell, player);
+            w.attach_enchantment(f4x_core::rules::exec::Target::Player(player), spell, player);
         }
-        let income = g.income(player);
+        let income = w.income(player);
         if income.split.mana < income.mana_upkeep {
             Ok(())
         } else {
@@ -2082,11 +2082,11 @@ mod tests {
     fn a_wizard_whose_upkeep_eats_the_income_keeps_researching_while_its_reserve_lasts(
     ) -> TestResult {
         let research_share = |mana: i32| -> Result<_, Box<dyn std::error::Error>> {
-            let mut g = game(COAST_CITY, 8 /* high_men */);
-            overburdened(&mut g, P0)?;
-            treasury(&mut g, P0)?.mana = HalfInt::from_int(mana);
-            split(&Ai::new(P0), &mut g, &mut Vec::new());
-            Ok(g.wizard(P0)
+            let mut w = game(COAST_CITY, 8 /* high_men */);
+            overburdened(&mut w, P0)?;
+            treasury(&mut w, P0)?.mana = HalfInt::from_int(mana);
+            split(&Ai::new(P0), &mut w, &mut Vec::new());
+            Ok(w.wizard(P0)
                 .ok_or("player 0 is a wizard")?
                 .power_split()
                 .research)
@@ -2101,14 +2101,14 @@ mod tests {
 
     #[test]
     fn a_wizard_with_nothing_left_to_research_puts_no_power_into_research() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let ids: Vec<_> = g.content().rules.spells.iter().map(|(id, _)| id).collect();
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let ids: Vec<_> = w.content().rules.spells.iter().map(|(id, _)| id).collect();
         for id in ids {
-            g.cheat_learn_spell(P0, id);
+            w.cheat_learn_spell(P0, id);
         }
-        assert!(PlayerView::new(&g, P0).research_choices().is_empty());
-        split(&Ai::new(P0), &mut g, &mut Vec::new());
-        let share = g.wizard(P0).ok_or("player 0 is a wizard")?.power_split();
+        assert!(PlayerView::new(&w, P0).research_choices().is_empty());
+        split(&Ai::new(P0), &mut w, &mut Vec::new());
+        let share = w.wizard(P0).ok_or("player 0 is a wizard")?.power_split();
         assert_eq!(share.research, 0);
         assert!(share.mana >= 60, "mana {}", share.mana);
         Ok(())
@@ -2117,19 +2117,19 @@ mod tests {
     #[test]
     fn the_split_starts_balanced_and_moves_with_the_phase_of_the_game() -> TestResult {
         let share = |turn: u32| -> Result<_, Box<dyn std::error::Error>> {
-            let mut g = game(COAST_CITY, 8 /* high_men */);
+            let mut w = game(COAST_CITY, 8 /* high_men */);
             // A known spell and one to research, so that research still has a use.
-            let ids: Vec<_> = g.content().rules.spells.iter().map(|(id, _)| id).collect();
-            g.cheat_learn_spell(P0, ids[0]);
-            g.wizard_mut(P0)
+            let ids: Vec<_> = w.content().rules.spells.iter().map(|(id, _)| id).collect();
+            w.cheat_learn_spell(P0, ids[0]);
+            w.wizard_mut(P0)
                 .ok_or("player 0 is a wizard")?
                 .get_mut::<f4x_core::wizard::sheet::Candidates>()
                 .0
                 .push(ids[1]);
-            assert!(!PlayerView::new(&g, P0).research_choices().is_empty());
-            g.turn = turn;
-            split(&Ai::new(P0), &mut g, &mut Vec::new());
-            let s = g.wizard(P0).ok_or("player 0 is a wizard")?.power_split();
+            assert!(!PlayerView::new(&w, P0).research_choices().is_empty());
+            w.turn = turn;
+            split(&Ai::new(P0), &mut w, &mut Vec::new());
+            let s = w.wizard(P0).ok_or("player 0 is a wizard")?.power_split();
             Ok((s.mana, s.research, s.skill))
         };
         let (build, secure, win) = (share(10)?, share(250)?, share(400)?);
@@ -2162,47 +2162,47 @@ mod tests {
 
     #[test]
     fn a_banished_wizard_turns_just_enough_gold_into_mana_for_the_return() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
         let spell = spell(214 /* spell_of_return */)?;
-        let mut wizard = g.wizard_mut(P0).ok_or("player 0 is a wizard")?;
+        let mut wizard = w.wizard_mut(P0).ok_or("player 0 is a wizard")?;
         wizard.put(Some(f4x_core::wizard::fortress::Banishment {
             by: Some(P1),
         }));
         wizard.get_mut::<f4x_core::wizard::sheet::Skill>().points = 2_000;
-        g.scenario_casting(P0, spell, 500);
-        let due = g
+        w.scenario_casting(P0, spell, 500);
+        let due = w
             .wizard(P0)
             .ok_or("player 0 is a wizard")?
-            .casting_skill(&g.content().rules)
+            .casting_skill(&w.content().rules)
             .min(500);
         assert!(due > 4, "the test wizard has a casting skill ({due})");
         {
-            let t = treasury(&mut g, P0)?;
+            let t = treasury(&mut w, P0)?;
             t.mana = f4x_def::half_int::HalfInt::from_int(0);
             t.gold = f4x_def::half_int::HalfInt::from_int(10_000);
         }
         let ai = Ai::new(P0);
-        fund_return(&ai, &mut g, &mut Vec::new());
-        let t = g.player(P0).ok_or("player 0 exists")?.treasury();
+        fund_return(&ai, &mut w, &mut Vec::new());
+        let t = w.player(P0).ok_or("player 0 exists")?.treasury();
         assert_eq!(t.mana, due, "mana now covers the payment");
         assert!(t.gold < 10_000 && t.gold >= 10_000 - 2 * due - 2);
         // Covered already: nothing more is converted.
         let gold = t.gold;
-        fund_return(&ai, &mut g, &mut Vec::new());
-        assert_eq!(g.player(P0).ok_or("player 0 exists")?.treasury().gold, gold);
+        fund_return(&ai, &mut w, &mut Vec::new());
+        assert_eq!(w.player(P0).ok_or("player 0 exists")?.treasury().gold, gold);
         Ok(())
     }
 
     #[test]
     fn a_banished_wizard_that_has_paid_for_the_return_aims_it_at_a_city() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.wizard_mut(P0).ok_or("player 0 is a wizard")?.put(Some(
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.wizard_mut(P0).ok_or("player 0 is a wizard")?.put(Some(
             f4x_core::wizard::fortress::Banishment { by: Some(P1) },
         ));
-        g.scenario_casting(P0, spell(214 /* spell_of_return */)?, 0);
-        assert!(g.wizard(P0).ok_or("a wizard")?.is_banished());
-        resolve_paid(&Ai::new(P0), &mut g, &mut Vec::new());
-        let wizard = g.wizard(P0).ok_or("a wizard")?;
+        w.scenario_casting(P0, spell(214 /* spell_of_return */)?, 0);
+        assert!(w.wizard(P0).ok_or("a wizard")?.is_banished());
+        resolve_paid(&Ai::new(P0), &mut w, &mut Vec::new());
+        let wizard = w.wizard(P0).ok_or("a wizard")?;
         assert!(!wizard.is_banished(), "the wizard is home again");
         assert!(wizard.casting().is_none());
         assert_eq!(wizard.fortress(), Some(at(COAST_CITY.0, COAST_CITY.1)));
@@ -2211,60 +2211,60 @@ mod tests {
 
     #[test]
     fn a_wizard_that_is_not_banished_keeps_its_gold() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.scenario_casting(P0, spell(214 /* spell_of_return */)?, 500);
-        treasury(&mut g, P0)?.mana = f4x_def::half_int::HalfInt::from_int(0);
-        let gold = g.player(P0).ok_or("player 0 exists")?.treasury().gold;
-        fund_return(&Ai::new(P0), &mut g, &mut Vec::new());
-        assert_eq!(g.player(P0).ok_or("player 0 exists")?.treasury().gold, gold);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.scenario_casting(P0, spell(214 /* spell_of_return */)?, 500);
+        treasury(&mut w, P0)?.mana = f4x_def::half_int::HalfInt::from_int(0);
+        let gold = w.player(P0).ok_or("player 0 exists")?.treasury().gold;
+        fund_return(&Ai::new(P0), &mut w, &mut Vec::new());
+        assert_eq!(w.player(P0).ok_or("player 0 exists")?.treasury().gold, gold);
         Ok(())
     }
 
     #[test]
     fn a_wizard_curses_the_city_of_an_enemy_at_war_and_leaves_a_neighbour_at_peace_alone(
     ) -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.make_contact(P0, P1);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.make_contact(P0, P1);
         let famine = spell(189 /* famine */)?;
-        g.cheat_learn_spell(P0, famine);
-        treasury(&mut g, P0)?.mana = f4x_def::half_int::HalfInt::from_int(5_000);
-        g.wizard_mut(P0)
+        w.cheat_learn_spell(P0, famine);
+        treasury(&mut w, P0)?.mana = f4x_def::half_int::HalfInt::from_int(5_000);
+        w.wizard_mut(P0)
             .ok_or("player 0 is a wizard")?
             .set_split(20, 40, 40)
             .map_err(|e| format!("{e:?}"))?;
         let ai = Ai::new(P0);
         let enemy_city = at(ENEMY_CITY.0, ENEMY_CITY.1);
-        g.explore(P0, enemy_city, HalfInt::from_raw(3));
-        let enemy = g
+        w.explore(P0, enemy_city, HalfInt::from_raw(3));
+        let enemy = w
             .economy()
             .city_at(enemy_city)
             .ok_or("the enemy has a city")?;
-        let aimed = |g: &Game| {
-            PlayerView::new(g, P0)
+        let aimed = |w: &World| {
+            PlayerView::new(w, P0)
                 .known_cities()
                 .iter()
                 .any(|c| c.0 == enemy)
         };
-        assert!(aimed(&g), "the test world shows the enemy city");
-        cast(&ai, &mut g, &mut Vec::new());
+        assert!(aimed(&w), "the test world shows the enemy city");
+        cast(&ai, &mut w, &mut Vec::new());
         assert!(
-            g.wizard(P0)
+            w.wizard(P0)
                 .ok_or("player 0 is a wizard")?
                 .casting()
                 .is_none(),
             "at peace: no curse"
         );
-        g.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+        w.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
             player: P0,
             on: P1,
         }));
-        cast(&ai, &mut g, &mut Vec::new());
-        let began = g
+        cast(&ai, &mut w, &mut Vec::new());
+        let began = w
             .wizard(P0)
             .ok_or("player 0 is a wizard")?
             .casting()
             .is_some()
-            || g.spells()
+            || w.spells()
                 .city_enchantments(enemy)
                 .iter()
                 .any(|&(s, _)| s == famine);
@@ -2274,12 +2274,12 @@ mod tests {
 
     #[test]
     fn a_wizard_begins_a_spell_on_the_world_only_while_at_war() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.make_contact(P0, P1);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.make_contact(P0, P1);
         let storm = spell(113 /* meteor_storm */)?;
-        g.cheat_learn_spell(P0, storm);
-        treasury(&mut g, P0)?.mana = f4x_def::half_int::HalfInt::from_int(20_000);
-        let mut wizard = g.wizard_mut(P0).ok_or("player 0 is a wizard")?;
+        w.cheat_learn_spell(P0, storm);
+        treasury(&mut w, P0)?.mana = f4x_def::half_int::HalfInt::from_int(20_000);
+        let mut wizard = w.wizard_mut(P0).ok_or("player 0 is a wizard")?;
         wizard.found(
             &f4x_def::testdir::shipped().rules,
             &[
@@ -2296,32 +2296,32 @@ mod tests {
         wizard.get_mut::<f4x_core::wizard::sheet::Skill>().points = 20_000;
         wizard.set_split(55, 0, 45).map_err(|e| format!("{e:?}"))?;
         let ai = Ai::new(P0);
-        let began = |g: &Game| -> Result<bool, &'static str> {
-            let magic = g.wizard(P0).ok_or("player 0 is a wizard")?;
+        let began = |w: &World| -> Result<bool, &'static str> {
+            let magic = w.wizard(P0).ok_or("player 0 is a wizard")?;
             Ok(magic.casting().is_some() || magic.has_global(storm))
         };
-        cast(&ai, &mut g, &mut Vec::new());
-        assert!(!began(&g)?, "at peace: nothing on the world");
-        g.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+        cast(&ai, &mut w, &mut Vec::new());
+        assert!(!began(&w)?, "at peace: nothing on the world");
+        w.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
             player: P0,
             on: P1,
         }));
-        cast(&ai, &mut g, &mut Vec::new());
-        assert!(began(&g)?, "at war: Meteor Storm begun or cast");
+        cast(&ai, &mut w, &mut Vec::new());
+        assert!(began(&w)?, "at war: Meteor Storm begun or cast");
         Ok(())
     }
 
     /// A wizard with the mana, the skill and the books to cast what it knows at once, and a
     /// world with a strait: its walkers at the west wait for a target in the east.
-    fn strait_wizard(spells: &[u16]) -> Result<(Game, Ai), Box<dyn std::error::Error>> {
+    fn strait_wizard(spells: &[u16]) -> Result<(World, Ai), Box<dyn std::error::Error>> {
         use crate::roles::{Crossing, Role};
-        let mut g = crate::testworld::game_with_strait(COAST_CITY, 8 /* high_men */);
-        g.reveal_map(P0);
+        let mut w = crate::testworld::game_with_strait(COAST_CITY, 8 /* high_men */);
+        w.reveal_map(P0);
         for &s in spells {
-            g.cheat_learn_spell(P0, spell(s)?);
+            w.cheat_learn_spell(P0, spell(s)?);
         }
-        treasury(&mut g, P0)?.mana = HalfInt::from_int(20_000);
-        let mut wizard = g.wizard_mut(P0).ok_or("player 0 is a wizard")?;
+        treasury(&mut w, P0)?.mana = HalfInt::from_int(20_000);
+        let mut wizard = w.wizard_mut(P0).ok_or("player 0 is a wizard")?;
         wizard.found(
             &f4x_def::testdir::shipped().rules,
             &[
@@ -2343,24 +2343,24 @@ mod tests {
         }
         wizard.set_split(55, 0, 45).map_err(|e| format!("{e:?}"))?;
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &g);
+        crate::roles::register(&mut ai, &w);
         let _ = (Crossing::Sea, Role::Reinforce);
-        Ok((g, ai))
+        Ok((w, ai))
     }
 
     /// `units` wait for a ship to the east shore, as the dispatcher leaves them.
-    fn wait_for_a_ship(ai: &mut Ai, g: &Game, units: &[hecs::Entity]) {
+    fn wait_for_a_ship(ai: &mut Ai, w: &World, units: &[hecs::Entity]) {
         use crate::roles::{Crossing, Role};
-        let view = PlayerView::new(g, P0);
+        let view = PlayerView::new(w, P0);
         for &u in units {
             let s = view.serial_of(u);
-            let _ = ai.roles.claim(s, Role::Reinforce, g.turn, Some(at(30, 6)));
+            let _ = ai.roles.claim(s, Role::Reinforce, w.turn, Some(at(30, 6)));
             ai.roles.set_crossing(s, Some(Crossing::Sea));
         }
     }
 
-    fn has(g: &Game, u: hecs::Entity, id: u16) -> Result<bool, String> {
-        Ok(PlayerView::new(g, P0)
+    fn has(w: &World, u: hecs::Entity, id: u16) -> Result<bool, String> {
+        Ok(PlayerView::new(w, P0)
             .unit_enchantments(u)
             .contains(&spell(id)?))
     }
@@ -2370,43 +2370,43 @@ mod tests {
     /// has a ship coming is left alone.
     #[test]
     fn a_walker_that_waits_for_a_ship_is_given_water_walking() -> TestResult {
-        let (mut g, mut ai) = strait_wizard(&[8 /* water_walking */])?;
-        let ship = spawn(&mut g, P0, at(25, 1), 36 /* galley */, 1)[0];
-        let walkers = spawn(&mut g, P0, at(9, 6), 104 /* spearmen */, 3);
-        crate::roles::register(&mut ai, &g);
-        wait_for_a_ship(&mut ai, &g, &walkers);
+        let (mut w, mut ai) = strait_wizard(&[8 /* water_walking */])?;
+        let ship = spawn(&mut w, P0, at(25, 1), 36 /* galley */, 1)[0];
+        let walkers = spawn(&mut w, P0, at(9, 6), 104 /* spearmen */, 3);
+        crate::roles::register(&mut ai, &w);
+        wait_for_a_ship(&mut ai, &w, &walkers);
         // One has a ship coming: it is not the one.
         {
-            let view = PlayerView::new(&g, P0);
+            let view = PlayerView::new(&w, P0);
             ai.roles
                 .board_at(view.serial_of(walkers[0]), view.serial_of(ship), at(9, 6));
         }
-        cast(&ai, &mut g, &mut Vec::new());
-        assert!(!has(&g, walkers[0], 8)?, "its ship is coming");
-        assert!(has(&g, walkers[1], 8)?, "the first that waits with no ship");
-        assert!(!has(&g, walkers[2], 8)?, "one spell, one unit");
+        cast(&ai, &mut w, &mut Vec::new());
+        assert!(!has(&w, walkers[0], 8)?, "its ship is coming");
+        assert!(has(&w, walkers[1], 8)?, "the first that waits with no ship");
+        assert!(!has(&w, walkers[2], 8)?, "one spell, one unit");
         // The unit now walks on water: it needs no ship.
-        assert!(!PlayerView::new(&g, P0).is_walker(walkers[1]));
-        assert!(g.find_path(&[walkers[1]], at(30, 6)).is_some());
+        assert!(!PlayerView::new(&w, P0).is_walker(walkers[1]));
+        assert!(w.find_path(&[walkers[1]], at(30, 6)).is_some());
         Ok(())
     }
 
     #[test]
     fn nothing_is_cast_for_units_that_wait_for_nothing_or_need_no_ship() -> TestResult {
-        let (mut g, mut ai) =
+        let (mut w, mut ai) =
             strait_wizard(&[8 /* water_walking */, 63 /* wind_walking */])?;
-        let walkers = spawn(&mut g, P0, at(9, 6), 104 /* spearmen */, 2);
-        let flier = spawn(&mut g, P0, at(9, 6), 164 /* great_drake */, 1)[0];
-        crate::roles::register(&mut ai, &g);
+        let walkers = spawn(&mut w, P0, at(9, 6), 104 /* spearmen */, 2);
+        let flier = spawn(&mut w, P0, at(9, 6), 164 /* great_drake */, 1)[0];
+        crate::roles::register(&mut ai, &w);
         // Nobody waits for a ship.
-        cast(&ai, &mut g, &mut Vec::new());
+        cast(&ai, &mut w, &mut Vec::new());
         for &u in &walkers {
-            assert!(!has(&g, u, 8)? && !has(&g, u, 63)?);
+            assert!(!has(&w, u, 8)? && !has(&w, u, 63)?);
         }
         // A flier that carries the sea tag is no walker: it is not aimed at.
-        wait_for_a_ship(&mut ai, &g, &[flier]);
-        cast(&ai, &mut g, &mut Vec::new());
-        assert!(!has(&g, flier, 8)? && !has(&g, flier, 63)?);
+        wait_for_a_ship(&mut ai, &w, &[flier]);
+        cast(&ai, &mut w, &mut Vec::new());
+        assert!(!has(&w, flier, 8)? && !has(&w, flier, 63)?);
         Ok(())
     }
 
@@ -2415,39 +2415,39 @@ mod tests {
     /// once. With Water Walking known as well, the cheaper one is chosen.
     #[test]
     fn wind_walking_is_cast_once_on_the_largest_waiting_stack() -> TestResult {
-        let (mut g, mut ai) = strait_wizard(&[63 /* wind_walking */])?;
-        let lone = spawn(&mut g, P0, at(8, 6), 104 /* spearmen */, 1);
-        let stack = spawn(&mut g, P0, at(9, 6), 104 /* spearmen */, 3);
-        crate::roles::register(&mut ai, &g);
-        wait_for_a_ship(&mut ai, &g, &[lone[0], stack[0], stack[1], stack[2]]);
-        cast(&ai, &mut g, &mut Vec::new());
+        let (mut w, mut ai) = strait_wizard(&[63 /* wind_walking */])?;
+        let lone = spawn(&mut w, P0, at(8, 6), 104 /* spearmen */, 1);
+        let stack = spawn(&mut w, P0, at(9, 6), 104 /* spearmen */, 3);
+        crate::roles::register(&mut ai, &w);
+        wait_for_a_ship(&mut ai, &w, &[lone[0], stack[0], stack[1], stack[2]]);
+        cast(&ai, &mut w, &mut Vec::new());
         let carriers: Vec<_> = stack
             .iter()
-            .filter(|&&u| has(&g, u, 63) == Ok(true))
+            .filter(|&&u| has(&w, u, 63) == Ok(true))
             .collect();
         assert_eq!(carriers.len(), 1, "one Wind Walker in the big stack");
-        assert!(!has(&g, lone[0], 63)?);
-        cast(&ai, &mut g, &mut Vec::new());
+        assert!(!has(&w, lone[0], 63)?);
+        cast(&ai, &mut w, &mut Vec::new());
         let again = stack
             .iter()
-            .filter(|&&u| has(&g, u, 63) == Ok(true))
+            .filter(|&&u| has(&w, u, 63) == Ok(true))
             .count();
         assert_eq!(again, 1, "the stack is carried: no second cast");
         // The stack crosses the strait as one.
-        assert!(g.find_path(&stack, at(30, 6)).is_some());
+        assert!(w.find_path(&stack, at(30, 6)).is_some());
         Ok(())
     }
 
     #[test]
     fn the_cheaper_crossing_spell_goes_first() -> TestResult {
-        let (mut g, mut ai) =
+        let (mut w, mut ai) =
             strait_wizard(&[63 /* wind_walking */, 8 /* water_walking */])?;
-        let units = spawn(&mut g, P0, at(9, 6), 104 /* spearmen */, 2);
-        crate::roles::register(&mut ai, &g);
-        wait_for_a_ship(&mut ai, &g, &units);
-        cast(&ai, &mut g, &mut Vec::new());
-        assert!(units.iter().any(|&u| has(&g, u, 8) == Ok(true)));
-        assert!(units.iter().all(|&u| has(&g, u, 63) == Ok(false)));
+        let units = spawn(&mut w, P0, at(9, 6), 104 /* spearmen */, 2);
+        crate::roles::register(&mut ai, &w);
+        wait_for_a_ship(&mut ai, &w, &units);
+        cast(&ai, &mut w, &mut Vec::new());
+        assert!(units.iter().any(|&u| has(&w, u, 8) == Ok(true)));
+        assert!(units.iter().all(|&u| has(&w, u, 63) == Ok(false)));
         Ok(())
     }
 
@@ -2455,14 +2455,14 @@ mod tests {
     /// but a walker that waits for a ship comes first.
     #[test]
     fn flight_goes_to_the_walker_that_waits_for_a_ship() -> TestResult {
-        let (mut g, mut ai) = strait_wizard(&[56 /* flight */])?;
-        let units = spawn(&mut g, P0, at(9, 6), 104 /* spearmen */, 3);
-        crate::roles::register(&mut ai, &g);
+        let (mut w, mut ai) = strait_wizard(&[56 /* flight */])?;
+        let units = spawn(&mut w, P0, at(9, 6), 104 /* spearmen */, 3);
+        crate::roles::register(&mut ai, &w);
         // The last one waits: by serial order the buff would go to the first.
-        wait_for_a_ship(&mut ai, &g, &units[2..]);
-        cast(&ai, &mut g, &mut Vec::new());
-        assert!(has(&g, units[2], 56)?);
-        assert!(!has(&g, units[0], 56)? && !has(&g, units[1], 56)?);
+        wait_for_a_ship(&mut ai, &w, &units[2..]);
+        cast(&ai, &mut w, &mut Vec::new());
+        assert!(has(&w, units[2], 56)?);
+        assert!(!has(&w, units[0], 56)? && !has(&w, units[1], 56)?);
         Ok(())
     }
 
@@ -2470,27 +2470,27 @@ mod tests {
     /// is free, once, and the units that wait are then fetched like any ship's passengers.
     #[test]
     fn a_floating_island_is_raised_in_the_strait_for_units_that_wait_for_a_ship() -> TestResult {
-        let (mut g, mut ai) = strait_wizard(&[43 /* floating_island */])?;
-        let units = spawn(&mut g, P0, at(9, 6), 104 /* spearmen */, 2);
-        crate::roles::register(&mut ai, &g);
-        let islands = |g: &Game| {
-            let view = PlayerView::new(g, P0);
+        let (mut w, mut ai) = strait_wizard(&[43 /* floating_island */])?;
+        let units = spawn(&mut w, P0, at(9, 6), 104 /* spearmen */, 2);
+        crate::roles::register(&mut ai, &w);
+        let islands = |w: &World| {
+            let view = PlayerView::new(w, P0);
             view.my_units()
                 .into_iter()
                 .filter(|&u| crate::view::is_ship(&view, u))
                 .count()
         };
         // Nobody waits: no island.
-        cast(&ai, &mut g, &mut Vec::new());
-        assert_eq!(islands(&g), 0, "nobody waits for a ship");
-        wait_for_a_ship(&mut ai, &g, &units);
-        cast(&ai, &mut g, &mut Vec::new());
-        assert_eq!(islands(&g), 1, "an island for the waiting units");
+        cast(&ai, &mut w, &mut Vec::new());
+        assert_eq!(islands(&w), 0, "nobody waits for a ship");
+        wait_for_a_ship(&mut ai, &w, &units);
+        cast(&ai, &mut w, &mut Vec::new());
+        assert_eq!(islands(&w), 1, "an island for the waiting units");
         // It has no work yet: no second one is raised.
-        crate::roles::register(&mut ai, &g);
-        wait_for_a_ship(&mut ai, &g, &units);
-        cast(&ai, &mut g, &mut Vec::new());
-        assert_eq!(islands(&g), 1, "one island at a time");
+        crate::roles::register(&mut ai, &w);
+        wait_for_a_ship(&mut ai, &w, &units);
+        cast(&ai, &mut w, &mut Vec::new());
+        assert_eq!(islands(&w), 1, "one island at a time");
         Ok(())
     }
 
@@ -2498,24 +2498,24 @@ mod tests {
     /// troops, and no more than the pair.
     #[test]
     fn an_earth_gate_goes_to_the_rally_city_and_then_to_a_far_city() -> TestResult {
-        let mut g = fresh_game()?;
+        let mut w = fresh_game()?;
         let mut ai = Ai::new(P0);
         let gate = spell(37 /* earth_gate */)?;
-        g.cheat_learn_spell(P0, gate);
-        g.reveal_map(P0);
-        let enemy = PlayerView::new(&g, P0)
+        w.cheat_learn_spell(P0, gate);
+        w.reveal_map(P0);
+        let enemy = PlayerView::new(&w, P0)
             .known_cities()
             .into_iter()
             .find(|&(_, owner, _)| owner == P1)
             .map(|(_, _, p)| p)
             .ok_or("an enemy city")?;
-        let home = PlayerView::new(&g, P0).fortress().ok_or("a fortress")?;
+        let home = PlayerView::new(&w, P0).fortress().ok_or("a fortress")?;
         // A second city of the wizard far from the first, on the same plane.
-        let (w, h) = PlayerView::new(&g, P0).map_size().ok_or("a map")?;
+        let (width, h) = PlayerView::new(&w, P0).map_size().ok_or("a map")?;
         let candidates: Vec<Position> = {
-            let view = PlayerView::new(&g, P0);
+            let view = PlayerView::new(&w, P0);
             (0..h)
-                .flat_map(|y| (0..w).map(move |x| (x, y)))
+                .flat_map(|y| (0..width).map(move |x| (x, y)))
                 .map(|(x, y)| Position { x, y, ..home })
                 .filter(|&p| crate::view::distance(&view, p, home).is_some_and(|d| d >= GATE_FAR))
                 .collect()
@@ -2523,34 +2523,34 @@ mod tests {
         let far = candidates
             .into_iter()
             .find(|&pos| {
-                let events = g.apply(Command::FoundCity {
+                let events = w.apply(Command::FoundCity {
                     owner: P0,
                     pos,
                     name: "Far".into(),
-                    race: g.content().rules.races.id_numbered(8),
+                    race: w.content().rules.races.id_numbered(8),
                     population: 6,
                 });
                 !events.iter().any(|e| matches!(e, Event::Rejected(_)))
             })
             .ok_or("no room for a far city")?;
-        let city_at = |g: &Game, p| g.economy().city_at(p).ok_or("a city");
-        let (home_city, far_city) = (city_at(&g, home)?, city_at(&g, far)?);
+        let city_at = |w: &World, p| w.economy().city_at(p).ok_or("a city");
+        let (home_city, far_city) = (city_at(&w, home)?, city_at(&w, far)?);
         // The rally city is the one nearer the enemy.
-        let view = PlayerView::new(&g, P0);
+        let view = PlayerView::new(&w, P0);
         let near = |p| crate::view::distance(&view, p, enemy).unwrap_or(u32::MAX);
         let (rally_city, other_city) = if near(home) <= near(far) {
             (home_city, far_city)
         } else {
             (far_city, home_city)
         };
-        let aim = |g: &Game, ai: &Ai| earth_gate_target(ai, &PlayerView::new(g, P0), gate);
-        assert_eq!(aim(&g, &ai), None, "no campaign: no gate");
+        let aim = |w: &World, ai: &Ai| earth_gate_target(ai, &PlayerView::new(w, P0), gate);
+        assert_eq!(aim(&w, &ai), None, "no campaign: no gate");
         ai.campaign = Some(enemy);
-        assert_eq!(aim(&g, &ai), Some(Target::City(rally_city)));
-        g.scenario_enchant_city(rally_city, gate, P0);
-        assert_eq!(aim(&g, &ai), Some(Target::City(other_city)));
-        g.scenario_enchant_city(other_city, gate, P0);
-        assert_eq!(aim(&g, &ai), None, "the pair is done");
+        assert_eq!(aim(&w, &ai), Some(Target::City(rally_city)));
+        w.scenario_enchant_city(rally_city, gate, P0);
+        assert_eq!(aim(&w, &ai), Some(Target::City(other_city)));
+        w.scenario_enchant_city(other_city, gate, P0);
+        assert_eq!(aim(&w, &ai), None, "the pair is done");
         Ok(())
     }
 
@@ -2615,12 +2615,12 @@ mod tests {
 
     #[test]
     fn a_city_with_an_enemy_by_it_is_bolstered_before_the_fortress() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let events = g.apply(f4x_core::game::Command::FoundCity {
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let events = w.apply(f4x_core::world::Command::FoundCity {
             owner: P0,
             pos: at(3, 3),
             name: "Second".into(),
-            race: g.content().rules.races.id_numbered(8),
+            race: w.content().rules.races.id_numbered(8),
             population: 6,
         });
         assert!(
@@ -2628,25 +2628,25 @@ mod tests {
             "{events:?}"
         );
         let wall = spell(3 /* wall_of_stone */)?;
-        g.cheat_learn_spell(P0, wall);
-        g.make_contact(P0, P1);
-        g.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+        w.cheat_learn_spell(P0, wall);
+        w.make_contact(P0, P1);
+        w.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
             player: P0,
             on: P1,
         }));
-        g.reveal_map(P0);
-        let city_at = |g: &Game, p| g.economy().city_at(p);
+        w.reveal_map(P0);
+        let city_at = |w: &World, p| w.economy().city_at(p);
         // No enemy near: the first city, as before (the test world has no fortress).
         assert_eq!(
-            pick_target(&PlayerView::new(&g, P0), wall),
-            city_at(&g, at(COAST_CITY.0, COAST_CITY.1)).map(Target::City),
+            pick_target(&PlayerView::new(&w, P0), wall),
+            city_at(&w, at(COAST_CITY.0, COAST_CITY.1)).map(Target::City),
             "no enemy: the first city"
         );
-        spawn(&mut g, P1, at(4, 3), 104 /* high_men_spearmen */, 3);
-        let threatened = pick_target(&PlayerView::new(&g, P0), wall);
+        spawn(&mut w, P1, at(4, 3), 104 /* high_men_spearmen */, 3);
+        let threatened = pick_target(&PlayerView::new(&w, P0), wall);
         assert_eq!(
             threatened,
-            city_at(&g, at(3, 3)).map(Target::City),
+            city_at(&w, at(3, 3)).map(Target::City),
             "an enemy by the second city: it comes first"
         );
         Ok(())
@@ -2654,55 +2654,55 @@ mod tests {
 
     #[test]
     fn natures_wrath_has_a_victim_only_in_an_enemy_with_death_or_chaos_books() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.make_contact(P0, P1);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.make_contact(P0, P1);
         let wrath = spell(40 /* natures_wrath */)?;
         let storm = spell(113 /* meteor_storm */)?;
-        g.wizard_mut(P1).ok_or("player 1 is a wizard")?.found(
+        w.wizard_mut(P1).ok_or("player 1 is a wizard")?.found(
             &f4x_def::testdir::shipped().rules,
             &[(RealmId::new(3) /* life */, 5)],
             &[],
         );
-        let victim = |g: &Game, id| {
-            let def = g.content().rules.spells.get(id);
-            crate::intent::global_wanted(&PlayerView::new(g, P0), def)
+        let victim = |w: &World, id| {
+            let def = w.content().rules.spells.get(id);
+            crate::intent::global_wanted(&PlayerView::new(w, P0), def)
         };
-        assert!(!victim(&g, wrath) && !victim(&g, storm), "at peace");
-        g.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+        assert!(!victim(&w, wrath) && !victim(&w, storm), "at peace");
+        w.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
             player: P0,
             on: P1,
         }));
-        assert!(victim(&g, storm), "at war: the storm has a victim");
-        assert!(!victim(&g, wrath), "only Life: no Wrath");
-        g.wizard_mut(P1).ok_or("player 1 is a wizard")?.found(
+        assert!(victim(&w, storm), "at war: the storm has a victim");
+        assert!(!victim(&w, wrath), "only Life: no Wrath");
+        w.wizard_mut(P1).ok_or("player 1 is a wizard")?.found(
             &f4x_def::testdir::shipped().rules,
             &[(RealmId::new(2) /* chaos */, 5)],
             &[],
         );
-        assert!(victim(&g, wrath), "Chaos books: Wrath");
+        assert!(victim(&w, wrath), "Chaos books: Wrath");
         Ok(())
     }
 
     #[test]
     fn a_wizard_disenchants_the_city_an_enemy_has_cursed_and_otherwise_leaves_it() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
         let (area, famine, own) = (
             spell(204 /* disenchant_area */)?,
             spell(189 /* famine */)?,
             spell(12 /* natures_eye */)?,
         );
-        g.cheat_learn_spell(P0, area);
-        treasury(&mut g, P0)?.mana = f4x_def::half_int::HalfInt::from_int(5_000);
-        let city = g
+        w.cheat_learn_spell(P0, area);
+        treasury(&mut w, P0)?.mana = f4x_def::half_int::HalfInt::from_int(5_000);
+        let city = w
             .economy()
             .city_at(at(COAST_CITY.0, COAST_CITY.1))
             .ok_or("player 0 has a city")?;
-        g.scenario_enchant_city(city, own, P0);
-        let aim = |g: &Game| pick_target(&PlayerView::new(g, P0), area);
-        assert!(aim(&g).is_none(), "a spell of its own is no curse");
-        g.scenario_enchant_city(city, famine, P1);
+        w.scenario_enchant_city(city, own, P0);
+        let aim = |w: &World| pick_target(&PlayerView::new(w, P0), area);
+        assert!(aim(&w).is_none(), "a spell of its own is no curse");
+        w.scenario_enchant_city(city, famine, P1);
         assert_eq!(
-            aim(&g),
+            aim(&w),
             Some(Target::Tile(at(COAST_CITY.0, COAST_CITY.1))),
             "the cursed city is the aim"
         );
@@ -2712,82 +2712,82 @@ mod tests {
     #[test]
     fn a_wizard_breaks_the_global_spell_of_an_enemy_at_war_and_not_of_a_neighbour_at_peace(
     ) -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.make_contact(P0, P1);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.make_contact(P0, P1);
         let (disjunction, awareness) = (spell(210 /* disjunction */)?, spell(209 /* awareness */)?);
-        g.cheat_learn_spell(P0, disjunction);
-        g.scenario_add_global(P1, awareness);
-        let aim = |g: &Game| pick_target(&PlayerView::new(g, P0), disjunction);
-        assert!(aim(&g).is_none(), "at peace: left alone");
-        g.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+        w.cheat_learn_spell(P0, disjunction);
+        w.scenario_add_global(P1, awareness);
+        let aim = |w: &World| pick_target(&PlayerView::new(w, P0), disjunction);
+        assert!(aim(&w).is_none(), "at peace: left alone");
+        w.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
             player: P0,
             on: P1,
         }));
-        let instance = g
+        let instance = w
             .global_instance(P1, awareness)
             .ok_or("player 1 has the global spell")?;
-        assert_eq!(aim(&g), Some(Target::Spell(instance)));
+        assert_eq!(aim(&w), Some(Target::Spell(instance)));
         Ok(())
     }
 
     #[test]
     fn a_wizard_blasts_a_rival_at_war_who_is_casting_and_leaves_one_who_is_not() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.make_contact(P0, P1);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.make_contact(P0, P1);
         let blast = spell(58 /* spell_blast */)?;
-        g.cheat_learn_spell(P0, blast);
-        treasury(&mut g, P0)?.mana = f4x_def::half_int::HalfInt::from_int(5_000);
-        let aim = |g: &Game| pick_target(&PlayerView::new(g, P0), blast);
-        g.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+        w.cheat_learn_spell(P0, blast);
+        treasury(&mut w, P0)?.mana = f4x_def::half_int::HalfInt::from_int(5_000);
+        let aim = |w: &World| pick_target(&PlayerView::new(w, P0), blast);
+        w.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
             player: P0,
             on: P1,
         }));
-        assert!(aim(&g).is_none(), "the rival casts nothing");
-        g.scenario_casting(P1, spell(113 /* meteor_storm */)?, 100);
-        assert_eq!(aim(&g), Some(Target::Player(P1)));
+        assert!(aim(&w).is_none(), "the rival casts nothing");
+        w.scenario_casting(P1, spell(113 /* meteor_storm */)?, 100);
+        assert_eq!(aim(&w), Some(Target::Player(P1)));
         Ok(())
     }
 
     /// Patch 1.50, note 271: the AI aims no curse at a wizard it has not met.
     #[test]
     fn a_wizard_blasts_nobody_it_has_not_met() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
         let blast = spell(58 /* spell_blast */)?;
-        g.cheat_learn_spell(P0, blast);
-        treasury(&mut g, P0)?.mana = f4x_def::half_int::HalfInt::from_int(5_000);
-        g.scenario_casting(P1, spell(113 /* meteor_storm */)?, 100);
-        g.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+        w.cheat_learn_spell(P0, blast);
+        treasury(&mut w, P0)?.mana = f4x_def::half_int::HalfInt::from_int(5_000);
+        w.scenario_casting(P1, spell(113 /* meteor_storm */)?, 100);
+        w.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
             player: P0,
             on: P1,
         }));
-        assert!(pick_target(&PlayerView::new(&g, P0), blast).is_none());
+        assert!(pick_target(&PlayerView::new(&w, P0), blast).is_none());
         Ok(())
     }
 
     #[test]
     fn a_wizard_holds_an_enemy_stack_near_its_city_only_while_at_war_and_stronger_than_the_garrison(
     ) -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.make_contact(P0, P1);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.make_contact(P0, P1);
         let stasis = spell(68 /* stasis */)?;
-        g.cheat_learn_spell(P0, stasis);
+        w.cheat_learn_spell(P0, stasis);
         let near = at(COAST_CITY.0 - 1, COAST_CITY.1);
-        spawn(&mut g, P1, near, 104 /* high_men_spearmen */, 8);
-        let aim = |g: &Game| pick_target(&PlayerView::new(g, P0), stasis);
-        assert!(aim(&g).is_none(), "at peace: left alone");
-        g.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+        spawn(&mut w, P1, near, 104 /* high_men_spearmen */, 8);
+        let aim = |w: &World| pick_target(&PlayerView::new(w, P0), stasis);
+        assert!(aim(&w).is_none(), "at peace: left alone");
+        w.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
             player: P0,
             on: P1,
         }));
-        assert_eq!(aim(&g), Some(Target::Tile(near)));
+        assert_eq!(aim(&w), Some(Target::Tile(near)));
         spawn(
-            &mut g,
+            &mut w,
             P0,
             at(COAST_CITY.0, COAST_CITY.1),
             104, /* high_men_spearmen */
             9,
         );
-        assert!(aim(&g).is_none(), "the garrison is the stronger");
+        assert!(aim(&w).is_none(), "the garrison is the stronger");
         Ok(())
     }
 
@@ -2804,45 +2804,45 @@ mod tests {
 
     #[test]
     fn a_hurt_stack_far_from_home_is_recalled_and_one_in_a_city_is_not() -> TestResult {
-        let mut g = fresh_game()?;
+        let mut w = fresh_game()?;
         let recall = spell(47 /* word_of_recall */)?;
-        g.cheat_learn_spell(P1, recall);
-        let circle = g
+        w.cheat_learn_spell(P1, recall);
+        let circle = w
             .wizard(P1)
             .ok_or("player 1 is a wizard")?
             .summon_at()
             .ok_or("a summoning circle")?;
-        let aim = |g: &Game| pick_target(&PlayerView::new(g, P1), recall);
-        for u in PlayerView::new(&g, P1).my_units() {
-            g.scenario_set_hurt(u, 1);
+        let aim = |w: &World| pick_target(&PlayerView::new(w, P1), recall);
+        for u in PlayerView::new(&w, P1).my_units() {
+            w.scenario_set_hurt(u, 1);
         }
-        assert!(aim(&g).is_none(), "units at home are not stranded");
-        let width = g.map().ok_or("a map")?.width();
+        assert!(aim(&w).is_none(), "units at home are not stranded");
+        let width = w.map().ok_or("a map")?.width();
         let far = f4x_core::map::Position {
             x: (circle.x + 20) % width,
             ..circle
         };
-        let fighters = spawn(&mut g, P1, far, 104 /* high_men_spearmen */, 2);
-        assert!(aim(&g).is_none(), "whole stack is not hurt");
+        let fighters = spawn(&mut w, P1, far, 104 /* high_men_spearmen */, 2);
+        assert!(aim(&w).is_none(), "whole stack is not hurt");
         for &u in &fighters {
-            let (_, max) = PlayerView::new(&g, P1).unit_hits(u);
-            g.scenario_set_hurt(u, max);
+            let (_, max) = PlayerView::new(&w, P1).unit_hits(u);
+            w.scenario_set_hurt(u, max);
         }
-        assert!(matches!(aim(&g), Some(Target::Unit(u)) if fighters.contains(&u)));
+        assert!(matches!(aim(&w), Some(Target::Unit(u)) if fighters.contains(&u)));
         Ok(())
     }
 
     #[test]
     fn heroism_is_aimed_at_a_fighter_and_not_at_one_that_has_it() -> TestResult {
-        let mut g = fresh_game()?;
+        let mut w = fresh_game()?;
         let heroism = spell(130 /* heroism */)?;
-        g.cheat_learn_spell(P1, heroism);
-        let aim = |g: &Game| pick_target(&PlayerView::new(g, P1), heroism);
-        let Some(Target::Unit(first)) = aim(&g) else {
+        w.cheat_learn_spell(P1, heroism);
+        let aim = |w: &World| pick_target(&PlayerView::new(w, P1), heroism);
+        let Some(Target::Unit(first)) = aim(&w) else {
             return Err("Heroism has a unit to go on".into());
         };
-        g.scenario_enchant_unit(first, heroism, P1);
-        match aim(&g) {
+        w.scenario_enchant_unit(first, heroism, P1);
+        match aim(&w) {
             Some(Target::Unit(second)) => assert_ne!(second, first),
             other => assert!(other.is_none(), "{other:?}"),
         }
@@ -2851,9 +2851,9 @@ mod tests {
 
     #[test]
     fn the_mana_owed_for_the_spell_of_mastery_is_mana_to_buy_with_gold() -> TestResult {
-        let (mut g, _) = summoner(50_000, 0)?;
-        let before = mana_wanted(&PlayerView::new(&g, P1), &[]);
-        let mastery = g
+        let (mut w, _) = summoner(50_000, 0)?;
+        let before = mana_wanted(&PlayerView::new(&w, P1), &[]);
+        let mastery = w
             .content()
             .rules
             .spells
@@ -2861,10 +2861,10 @@ mod tests {
             .find(|(_, d)| kind(d) == Kind::Mastery)
             .map(|(id, _)| id)
             .ok_or("a spell of mastery")?;
-        g.cheat_learn_spell(P1, mastery);
-        g.scenario_casting(P1, mastery, 3000);
+        w.cheat_learn_spell(P1, mastery);
+        w.scenario_casting(P1, mastery, 3000);
         assert_eq!(
-            mana_wanted(&PlayerView::new(&g, P1), &[]),
+            mana_wanted(&PlayerView::new(&w, P1), &[]),
             before + 3000,
             "what is still owed is wanted on top"
         );
@@ -2875,15 +2875,15 @@ mod tests {
     /// the unit's production cost weighs in the rating, not in the mana needed.
     #[test]
     fn lycanthropy_is_aimed_at_an_obsolete_unit_and_its_cost_lowers_the_rate() -> TestResult {
-        let mut g = fresh_game()?;
+        let mut w = fresh_game()?;
         let lycanthropy = spell(173)?;
-        g.cheat_learn_spell(P1, lycanthropy);
-        let circle = g
+        w.cheat_learn_spell(P1, lycanthropy);
+        let circle = w
             .wizard(P1)
             .ok_or("player 1 is a wizard")?
             .summon_at()
             .ok_or("a summoning circle")?;
-        let view = PlayerView::new(&g, P1);
+        let view = PlayerView::new(&w, P1);
         let spearmen_cost = {
             let rules = &view.content().rules;
             rules
@@ -2892,23 +2892,23 @@ mod tests {
                 .cost as i32
         };
         drop(view);
-        for u in PlayerView::new(&g, P1).my_units() {
-            g.scenario_set_hurt(u, 0);
+        for u in PlayerView::new(&w, P1).my_units() {
+            w.scenario_set_hurt(u, 0);
         }
-        let paladins = spawn(&mut g, P1, circle, 113 /* high_men_paladins */, 1);
-        let before = lycanthropy_target(&PlayerView::new(&g, P1), lycanthropy);
+        let paladins = spawn(&mut w, P1, circle, 113 /* high_men_paladins */, 1);
+        let before = lycanthropy_target(&PlayerView::new(&w, P1), lycanthropy);
         assert!(
             before.is_none_or(|(u, ..)| u != paladins[0]),
             "a paladin is no better as a werewolf"
         );
-        let spearmen = spawn(&mut g, P1, circle, 104 /* high_men_spearmen */, 1);
-        let (aimed, extra, rate) = lycanthropy_target(&PlayerView::new(&g, P1), lycanthropy)
+        let spearmen = spawn(&mut w, P1, circle, 104 /* high_men_spearmen */, 1);
+        let (aimed, extra, rate) = lycanthropy_target(&PlayerView::new(&w, P1), lycanthropy)
             .ok_or("an obsolete unit to turn")?;
         assert_eq!(aimed, spearmen[0]);
         assert_eq!(extra, spearmen_cost);
         // The unit given up is part of the price: the same gain for the spell's mana alone would
         // rate higher, as a summon of that strength does (it costs no unit).
-        let view = PlayerView::new(&g, P1);
+        let view = PlayerView::new(&w, P1);
         let cast = view.casting_cost(lycanthropy) as f32;
         let gain = rate * (cast + extra as f32);
         assert!(rate < gain / cast);
@@ -2927,17 +2927,17 @@ mod tests {
     /// the spell's rating is the drake's.
     #[test]
     fn a_unit_buff_is_aimed_at_the_unit_it_adds_most_to() -> TestResult {
-        let mut g = fresh_game()?;
+        let mut w = fresh_game()?;
         let iron_skin = spell(24)?;
-        g.cheat_learn_spell(P1, iron_skin);
-        let circle = g
+        w.cheat_learn_spell(P1, iron_skin);
+        let circle = w
             .wizard(P1)
             .ok_or("player 1 is a wizard")?
             .summon_at()
             .ok_or("a summoning circle")?;
-        let spearmen = spawn(&mut g, P1, circle, 104 /* high_men_spearmen */, 1);
-        let drake = spawn(&mut g, P1, circle, 164 /* great_drake */, 1);
-        let view = PlayerView::new(&g, P1);
+        let spearmen = spawn(&mut w, P1, circle, 104 /* high_men_spearmen */, 1);
+        let drake = spawn(&mut w, P1, circle, 164 /* great_drake */, 1);
+        let view = PlayerView::new(&w, P1);
         let gain = |u| view.unit_power_with_spell(u, iron_skin) - view.unit_power(u);
         assert!(
             gain(spearmen[0]) > 0.0,
@@ -2955,22 +2955,22 @@ mod tests {
     /// unit that is Elite already gains nothing.
     #[test]
     fn heroism_is_worth_the_levels_it_lifts() -> TestResult {
-        let mut g = fresh_game()?;
+        let mut w = fresh_game()?;
         let heroism = spell(130 /* heroism */)?;
-        g.cheat_learn_spell(P1, heroism);
-        let circle = g
+        w.cheat_learn_spell(P1, heroism);
+        let circle = w
             .wizard(P1)
             .ok_or("player 1 is a wizard")?
             .summon_at()
             .ok_or("a summoning circle")?;
-        let recruit = spawn(&mut g, P1, circle, 104 /* high_men_spearmen */, 1)[0];
-        let gain = |g: &Game, u| {
-            let view = PlayerView::new(g, P1);
+        let recruit = spawn(&mut w, P1, circle, 104 /* high_men_spearmen */, 1)[0];
+        let gain = |w: &World, u| {
+            let view = PlayerView::new(w, P1);
             view.unit_power_with_spell(u, heroism) - view.unit_power(u)
         };
-        assert!(gain(&g, recruit) > 0.0);
-        g.scenario_enchant_unit(recruit, heroism, P1);
-        assert_eq!(gain(&g, recruit), 0.0, "an Elite unit gains nothing");
+        assert!(gain(&w, recruit) > 0.0);
+        w.scenario_enchant_unit(recruit, heroism, P1);
+        assert_eq!(gain(&w, recruit), 0.0, "an Elite unit gains nothing");
         Ok(())
     }
 
@@ -2978,22 +2978,22 @@ mod tests {
     /// which regenerates already.
     #[test]
     fn a_unit_buff_with_nothing_to_add_has_no_aim() -> TestResult {
-        let mut g = fresh_game()?;
+        let mut w = fresh_game()?;
         let regeneration = spell(31)?;
-        g.cheat_learn_spell(P1, regeneration);
-        let circle = g
+        w.cheat_learn_spell(P1, regeneration);
+        let circle = w
             .wizard(P1)
             .ok_or("player 1 is a wizard")?
             .summon_at()
             .ok_or("a summoning circle")?;
-        let view = PlayerView::new(&g, P1);
+        let view = PlayerView::new(&w, P1);
         let others: Vec<_> = view.my_units();
         drop(view);
         for u in others {
-            g.scenario_set_hurt(u, 0);
+            w.scenario_set_hurt(u, 0);
         }
-        let trolls = spawn(&mut g, P1, circle, 147 /* troll_spearmen */, 1);
-        let view = PlayerView::new(&g, P1);
+        let trolls = spawn(&mut w, P1, circle, 147 /* troll_spearmen */, 1);
+        let view = PlayerView::new(&w, P1);
         let gain = view.unit_power_with_spell(trolls[0], regeneration) - view.unit_power(trolls[0]);
         assert_eq!(gain, 0.0, "a troll regenerates already");
         assert_ne!(
@@ -3007,18 +3007,18 @@ mod tests {
     /// margin is enough, and a spearman becomes a werewolf.
     #[test]
     fn lycanthropy_needs_only_the_spells_own_mana() -> TestResult {
-        let mut g = fresh_game()?;
+        let mut w = fresh_game()?;
         let lycanthropy = spell(173)?;
-        g.cheat_learn_spell(P1, lycanthropy);
-        let circle = g
+        w.cheat_learn_spell(P1, lycanthropy);
+        let circle = w
             .wizard(P1)
             .ok_or("player 1 is a wizard")?
             .summon_at()
             .ok_or("a summoning circle")?;
         // An army big enough that no summon is wanted, so the spell under test is the one left.
-        spawn(&mut g, P1, circle, 104 /* high_men_spearmen */, 8);
+        spawn(&mut w, P1, circle, 104 /* high_men_spearmen */, 8);
         let land: Vec<_> = {
-            let view = PlayerView::new(&g, P1);
+            let view = PlayerView::new(&w, P1);
             [(1, 0), (0, 1), (-1, 0), (0, -1)]
                 .into_iter()
                 .filter_map(|(dx, dy)| view.shift(circle, dx, dy))
@@ -3029,36 +3029,36 @@ mod tests {
                 .collect()
         };
         for &p in &land {
-            spawn(&mut g, P1, p, 104, 8);
+            spawn(&mut w, P1, p, 104, 8);
         }
-        let cost = PlayerView::new(&g, P1).casting_cost(lycanthropy);
+        let cost = PlayerView::new(&w, P1).casting_cost(lycanthropy);
         let ai = Ai::new(P1);
-        let werewolves = |g: &Game| {
-            PlayerView::new(g, P1)
+        let werewolves = |w: &World| {
+            PlayerView::new(w, P1)
                 .my_units()
                 .into_iter()
                 .filter(|&u| {
-                    PlayerView::new(g, P1)
+                    PlayerView::new(w, P1)
                         .unit_def(u)
-                        .is_some_and(|d| d.num == g.content().rules.config.spell_effects.werewolves)
+                        .is_some_and(|d| d.num == w.content().rules.config.spell_effects.werewolves)
                 })
                 .count()
         };
         // The spell's cost with the margin, and nothing for the spearman.
         for _ in 0..40 {
-            treasury(&mut g, P1)?.mana = HalfInt::from_int(cost * 3 / 2 + 1);
+            treasury(&mut w, P1)?.mana = HalfInt::from_int(cost * 3 / 2 + 1);
             // Turns kill units of a world with no food or gold: keep the army up.
             for p in &land {
-                spawn(&mut g, P1, *p, 104, 3);
+                spawn(&mut w, P1, *p, 104, 3);
             }
-            resolve_paid(&ai, &mut g, &mut Vec::new());
-            cast(&ai, &mut g, &mut Vec::new());
-            if werewolves(&g) > 0 {
+            resolve_paid(&ai, &mut w, &mut Vec::new());
+            cast(&ai, &mut w, &mut Vec::new());
+            if werewolves(&w) > 0 {
                 break;
             }
-            g.apply(f4x_core::game::Command::EndTurn);
+            w.apply(f4x_core::world::Command::EndTurn);
         }
-        assert!(werewolves(&g) >= 1, "a spearman is a werewolf");
+        assert!(werewolves(&w) >= 1, "a spearman is a werewolf");
         Ok(())
     }
 }

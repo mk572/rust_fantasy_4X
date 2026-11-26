@@ -1,5 +1,5 @@
 //! What a player can see right now (as opposed to merely having explored), worked out by the
-//! `Economy` handle (world, map, content, players) without a `Game`.
+//! `Economy` handle (world, map, content, players) without a `World`.
 
 use crate::city::economy::Economy;
 use crate::fast::FastMap;
@@ -205,8 +205,8 @@ impl VisionEffect {
     /// The effect a command can have, by its kind alone. Only commands that cannot touch a unit,
     /// a city or a spell on either are `None`; the walking commands are `Walk`; every other
     /// command, and any command not named here, is `Recount`.
-    pub(crate) fn of(command: &crate::game::Command) -> Self {
-        use crate::game::Command as C;
+    pub(crate) fn of(command: &crate::world::Command) -> Self {
+        use crate::world::Command as C;
         match command {
             C::ClearOrders { .. }
             | C::SetStandby { .. }
@@ -230,8 +230,8 @@ impl VisionEffect {
 
     /// The effect once the events of the command are known: a command that raised an event
     /// outside the few that cannot change the sight is a `Recount` whatever its kind says.
-    pub(crate) fn with_events(self, events: &[crate::game::Event]) -> Self {
-        use crate::game::Event as E;
+    pub(crate) fn with_events(self, events: &[crate::world::Event]) -> Self {
+        use crate::world::Event as E;
         let harmless = |e: &E| match self {
             Self::None => matches!(e, E::Rejected(_) | E::Diplomacy(_)),
             Self::Walk => matches!(
@@ -255,19 +255,19 @@ impl VisionEffect {
 /// and over, each wanting what the player sees; counting it afresh for each is a tenth of a whole
 /// game. Between two of the wizard's commands nothing else changes the game, so the count is kept,
 /// patched after a command that only moved units ([`VisionEffect::Walk`]), and dropped after any
-/// other that is not harmless ([`VisionEffect`]). Off unless [`Game::keep_for_turn`] is called.
+/// other that is not harmless ([`VisionEffect`]). Off unless [`World::keep_for_turn`] is called.
 #[derive(Default)]
 pub(crate) struct VisionCache {
     player: Option<PlayerId>,
     grid: Option<VisionGrid>,
 }
 
-impl crate::game::Game {
+impl crate::world::World {
     /// Keep what `player` sees, and what its units' stats are made of (`unit::kept`), from now
-    /// until [`Game::drop_kept`]: for the length of a computer wizard's turn, in which every
+    /// until [`World::drop_kept`]: for the length of a computer wizard's turn, in which every
     /// change of the game is a command it sends.
     pub fn keep_for_turn(&self, player: PlayerId) {
-        crate::unit::kept::arm(&self.world, player);
+        crate::unit::kept::arm(&self.ecs, player);
         *self.vision.borrow_mut() = VisionCache {
             player: Some(player),
             grid: None,
@@ -293,7 +293,7 @@ impl crate::game::Game {
     }
 
     /// Bring the kept vision up to date after a command.
-    pub(crate) fn vision_after(&mut self, effect: VisionEffect, events: &[crate::game::Event]) {
+    pub(crate) fn vision_after(&mut self, effect: VisionEffect, events: &[crate::world::Event]) {
         let effect = effect.with_events(events);
         // A walk or a harmless command leaves what a unit's stats are made of as it was.
         if effect == VisionEffect::Recount {
@@ -311,11 +311,10 @@ impl crate::game::Game {
             VisionEffect::Walk => {
                 // Every unit of the player now, where it stands (no order is needed).
                 let now: FastMap<hecs::Entity, Option<Position>> = match crate::player::find_entity(
-                    &self.world,
-                    player,
+                    &self.ecs, player,
                 ) {
                     Some(me) => self
-                        .world
+                        .ecs
                         .query::<(&crate::unit::Unit, &crate::player::Owner, Option<&Position>)>()
                         .iter()
                         .filter(|(_, (_, o, _))| o.0 == me)

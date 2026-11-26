@@ -94,7 +94,7 @@ impl App {
         });
         clear_background(Color::new(0.0, 0.0, 0.0, 0.0));
         crate::map_draw::draw_square(
-            &self.game,
+            &self.world,
             &mut self.art,
             anim.from.plane,
             anim.from.x,
@@ -139,13 +139,13 @@ mod tests {
 
     fn squares(app: &App) -> Result<(Position, Position, Vec<hecs::Entity>), &'static str> {
         let unit = *app
-            .game
+            .world
             .units()
             .player_units(HUMAN)
             .first()
             .ok_or("the human has no unit")?;
         let from = app
-            .game
+            .world
             .units()
             .unit_position(unit)
             .ok_or("the unit has no position")?;
@@ -196,7 +196,7 @@ mod tests {
         let (from, ..) = squares(&app)?;
         app.prefs.set(Pref::SpellAnimations, true);
         let spell = app
-            .game
+            .world
             .content()
             .rules
             .spells

@@ -8,10 +8,10 @@ use rand_pcg::Pcg64Mcg;
 
 use super::Lair;
 use crate::feature::def::FeatureKind;
-use crate::game::rng::random;
 use crate::map::Plane;
 use crate::rules::lair::{HoardKind, LairRules, LairStyle, Roll};
 use crate::rules::{RealmId, UnitId};
+use crate::world::rng::random;
 use f4x_def::content::Content;
 
 /// What kind of site a lair guards, for choosing its guards' realm.

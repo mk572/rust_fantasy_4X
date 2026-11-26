@@ -24,8 +24,8 @@ pub struct WizardLink(pub hecs::Entity);
 pub struct Owner(pub hecs::Entity);
 
 /// The [`PlayerId`] of a player entity.
-pub fn id_of(world: &hecs::World, player: hecs::Entity) -> Option<PlayerId> {
-    world.get::<&PlayerId>(player).ok().map(|id| *id)
+pub fn id_of(ecs: &hecs::World, player: hecs::Entity) -> Option<PlayerId> {
+    ecs.get::<&PlayerId>(player).ok().map(|id| *id)
 }
 
 /// On a player that is no wizard: the monsters' owner and each independent city's own player. It has no wizard, no magic, no victory, no fog and no AI of a wizard's kind.
@@ -106,7 +106,7 @@ pub enum Control {
 
 /// On a player: what its cities and army are multiplied by, in percent (100 changes nothing). The
 /// original gives these to computer wizards by difficulty (`difficulty_modifiers_table`). Set from
-/// the game's settings (`Game::apply_wizard_settings`), not saved.
+/// the game's settings (`World::apply_wizard_settings`), not saved.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Bonus {
     pub growth: i32,
@@ -195,20 +195,20 @@ pub fn test_bundle(id: PlayerId) -> (PlayerId, Treasury, Tax, Bonus, History, Of
     )
 }
 
-/// The player entity with this id. The world has no index of its own (`Game` keeps one), so this
+/// The player entity with this id. The world has no index of its own (`World` keeps one), so this
 /// remembers the last answer per id on the thread and checks it against the world: an entity that
 /// still carries the id is the player (an id is made once), anything else is a scan. A wrong or
 /// stale memory costs a scan, never a wrong answer.
-pub fn find_entity(world: &hecs::World, id: PlayerId) -> Option<hecs::Entity> {
+pub fn find_entity(ecs: &hecs::World, id: PlayerId) -> Option<hecs::Entity> {
     thread_local! {
         static SEEN: std::cell::RefCell<std::collections::HashMap<PlayerId, hecs::Entity>> =
             std::cell::RefCell::new(std::collections::HashMap::new());
     }
     let seen = SEEN.with(|s| s.borrow().get(&id).copied());
-    if let Some(e) = seen.filter(|&e| world.get::<&PlayerId>(e).is_ok_and(|p| *p == id)) {
+    if let Some(e) = seen.filter(|&e| ecs.get::<&PlayerId>(e).is_ok_and(|p| *p == id)) {
         return Some(e);
     }
-    let found = world
+    let found = ecs
         .query::<&PlayerId>()
         .iter()
         .find(|(_, &p)| p == id)
@@ -220,17 +220,14 @@ pub fn find_entity(world: &hecs::World, id: PlayerId) -> Option<hecs::Entity> {
 }
 
 /// A component of the player with this id.
-pub fn component<C: hecs::Component>(
-    world: &hecs::World,
-    id: PlayerId,
-) -> Option<hecs::Ref<'_, C>> {
-    world.get::<&C>(find_entity(world, id)?).ok()
+pub fn component<C: hecs::Component>(ecs: &hecs::World, id: PlayerId) -> Option<hecs::Ref<'_, C>> {
+    ecs.get::<&C>(find_entity(ecs, id)?).ok()
 }
 
 /// Every player id but the monsters' owner, ascending (ids are handed out in the order players
 /// are made).
-pub fn ids(world: &hecs::World) -> Vec<PlayerId> {
-    let mut ids: Vec<PlayerId> = world
+pub fn ids(ecs: &hecs::World) -> Vec<PlayerId> {
+    let mut ids: Vec<PlayerId> = ecs
         .query::<&PlayerId>()
         .iter()
         .map(|(_, &p)| p)

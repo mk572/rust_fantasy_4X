@@ -5,11 +5,11 @@
 //! against the score. A city of the independents is never razed.
 
 use f4x_core::diplomacy::Treaty;
-use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
 use f4x_core::wizard::objective::Personality;
+use f4x_core::world::{Command, Event, World};
 
 use crate::Ai;
 
@@ -63,7 +63,7 @@ fn score(view: &PlayerView, at: Position, from: PlayerId) -> i32 {
 }
 
 /// Decide for every city of a wizard taken in the events so far this turn.
-pub(crate) fn run(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
+pub(crate) fn run(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
     let me = ai.player;
     let taken: Vec<(hecs::Entity, PlayerId)> = events
         .iter()
@@ -74,7 +74,7 @@ pub(crate) fn run(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         .collect();
     for (city, from) in taken {
         let wanted = {
-            let view = PlayerView::new(game, me);
+            let view = PlayerView::new(world, me);
             if !view.is_rival_wizard(from) {
                 continue;
             }
@@ -88,8 +88,8 @@ pub(crate) fn run(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             };
             score(&view, at, from)
         };
-        if game.roll(100) as i32 <= wanted {
-            ai.order(game, Command::RazeCity { player: me, city }, events);
+        if world.roll(100) as i32 <= wanted {
+            ai.order(world, Command::RazeCity { player: me, city }, events);
         }
     }
 }
@@ -104,18 +104,18 @@ mod tests {
     #[test]
     fn a_maniacal_wizard_does_not_raze_a_city_whose_former_owner_has_nothing_nearby() -> TestResult
     {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let city = g
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let city = w
             .economy()
             .city_at(at(ENEMY_CITY.0, ENEMY_CITY.1))
             .ok_or("the enemy has a city")?;
         // Take the enemy's only city: the former owner has nothing else near, so even the
         // fiercest temper does not raze it (-200 for no rival land on the continent).
-        g.wizard_mut(P0)
+        w.wizard_mut(P0)
             .ok_or("player 0 is a wizard")?
             .put(Some(Personality::Maniacal));
-        g.conquer_city(city, P0, 0);
-        let view = PlayerView::new(&g, P0);
+        w.conquer_city(city, P0, 0);
+        let view = PlayerView::new(&w, P0);
         let pos = at(ENEMY_CITY.0, ENEMY_CITY.1);
         assert!(score(&view, pos, P1) < 0);
         Ok(())
@@ -123,19 +123,19 @@ mod tests {
 
     #[test]
     fn the_temper_sets_the_start_of_the_score() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
         let enemy = at(ENEMY_CITY.0, ENEMY_CITY.1);
-        let other = g.economy().city_at(enemy).ok_or("the enemy has a city")?;
-        let race = g.content().rules.races.id_numbered(8);
+        let other = w.economy().city_at(enemy).ok_or("the enemy has a city")?;
+        let race = w.content().rules.races.id_numbered(8);
         // Give the former owner a second city near the first, so there is land to fight over.
-        g.apply(Command::FoundCity {
+        w.apply(Command::FoundCity {
             owner: P1,
             pos: at(ENEMY_CITY.0 + 4, ENEMY_CITY.1),
             name: "Second".into(),
             race,
             population: 4,
         });
-        g.conquer_city(other, P0, 0);
+        w.conquer_city(other, P0, 0);
         let mut scores = Vec::new();
         for p in [
             Personality::Maniacal,
@@ -143,8 +143,8 @@ mod tests {
             Personality::Aggressive,
             Personality::Peaceful,
         ] {
-            g.wizard_mut(P0).ok_or("player 0 is a wizard")?.put(Some(p));
-            let view = PlayerView::new(&g, P0);
+            w.wizard_mut(P0).ok_or("player 0 is a wizard")?.put(Some(p));
+            let view = PlayerView::new(&w, P0);
             scores.push(score(&view, enemy, P1));
         }
         assert_eq!(scores[0] - scores[2], 25);

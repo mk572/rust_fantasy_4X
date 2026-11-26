@@ -8,25 +8,22 @@
 //! stub there and is not modelled.
 
 use crate::city::economy::Population;
-use crate::game::Game;
 use crate::player::PlayerId;
 use crate::rules::BuildingId;
 use crate::rules::{SpellId, SpellTarget};
+use crate::world::World;
 
-impl Game {
+impl World {
     /// Nightshade plants the city can use: those in its area, if it has a building that allows
     /// them and is not an outpost.
     pub fn nightshade_count(&self, city: hecs::Entity) -> u32 {
         let (Some(at), Some(map)) = (
-            self.world
-                .get::<&crate::map::Position>(city)
-                .ok()
-                .map(|p| *p),
+            self.ecs.get::<&crate::map::Position>(city).ok().map(|p| *p),
             self.map.as_ref(),
         ) else {
             return 0;
         };
-        if self.world.get::<&Population>(city).map_or(0, |p| p.figures) == 0 {
+        if self.ecs.get::<&Population>(city).map_or(0, |p| p.figures) == 0 {
             return 0;
         }
         let allowed = (self.content.rules.config.spell_effects.nightshade_buildings)

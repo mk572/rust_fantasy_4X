@@ -4,10 +4,10 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::game::Game;
 use crate::player::PlayerId;
 use crate::rules::UnitId;
 use crate::wizard::entity::Wizard;
+use crate::world::World;
 
 /// On a wizard: its temper. The human has none and counts as `Chaotic`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -93,7 +93,7 @@ impl Wizard<'_> {
     }
 }
 
-impl Game {
+impl World {
     /// The unit definitions of a wizard's heroes (a hero's own name is not kept yet: its class
     /// stands for it).
     pub fn wizard_heroes(&self, wizard: PlayerId) -> Vec<UnitId> {

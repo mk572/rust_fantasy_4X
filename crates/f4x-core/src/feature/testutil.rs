@@ -8,10 +8,10 @@ use crate::feature::def::FeatureKind;
 use crate::feature::entity::Placement;
 use crate::feature::lair::Lair;
 use crate::feature::node::Node;
-use crate::game::Game;
 use crate::map::Position;
+use crate::world::World;
 
-impl Game {
+impl World {
     /// Put the feature numbered `num` on a square: a mineral in the map layer, anything else as an
     /// entity with no guards and no node data. Returns the entity (none for a mineral).
     pub(crate) fn put_feature(&mut self, at: Position, num: u16) -> Option<Entity> {

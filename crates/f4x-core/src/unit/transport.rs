@@ -7,16 +7,16 @@
 //! passenger left at sea without a ship drowns.
 
 use crate::city::economy::Economy;
-use crate::game::serial::Serial;
 use crate::map::terrain::TerrainClass;
 use crate::map::Position;
 use crate::player::{PlayerId, MONSTERS};
 use crate::rules::unit_flag::UnitFlag;
 use crate::rules::{MovementType, Stat};
 use crate::unit::movement::MoveError;
+use crate::world::serial::Serial;
 use f4x_def::half_int::HalfInt;
 
-use crate::game::{Event, Game};
+use crate::world::{Event, World};
 
 /// A ship let go for lack of gold with units still aboard: it belongs to nobody and
 /// sails, a turn's worth at a time, for the nearest free shore, where it unloads and is released.
@@ -33,7 +33,7 @@ pub struct Bridge;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Aboard(pub Serial);
 
-impl Game {
+impl World {
     /// Park `ship` at sea as a bridge, or take it off its post (`Command::SetBridge`). It has to
     /// be a ship and, to become a bridge, to stand at sea; its standing order is dropped, since
     /// a bridge does not move. A ship that sails later is no bridge any more (`move_stack`).
@@ -42,7 +42,7 @@ impl Game {
             return Err(MoveError::BadSelection);
         }
         if !on {
-            let _ = self.world.remove_one::<Bridge>(ship);
+            let _ = self.ecs.remove_one::<Bridge>(ship);
             return Ok(());
         }
         let at = self
@@ -52,7 +52,7 @@ impl Game {
         if !self.economy().is_sea(at) {
             return Err(MoveError::Impassable);
         }
-        let _ = self.world.remove_one::<crate::unit::Order>(ship);
+        let _ = self.ecs.remove_one::<crate::unit::Order>(ship);
         self.put(ship, Bridge);
         Ok(())
     }
@@ -120,7 +120,7 @@ impl Economy<'_> {
 
     /// The ship `unit` is aboard, if it still exists.
     pub fn carrier_of(&self, unit: hecs::Entity) -> Option<hecs::Entity> {
-        let serial = self.world.get::<&Aboard>(unit).ok()?.0;
+        let serial = self.ecs.get::<&Aboard>(unit).ok()?.0;
         self.units().entity_of_serial(serial)
     }
 
@@ -129,7 +129,7 @@ impl Economy<'_> {
         let units = self.units();
         let serial = units.serial_of(ship);
         let mut out: Vec<_> = self
-            .world
+            .ecs
             .query::<&Aboard>()
             .iter()
             .filter(|(_, a)| a.0 == serial)
@@ -165,7 +165,7 @@ impl Economy<'_> {
         // Path searches ask this for every sea square they look at: no list, no sorting, and the
         // cheap tests (owner, sailing) before the stat.
         let units = self.units();
-        self.world
+        self.ecs
             .query::<(&crate::unit::Unit, &Position)>()
             .iter()
             .filter(|(_, (_, p))| **p == at)
@@ -193,12 +193,12 @@ impl Economy<'_> {
             .filter(|&&u| self.needs_ship(u, flies))
             .count()
             .max(1) as u32;
-        let Some(me) = crate::player::find_entity(self.world, owner) else {
+        let Some(me) = crate::player::find_entity(self.ecs, owner) else {
             return Default::default();
         };
         let mut room: crate::fast::FastMap<Position, u32> = Default::default();
         for (u, (unit, p, o)) in self
-            .world
+            .ecs
             .query::<(&crate::unit::Unit, &Position, &crate::player::Owner)>()
             .iter()
         {
@@ -214,13 +214,13 @@ impl Economy<'_> {
 
     /// Whether the ship is parked as a bridge (`Bridge`).
     pub fn is_bridge(&self, ship: hecs::Entity) -> bool {
-        self.world.get::<&Bridge>(ship).is_ok()
+        self.ecs.get::<&Bridge>(ship).is_ok()
     }
 
     /// The squares of `owner` where a ship is a bridge (`Bridge`).
     pub fn bridge_squares(&self, owner: PlayerId) -> crate::fast::FastSet<Position> {
         let units = self.units();
-        self.world
+        self.ecs
             .query::<(&crate::unit::Unit, &Position, &Bridge)>()
             .iter()
             .filter(|&(u, _)| units.unit_owner(u) == Some(owner) && self.is_ship(u))
@@ -270,7 +270,7 @@ impl Economy<'_> {
         lost
     }
 
-    /// Land units at sea with no ship under them: they are lost (`Game::drown_stranded`).
+    /// Land units at sea with no ship under them: they are lost (`World::drown_stranded`).
     pub(crate) fn stranded(&self) -> Vec<(PlayerId, hecs::Entity)> {
         let units = self.units();
         let mut lost = Vec::new();
@@ -307,7 +307,7 @@ impl Economy<'_> {
 /// not carried by one of the stack go aboard a ship of the stack, else one waiting there, if it
 /// has room; on land nobody is aboard. One unit at a time, as each boarding fills a place.
 pub(crate) fn update_aboard(
-    world: &mut hecs::World,
+    ecs: &mut hecs::World,
     map: Option<&crate::map::Map>,
     content: &f4x_def::content::Content,
     stack: &[hecs::Entity],
@@ -315,20 +315,20 @@ pub(crate) fn update_aboard(
     stack_flies: bool,
 ) {
     fn economy<'a>(
-        world: &'a hecs::World,
+        ecs: &'a hecs::World,
         map: Option<&'a crate::map::Map>,
         content: &'a f4x_def::content::Content,
     ) -> Economy<'a> {
-        Economy::new(world, map, content)
+        Economy::new(ecs, map, content)
     }
-    let e = economy(world, map, content);
+    let e = economy(ecs, map, content);
     let (to_sea, owner) = (e.is_sea(to), e.units().unit_owner(stack[0]));
     let Some(owner) = owner else {
         return;
     };
     for &u in stack {
         let board = {
-            let e = economy(world, map, content);
+            let e = economy(ecs, map, content);
             if !e.needs_ship(u, stack_flies) {
                 continue;
             }
@@ -353,21 +353,21 @@ pub(crate) fn update_aboard(
         };
         match board {
             Some(aboard) => {
-                crate::game::put_in(world, u, aboard);
+                crate::world::put_in(ecs, u, aboard);
             }
             None => {
-                crate::game::strip_in::<Aboard>(world, u);
+                crate::world::strip_in::<Aboard>(ecs, u);
             }
         }
     }
 }
 
-impl Game {
+impl World {
     /// Every marooned ship sails on towards the nearest shore with room for its passengers; the
     /// ones that arrive land them and are released. A ship with nowhere to land loses them.
     pub(crate) fn sail_marooned(&mut self, player: crate::player::PlayerId) -> Vec<Event> {
         let mut ships: Vec<hecs::Entity> = self
-            .world
+            .ecs
             .query::<&Marooned>()
             .iter()
             .map(|(e, _)| e)
@@ -498,7 +498,7 @@ impl Game {
     /// turns, which left it out of every ferry job (seed 20134 of the soak).
     pub(crate) fn unload_in_ports(&mut self, player: crate::player::PlayerId) {
         let aboard: Vec<hecs::Entity> = self
-            .world
+            .ecs
             .query::<&Aboard>()
             .iter()
             .map(|(e, _)| e)

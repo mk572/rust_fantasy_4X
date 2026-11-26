@@ -8,17 +8,17 @@ use crate::player::{
 use crate::wizard::entity::Wizard;
 use f4x_def::half_int::HalfInt;
 
-/// A read handle on one player entity. Made by [`crate::game::Game::player`].
+/// A read handle on one player entity. Made by [`crate::world::World::player`].
 #[derive(Clone, Copy)]
 pub struct Player<'a> {
-    world: &'a hecs::World,
+    ecs: &'a hecs::World,
     entity: hecs::Entity,
     id: PlayerId,
 }
 
 impl<'a> Player<'a> {
-    pub(crate) fn new(world: &'a hecs::World, entity: hecs::Entity, id: PlayerId) -> Self {
-        Self { world, entity, id }
+    pub(crate) fn new(ecs: &'a hecs::World, entity: hecs::Entity, id: PlayerId) -> Self {
+        Self { ecs, entity, id }
     }
 
     pub fn id(&self) -> PlayerId {
@@ -31,7 +31,7 @@ impl<'a> Player<'a> {
 
     /// A component of the player.
     pub fn component<C: hecs::Component>(&self) -> Option<hecs::Ref<'a, C>> {
-        self.world.get::<&C>(self.entity).ok()
+        self.ecs.get::<&C>(self.entity).ok()
     }
 
     /// The player's gold and mana.
@@ -58,12 +58,12 @@ impl<'a> Player<'a> {
     /// The player's wizard, if it has one.
     pub fn wizard(&self) -> Option<Wizard<'a>> {
         let link = self.component::<WizardLink>()?;
-        Some(Wizard::new(self.world, link.0))
+        Some(Wizard::new(self.ecs, link.0))
     }
 
     /// How the player is called: its wizard's name, or its (oldest) city's.
     pub fn name(&self) -> String {
-        crate::wizard::entity::player_name(self.world, self.id)
+        crate::wizard::entity::player_name(self.ecs, self.id)
     }
 
     /// The banner colour; the neutral banner if the player has no wizard.

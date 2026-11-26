@@ -243,12 +243,12 @@ pub(crate) fn target(view: &PlayerView, spell: SpellId) -> Option<Target> {
 mod tests {
     use super::*;
     use crate::testworld::{at, game, spawn_tower, COAST_CITY, INLAND_CITY, P0};
-    use f4x_core::game::{Command, Game};
+    use f4x_core::world::{Command, World};
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-    fn spell(g: &Game) -> Result<SpellId, Box<dyn std::error::Error>> {
-        Ok(g.content()
+    fn spell(w: &World) -> Result<SpellId, Box<dyn std::error::Error>> {
+        Ok(w.content()
             .rules
             .spells
             .id_numbered(55 /* enchant_road */)
@@ -256,52 +256,52 @@ mod tests {
     }
 
     /// A road along row 6 from the inland city to the coast city, as the engineers would leave it.
-    fn with_road(g: &mut Game) {
+    fn with_road(w: &mut World) {
         for x in INLAND_CITY.0..=COAST_CITY.0 {
-            g.scenario_set_road(at(x, 6), true);
+            w.scenario_set_road(at(x, 6), true);
         }
     }
 
     /// The wizard's fortress inland at (6, 6), its other city on the coast at (10, 6) and a road
     /// between them along row 6, as the engineers would leave it.
-    fn world() -> Result<Game, Box<dyn std::error::Error>> {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.reveal_map(P0);
-        let events = g.apply(Command::PlaceFortress {
+    fn world() -> Result<World, Box<dyn std::error::Error>> {
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.reveal_map(P0);
+        let events = w.apply(Command::PlaceFortress {
             player: P0,
             pos: at(INLAND_CITY.0, INLAND_CITY.1),
             name: "Capital".into(),
-            race: g.content().rules.races.id_numbered(8),
+            race: w.content().rules.races.id_numbered(8),
             population: 4,
         });
         assert!(
             !events
                 .iter()
-                .any(|e| matches!(e, f4x_core::game::Event::Rejected(_))),
+                .any(|e| matches!(e, f4x_core::world::Event::Rejected(_))),
             "{events:?}"
         );
-        with_road(&mut g);
-        Ok(g)
+        with_road(&mut w);
+        Ok(w)
     }
 
     #[test]
     fn an_inland_fortress_is_joined_to_the_harbour_by_casts_along_the_road() -> TestResult {
-        let mut g = world()?;
-        let spell = spell(&g)?;
-        let fortress = PlayerView::new(&g, P0).fortress().ok_or("a fortress")?;
+        let mut w = world()?;
+        let spell = spell(&w)?;
+        let fortress = PlayerView::new(&w, P0).fortress().ok_or("a fortress")?;
         assert_eq!(fortress, at(INLAND_CITY.0, INLAND_CITY.1));
         let mut casts = 0;
         loop {
-            let view = PlayerView::new(&g, P0);
+            let view = PlayerView::new(&w, P0);
             let Some(Target::Tile(t)) = target(&view, spell) else {
                 break;
             };
             drop(view);
             assert!(casts < 4, "the road is only five squares long");
-            g.scenario_enchant_roads(t);
+            w.scenario_enchant_roads(t);
             casts += 1;
         }
-        let view = PlayerView::new(&g, P0);
+        let view = PlayerView::new(&w, P0);
         for x in INLAND_CITY.0..=COAST_CITY.0 {
             assert!(view.has_enchanted_road(at(x, 6)), "square {x}");
         }
@@ -312,42 +312,42 @@ mod tests {
     /// The fortress inland at (4, 4), the harbour on the coast at (10, 6) with a road along row
     /// 4 and down column 10, and a second city of the given size inland at (4, 9) with a road
     /// down column 4.
-    fn wide_world(population: u32) -> Result<Game, Box<dyn std::error::Error>> {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.reveal_map(P0);
-        g.apply(Command::PlaceFortress {
+    fn wide_world(population: u32) -> Result<World, Box<dyn std::error::Error>> {
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.reveal_map(P0);
+        w.apply(Command::PlaceFortress {
             player: P0,
             pos: at(4, 4),
             name: "Capital".into(),
-            race: g.content().rules.races.id_numbered(8),
+            race: w.content().rules.races.id_numbered(8),
             population: 4,
         });
-        g.apply(Command::FoundCity {
+        w.apply(Command::FoundCity {
             owner: P0,
             pos: at(4, 9),
             name: "South".into(),
-            race: g.content().rules.races.id_numbered(8),
+            race: w.content().rules.races.id_numbered(8),
             population,
         });
         assert!(
-            g.economy().city_at(at(4, 9)).is_some(),
+            w.economy().city_at(at(4, 9)).is_some(),
             "the city is founded"
         );
         for x in 4..=10 {
-            g.scenario_set_road(at(x, 4), true);
+            w.scenario_set_road(at(x, 4), true);
         }
         for y in [5, 6] {
-            g.scenario_set_road(at(10, y), true);
+            w.scenario_set_road(at(10, y), true);
         }
         for y in 5..=9 {
-            g.scenario_set_road(at(4, y), true);
+            w.scenario_set_road(at(4, y), true);
         }
-        Ok(g)
+        Ok(w)
     }
 
-    fn next(g: &Game) -> Result<Option<Position>, Box<dyn std::error::Error>> {
-        let view = PlayerView::new(g, P0);
-        Ok(match target(&view, spell(g)?) {
+    fn next(w: &World) -> Result<Option<Position>, Box<dyn std::error::Error>> {
+        let view = PlayerView::new(w, P0);
+        Ok(match target(&view, spell(w)?) {
             Some(Target::Tile(t)) => Some(t),
             _ => None,
         })
@@ -356,18 +356,18 @@ mod tests {
     #[test]
     fn the_harbour_is_joined_before_a_large_city_and_the_network_grows_from_the_fortress(
     ) -> TestResult {
-        let mut g = wide_world(9)?;
+        let mut w = wide_world(9)?;
         // Both roads are unenchanted: the harbour's comes first, two squares on from the fortress.
-        assert_eq!(next(&g)?, Some(at(6, 4)));
+        assert_eq!(next(&w)?, Some(at(6, 4)));
         let mut casts = 0;
         let mut order = Vec::new();
-        while let Some(t) = next(&g)? {
+        while let Some(t) = next(&w)? {
             order.push(t);
-            g.scenario_enchant_roads(t);
+            w.scenario_enchant_roads(t);
             casts += 1;
             assert!(casts <= 5, "{order:?}");
         }
-        let view = PlayerView::new(&g, P0);
+        let view = PlayerView::new(&w, P0);
         for x in 4..=10 {
             assert!(view.has_enchanted_road(at(x, 4)), "row 4 square {x}");
         }
@@ -383,11 +383,11 @@ mod tests {
 
     #[test]
     fn a_small_city_far_from_every_rival_is_not_joined() -> TestResult {
-        let mut g = wide_world(3)?;
-        while let Some(t) = next(&g)? {
-            g.scenario_enchant_roads(t);
+        let mut w = wide_world(3)?;
+        while let Some(t) = next(&w)? {
+            w.scenario_enchant_roads(t);
         }
-        let view = PlayerView::new(&g, P0);
+        let view = PlayerView::new(&w, P0);
         assert!(view.has_enchanted_road(at(10, 6)), "the harbour is joined");
         assert!(
             !view.has_enchanted_road(at(4, 9)),
@@ -398,45 +398,45 @@ mod tests {
 
     #[test]
     fn an_open_tower_is_joined_and_an_intact_one_is_not() -> TestResult {
-        let mut g = world()?;
-        g.scenario_enchant_roads(at(8, 6));
-        spawn_tower(&mut g, at(3, 6), true).map_err(|e| e.to_string())?;
+        let mut w = world()?;
+        w.scenario_enchant_roads(at(8, 6));
+        spawn_tower(&mut w, at(3, 6), true).map_err(|e| e.to_string())?;
         for x in 3..=6 {
-            g.scenario_set_road(at(x, 6), true);
+            w.scenario_set_road(at(x, 6), true);
         }
-        assert_eq!(next(&g)?, None, "the tower still has its guards");
-        let mut g = world()?;
-        g.scenario_enchant_roads(at(8, 6));
-        spawn_tower(&mut g, at(3, 6), false).map_err(|e| e.to_string())?;
+        assert_eq!(next(&w)?, None, "the tower still has its guards");
+        let mut w = world()?;
+        w.scenario_enchant_roads(at(8, 6));
+        spawn_tower(&mut w, at(3, 6), false).map_err(|e| e.to_string())?;
         for x in 3..=6 {
-            g.scenario_set_road(at(x, 6), true);
+            w.scenario_set_road(at(x, 6), true);
         }
-        let t = next(&g)?.ok_or("an open tower is joined")?;
-        g.scenario_enchant_roads(t);
-        assert_eq!(next(&g)?, None);
-        assert!(PlayerView::new(&g, P0).has_enchanted_road(at(3, 6)));
+        let t = next(&w)?.ok_or("an open tower is joined")?;
+        w.scenario_enchant_roads(t);
+        assert_eq!(next(&w)?, None);
+        assert!(PlayerView::new(&w, P0).has_enchanted_road(at(3, 6)));
         Ok(())
     }
 
     #[test]
     fn a_place_already_in_the_network_is_not_joined_again() -> TestResult {
-        let mut g = world()?;
-        let spell = spell(&g)?;
+        let mut w = world()?;
+        let spell = spell(&w)?;
         // The whole road is enchanted at once (cast in the middle of it).
-        g.scenario_enchant_roads(at(8, 6));
-        g.scenario_enchant_roads(at(6, 6));
-        g.scenario_enchant_roads(at(10, 6));
-        let view = PlayerView::new(&g, P0);
+        w.scenario_enchant_roads(at(8, 6));
+        w.scenario_enchant_roads(at(6, 6));
+        w.scenario_enchant_roads(at(10, 6));
+        let view = PlayerView::new(&w, P0);
         assert_eq!(target(&view, spell), None);
         Ok(())
     }
 
     #[test]
     fn without_a_road_nothing_is_cast() -> TestResult {
-        let mut g = game(INLAND_CITY, 8);
-        g.reveal_map(P0);
-        let spell = spell(&g)?;
-        let view = PlayerView::new(&g, P0);
+        let mut w = game(INLAND_CITY, 8);
+        w.reveal_map(P0);
+        let spell = spell(&w)?;
+        let view = PlayerView::new(&w, P0);
         assert_eq!(target(&view, spell), None);
         Ok(())
     }

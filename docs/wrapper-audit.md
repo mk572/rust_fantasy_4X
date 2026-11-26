@@ -27,8 +27,8 @@ listed as *Open* for tasks of their own, all done now (tasks 658 to 663).
 | Wrapper | Where | Change |
 |---|---|---|
 | `view_turn` | f4x-ai `naval.rs` | removed; callers use `view.turn()` |
-| `Game::fighter_strength` | f4x-core `battle/game.rs` | removed; callers use `units().unit_power` |
-| `Game::pass_hero` | f4x-core `diplomacy` | removed; the call uses `pass_unit` |
+| `World::fighter_strength` | f4x-core `battle/world.rs` | removed; callers use `units().unit_power` |
+| `World::pass_hero` | f4x-core `diplomacy` | removed; the call uses `pass_unit` |
 | `met_near` | f4x-core `diplomacy` | removed; the call uses `foreign_owners_near` |
 | `Economy::lair_of` | f4x-core `feature/entity.rs` | removed; the private `lair_info` took its name and doc |
 | `Art::bm_font` | f4x-client `art.rs` | removed; callers use `font::shared_font` (and `label_font` lost its unused `app`) |
@@ -37,7 +37,7 @@ listed as *Open* for tasks of their own, all done now (tasks 658 to 663).
 | `WizardMut::cancel_casting` | f4x-core `wizard/sheet.rs` | removed; callers use `clear_casting` |
 | `App::has_page`, `BattleUnit::has_enchantment`, `Economy::has_dependants` | f4x-client, f4x-core | removed (agreed): callers use the standard call |
 | `Spells::instances_on` | f4x-core `spell/instance.rs` | removed: no caller once its two wrappers went |
-| `Game::node_at`, `Game::city_enchantments` | f4x-core | removed; callers use `economy()` and `spells()` |
+| `World::node_at`, `World::city_enchantments` | f4x-core | removed; callers use `economy()` and `spells()` |
 | `shipped()` (f4x-ai `testworld`, f4x-tools `testutil`), `content()` (f4x-client `test_app`) | test helpers | now re-exports of `f4x_def::testdir::shipped` |
 | `city_instances`, `unit_instances`, `unit_modifiers`, `cast_instance`, `EventKind::from_number` | f4x-core | removed: no caller (dead code) |
 
@@ -55,7 +55,7 @@ Not wrappers, but found while reading them. Each became a task of its own and is
 
 1. **(done, task 658)** **`fn stat(d: &UnitDef, s: Stat) -> f32`** is written twice, identically (`f4x-core` `city/autobuild.rs`, `f4x-ai` `builder.rs`): a method of `UnitDef` would serve both.
 2. **(done, task 659)** **`fn random(rng, n)`** (`rng.gen_range(1..=n.max(1))`) is written three times (`f4x-client` `cityscape.rs`, `f4x-core` `battle/map/layout.rs` and `feature/lair/create.rs`; the layout one lacks the `.max(1)`).
-3. **(done, task 660)** **`serial_of` and `sort_by_serial`** exist on `Game` (`game/serial.rs`) and on `UnitView` (`unit/mod.rs`) with the same bodies (one sorts with `sort_by_key`, the other with `sort_by_cached_key`).
+3. **(done, task 660)** **`serial_of` and `sort_by_serial`** exist on `World` (`world/serial.rs`) and on `UnitView` (`unit/mod.rs`) with the same bodies (one sorts with `sort_by_key`, the other with `sort_by_cached_key`).
 4. **(done, task 661)** **Books of a realm**: `computer_wizard::books` (`f4x-newgame`) and `books_of` (`f4x-client` `newgame_picks.rs`) both read `build.books.get(&realm).copied().unwrap_or(0)`: a method of `WizardBuild`.
 5. **(done, task 662)** **`id_numbered`** is the same function in two registries (`f4x-def` `feature.rs`, `map.rs`).
 6. **(done, task 663)** **Hero ability tables in code**: `leadership`, `blademaster`, `constitution`, `might`, `agility`, `arcane_power`, `prayermaster`, `armsmaster`, `legendary` and `sage` in `f4x-def/src/hero.rs` each bind two pairs of numbers to `by_tier`. That is a table of game numbers written as code, not content (the same kind of finding as tasks 653 and 657).
@@ -72,20 +72,20 @@ Callers is a text count and an upper bound.
 | trivial | f4x-client | `crates/f4x-client/src/hotkeys.rs:209` | `Chord::pressed` | `modifiers_ok` | 41 | False hit | the body also checks the modifiers |
 | trivial | f4x-client | `crates/f4x-client/src/hotkeys.rs:213` | `Chord::down` | `modifiers_ok` | 57 | False hit | the body also checks the modifiers |
 | trivial | f4x-client | `crates/f4x-client/src/scroll.rs:33` | `Window::can_down` | `last_first` | 10 | False hit | the body compares |
-| trivial | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2025` | `Game::wizards` | `wizards` | 134 | Keep | facade over the diplomacy state of the game |
-| trivial | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2029` | `Game::have_met` | `have_met` | 60 | Keep | facade over the diplomacy state of the game |
-| trivial | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2034` | `Game::treaty` | `treaty` | 159 | Keep | facade over the diplomacy state of the game |
-| trivial | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2039` | `Game::relation` | `relation` | 126 | Keep | facade over the diplomacy state of the game |
-| trivial | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2044` | `Game::war_age` | `war_age` | 4 | Keep | facade over the diplomacy state of the game |
-| trivial | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2049` | `Game::war_gain` | `war_gain` | 3 | Keep | facade over the diplomacy state of the game |
-| trivial | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2054` | `Game::drain_diplomacy_events` | `drain_events` | 14 | Keep | facade over the diplomacy state of the game |
-| trivial | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2111` | `Game::army_strength` | `army_strength` | 17 | Keep | facade over the diplomacy state of the game |
-| trivial | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2116` | `Game::check_proposal` | `check_proposal` | 34 | Keep | facade over the diplomacy state of the game |
-| trivial | f4x-core | `crates/f4x-core/src/game/access.rs:250` | `Game::scenario_enchant_unit` | `add_unit_enchantment` | 3 | Keep | makes a crate-private function public for scenarios and tests |
-| trivial | f4x-core | `crates/f4x-core/src/game/access.rs:255` | `Game::scenario_enchant_city` | `add_city_enchantment` | 2 | Keep | makes a crate-private function public for scenarios and tests |
-| trivial | f4x-core | `crates/f4x-core/src/game/access.rs:261` | `Game::scenario_add_global` | `add_global` | 3 | Keep | makes a crate-private function public for scenarios and tests |
-| trivial | f4x-core | `crates/f4x-core/src/game/access.rs:322` | `Game::scenario_enchant_roads` | `enchant_roads` | 9 | Keep | makes a crate-private function public for scenarios and tests |
-| trivial | f4x-core | `crates/f4x-core/src/game/cheat.rs:84` | `Game::cheat_move_unit` | `put` | 11 | Keep | makes a crate-private function public for scenarios and tests |
+| trivial | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2025` | `World::wizards` | `wizards` | 134 | Keep | facade over the diplomacy state of the game |
+| trivial | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2029` | `World::have_met` | `have_met` | 60 | Keep | facade over the diplomacy state of the game |
+| trivial | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2034` | `World::treaty` | `treaty` | 159 | Keep | facade over the diplomacy state of the game |
+| trivial | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2039` | `World::relation` | `relation` | 126 | Keep | facade over the diplomacy state of the game |
+| trivial | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2044` | `World::war_age` | `war_age` | 4 | Keep | facade over the diplomacy state of the game |
+| trivial | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2049` | `World::war_gain` | `war_gain` | 3 | Keep | facade over the diplomacy state of the game |
+| trivial | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2054` | `World::drain_diplomacy_events` | `drain_events` | 14 | Keep | facade over the diplomacy state of the game |
+| trivial | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2111` | `World::army_strength` | `army_strength` | 17 | Keep | facade over the diplomacy state of the game |
+| trivial | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2116` | `World::check_proposal` | `check_proposal` | 34 | Keep | facade over the diplomacy state of the game |
+| trivial | f4x-core | `crates/f4x-core/src/world/access.rs:250` | `World::scenario_enchant_unit` | `add_unit_enchantment` | 3 | Keep | makes a crate-private function public for scenarios and tests |
+| trivial | f4x-core | `crates/f4x-core/src/world/access.rs:255` | `World::scenario_enchant_city` | `add_city_enchantment` | 2 | Keep | makes a crate-private function public for scenarios and tests |
+| trivial | f4x-core | `crates/f4x-core/src/world/access.rs:261` | `World::scenario_add_global` | `add_global` | 3 | Keep | makes a crate-private function public for scenarios and tests |
+| trivial | f4x-core | `crates/f4x-core/src/world/access.rs:322` | `World::scenario_enchant_roads` | `enchant_roads` | 9 | Keep | makes a crate-private function public for scenarios and tests |
+| trivial | f4x-core | `crates/f4x-core/src/world/cheat.rs:84` | `World::cheat_move_unit` | `put` | 11 | Keep | makes a crate-private function public for scenarios and tests |
 | trivial | f4x-core | `crates/f4x-core/src/path_grid.rs:606` | `Searcher::distance` | `known` | 173 | Keep | the name says what the value is (cost to the targets of the last distance field) |
 | trivial | f4x-core | `crates/f4x-core/src/player/view.rs:124` | `PlayerView<'a>::content` | `content` | 1003 | Keep | interface: the AI reads the game only through the view |
 | trivial | f4x-core | `crates/f4x-core/src/player/view.rs:135` | `PlayerView<'a>::city_name_for` | `city_name_for` | 4 | Keep | interface: the AI reads the game only through the view |
@@ -118,7 +118,7 @@ Callers is a text count and an upper bound.
 | trivial | f4x-core | `crates/f4x-core/src/player/view.rs:893` | `PlayerView<'a>::unreached_region` | `unreached_region` | 4 | Keep | interface: the AI reads the game only through the view |
 | trivial | f4x-core | `crates/f4x-core/src/player/view.rs:903` | `PlayerView<'a>::reach_signature` | `reach_signature` | 15 | Keep | interface: the AI reads the game only through the view |
 | trivial | f4x-core | `crates/f4x-core/src/rules/exec.rs:90` | `strike` | `damage` | 22 | Keep | default method of the effect interface; the parameters are ignored on purpose |
-| trivial | f4x-core | `crates/f4x-core/src/spell/cast.rs:538` | `Game::spell_has_hook` | `has_hook` | 9 | Keep | looks the spell up first: a view construction |
+| trivial | f4x-core | `crates/f4x-core/src/spell/cast.rs:538` | `World::spell_has_hook` | `has_hook` | 9 | Keep | looks the spell up first: a view construction |
 | trivial | f4x-core | `crates/f4x-core/src/wizard/mod.rs:94` | `retort_available` | `available` | 27 | Keep | looks the retort up first: a view construction |
 | trivial | f4x-learn | `crates/f4x-learn/src/bank.rs:56` | `Bank::from_text` | `from_str` | 62 | Keep | hides the RON format and its error type |
 | trivial | f4x-learn | `crates/f4x-learn/src/env.rs:154` | `BattleEnv::battle` | `battle` | 485 | Keep | hides the `game` field |
@@ -141,21 +141,21 @@ Callers is a text count and an upper bound.
 | std | f4x-console | `crates/f4x-console/src/args.rs:55` | `Args<'a>::len` | `len` | 1410 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
 | std | f4x-console | `crates/f4x-console/src/args.rs:59` | `Args<'a>::is_empty` | `is_empty` | 861 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
 | std | f4x-core | `crates/f4x-core/src/battle/field.rs:161` | `BattleUnit::is_fantastic` | `is_some` | 11 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
-| std | f4x-core | `crates/f4x-core/src/battle/game.rs:176` | `Game::in_battle` | `is_some` | 74 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
+| std | f4x-core | `crates/f4x-core/src/battle/world.rs:176` | `World::in_battle` | `is_some` | 74 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
 | std | f4x-core | `crates/f4x-core/src/battle/map.rs:115` | `Mover::walker` | `default` | 285 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
 | std | f4x-core | `crates/f4x-core/src/battle/map.rs:218` | `BattleMap::is_city` | `is_some` | 8 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
 | std | f4x-core | `crates/f4x-core/src/battle/map.rs:326` | `BattleMap::look` | `as_deref` | 22 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
-| std | f4x-core | `crates/f4x-core/src/battle/spell/unit_cast.rs:275` | `Game::can_summon_demon` | `is_ok` | 6 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
+| std | f4x-core | `crates/f4x-core/src/battle/spell/unit_cast.rs:275` | `World::can_summon_demon` | `is_ok` | 6 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
 | std | f4x-core | `crates/f4x-core/src/city/production.rs:369` | `Economy<'_>::sold_this_turn` | `is_some` | 6 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
 | std | f4x-core | `crates/f4x-core/src/feature/entity.rs:49` | `FeatureIndex::get` | `copied` | 1395 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
 | std | f4x-core | `crates/f4x-core/src/feature/entity.rs:53` | `FeatureIndex::insert` | `insert` | 276 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
 | std | f4x-core | `crates/f4x-core/src/feature/entity.rs:57` | `FeatureIndex::remove` | `remove` | 75 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
-| std | f4x-core | `crates/f4x-core/src/game/access.rs:105` | `Game::unit_has_order` | `is_ok` | 52 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
-| std | f4x-core | `crates/f4x-core/src/game/access.rs:117` | `Game::unit_building_road` | `is_ok` | 2 | Keep | agreed; hides the RoadWork component |
-| std | f4x-core | `crates/f4x-core/src/game/access.rs:136` | `Game::component` | `ok` | 7 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
-| std | f4x-core | `crates/f4x-core/src/game/access.rs:142` | `Game::entity_exists` | `contains` | 4 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
-| std | f4x-core | `crates/f4x-core/src/game/access.rs:31` | `Game::map` | `as_ref` | 2519 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
-| std | f4x-core | `crates/f4x-core/src/game/replay.rs:141` | `Game::is_recording` | `is_some` | 4 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
+| std | f4x-core | `crates/f4x-core/src/world/access.rs:105` | `World::unit_has_order` | `is_ok` | 52 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
+| std | f4x-core | `crates/f4x-core/src/world/access.rs:117` | `World::unit_building_road` | `is_ok` | 2 | Keep | agreed; hides the RoadWork component |
+| std | f4x-core | `crates/f4x-core/src/world/access.rs:136` | `World::component` | `ok` | 7 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
+| std | f4x-core | `crates/f4x-core/src/world/access.rs:142` | `World::entity_exists` | `contains` | 4 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
+| std | f4x-core | `crates/f4x-core/src/world/access.rs:31` | `World::map` | `as_ref` | 2519 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
+| std | f4x-core | `crates/f4x-core/src/world/replay.rs:141` | `World::is_recording` | `is_some` | 4 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
 | std | f4x-core | `crates/f4x-core/src/item/crafting.rs:143` | `is_plain` | `is_some` | 1 | Keep | agreed; a game concept |
 | std | f4x-core | `crates/f4x-core/src/item/mod.rs:123` | `Item::has_power` | `contains` | 4 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
 | std | f4x-core | `crates/f4x-core/src/item/mod.rs:200` | `HeroItems::iter` | `flatten` | 2771 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
@@ -173,7 +173,7 @@ Callers is a text count and an upper bound.
 | std | f4x-core | `crates/f4x-core/src/player/view.rs:911` | `PlayerView<'a>::spell` | `get` | 1501 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
 | std | f4x-core | `crates/f4x-core/src/spell/city.rs:333` | `Economy<'_>::city_warded_against` | `contains` | 4 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
 | std | f4x-core | `crates/f4x-core/src/unit/mod.rs:616` | `UnitView<'a>::unit_is_unpaid` | `is_ok` | 5 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
-| std | f4x-core | `crates/f4x-core/src/unit/stasis.rs:26` | `Game::unit_in_stasis` | `is_ok` | 14 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
+| std | f4x-core | `crates/f4x-core/src/unit/stasis.rs:26` | `World::unit_in_stasis` | `is_ok` | 14 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
 | std | f4x-core | `crates/f4x-core/src/unit/transport.rs:216` | `economy` | `new` | 976 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
 | std | f4x-core | `crates/f4x-core/src/unit/undead.rs:47` | `UnitView<'_>::unit_is_undead` | `is_ok` | 23 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
 | std | f4x-core | `crates/f4x-core/src/wizard/entity.rs:103` | `Wizard<'a>::component` | `ok` | 7 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
@@ -349,8 +349,8 @@ Callers is a text count and an upper bound.
 | task | f4x-core | `crates/f4x-core/src/battle/casting.rs:147` | `BattleCaster::new` | `with_mana` | 5489 | Keep | pair: the short form binds the default of the longer one, and has more than two callers |
 | task | f4x-core | `crates/f4x-core/src/battle/casting.rs:164` | `BattleCaster::mana_for` | `from_raw` | 4 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/battle/field.rs:122` | `Field::of` | `named` | 184 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/battle/game.rs:1337` | `Game::auto_resolve` | `auto_resolve_with` | 4 | Keep | pair: the short form binds the default of the longer one, and has more than two callers |
-| task | f4x-core | `crates/f4x-core/src/battle/game.rs:205` | `Game::battle` | `map` | 485 | Keep | reads a private representation (component, map, table) with a default or a conversion |
+| task | f4x-core | `crates/f4x-core/src/battle/world.rs:1337` | `World::auto_resolve` | `auto_resolve_with` | 4 | Keep | pair: the short form binds the default of the longer one, and has more than two callers |
+| task | f4x-core | `crates/f4x-core/src/battle/world.rs:205` | `World::battle` | `map` | 485 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/battle/immunity.rs:57` | `Realm::of` | `from_num` | 184 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/battle/immunity.rs:67` | `Realm::id` | `new` | 1746 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/battle/info.rs:45` | `BattleInfo::is_empty` | `is_empty` | 861 | Keep | reads a private representation (component, map, table) with a default or a conversion |
@@ -368,21 +368,21 @@ Callers is a text count and an upper bound.
 | task | f4x-core | `crates/f4x-core/src/city/autobuild.rs:330` | `stat` | `map_or` | 206 | Done | changed by task 658 (`stat`) and 659 (`random`): duplicate helper: see Findings 1 and 2 |
 | task | f4x-core | `crates/f4x-core/src/city/autobuild.rs:334` | `is_settler` | `contains` | 9 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/city/conquest.rs:148` | `Economy<'_>::citizens` | `map_or` | 44 | Keep | reads a private representation (component, map, table) with a default or a conversion |
-| task | f4x-core | `crates/f4x-core/src/city/conquest.rs:256` | `Game::destroy_building` | `destroy_building` | 14 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
+| task | f4x-core | `crates/f4x-core/src/city/conquest.rs:256` | `World::destroy_building` | `destroy_building` | 14 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/city/conquest.rs:39` | `city_size_class` | `min` | 12 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/city/economy.rs:339` | `Economy<'a>::units` | `new` | 1746 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/city/economy.rs:343` | `Economy<'a>::wizard` | `find` | 772 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/city/production.rs:311` | `Economy<'_>::city_weapon_quality` | `city_weapon_quality_with` | 5 | Keep | pair: the short form binds the default of the longer one, and has more than two callers |
 | task | f4x-core | `crates/f4x-core/src/city/production.rs:374` | `Economy<'_>::sold_building` | `map` | 4 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/city/production.rs:379` | `Economy<'_>::sale_price` | `map` | 5 | Keep | reads a private representation (component, map, table) with a default or a conversion |
-| task | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2059` | `Game::make_contact` | `with_diplomacy` | 70 | Keep | pair: the short form binds the default of the longer one, and has more than two callers |
-| task | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2065` | `Game::contact_near` | `with_diplomacy` | 3 | Keep | pair: the short form binds the default of the longer one, and has more than two callers |
-| task | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2086` | `Game::subvert` | `with_diplomacy` | 3 | Keep | pair: the short form binds the default of the longer one, and has more than two callers |
-| task | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2091` | `Game::start_treaty` | `with_diplomacy` | 30 | Keep | pair: the short form binds the default of the longer one, and has more than two callers |
-| task | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2096` | `Game::break_treaties` | `with_diplomacy` | 12 | Keep | pair: the short form binds the default of the longer one, and has more than two callers |
-| task | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2101` | `Game::declare_war` | `with_diplomacy` | 30 | Keep | pair: the short form binds the default of the longer one, and has more than two callers |
-| task | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2106` | `Game::declare_peace` | `with_diplomacy` | 4 | Keep | pair: the short form binds the default of the longer one, and has more than two callers |
-| task | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2126` | `Game::diplomacy_command` | `with_diplomacy` | 1 | Keep | converts, defaults or names a test; the name adds meaning |
+| task | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2059` | `World::make_contact` | `with_diplomacy` | 70 | Keep | pair: the short form binds the default of the longer one, and has more than two callers |
+| task | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2065` | `World::contact_near` | `with_diplomacy` | 3 | Keep | pair: the short form binds the default of the longer one, and has more than two callers |
+| task | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2086` | `World::subvert` | `with_diplomacy` | 3 | Keep | pair: the short form binds the default of the longer one, and has more than two callers |
+| task | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2091` | `World::start_treaty` | `with_diplomacy` | 30 | Keep | pair: the short form binds the default of the longer one, and has more than two callers |
+| task | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2096` | `World::break_treaties` | `with_diplomacy` | 12 | Keep | pair: the short form binds the default of the longer one, and has more than two callers |
+| task | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2101` | `World::declare_war` | `with_diplomacy` | 30 | Keep | pair: the short form binds the default of the longer one, and has more than two callers |
+| task | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2106` | `World::declare_peace` | `with_diplomacy` | 4 | Keep | pair: the short form binds the default of the longer one, and has more than two callers |
+| task | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:2126` | `World::diplomacy_command` | `with_diplomacy` | 1 | Keep | converts, defaults or names a test; the name adds meaning |
 | task | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:451` | `Diplomacy::pair` | `get` | 59 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:455` | `Diplomacy::stance` | `get` | 50 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/diplomacy/mod.rs:459` | `Diplomacy::stance_mut` | `or_default` | 42 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
@@ -392,30 +392,30 @@ Callers is a text count and an upper bound.
 | task | f4x-core | `crates/f4x-core/src/feature/entity.rs:136` | `Economy<'a>::feature_at` | `get` | 7 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/feature/entity.rs:141` | `Economy<'a>::feature_kind_at` | `map` | 4 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/feature/lair/create.rs:38` | `random` | `gen_range` | 117 | Done | changed by task 658 (`stat`) and 659 (`random`): duplicate helper: see Findings 1 and 2 |
-| task | f4x-core | `crates/f4x-core/src/game/access.rs:215` | `Game::scenario_set_experience` | `put` | 3 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/game/access.rs:231` | `Game::scenario_set_hurt` | `put` | 14 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/game/access.rs:281` | `Game::scenario_start_event` | `start` | 3 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/game/access.rs:287` | `Game::scenario_found_city` | `spawn_city` | 3 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/game/access.rs:299` | `Game::scenario_set_moves_left` | `put` | 6 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/game/access.rs:327` | `Game::scenario_remove_unit` | `remove_unit` | 8 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/game/access.rs:36` | `Game::is_explored` | `is_explored` | 50 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/game/access.rs:41` | `Game::explored_corners` | `corners` | 2 | Keep | hides a private representation (component, map or cache) |
-| task | f4x-core | `crates/f4x-core/src/game/access.rs:87` | `Game::city_farmers` | `map_or` | 3 | Keep | reads a private representation (component, map, table) with a default or a conversion |
-| task | f4x-core | `crates/f4x-core/src/game/cheat.rs:200` | `Game::cheat_defeat_player` | `defeat` | 1 | Keep | cheat or test hook |
-| task | f4x-core | `crates/f4x-core/src/game/endgame.rs:219` | `Game::win_by_mastery` | `finish` | 3 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/game/replay.rs:88` | `deserialize` | `entity_of` | 3 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/game/serial.rs:26` | `Game::serial_of` | `map_or` | 323 | Done | changed by task 660: duplicate in Game and UnitView: see Findings 3 |
-| task | f4x-core | `crates/f4x-core/src/game/serial.rs:31` | `Game::sort_by_serial` | `sort_by_key` | 41 | Done | changed by task 660: duplicate in Game and UnitView: see Findings 3 |
-| task | f4x-core | `crates/f4x-core/src/game/undo.rs:64` | `Game::undo_label` | `map` | 1 | Keep | hides a private representation (component, map or cache) |
-| task | f4x-core | `crates/f4x-core/src/hero/game.rs:111` | `UnitView<'_>::hero_name` | `map` | 10 | Keep | reads a private representation (component, map, table) with a default or a conversion |
-| task | f4x-core | `crates/f4x-core/src/hero/game.rs:123` | `UnitView<'_>::hero_kind` | `map` | 9 | Keep | reads a private representation (component, map, table) with a default or a conversion |
-| task | f4x-core | `crates/f4x-core/src/hero/game.rs:205` | `Game::make_hero_with` | `spawn` | 2 | Keep | binds a fixed argument (default, screen, key or constant) to a general function; the name says which; not clear-cut |
-| task | f4x-core | `crates/f4x-core/src/hero/game.rs:288` | `Game::remove_unit` | `remove_unit_to` | 47 | Keep | pair: the short form binds the default of the longer one, and has more than two callers |
-| task | f4x-core | `crates/f4x-core/src/hero/game.rs:54` | `UnitView<'_>::hero_state` | `map` | 12 | Keep | reads a private representation (component, map, table) with a default or a conversion |
-| task | f4x-core | `crates/f4x-core/src/hero/game.rs:72` | `UnitView<'_>::hero_xp` | `map_or` | 5 | Keep | reads a private representation (component, map, table) with a default or a conversion |
-| task | f4x-core | `crates/f4x-core/src/hero/game.rs:77` | `UnitView<'_>::hero_type_name` | `hero_name` | 10 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
+| task | f4x-core | `crates/f4x-core/src/world/access.rs:215` | `World::scenario_set_experience` | `put` | 3 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
+| task | f4x-core | `crates/f4x-core/src/world/access.rs:231` | `World::scenario_set_hurt` | `put` | 14 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
+| task | f4x-core | `crates/f4x-core/src/world/access.rs:281` | `World::scenario_start_event` | `start` | 3 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
+| task | f4x-core | `crates/f4x-core/src/world/access.rs:287` | `World::scenario_found_city` | `spawn_city` | 3 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
+| task | f4x-core | `crates/f4x-core/src/world/access.rs:299` | `World::scenario_set_moves_left` | `put` | 6 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
+| task | f4x-core | `crates/f4x-core/src/world/access.rs:327` | `World::scenario_remove_unit` | `remove_unit` | 8 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
+| task | f4x-core | `crates/f4x-core/src/world/access.rs:36` | `World::is_explored` | `is_explored` | 50 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
+| task | f4x-core | `crates/f4x-core/src/world/access.rs:41` | `World::explored_corners` | `corners` | 2 | Keep | hides a private representation (component, map or cache) |
+| task | f4x-core | `crates/f4x-core/src/world/access.rs:87` | `World::city_farmers` | `map_or` | 3 | Keep | reads a private representation (component, map, table) with a default or a conversion |
+| task | f4x-core | `crates/f4x-core/src/world/cheat.rs:200` | `World::cheat_defeat_player` | `defeat` | 1 | Keep | cheat or test hook |
+| task | f4x-core | `crates/f4x-core/src/world/endgame.rs:219` | `World::win_by_mastery` | `finish` | 3 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
+| task | f4x-core | `crates/f4x-core/src/world/replay.rs:88` | `deserialize` | `entity_of` | 3 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
+| task | f4x-core | `crates/f4x-core/src/world/serial.rs:26` | `World::serial_of` | `map_or` | 323 | Done | changed by task 660: duplicate in Game and UnitView: see Findings 3 |
+| task | f4x-core | `crates/f4x-core/src/world/serial.rs:31` | `World::sort_by_serial` | `sort_by_key` | 41 | Done | changed by task 660: duplicate in Game and UnitView: see Findings 3 |
+| task | f4x-core | `crates/f4x-core/src/world/undo.rs:64` | `World::undo_label` | `map` | 1 | Keep | hides a private representation (component, map or cache) |
+| task | f4x-core | `crates/f4x-core/src/hero/world.rs:111` | `UnitView<'_>::hero_name` | `map` | 10 | Keep | reads a private representation (component, map, table) with a default or a conversion |
+| task | f4x-core | `crates/f4x-core/src/hero/world.rs:123` | `UnitView<'_>::hero_kind` | `map` | 9 | Keep | reads a private representation (component, map, table) with a default or a conversion |
+| task | f4x-core | `crates/f4x-core/src/hero/world.rs:205` | `World::make_hero_with` | `spawn` | 2 | Keep | binds a fixed argument (default, screen, key or constant) to a general function; the name says which; not clear-cut |
+| task | f4x-core | `crates/f4x-core/src/hero/world.rs:288` | `World::remove_unit` | `remove_unit_to` | 47 | Keep | pair: the short form binds the default of the longer one, and has more than two callers |
+| task | f4x-core | `crates/f4x-core/src/hero/world.rs:54` | `UnitView<'_>::hero_state` | `map` | 12 | Keep | reads a private representation (component, map, table) with a default or a conversion |
+| task | f4x-core | `crates/f4x-core/src/hero/world.rs:72` | `UnitView<'_>::hero_xp` | `map_or` | 5 | Keep | reads a private representation (component, map, table) with a default or a conversion |
+| task | f4x-core | `crates/f4x-core/src/hero/world.rs:77` | `UnitView<'_>::hero_type_name` | `hero_name` | 10 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/item/armory.rs:49` | `Armory::items` | `chain` | 190 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/item/entity.rs:161` | `Game::spawn_item_with` | `spawn` | 2 | Keep | binds a fixed argument (default, screen, key or constant) to a general function; the name says which; not clear-cut |
+| task | f4x-core | `crates/f4x-core/src/item/entity.rs:161` | `World::spawn_item_with` | `spawn` | 2 | Keep | binds a fixed argument (default, screen, key or constant) to a general function; the name says which; not clear-cut |
 | task | f4x-core | `crates/f4x-core/src/item/entity.rs:52` | `ItemView<'a>::crafting` | `map` | 8 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/item/entity.rs:57` | `ItemView<'a>::item` | `map` | 456 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/item/entity.rs:62` | `ItemView<'a>::held_by` | `map` | 1 | Keep | hides a private representation (component, map or cache) |
@@ -423,10 +423,10 @@ Callers is a text count and an upper bound.
 | task | f4x-core | `crates/f4x-core/src/item/mod.rs:204` | `HeroItems::is_empty` | `all` | 861 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/item/mod.rs:209` | `HeroItems::has_power` | `any` | 4 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/item/mod.rs:286` | `ItemView<'a>::units` | `new` | 1746 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/item/mod.rs:383` | `Game::items` | `new` | 190 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
+| task | f4x-core | `crates/f4x-core/src/item/mod.rs:383` | `World::items` | `new` | 190 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/item/mod.rs:390` | `UnitView<'_>::items` | `new` | 190 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/map/fog.rs:32` | `sight_for` | `from_raw` | 15 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/map/road.rs:204` | `Game::process_road_work_for` | `work_group` | 1 | Keep | binds a fixed argument (default, screen, key or constant) to a general function; the name says which; not clear-cut |
+| task | f4x-core | `crates/f4x-core/src/map/road.rs:204` | `World::process_road_work_for` | `work_group` | 1 | Keep | binds a fixed argument (default, screen, key or constant) to a general function; the name says which; not clear-cut |
 | task | f4x-core | `crates/f4x-core/src/map/vision.rs:162` | `VisionGrid::tracked_at` | `map` | 1 | Keep | hides a private representation (component, map or cache) |
 | task | f4x-core | `crates/f4x-core/src/map/vision.rs:167` | `VisionGrid::tracked` | `map` | 1 | Keep | hides a private representation (component, map or cache) |
 | task | f4x-core | `crates/f4x-core/src/map/vision.rs:45` | `Economy<'_>::city_sight` | `compute_half` | 8 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
@@ -464,7 +464,7 @@ Callers is a text count and an upper bound.
 | task | f4x-core | `crates/f4x-core/src/rules/exec.rs:74` | `resistance_against` | `stat` | 2 | Keep | signature required by a table, attribute or interface |
 | task | f4x-core | `crates/f4x-core/src/spell/global_enchantment.rs:17` | `magic_has_global` | `any_global` | 1 | Keep | binds a fixed argument (default, screen, key or constant) to a general function; the name says which; not clear-cut |
 | task | f4x-core | `crates/f4x-core/src/spell/global_enchantment.rs:58` | `magic_has_effect` | `any_global` | 6 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/spell/global_enchantment.rs:71` | `Game::add_global` | `add_enchantment` | 28 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
+| task | f4x-core | `crates/f4x-core/src/spell/global_enchantment.rs:71` | `World::add_global` | `add_enchantment` | 28 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/spell/hero.rs:35` | `HeroSummon::of` | `named` | 184 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/spell/hero.rs:41` | `torin` | `saturating_sub` | 11 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/spell/hero.rs:75` | `UnitView<'_>::ai_resurrection_pick` | `copied` | 3 | Keep | reads a private representation (component, map, table) with a default or a conversion |
@@ -477,22 +477,22 @@ Callers is a text count and an upper bound.
 | task | f4x-core | `crates/f4x-core/src/spell/instance.rs:260` | `Spells<'a>::def` | `Some` | 365 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/spell/instance.rs:265` | `Spells<'a>::caster` | `Some` | 168 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/spell/instance.rs:270` | `Spells<'a>::target` | `map` | 408 | Keep | reads a private representation (component, map, table) with a default or a conversion |
-| task | f4x-core | `crates/f4x-core/src/spell/instance.rs:332` | `Game::spells` | `new` | 232 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/spell/instance.rs:348` | `Game::add_city_enchantment` | `add_enchantment` | 23 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/spell/instance.rs:358` | `Game::remove_city_enchantment` | `remove_enchantment` | 2 | Keep | binds a fixed argument (default, screen, key or constant) to a general function; the name says which; not clear-cut |
-| task | f4x-core | `crates/f4x-core/src/spell/instance.rs:368` | `Game::add_unit_enchantment` | `add_enchantment` | 3 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/spell/instance.rs:378` | `Game::remove_unit_enchantment` | `remove_enchantment` | 1 | Keep | binds a fixed argument (default, screen, key or constant) to a general function; the name says which; not clear-cut |
-| task | f4x-core | `crates/f4x-core/src/spell/instance.rs:406` | `Game::remove_enchantment` | `remove_on` | 6 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/spell/special.rs:87` | `Game::earth_lore` | `explore_block` | 1 | Keep | binds a fixed argument (default, screen, key or constant) to a general function; the name says which; not clear-cut |
+| task | f4x-core | `crates/f4x-core/src/spell/instance.rs:332` | `World::spells` | `new` | 232 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
+| task | f4x-core | `crates/f4x-core/src/spell/instance.rs:348` | `World::add_city_enchantment` | `add_enchantment` | 23 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
+| task | f4x-core | `crates/f4x-core/src/spell/instance.rs:358` | `World::remove_city_enchantment` | `remove_enchantment` | 2 | Keep | binds a fixed argument (default, screen, key or constant) to a general function; the name says which; not clear-cut |
+| task | f4x-core | `crates/f4x-core/src/spell/instance.rs:368` | `World::add_unit_enchantment` | `add_enchantment` | 3 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
+| task | f4x-core | `crates/f4x-core/src/spell/instance.rs:378` | `World::remove_unit_enchantment` | `remove_enchantment` | 1 | Keep | binds a fixed argument (default, screen, key or constant) to a general function; the name says which; not clear-cut |
+| task | f4x-core | `crates/f4x-core/src/spell/instance.rs:406` | `World::remove_enchantment` | `remove_on` | 6 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
+| task | f4x-core | `crates/f4x-core/src/spell/special.rs:87` | `World::earth_lore` | `explore_block` | 1 | Keep | binds a fixed argument (default, screen, key or constant) to a general function; the name says which; not clear-cut |
 | task | f4x-core | `crates/f4x-core/src/spell/temp_effect.rs:141` | `UnitView<'a>::unit_abilities` | `clone` | 17 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/spell/temp_effect.rs:265` | `UnitView<'a>::unit_resistance_against` | `effective_resistance` | 14 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/spell/temp_effect.rs:310` | `Game::add_temp_modifier` | `add_modifier` | 4 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/spell/temp_effect.rs:315` | `Game::grant_temp_ability` | `grant_ability` | 18 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/spell/temp_effect.rs:320` | `Game::remove_temp_ability` | `remove_ability` | 2 | Keep | binds a fixed argument (default, screen, key or constant) to a general function; the name says which; not clear-cut |
+| task | f4x-core | `crates/f4x-core/src/spell/temp_effect.rs:310` | `World::add_temp_modifier` | `add_modifier` | 4 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
+| task | f4x-core | `crates/f4x-core/src/spell/temp_effect.rs:315` | `World::grant_temp_ability` | `grant_ability` | 18 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
+| task | f4x-core | `crates/f4x-core/src/spell/temp_effect.rs:320` | `World::remove_temp_ability` | `remove_ability` | 2 | Keep | binds a fixed argument (default, screen, key or constant) to a general function; the name says which; not clear-cut |
 | task | f4x-core | `crates/f4x-core/src/spell/temp_effect.rs:66` | `grant_ability` | `push_temp` | 6 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/spell/temp_effect.rs:71` | `remove_ability` | `push_temp` | 1 | Keep | binds a fixed argument (default, screen, key or constant) to a general function; the name says which; not clear-cut |
 | task | f4x-core | `crates/f4x-core/src/spell/terraform.rs:36` | `TerrainEffect::of` | `named` | 184 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/unit/experience.rs:136` | `Game::gain_xp` | `gain_xp` | 4 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
+| task | f4x-core | `crates/f4x-core/src/unit/experience.rs:136` | `World::gain_xp` | `gain_xp` | 4 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/unit/kept.rs:61` | `disarm` | `with` | 1 | Keep | hides a private representation (component, map or cache) |
 | task | f4x-core | `crates/f4x-core/src/unit/mobility.rs:69` | `def_mobility` | `unit_mobility` | 4 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/unit/mod.rs:109` | `UnitView<'a>::wizard` | `find` | 772 | Keep | reads a private representation (component, map, table) with a default or a conversion |
@@ -508,12 +508,12 @@ Callers is a text count and an upper bound.
 | task | f4x-core | `crates/f4x-core/src/unit/mod.rs:281` | `UnitView<'a>::unit_enchantments` | `unit_enchantments` | 29 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/unit/mod.rs:516` | `UnitView<'a>::unit_experience` | `map_or` | 4 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/unit/mod.rs:554` | `UnitView<'a>::unit_power` | `unit_power` | 13 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/unit/mod.rs:710` | `Game::units` | `new` | 1746 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
+| task | f4x-core | `crates/f4x-core/src/unit/mod.rs:710` | `World::units` | `new` | 1746 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/unit/mod.rs:89` | `UnitView<'_>::unit_standby` | `map` | 9 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/unit/movement.rs:170` | `Economy<'_>::step_cost` | `step_cost_with` | 13 | Keep | pair: the short form binds the default of the longer one, and has more than two callers |
 | task | f4x-core | `crates/f4x-core/src/unit/mutation.rs:45` | `UnitView<'_>::unit_is_mutated` | `unit_has_ability` | 9 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/unit/pathing/grid.rs:22` | `half_moves` | `map_or` | 4 | Keep | reads a private representation (component, map, table) with a default or a conversion |
-| task | f4x-core | `crates/f4x-core/src/unit/undead.rs:98` | `Game::make_undead` | `make_undead` | 15 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
+| task | f4x-core | `crates/f4x-core/src/unit/undead.rs:98` | `World::make_undead` | `make_undead` | 15 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/wizard/entity.rs:120` | `Wizard<'a>::portrait` | `map_or` | 69 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/wizard/entity.rs:149` | `Wizard<'a>::any_global` | `any_global_of` | 4 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/wizard/entity.rs:154` | `Wizard<'a>::player` | `Some` | 1616 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
@@ -522,10 +522,10 @@ Callers is a text count and an upper bound.
 | task | f4x-core | `crates/f4x-core/src/wizard/fortress.rs:78` | `Wizard<'_>::summon_at` | `map` | 24 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/wizard/fortress.rs:83` | `Wizard<'_>::summon_point` | `or` | 22 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/wizard/fortress.rs:93` | `Wizard<'_>::banished_by` | `and_then` | 4 | Keep | reads a private representation (component, map, table) with a default or a conversion |
-| task | f4x-core | `crates/f4x-core/src/wizard/magic_game.rs:313` | `Game::start_cast` | `start_cast_with` | 10 | Keep | pair: the short form binds the default of the longer one, and has more than two callers |
-| task | f4x-core | `crates/f4x-core/src/wizard/magic_income.rs:189` | `Game::mana_upkeep` | `mana_upkeep` | 22 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/wizard/magic_income.rs:194` | `Game::income` | `income` | 95 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/wizard/mod.rs:239` | `Game::preset_build` | `preset_build_of` | 8 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
+| task | f4x-core | `crates/f4x-core/src/wizard/magic_world.rs:313` | `World::start_cast` | `start_cast_with` | 10 | Keep | pair: the short form binds the default of the longer one, and has more than two callers |
+| task | f4x-core | `crates/f4x-core/src/wizard/magic_income.rs:189` | `World::mana_upkeep` | `mana_upkeep` | 22 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
+| task | f4x-core | `crates/f4x-core/src/wizard/magic_income.rs:194` | `World::income` | `income` | 95 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
+| task | f4x-core | `crates/f4x-core/src/wizard/mod.rs:239` | `World::preset_build` | `preset_build_of` | 8 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/wizard/mod.rs:88` | `all_retorts` | `map` | 11 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/wizard/objective.rs:92` | `Wizard<'_>::objective` | `map` | 35 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/wizard/retort.rs:52` | `stat_with` | `compute` | 6 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |

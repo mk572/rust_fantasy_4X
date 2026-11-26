@@ -1,12 +1,12 @@
 //! The battle environment: one battle at a time, stepped one command by one.
 //!
 //! The side to play gives a command; both sides can be played by the caller (self-play). Every
-//! command goes through `Game::battle_command`, the rules' own entry point, and the commands to
+//! command goes through `World::battle_command`, the rules' own entry point, and the commands to
 //! choose from are the lists the console shows (`Battle::legal_commands`,
-//! `Game::legal_battle_casts`), so the environment can never offer a refused command.
+//! `World::legal_battle_casts`), so the environment can never offer a refused command.
 
 use f4x_core::battle::{Battle, BattleCommand, BattleEvent, Side};
-use f4x_core::game::Game;
+use f4x_core::world::World;
 use f4x_def::content::Content;
 
 use crate::build::{build, ATTACKER, DEFENDER};
@@ -71,7 +71,7 @@ pub struct Step {
 }
 
 pub struct BattleEnv {
-    pub game: Game,
+    pub world: World,
     pub scenario: BattleScenario,
     pub outcome: Outcome,
     alive: [u32; 2],
@@ -100,8 +100,8 @@ pub const STEP_LIMIT: u32 = 20_000;
 impl BattleEnv {
     pub fn new(content: &Content, scenario: BattleScenario) -> Result<Self, String> {
         f4x_ai::battle::install();
-        let game = build(content, &scenario)?;
-        let battle = game.battle().ok_or("no battle")?;
+        let world = build(content, &scenario)?;
+        let battle = world.battle().ok_or("no battle")?;
         let mut sent = [0u32; 2];
         let mut sent_value = [0.0f32; 2];
         for u in &battle.units {
@@ -109,7 +109,7 @@ impl BattleEnv {
             sent_value[u.side.index()] += unit_value(content, u);
         }
         let mut env = Self {
-            game,
+            world,
             scenario,
             outcome: Outcome {
                 sent,
@@ -133,8 +133,8 @@ impl BattleEnv {
     }
 
     fn note_units(&mut self) {
-        if let Some(b) = self.game.battle() {
-            let content = self.game.content();
+        if let Some(b) = self.world.battle() {
+            let content = self.world.content();
             let notes: Vec<Note> = b
                 .units
                 .iter()
@@ -152,11 +152,11 @@ impl BattleEnv {
     }
 
     pub fn battle(&self) -> Option<&Battle> {
-        self.game.battle()
+        self.world.battle()
     }
 
     pub fn done(&self) -> bool {
-        self.outcome.winner.is_some() || !self.game.in_battle() || self.steps >= self.step_limit
+        self.outcome.winner.is_some() || !self.world.in_battle() || self.steps >= self.step_limit
     }
 
     /// The side to play.
@@ -171,7 +171,7 @@ impl BattleEnv {
             return Vec::new();
         };
         let mut out = b.legal_commands();
-        for lc in self.game.legal_battle_casts() {
+        for lc in self.world.legal_battle_casts() {
             let mut manas = vec![lc.least_mana];
             if lc.most_mana > lc.least_mana {
                 manas.push(lc.most_mana);
@@ -189,14 +189,14 @@ impl BattleEnv {
         let summoners: Vec<usize> = b
             .active_units(b.active)
             .map(|u| u.id)
-            .filter(|&u| self.game.can_summon_demon(u))
+            .filter(|&u| self.world.can_summon_demon(u))
             .collect();
         out.extend(
             summoners
                 .into_iter()
                 .map(|unit| BattleCommand::SummonDemon { unit }),
         );
-        for (unit, lc) in self.game.legal_unit_casts() {
+        for (unit, lc) in self.world.legal_unit_casts() {
             let mut manas = vec![lc.least_mana];
             if lc.most_mana > lc.least_mana {
                 manas.push(lc.most_mana);
@@ -222,13 +222,13 @@ impl BattleEnv {
         }
         self.note_units();
         let events = self
-            .game
+            .world
             .battle_command(command)
             .map_err(|e| format!("refused: {e:?}"))?;
         self.steps += 1;
         let mut seen = Vec::new();
         for e in &events {
-            if let f4x_core::game::Event::Battle(b) = e {
+            if let f4x_core::world::Event::Battle(b) = e {
                 seen.push(b.clone());
             }
         }
@@ -278,7 +278,7 @@ impl BattleEnv {
         // Fleeing costs units, settled when the battle ends (task 250): only those that got
         // away count as saved.
         for e in &events {
-            if let f4x_core::game::Event::UnitsLostFleeing { player, units } = e {
+            if let f4x_core::world::Event::UnitsLostFleeing { player, units } = e {
                 let side = if *player == ATTACKER {
                     Side::Attacker
                 } else {

@@ -314,10 +314,10 @@ mod tests {
 
     #[test]
     fn a_raider_out_for_the_time_is_called_back_and_a_fresh_one_is_not() {
-        let mut g = game(COAST_CITY, 8);
-        let units = spawn(&mut g, P0, at(6, 3), 105, 2);
+        let mut w = game(COAST_CITY, 8);
+        let units = spawn(&mut w, P0, at(6, 3), 105, 2);
         let mut ai = Ai::new(P0);
-        let view = f4x_core::player::view::PlayerView::new(&g, P0);
+        let view = f4x_core::player::view::PlayerView::new(&w, P0);
         let old = view.serial_of(units[0]);
         let _ = ai.roles.claim(old, crate::roles::Role::Raid, 10, None);
         ai.drop_stale_plans(10);

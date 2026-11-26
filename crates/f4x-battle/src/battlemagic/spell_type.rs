@@ -286,7 +286,7 @@ pub struct BattleSpell {
     pub castable: bool,
 }
 
-/// What a damage spell would do to a unit (see `Game::preview_spell_damage`).
+/// What a damage spell would do to a unit (see `World::preview_spell_damage`).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DamageOdds {
     /// Hit points taken on average.

@@ -113,7 +113,7 @@ impl App {
 
     /// The race indices of the Arcanian and Myrran lists.
     fn race_lists(&self) -> (Vec<Option<usize>>, Vec<Option<usize>>) {
-        let races = self.game.content().rules.races.defs();
+        let races = self.world.content().rules.races.defs();
         let find = |ids: &[&str]| -> Vec<Option<usize>> {
             ids.iter()
                 .map(|id| races.iter().position(|r| r.id == *id))
@@ -393,7 +393,7 @@ impl CreateState {
     fn step_wizard(&mut self, app: &mut App, lay: &Layout, picture: bool, input: &Input) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let defs: Vec<(u16, String)> = app
-            .game
+            .world
             .content()
             .rules
             .wizards
@@ -456,7 +456,7 @@ impl CreateState {
             app.draw_pic(lay, "wizards", entry, 0, 24.0, 10.0);
             app.ng_name(lay, &defs[shown].1);
             if !picture {
-                if let Some(build) = app.game.preset_build(defs[shown].0) {
+                if let Some(build) = app.world.preset_build(defs[shown].0) {
                     let shelf: Vec<RealmId> = SHELF_ORDER
                         .iter()
                         .copied()
@@ -597,7 +597,7 @@ impl CreateState {
             .contains(&f4x_core::wizard::magic::Retort::new(9) /* myrran */);
         let (arcanian, myrran_list) = app.race_lists();
         let (names, ids): (Vec<String>, Vec<String>) = app
-            .game
+            .world
             .content()
             .rules
             .races

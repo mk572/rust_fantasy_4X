@@ -5,12 +5,12 @@
 //!
 //! Tests: in map/corruption/tests.rs.
 
-use crate::game::{Event, Game};
 use crate::map::terrain::TerrainClass;
 use crate::map::Position;
 use crate::player::PlayerId;
 use crate::rules::Ability;
 use crate::spell::target_error::TargetError;
+use crate::world::{Event, World};
 
 /// Turns a purifying unit works on one square.
 pub const PURIFY_TURNS: u8 = 3;
@@ -42,7 +42,7 @@ impl PurifyError {
     }
 }
 
-impl Game {
+impl World {
     pub fn is_corrupted(&self, at: Position) -> bool {
         self.map
             .as_ref()
@@ -115,7 +115,7 @@ impl Game {
     /// One turn of cleansing: squares whose last purifier finishes become clean.
     pub(crate) fn process_purify(&mut self, player: crate::player::PlayerId) -> Vec<Event> {
         let mut workers: Vec<hecs::Entity> = self
-            .world
+            .ecs
             .query::<&PurifyWork>()
             .iter()
             .map(|(e, _)| e)
@@ -124,7 +124,7 @@ impl Game {
         self.units().sort_by_serial(&mut workers);
         let mut events = Vec::new();
         for u in workers {
-            let Some(work) = self.world.get::<&PurifyWork>(u).ok().map(|w| *w) else {
+            let Some(work) = self.ecs.get::<&PurifyWork>(u).ok().map(|w| *w) else {
                 continue;
             };
             // Moved away, or someone else cleaned it already: the job is off.
@@ -196,7 +196,7 @@ impl Game {
             if !blessed && !consecrated {
                 continue;
             }
-            let Ok(at) = self.world.get::<&Position>(city).map(|p| *p) else {
+            let Ok(at) = self.ecs.get::<&Position>(city).map(|p| *p) else {
                 continue;
             };
             let area: Vec<Position> = self
@@ -254,10 +254,7 @@ impl Game {
         let Some(node) = self.economy().node_at(at) else {
             return Vec::new();
         };
-        if let Ok(mut n) = self
-            .world
-            .get::<&mut crate::feature::node::Node>(node.entity)
-        {
+        if let Ok(mut n) = self.ecs.get::<&mut crate::feature::node::Node>(node.entity) {
             n.warped = true;
         }
         vec![Event::NodeWarped { pos: at }]

@@ -12,8 +12,6 @@
 use f4x_def::half_int::HalfInt;
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::game::rng::GameRng;
-use crate::game::setting::SpellLibraryDef;
 use crate::rules::{Rarity, RealmId, Rules, SpellDef, SpellId, Stat};
 use crate::spell::instance::{Owed, Spells};
 use crate::wizard::entity::Wizard;
@@ -22,6 +20,8 @@ use crate::wizard::magic::{
     Casting, MagicError, PowerShares, Retort,
 };
 use crate::wizard::retort;
+use crate::world::rng::GameRng;
+use crate::world::setting::SpellLibraryDef;
 use f4x_def::content::Content;
 
 /// Spell books per realm id.
@@ -219,18 +219,18 @@ impl<'a> Wizard<'a> {
 
     /// The spell being cast overland, with the mana still to pay.
     pub fn casting(&self) -> Option<Casting> {
-        let spells = Spells::new(self.world());
+        let spells = Spells::new(self.ecs());
         let cast = spells.cast_of(self.entity())?;
         Some(Casting {
             spell: spells.def(cast)?,
-            remaining: self.world().get::<&Owed>(cast).ok()?.0,
+            remaining: self.ecs().get::<&Owed>(cast).ok()?.0,
         })
     }
 
     /// The item Enchant Item or Create Artifact is making while its cost is paid.
     pub fn crafting(&self) -> Option<crate::item::Item> {
-        let player = crate::wizard::entity::player_id_of(self.world(), self.entity())?;
-        crate::item::entity::crafting_of(self.world(), player).map(|(_, item)| item)
+        let player = crate::wizard::entity::player_id_of(self.ecs(), self.entity())?;
+        crate::item::entity::crafting_of(self.ecs(), player).map(|(_, item)| item)
     }
 
     /// Lasting spells on the wizard (or the whole world) that cost mana every turn.
@@ -471,13 +471,13 @@ pub fn casting_cost(
 
 /// A write handle on one wizard.
 pub struct WizardMut<'a> {
-    world: &'a mut hecs::World,
+    ecs: &'a mut hecs::World,
     entity: hecs::Entity,
 }
 
 impl<'a> WizardMut<'a> {
-    pub(crate) fn new(world: &'a mut hecs::World, entity: hecs::Entity) -> Self {
-        Self { world, entity }
+    pub(crate) fn new(ecs: &'a mut hecs::World, entity: hecs::Entity) -> Self {
+        Self { ecs, entity }
     }
 
     /// A component of the wizard, to change.
@@ -485,7 +485,7 @@ impl<'a> WizardMut<'a> {
     /// # Panics
     /// If the wizard has no such component (every wizard has all of the sheet's).
     pub fn get_mut<T: hecs::Component>(&mut self) -> hecs::RefMut<'_, T> {
-        self.world
+        self.ecs
             .get::<&mut T>(self.entity)
             .expect("a wizard has all the components of its sheet")
     }
@@ -494,17 +494,17 @@ impl<'a> WizardMut<'a> {
     pub fn put<T: hecs::Component>(&mut self, value: Option<T>) {
         match value {
             Some(v) => {
-                crate::game::put_in(self.world, self.entity, v);
+                crate::world::put_in(self.ecs, self.entity, v);
             }
             None => {
-                crate::game::strip_in::<T>(self.world, self.entity);
+                crate::world::strip_in::<T>(self.ecs, self.entity);
             }
         }
     }
 
     /// The wizard's read handle (for a moment: it ends before the next change).
     pub fn view(&self) -> Wizard<'_> {
-        Wizard::new(self.world, self.entity)
+        Wizard::new(self.ecs, self.entity)
     }
 
     /// Set the sheet up for a new wizard: books and retorts, and the starting casting skill
@@ -828,7 +828,7 @@ impl<'a> WizardMut<'a> {
         let mut reserve = reserve.floor();
         let mut skill = *self.get_mut::<Skill>();
         if let Some(cast) = self.cast() {
-            if let Ok(mut c) = self.world.get::<&mut Owed>(cast) {
+            if let Ok(mut c) = self.ecs.get::<&mut Owed>(cast) {
                 let units = skill.left.min(reserve).min(c.0).max(0);
                 c.0 -= units;
                 reserve -= units;
@@ -864,18 +864,18 @@ impl<'a> WizardMut<'a> {
     /// handed over is lost).
     pub fn clear_casting(&mut self) {
         if let Some(cast) = self.cast() {
-            let _ = self.world.despawn(cast);
+            let _ = self.ecs.despawn(cast);
         }
-        if let Some(player) = crate::wizard::entity::player_id_of(self.world, self.entity) {
-            if let Some((item, _)) = crate::item::entity::crafting_of(self.world, player) {
-                let _ = self.world.despawn(item);
+        if let Some(player) = crate::wizard::entity::player_id_of(self.ecs, self.entity) {
+            if let Some((item, _)) = crate::item::entity::crafting_of(self.ecs, player) {
+                let _ = self.ecs.despawn(item);
             }
         }
     }
 
     /// The cast being paid for.
     fn cast(&self) -> Option<hecs::Entity> {
-        Spells::new(self.world).cast_of(self.entity)
+        Spells::new(self.ecs).cast_of(self.entity)
     }
 
     /// Pay for a spell cast at once out of this turn's skill.

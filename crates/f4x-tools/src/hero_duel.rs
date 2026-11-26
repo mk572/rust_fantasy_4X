@@ -16,11 +16,11 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-use f4x_core::game::rng::GameRng;
-use f4x_core::game::{Command, Game};
 use f4x_core::hero::kind::roll_one;
 use f4x_core::hero::Hero;
 use f4x_core::map::{Plane, Position};
+use f4x_core::world::rng::GameRng;
+use f4x_core::world::{Command, World};
 use f4x_def::content::Content;
 use f4x_def::names::NameBundle;
 
@@ -54,17 +54,17 @@ pub fn hero_fight(
     a_attacks: bool,
     seed: u64,
 ) -> Result<Option<bool>, String> {
-    let mut game: Game = base_game(content, seed)?;
+    let mut world: World = base_game(content, seed)?;
     let (west, east) = if a_attacks { (a, b) } else { (b, a) };
     let mut sides = Vec::new();
     for (owner, x, hero) in [(P0, 4u32, west), (P1, 5, east)] {
-        let entity = game.scenario_make_hero(hero.clone());
+        let entity = world.scenario_make_hero(hero.clone());
         let at = Position {
             plane: Plane::Arcanus,
             x,
             y: 4,
         };
-        let unit = game
+        let unit = world
             .spawn_hero(owner, at, hero.kind)
             .map_err(|e| format!("{e:?}"))?;
         debug_assert_eq!(unit, entity);
@@ -82,16 +82,16 @@ pub fn hero_fight(
                 .ok_or("no level path")?,
         );
         let xp = path.levels[(level.max(1) - 1).min(path.levels.len() - 1)].xp;
-        game.scenario_set_experience(unit, xp);
+        world.scenario_set_experience(unit, xp);
         sides.push(vec![unit]);
     }
     let defenders = sides.pop().ok_or("no defender")?;
     let attackers = sides.pop().ok_or("no attacker")?;
-    game.apply(Command::BeginBattle {
+    world.apply(Command::BeginBattle {
         attackers,
         defenders,
     });
-    Ok(play_out(&mut game)?.map(|w| (w == P0) == a_attacks))
+    Ok(play_out(&mut world)?.map(|w| (w == P0) == a_attacks))
 }
 
 /// The seeds of one pair.

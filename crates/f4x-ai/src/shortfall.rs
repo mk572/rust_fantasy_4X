@@ -6,10 +6,10 @@
 //! heroes last. Mana: spells and summons; gold: first sell buildings that do the AI no good,
 //! then let go of units; food: units that eat.
 
-use f4x_core::game::{Command, Event, Game};
 use f4x_core::player::shortfall::TreasuryShortfall;
 use f4x_core::player::upkeep::Shortfall;
 use f4x_core::spell::cast::UpkeepKind;
+use f4x_core::world::{Command, Event, World};
 use f4x_def::half_int::HalfInt;
 use std::cmp::Reverse;
 
@@ -28,23 +28,23 @@ const SELL_ORDER: &[&str] = &[
     "bank",
 ];
 
-pub fn run(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
+pub fn run(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
     let me = ai.player;
-    if let Some(short) = game.upkeep_shortfall(me) {
+    if let Some(short) = world.upkeep_shortfall(me) {
         let items = choose_upkeep(&short);
-        ai.order(game, Command::ReleaseUpkeep { player: me, items }, events);
+        ai.order(world, Command::ReleaseUpkeep { player: me, items }, events);
     }
-    sell_for_gold(ai, game, events);
-    let Some(short) = game.treasury_shortfall(me) else {
+    sell_for_gold(ai, world, events);
+    let Some(short) = world.treasury_shortfall(me) else {
         return;
     };
     let units = choose_troops(&short);
-    let scrap = game
+    let scrap = world
         .item_overflow(me, &units)
         .map(|o| o.default_scrap)
         .unwrap_or_default();
     ai.order(
-        game,
+        world,
         Command::ReleaseTroops {
             player: me,
             units,
@@ -55,20 +55,20 @@ pub fn run(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 }
 
 /// Sell dispensable buildings while the gold is short, one at a time.
-fn sell_for_gold(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
+fn sell_for_gold(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
     let me = ai.player;
     loop {
-        let missing = game
+        let missing = world
             .treasury_shortfall(me)
             .map_or(HalfInt::ZERO, |s| s.missing(&[]).1);
         if missing == HalfInt::ZERO {
             return;
         }
-        let Some((city, building)) = next_sale(game, me) else {
+        let Some((city, building)) = next_sale(world, me) else {
             return;
         };
         if !ai
-            .send(game, Command::SellBuilding { city, building }, events)
+            .send(world, Command::SellBuilding { city, building }, events)
             .is_ok()
         {
             return;
@@ -77,21 +77,21 @@ fn sell_for_gold(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 }
 
 fn next_sale(
-    game: &Game,
+    world: &World,
     me: f4x_core::player::PlayerId,
 ) -> Option<(hecs::Entity, f4x_def::rules::BuildingId)> {
-    let cities = f4x_core::player::view::PlayerView::new(game, me).my_cities();
-    let rules = &game.content().rules;
+    let cities = f4x_core::player::view::PlayerView::new(world, me).my_cities();
+    let rules = &world.content().rules;
     for name in SELL_ORDER {
         for &(city, _) in &cities {
-            if game.economy().sold_this_turn(city) {
+            if world.economy().sold_this_turn(city) {
                 continue;
             }
             // Not one that another building of the city needs: the sale would be refused.
-            if let Some(b) = game.city_buildings(city).into_iter().find(|&b| {
+            if let Some(b) = world.city_buildings(city).into_iter().find(|&b| {
                 rules.buildings.get(b).id == *name
                     && rules.buildings.get(b).upkeep_gold > 0
-                    && game.economy().sale_price(city, b).is_ok()
+                    && world.economy().sale_price(city, b).is_ok()
             }) {
                 return Some((city, b));
             }
@@ -182,47 +182,47 @@ mod tests {
 
     #[test]
     fn the_ai_lets_go_of_the_units_it_cannot_feed_or_pay_for() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let army = spawn(&mut g, P0, at(9, 6), 104 /* high_men_spearmen */, 8);
-        g.treasury_mut(P0).ok_or("player 0 has a treasury")?.gold =
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let army = spawn(&mut w, P0, at(9, 6), 104 /* high_men_spearmen */, 8);
+        w.treasury_mut(P0).ok_or("player 0 has a treasury")?.gold =
             f4x_def::half_int::HalfInt::from_int(3);
-        g.apply(Command::SetTaxRate {
+        w.apply(Command::SetTaxRate {
             player: P0,
             rate: 0,
         });
-        let t = g.budget(P0);
+        let t = w.budget(P0);
         assert!(t.food_upkeep > t.food_surplus, "the town cannot feed eight");
-        assert!(g.treasury_shortfall(P0).is_some());
+        assert!(w.treasury_shortfall(P0).is_some());
         let mut events = Vec::new();
-        run(&Ai::new(P0), &mut g, &mut events);
-        assert!(g.treasury_shortfall(P0).is_none(), "the books balance");
+        run(&Ai::new(P0), &mut w, &mut events);
+        assert!(w.treasury_shortfall(P0).is_none(), "the books balance");
         let left = army
             .iter()
-            .filter(|&&u| g.units().unit_owner(u).is_some())
+            .filter(|&&u| w.units().unit_owner(u).is_some())
             .count();
         assert!(left < 8, "some went");
         assert!(events.iter().any(|e| matches!(
             e,
             Event::Shortage {
-                what: f4x_core::game::Shortage::Food,
+                what: f4x_core::world::Shortage::Food,
                 ..
             }
         )));
         // Those let go are the last made: the oldest stay as long as any do.
         let kept: Vec<_> = army
             .iter()
-            .map(|&u| g.units().unit_owner(u).is_some())
+            .map(|&u| w.units().unit_owner(u).is_some())
             .collect();
-        assert!(kept.windows(2).all(|w| w[0] || !w[1]), "{kept:?}");
+        assert!(kept.windows(2).all(|pair| pair[0] || !pair[1]), "{kept:?}");
         Ok(())
     }
 
     #[test]
     fn a_building_another_one_needs_is_not_put_up_for_sale() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
         let pos = at(COAST_CITY.0, COAST_CITY.1);
         crate::testworld::build(
-            &mut g,
+            &mut w,
             pos,
             &[
                 3,  /* barracks */
@@ -230,27 +230,27 @@ mod tests {
                 16, /* library */
             ],
         );
-        let city = g.economy().city_at(pos).ok_or("player 0 has a city")?;
+        let city = w.economy().city_at(pos).ok_or("player 0 has a city")?;
         let smithy = f4x_def::rules::BuildingId::new(8) /* smithy */;
         let library = f4x_def::rules::BuildingId::new(16) /* library */;
-        let name = |g: &Game, b| g.content().rules.buildings.get(b).id.clone();
-        let sale = |g: &Game| next_sale(g, P0).map(|(_, b)| name(g, b));
-        assert_eq!(sale(&g).as_deref(), Some("library"));
+        let name = |w: &World, b| w.content().rules.buildings.get(b).id.clone();
+        let sale = |w: &World| next_sale(w, P0).map(|(_, b)| name(w, b));
+        assert_eq!(sale(&w).as_deref(), Some("library"));
         // The stables need the smithy: the smithy is no longer on offer, the library still is.
-        crate::testworld::build(&mut g, pos, &[9 /* stables */]);
-        assert!(g.economy().sale_price(city, smithy).is_err());
-        assert_eq!(sale(&g).as_deref(), Some("library"));
+        crate::testworld::build(&mut w, pos, &[9 /* stables */]);
+        assert!(w.economy().sale_price(city, smithy).is_err());
+        assert_eq!(sale(&w).as_deref(), Some("library"));
         // Without the library nothing else is both dispensable and free to sell.
-        g.scenario_set_building(city, library, false);
-        assert_eq!(sale(&g), None);
+        w.scenario_set_building(city, library, false);
+        assert_eq!(sale(&w), None);
         Ok(())
     }
 
     #[test]
     fn heroes_and_loaded_ships_are_the_last_to_go() {
         use f4x_core::player::shortfall::{TreasuryShortfall, TroopLine};
-        let mut world = hecs::World::new();
-        let e: Vec<_> = (0..4).map(|_| world.spawn(())).collect();
+        let mut ecs = hecs::World::new();
+        let e: Vec<_> = (0..4).map(|_| ecs.spawn(())).collect();
         let line = |unit, cost, hero, ship, aboard| TroopLine {
             unit,
             gold: f4x_def::half_int::HalfInt::from_int(1),

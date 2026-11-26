@@ -6,14 +6,14 @@
 //! not refused for the kind.
 
 use crate::support::{content, text, worlds};
-use f4x_core::game::save::Snapshot;
-use f4x_core::game::{Command, Event, Game, Rejection};
 use f4x_core::map::Position;
 use f4x_core::player::PlayerId;
 use f4x_core::rules::exec::Target;
 use f4x_core::rules::SpellId;
 use f4x_core::spell::target_error::TargetError;
 use f4x_core::wizard::magic::MagicError;
+use f4x_core::world::save::Snapshot;
+use f4x_core::world::{Command, Event, Rejection, World};
 use f4x_def::half_int::HalfInt;
 use f4x_def::rules::{CastContext, SpellTarget};
 
@@ -55,9 +55,9 @@ fn named(wanted: SpellTarget, kind: Kind) -> bool {
 }
 
 /// The target of each kind in the game, for the wizard `p` against the wizard `other`.
-fn target_of(g: &Game, p: PlayerId, other: PlayerId, kind: Kind) -> Option<Target> {
-    let unit_of = |who: PlayerId| g.units().player_units(who).into_iter().next();
-    let city_of = |who: PlayerId| g.economy().cities_of(who).into_iter().next().map(|c| c.0);
+fn target_of(w: &World, p: PlayerId, other: PlayerId, kind: Kind) -> Option<Target> {
+    let unit_of = |who: PlayerId| w.units().player_units(who).into_iter().next();
+    let city_of = |who: PlayerId| w.economy().cities_of(who).into_iter().next().map(|c| c.0);
     match kind {
         Kind::OwnUnit => unit_of(p).map(Target::Unit),
         Kind::EnemyUnit => unit_of(other).map(Target::Unit),
@@ -67,17 +67,17 @@ fn target_of(g: &Game, p: PlayerId, other: PlayerId, kind: Kind) -> Option<Targe
         Kind::OtherWizard => Some(Target::Player(other)),
         Kind::Tile => {
             // An empty land square next to the caster's first city.
-            let at = g.economy().cities_of(p).first()?.1;
-            f4x_core_around(g, at)
+            let at = w.economy().cities_of(p).first()?.1;
+            f4x_core_around(w, at)
                 .into_iter()
-                .find(|&q| g.units().units_at(q).is_empty() && g.economy().city_at(q).is_none())
+                .find(|&q| w.units().units_at(q).is_empty() && w.economy().city_at(q).is_none())
                 .map(Target::Tile)
         }
     }
 }
 
-fn f4x_core_around(g: &Game, at: Position) -> Vec<Position> {
-    crate::support::around(g, at)
+fn f4x_core_around(w: &World, at: Position) -> Vec<Position> {
+    crate::support::around(w, at)
 }
 
 /// Whether the refusal is about the kind of target, not about something else the spell asks.
@@ -137,20 +137,20 @@ fn a_spell_is_cast_only_on_the_kinds_of_target_its_definition_names() {
             continue;
         }
         for kind in KINDS {
-            let mut g = snapshot.clone().restore(content()).expect("restores");
-            let Some(target) = target_of(&g, p, other, kind) else {
+            let mut w = snapshot.clone().restore(content()).expect("restores");
+            let Some(target) = target_of(&w, p, other, kind) else {
                 continue;
             };
             // A summoning spell takes no target while its wizard has a circle to summon at.
-            if !g.spell_needs_target(p, spell) {
+            if !w.spell_needs_target(p, spell) {
                 continue;
             }
-            g.cheat_learn_spell(p, spell);
-            g.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(100_000);
+            w.cheat_learn_spell(p, spell);
+            w.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(100_000);
             // Paid for, so that the target is chosen now.
-            g.scenario_casting(p, spell, 0);
-            let before = text(&g);
-            let events = g.apply(Command::ResolveCast { player: p, target });
+            w.scenario_casting(p, spell, 0);
+            let before = text(&w);
+            let events = w.apply(Command::ResolveCast { player: p, target });
             tried += 1;
             let refusal = events.iter().find_map(|e| match e {
                 Event::Rejected(Rejection::Magic(why)) => Some(*why),
@@ -164,7 +164,7 @@ fn a_spell_is_cast_only_on_the_kinds_of_target_its_definition_names() {
                 (false, Some(why)) => {
                     assert!(about_the_kind(why), "{}: on {kind:?}: {why:?}", def.id);
                     assert_eq!(
-                        text(&g),
+                        text(&w),
                         before,
                         "{}: a refused cast changed the game",
                         def.id
@@ -196,14 +196,14 @@ fn refusal(events: &[Event]) -> Option<Rejection> {
 }
 
 /// A wizard with two cities, the circle in the first, and a summoning spell they know.
-pub(crate) fn two_cities(g: &mut Game) -> (PlayerId, hecs::Entity, hecs::Entity, SpellId) {
-    let p = g
+pub(crate) fn two_cities(w: &mut World) -> (PlayerId, hecs::Entity, hecs::Entity, SpellId) {
+    let p = w
         .player_ids()
         .into_iter()
-        .find(|&p| !g.is_neutral_player(p) && g.wizard(p).is_some())
+        .find(|&p| !w.is_neutral_player(p) && w.wizard(p).is_some())
         .expect("a wizard");
     // A second city, a few squares from the first.
-    let home = g.economy().cities_of(p)[0].1;
+    let home = w.economy().cities_of(p)[0].1;
     'found: for dx in -6i32..=6 {
         for dy in -6i32..=6 {
             let (x, y) = (home.x as i32 + dx, home.y as i32 + dy);
@@ -215,7 +215,7 @@ pub(crate) fn two_cities(g: &mut Game) -> (PlayerId, hecs::Entity, hecs::Entity,
                 y: y as u32,
                 plane: home.plane,
             };
-            let events = g.apply(Command::FoundCity {
+            let events = w.apply(Command::FoundCity {
                 owner: p,
                 pos,
                 name: "Second".to_owned(),
@@ -227,9 +227,9 @@ pub(crate) fn two_cities(g: &mut Game) -> (PlayerId, hecs::Entity, hecs::Entity,
             }
         }
     }
-    let cities = g.economy().cities_of(p);
+    let cities = w.economy().cities_of(p);
     assert!(cities.len() >= 2, "no second city could be founded");
-    let spell = g
+    let spell = w
         .content()
         .rules
         .spells
@@ -237,19 +237,19 @@ pub(crate) fn two_cities(g: &mut Game) -> (PlayerId, hecs::Entity, hecs::Entity,
         .iter()
         .map(|d| SpellId::new(d.num))
         .find(|&s| {
-            let d = g.content().rules.spells.get(s);
+            let d = w.content().rules.spells.get(s);
             d.contexts.contains(&CastContext::Overland)
-                && g.spell_summons(s)
+                && w.spell_summons(s)
                 && d.target == SpellTarget::Tile
         })
         .expect("a summoning spell");
-    g.cheat_learn_spell(p, spell);
-    g.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(100_000);
+    w.cheat_learn_spell(p, spell);
+    w.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(100_000);
     (p, cities[0].0, cities[1].0, spell)
 }
 
-fn pos_of(g: &Game, p: PlayerId, city: hecs::Entity) -> Position {
-    g.economy()
+fn pos_of(w: &World, p: PlayerId, city: hecs::Entity) -> Position {
+    w.economy()
         .cities_of(p)
         .into_iter()
         .find(|c| c.0 == city)
@@ -257,86 +257,86 @@ fn pos_of(g: &Game, p: PlayerId, city: hecs::Entity) -> Position {
         .1
 }
 
-fn circles(g: &Game, p: PlayerId) -> Vec<Position> {
-    g.wizard(p).expect("a wizard").summon_circles()
+fn circles(w: &World, p: PlayerId) -> Vec<Position> {
+    w.wizard(p).expect("a wizard").summon_circles()
 }
 
 #[test]
 fn a_second_summoning_circle_replaces_the_first_unless_the_setting_keeps_both() {
     for keep in [false, true] {
-        let (_, mut g) = worlds().remove(0);
-        g.scenario_change_settings(|s| s.rules.multiple_summoning_circles = keep);
-        let (p, first, second, _) = two_cities(&mut g);
-        let (a, b) = (pos_of(&g, p, first), pos_of(&g, p, second));
-        assert_eq!(circles(&g, p), [a]);
-        g.move_summoning_circle(p, second).expect("moved");
-        assert_eq!(circles(&g, p), if keep { vec![a, b] } else { vec![b] });
+        let (_, mut w) = worlds().remove(0);
+        w.scenario_change_settings(|s| s.rules.multiple_summoning_circles = keep);
+        let (p, first, second, _) = two_cities(&mut w);
+        let (a, b) = (pos_of(&w, p, first), pos_of(&w, p, second));
+        assert_eq!(circles(&w, p), [a]);
+        w.move_summoning_circle(p, second).expect("moved");
+        assert_eq!(circles(&w, p), if keep { vec![a, b] } else { vec![b] });
         // Again in the same city: still one circle there.
-        g.move_summoning_circle(p, second).expect("moved");
-        assert_eq!(circles(&g, p).iter().filter(|&&c| c == b).count(), 1);
+        w.move_summoning_circle(p, second).expect("moved");
+        assert_eq!(circles(&w, p).iter().filter(|&&c| c == b).count(), 1);
         // The fortress moved to the second city keeps the circles too.
-        g.move_fortress(p, second).expect("moved");
-        assert_eq!(circles(&g, p).contains(&a), keep);
+        w.move_fortress(p, second).expect("moved");
+        assert_eq!(circles(&w, p).contains(&a), keep);
         // The text of the save keeps them.
-        let again = Snapshot::from_text(&text(&g))
+        let again = Snapshot::from_text(&text(&w))
             .expect("reads")
             .restore(content())
             .expect("restores");
-        assert_eq!(circles(&again, p), circles(&g, p));
+        assert_eq!(circles(&again, p), circles(&w, p));
     }
 }
 
 #[test]
 fn with_several_circles_a_summoning_asks_for_the_city_and_the_creature_appears_there() {
-    let (_, mut g) = worlds().remove(0);
-    g.scenario_change_settings(|s| s.rules.multiple_summoning_circles = true);
-    let (p, first, second, spell) = two_cities(&mut g);
-    let (a, b) = (pos_of(&g, p, first), pos_of(&g, p, second));
+    let (_, mut w) = worlds().remove(0);
+    w.scenario_change_settings(|s| s.rules.multiple_summoning_circles = true);
+    let (p, first, second, spell) = two_cities(&mut w);
+    let (a, b) = (pos_of(&w, p, first), pos_of(&w, p, second));
     // The spell is paid for, so that its target is chosen now.
-    let cast = |g: &mut Game, target: Option<Target>| match target {
-        Some(target) => g.apply(Command::ResolveCast { player: p, target }),
+    let cast = |w: &mut World, target: Option<Target>| match target {
+        Some(target) => w.apply(Command::ResolveCast { player: p, target }),
         None => vec![Event::Rejected(Rejection::Magic(
-            g.check_target(p, spell, None)
+            w.check_target(p, spell, None)
                 .expect_err("a target is asked"),
         ))],
     };
 
     // One circle: no target is asked.
-    assert!(!g.spell_needs_target(p, spell));
+    assert!(!w.spell_needs_target(p, spell));
     // Two: the city is asked for, and only a city with a circle will do.
-    g.move_summoning_circle(p, second).expect("moved");
-    assert!(g.spell_needs_target(p, spell));
-    let third = g
+    w.move_summoning_circle(p, second).expect("moved");
+    assert!(w.spell_needs_target(p, spell));
+    let third = w
         .economy()
         .cities_of(p)
         .into_iter()
         .map(|c| c.0)
         .find(|&c| c != first && c != second);
-    g.scenario_casting(p, spell, 0);
-    let before = text(&g);
+    w.scenario_casting(p, spell, 0);
+    let before = text(&w);
     assert_eq!(
-        refusal(&cast(&mut g, None)),
+        refusal(&cast(&mut w, None)),
         Some(Rejection::Magic(MagicError::NeedsTarget))
     );
     if let Some(third) = third {
-        assert!(refusal(&cast(&mut g, Some(Target::City(third)))).is_some());
+        assert!(refusal(&cast(&mut w, Some(Target::City(third)))).is_some());
     }
-    let rival = g
+    let rival = w
         .economy()
         .cities()
         .into_iter()
         .find(|c| c.1.owner != p)
         .map(|c| c.0)
         .expect("a rival city");
-    assert!(refusal(&cast(&mut g, Some(Target::City(rival)))).is_some());
-    assert_eq!(text(&g), before, "a refused cast changed the game");
+    assert!(refusal(&cast(&mut w, Some(Target::City(rival)))).is_some());
+    assert_eq!(text(&w), before, "a refused cast changed the game");
     for (city, at) in [(second, b), (first, a)] {
-        g.scenario_casting(p, spell, 0);
-        let here = g.units().units_at(at).len();
-        let events = cast(&mut g, Some(Target::City(city)));
+        w.scenario_casting(p, spell, 0);
+        let here = w.units().units_at(at).len();
+        let events = cast(&mut w, Some(Target::City(city)));
         assert_eq!(refusal(&events), None, "{events:?}");
         assert!(
-            g.units().units_at(at).len() > here,
+            w.units().units_at(at).len() > here,
             "nothing appeared at {at:?}"
         );
     }
@@ -345,10 +345,10 @@ fn with_several_circles_a_summoning_asks_for_the_city_and_the_creature_appears_t
 #[test]
 fn with_several_circles_word_of_recall_asks_for_the_circle_and_sends_the_unit_there() {
     use f4x_core::spell::special::{RECALL, RECALL_ANYONE};
-    let (_, mut g) = worlds().remove(0);
-    g.scenario_change_settings(|s| s.rules.multiple_summoning_circles = true);
-    let (p, _, second, _) = two_cities(&mut g);
-    let recall = g
+    let (_, mut w) = worlds().remove(0);
+    w.scenario_change_settings(|s| s.rules.multiple_summoning_circles = true);
+    let (p, _, second, _) = two_cities(&mut w);
+    let recall = w
         .content()
         .rules
         .spells
@@ -358,61 +358,61 @@ fn with_several_circles_word_of_recall_asks_for_the_circle_and_sends_the_unit_th
         .find(|d| d.has_hook_arg(RECALL, RECALL_ANYONE))
         .map(|d| SpellId::new(d.num))
         .expect("a Word of Recall");
-    g.cheat_learn_spell(p, recall);
-    g.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(100_000);
-    g.move_summoning_circle(p, second).expect("moved");
-    let circles = g.wizard(p).expect("a wizard").summon_circles();
+    w.cheat_learn_spell(p, recall);
+    w.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(100_000);
+    w.move_summoning_circle(p, second).expect("moved");
+    let circles = w.wizard(p).expect("a wizard").summon_circles();
     let (a, b) = (circles[0], circles[1]);
-    let unit = g.units().player_units(p)[0];
-    g.cheat_move_unit(unit, a);
-    assert!(g.check_target(p, recall, Some(Target::Unit(unit))).is_err());
+    let unit = w.units().player_units(p)[0];
+    w.cheat_move_unit(unit, a);
+    assert!(w.check_target(p, recall, Some(Target::Unit(unit))).is_err());
     let elsewhere = Position {
         x: a.x.wrapping_add(1),
         ..a
     };
     assert_eq!(
-        g.check_target(p, recall, Some(Target::UnitAt(unit, elsewhere))),
+        w.check_target(p, recall, Some(Target::UnitAt(unit, elsewhere))),
         Err(MagicError::Target(TargetError::WrongCircle))
     );
-    g.scenario_casting(p, recall, 0);
-    let events = g.apply(Command::ResolveCast {
+    w.scenario_casting(p, recall, 0);
+    let events = w.apply(Command::ResolveCast {
         player: p,
         target: Target::UnitAt(unit, b),
     });
     assert_eq!(refusal(&events), None, "{events:?}");
-    assert_eq!(g.units().unit_position(unit), Some(b));
+    assert_eq!(w.units().unit_position(unit), Some(b));
 }
 
 /// A wizard who knows Time Stop (spell 80, `time_stop`, the dearest spell with no target) and has the
 /// mana for it: a cast that takes many turns to pay.
-fn slow_caster() -> Vec<(String, Game, PlayerId, SpellId)> {
+fn slow_caster() -> Vec<(String, World, PlayerId, SpellId)> {
     worlds()
         .into_iter()
-        .map(|(name, mut g)| {
-            let p = g
+        .map(|(name, mut w)| {
+            let p = w
                 .wizards()
                 .into_iter()
-                .find(|&p| g.wizard(p).is_some())
+                .find(|&p| w.wizard(p).is_some())
                 .expect("a wizard");
-            let spell = g.content().rules.spells.id_numbered(80).expect("time_stop");
-            g.cheat_learn_spell(p, spell);
-            g.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(100_000);
-            (name, g, p, spell)
+            let spell = w.content().rules.spells.id_numbered(80).expect("time_stop");
+            w.cheat_learn_spell(p, spell);
+            w.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(100_000);
+            (name, w, p, spell)
         })
         .collect()
 }
 
 #[test]
 fn a_spell_dearer_than_the_skill_is_paid_over_turns_and_takes_effect_when_paid() {
-    for (name, mut g, p, spell) in slow_caster() {
-        let events = g.apply(Command::CastSpell {
+    for (name, mut w, p, spell) in slow_caster() {
+        let events = w.apply(Command::CastSpell {
             player: p,
             spell,
             target: None,
             extra: 0,
         });
         assert_eq!(refusal(&events), None, "{name}: {events:?}");
-        let mut owed = g
+        let mut owed = w
             .wizard(p)
             .expect("a wizard")
             .casting()
@@ -425,11 +425,11 @@ fn a_spell_dearer_than_the_skill_is_paid_over_turns_and_takes_effect_when_paid()
         let mut cast = false;
         while turns < 5_000 && !cast {
             turns += 1;
-            let events = g.end_player_turn(p);
+            let events = w.end_player_turn(p);
             cast = events
                 .iter()
                 .any(|e| matches!(e, Event::SpellCast { player, spell: s } if *player == p && *s == spell));
-            let now = g
+            let now = w
                 .wizard(p)
                 .expect("a wizard")
                 .casting()
@@ -444,9 +444,9 @@ fn a_spell_dearer_than_the_skill_is_paid_over_turns_and_takes_effect_when_paid()
         }
         assert!(cast, "{name}: not cast in {turns} turns");
         assert!(turns > 1, "{name}: paid in one turn after all");
-        assert!(g.wizard(p).expect("a wizard").casting().is_none(), "{name}");
+        assert!(w.wizard(p).expect("a wizard").casting().is_none(), "{name}");
         assert_eq!(
-            g.time_stopper(),
+            w.time_stopper(),
             Some(p),
             "{name}: the spell did not take effect"
         );
@@ -455,45 +455,45 @@ fn a_spell_dearer_than_the_skill_is_paid_over_turns_and_takes_effect_when_paid()
 
 #[test]
 fn cancelling_a_cast_stops_it_and_cancelling_nothing_changes_nothing() {
-    for (name, mut g, p, spell) in slow_caster() {
-        let before = crate::support::text(&g);
-        let events = g.apply(Command::CancelCast { player: p });
+    for (name, mut w, p, spell) in slow_caster() {
+        let before = crate::support::text(&w);
+        let events = w.apply(Command::CancelCast { player: p });
         assert_eq!(refusal(&events), None, "{name}: {events:?}");
         assert_eq!(
-            crate::support::text(&g),
+            crate::support::text(&w),
             before,
             "{name}: cancelling nothing changed the game"
         );
-        g.apply(Command::CastSpell {
+        w.apply(Command::CastSpell {
             player: p,
             spell,
             target: None,
             extra: 0,
         });
-        g.end_player_turn(p);
-        assert!(g.wizard(p).expect("a wizard").casting().is_some(), "{name}");
-        let events = g.apply(Command::CancelCast { player: p });
+        w.end_player_turn(p);
+        assert!(w.wizard(p).expect("a wizard").casting().is_some(), "{name}");
+        let events = w.apply(Command::CancelCast { player: p });
         assert_eq!(refusal(&events), None, "{name}: {events:?}");
-        assert!(g.wizard(p).expect("a wizard").casting().is_none(), "{name}");
+        assert!(w.wizard(p).expect("a wizard").casting().is_none(), "{name}");
         for _ in 0..3 {
-            let events = g.end_player_turn(p);
+            let events = w.end_player_turn(p);
             assert!(
                 !events.iter().any(|e| matches!(e, Event::SpellCast { .. })),
                 "{name}: a cancelled spell was cast"
             );
         }
-        assert_eq!(g.time_stopper(), None, "{name}");
+        assert_eq!(w.time_stopper(), None, "{name}");
     }
 }
 
 #[test]
 fn a_wizard_who_cannot_pay_the_upkeep_gives_up_the_dearest_spells_first() {
     let mut tried = 0;
-    for (name, mut g) in worlds() {
-        let p = g.wizards()[0];
+    for (name, mut w) in worlds() {
+        let p = w.wizards()[0];
         // Lasting spells of the world, in the order they were cast: those of the content that are
         // global and cost upkeep.
-        let held: Vec<SpellId> = g
+        let held: Vec<SpellId> = w
             .content()
             .rules
             .spells
@@ -510,35 +510,35 @@ fn a_wizard_who_cannot_pay_the_upkeep_gives_up_the_dearest_spells_first() {
             .map(|d| SpellId::new(d.num))
             .collect();
         for &s in &held {
-            g.scenario_add_global(p, s);
+            w.scenario_add_global(p, s);
         }
         let kept_before: Vec<_> = held
             .iter()
             .copied()
-            .filter(|&s| g.has_global(p, s))
+            .filter(|&s| w.has_global(p, s))
             .collect();
         if kept_before.len() < 3 {
             continue;
         }
         tried += 1;
-        g.treasury_mut(p).expect("a treasury").mana = HalfInt::ZERO;
-        let events = g.end_player_turn(p);
+        w.treasury_mut(p).expect("a treasury").mana = HalfInt::ZERO;
+        let events = w.end_player_turn(p);
         assert!(
             events
                 .iter()
-                .any(|e| matches!(e, Event::Shortage { player, what: f4x_core::game::Shortage::Mana } if *player == p)),
+                .any(|e| matches!(e, Event::Shortage { player, what: f4x_core::world::Shortage::Mana } if *player == p)),
             "{name}: no shortage told: {events:?}"
         );
         let gone: Vec<usize> = (0..kept_before.len())
-            .filter(|&i| !g.has_global(p, kept_before[i]))
+            .filter(|&i| !w.has_global(p, kept_before[i]))
             .collect();
         let stayed: Vec<usize> = (0..kept_before.len())
-            .filter(|&i| g.has_global(p, kept_before[i]))
+            .filter(|&i| w.has_global(p, kept_before[i]))
             .collect();
         assert!(!gone.is_empty(), "{name}: nothing was given up");
         // The order of giving up: the highest upkeep, then the cheapest to replace, then the newest
         // (`upkeep_release_order`). Whatever went comes before whatever stayed in it.
-        let rules = &g.content().rules;
+        let rules = &w.content().rules;
         let key = |i: usize| {
             let d = rules.spells.get(kept_before[i]);
             (std::cmp::Reverse(d.upkeep), d.cost, std::cmp::Reverse(i))
@@ -593,14 +593,14 @@ fn a_lasting_spell_takes_hold_on_its_target_once_and_turning_it_off_ends_it() {
             SpellTarget::EnemyCity => Kind::EnemyCity,
             _ => continue,
         };
-        let mut g = snapshot.clone().restore(content()).expect("restores");
-        let Some(target) = target_of(&g, p, other, kind) else {
+        let mut w = snapshot.clone().restore(content()).expect("restores");
+        let Some(target) = target_of(&w, p, other, kind) else {
             continue;
         };
-        g.cheat_learn_spell(p, spell);
-        g.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(100_000);
-        g.scenario_casting(p, spell, 0);
-        let events = g.apply(Command::ResolveCast { player: p, target });
+        w.cheat_learn_spell(p, spell);
+        w.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(100_000);
+        w.scenario_casting(p, spell, 0);
+        let events = w.apply(Command::ResolveCast { player: p, target });
         if refusal(&events).is_some() {
             // A refusal for what the target is (a unit the spell does not take) is the matrix's.
             continue;
@@ -617,8 +617,8 @@ fn a_lasting_spell_takes_hold_on_its_target_once_and_turning_it_off_ends_it() {
             "{}: the cast is not told: {events:?}",
             def.id
         );
-        let wizard = g.wizard(p).expect("a wizard").entity();
-        let spells = g.spells();
+        let wizard = w.wizard(p).expect("a wizard").entity();
+        let spells = w.spells();
         let mine: Vec<_> = spells
             .of_def(spell)
             .into_iter()
@@ -627,13 +627,13 @@ fn a_lasting_spell_takes_hold_on_its_target_once_and_turning_it_off_ends_it() {
         assert_eq!(mine.len(), 1, "{}: on {kind:?}: {events:?}", def.id);
         held += 1;
         // A second cast on the same target never doubles it.
-        g.scenario_casting(p, spell, 0);
-        g.apply(Command::ResolveCast { player: p, target });
+        w.scenario_casting(p, spell, 0);
+        w.apply(Command::ResolveCast { player: p, target });
         assert_eq!(
-            g.spells()
+            w.spells()
                 .of_def(spell)
                 .into_iter()
-                .filter(|&i| g.spells().target(i) == Some(on))
+                .filter(|&i| w.spells().target(i) == Some(on))
                 .count(),
             1,
             "{}: the spell is on the target twice",
@@ -653,23 +653,23 @@ fn a_lasting_spell_takes_hold_on_its_target_once_and_turning_it_off_ends_it() {
             },
             _ => unreachable!(),
         };
-        let events = g.apply(off);
+        let events = w.apply(off);
         assert_eq!(refusal(&events), None, "{}: {events:?}", def.id);
         assert!(
-            !g.spells().has(on, spell),
+            !w.spells().has(on, spell),
             "{}: still on after turning it off",
             def.id
         );
         ended += 1;
-        let bad = world_problems(&g);
+        let bad = world_problems(&w);
         assert!(bad.is_empty(), "{}: {bad:#?}", def.id);
     }
     assert!(held > 10 && ended == held, "{held} held, {ended} ended");
 }
 
 /// The first lasting spells of the content that name a city of their own caster, for a city to carry.
-fn city_spells(g: &Game, n: usize) -> Vec<SpellId> {
-    g.content()
+fn city_spells(w: &World, n: usize) -> Vec<SpellId> {
+    w.content()
         .rules
         .spells
         .defs()
@@ -685,43 +685,43 @@ fn city_spells(g: &Game, n: usize) -> Vec<SpellId> {
 }
 
 /// Two wizards who have met, the first with plenty of mana.
-fn rivals() -> Vec<(String, Game, PlayerId, PlayerId)> {
+fn rivals() -> Vec<(String, World, PlayerId, PlayerId)> {
     worlds()
         .into_iter()
-        .map(|(name, mut g)| {
-            let w: Vec<PlayerId> = g
+        .map(|(name, mut w)| {
+            let ids: Vec<PlayerId> = w
                 .player_ids()
                 .into_iter()
-                .filter(|&p| !g.is_neutral_player(p) && g.wizard(p).is_some())
+                .filter(|&p| !w.is_neutral_player(p) && w.wizard(p).is_some())
                 .collect();
-            g.make_contact(w[0], w[1]);
-            g.make_contact(w[1], w[0]);
-            g.treasury_mut(w[0]).expect("a treasury").mana = HalfInt::from_int(100_000);
-            (name, g, w[0], w[1])
+            w.make_contact(ids[0], ids[1]);
+            w.make_contact(ids[1], ids[0]);
+            w.treasury_mut(ids[0]).expect("a treasury").mana = HalfInt::from_int(100_000);
+            (name, w, ids[0], ids[1])
         })
         .collect()
 }
 
 /// `player` casts spell `number` on `target` with `extra` mana in it, paid at once.
-fn cast_at(g: &mut Game, player: PlayerId, number: u16, target: Target, extra: i32) -> Vec<Event> {
+fn cast_at(w: &mut World, player: PlayerId, number: u16, target: Target, extra: i32) -> Vec<Event> {
     let spell = SpellId::new(number);
-    g.cheat_learn_spell(player, spell);
-    g.scenario_casting_with(player, spell, 0, extra);
-    g.apply(Command::ResolveCast { player, target })
+    w.cheat_learn_spell(player, spell);
+    w.scenario_casting_with(player, spell, 0, extra);
+    w.apply(Command::ResolveCast { player, target })
 }
 
 #[test]
 fn a_strong_disenchant_area_takes_off_the_other_wizards_spells_and_leaves_the_casters_own() {
     use f4x_core::spell::instance::SpellTarget as On;
-    for (name, mut g, p, other) in rivals() {
-        let city = g.economy().cities_of(other)[0].0;
-        let at = g.economy().cities_of(other)[0].1;
-        let spells = city_spells(&g, 2);
+    for (name, mut w, p, other) in rivals() {
+        let city = w.economy().cities_of(other)[0].0;
+        let at = w.economy().cities_of(other)[0].1;
+        let spells = city_spells(&w, 2);
         assert_eq!(spells.len(), 2, "{name}");
-        g.scenario_enchant_city(city, spells[0], other);
-        g.scenario_enchant_city(city, spells[1], p);
+        w.scenario_enchant_city(city, spells[0], other);
+        w.scenario_enchant_city(city, spells[1], p);
         let events = cast_at(
-            &mut g,
+            &mut w,
             p,
             204, /* disenchant_area */
             Target::Tile(at),
@@ -729,11 +729,11 @@ fn a_strong_disenchant_area_takes_off_the_other_wizards_spells_and_leaves_the_ca
         );
         assert_eq!(refusal(&events), None, "{name}: {events:?}");
         assert!(
-            !g.spells().has(On::City(city), spells[0]),
+            !w.spells().has(On::City(city), spells[0]),
             "{name}: the rival's spell stayed under a dispel of any strength"
         );
         assert!(
-            g.spells().has(On::City(city), spells[1]),
+            w.spells().has(On::City(city), spells[1]),
             "{name}: the caster's own spell was dispelled"
         );
     }
@@ -741,10 +741,10 @@ fn a_strong_disenchant_area_takes_off_the_other_wizards_spells_and_leaves_the_ca
 
 #[test]
 fn a_dispel_on_a_bare_square_is_refused_as_there_being_nothing_to_dispel() {
-    for (name, mut g, p, other) in rivals() {
-        let at = g.economy().cities_of(other)[0].1;
+    for (name, mut w, p, other) in rivals() {
+        let at = w.economy().cities_of(other)[0].1;
         let events = cast_at(
-            &mut g,
+            &mut w,
             p,
             204, /* disenchant_area */
             Target::Tile(at),
@@ -762,14 +762,14 @@ fn a_dispel_on_a_bare_square_is_refused_as_there_being_nothing_to_dispel() {
 
 #[test]
 fn a_strong_disjunction_takes_a_rivals_global_spell_and_is_refused_on_the_casters_own() {
-    for (name, mut g, p, other) in rivals() {
+    for (name, mut w, p, other) in rivals() {
         let global = SpellId::new(158 /* crusade */);
-        g.scenario_add_global(other, global);
-        g.scenario_add_global(p, global);
-        let theirs = g.global_instance(other, global).expect("an instance");
-        let own = g.global_instance(p, global).expect("an instance");
+        w.scenario_add_global(other, global);
+        w.scenario_add_global(p, global);
+        let theirs = w.global_instance(other, global).expect("an instance");
+        let own = w.global_instance(p, global).expect("an instance");
         let events = cast_at(
-            &mut g,
+            &mut w,
             p,
             210, /* disjunction */
             Target::Spell(own),
@@ -782,11 +782,11 @@ fn a_strong_disjunction_takes_a_rivals_global_spell_and_is_refused_on_the_caster
             ))),
             "{name}: {events:?}"
         );
-        assert!(g.has_global(p, global), "{name}");
-        let events = cast_at(&mut g, p, 210, Target::Spell(theirs), 100_000);
+        assert!(w.has_global(p, global), "{name}");
+        let events = cast_at(&mut w, p, 210, Target::Spell(theirs), 100_000);
         assert_eq!(refusal(&events), None, "{name}: {events:?}");
-        assert!(!g.has_global(other, global), "{name}: the rival keeps it");
-        assert!(g.has_global(p, global), "{name}: the caster lost its own");
+        assert!(!w.has_global(other, global), "{name}: the rival keeps it");
+        assert!(w.has_global(p, global), "{name}: the caster lost its own");
         assert!(
             events.iter().any(
                 |e| matches!(e, Event::GlobalSpellRemoved { player, victim, spell }
@@ -799,15 +799,15 @@ fn a_strong_disjunction_takes_a_rivals_global_spell_and_is_refused_on_the_caster
 
 #[test]
 fn spell_blast_ends_a_cast_at_the_price_of_what_its_wizard_had_spent() {
-    for (name, mut g, p, other) in rivals() {
+    for (name, mut w, p, other) in rivals() {
         let spell = SpellId::new(80 /* time_stop */);
-        let cost = i32::try_from(g.content().rules.spells.get(spell).cost).expect("a cost");
+        let cost = i32::try_from(w.content().rules.spells.get(spell).cost).expect("a cost");
         let owed = cost / 3;
-        g.cheat_learn_spell(other, spell);
-        g.scenario_casting(other, spell, owed);
-        let before = g.player(p).expect("a player").treasury().mana;
+        w.cheat_learn_spell(other, spell);
+        w.scenario_casting(other, spell, owed);
+        let before = w.player(p).expect("a player").treasury().mana;
         let events = cast_at(
-            &mut g,
+            &mut w,
             p,
             58, /* spell_blast */
             Target::Player(other),
@@ -823,11 +823,11 @@ fn spell_blast_ends_a_cast_at_the_price_of_what_its_wizard_had_spent() {
             .unwrap_or_else(|| panic!("{name}: no blast told: {events:?}"));
         assert_eq!(paid, cost - owed, "{name}: the price is what was spent");
         assert!(
-            g.wizard(other).expect("a wizard").casting().is_none(),
+            w.wizard(other).expect("a wizard").casting().is_none(),
             "{name}"
         );
         assert!(
-            g.player(p).expect("a player").treasury().mana <= before - HalfInt::from_int(paid),
+            w.player(p).expect("a player").treasury().mana <= before - HalfInt::from_int(paid),
             "{name}: the blast cost the caster nothing"
         );
     }
@@ -835,15 +835,15 @@ fn spell_blast_ends_a_cast_at_the_price_of_what_its_wizard_had_spent() {
 
 #[test]
 fn spell_blast_is_refused_when_the_caster_cannot_match_the_mana() {
-    for (name, mut g, p, other) in rivals() {
+    for (name, mut w, p, other) in rivals() {
         let spell = SpellId::new(80 /* time_stop */);
-        g.cheat_learn_spell(other, spell);
-        g.scenario_casting(other, spell, 1);
-        g.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(1);
-        let events = cast_at(&mut g, p, 58, Target::Player(other), 0);
+        w.cheat_learn_spell(other, spell);
+        w.scenario_casting(other, spell, 1);
+        w.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(1);
+        let events = cast_at(&mut w, p, 58, Target::Player(other), 0);
         assert!(refusal(&events).is_some(), "{name}: {events:?}");
         assert!(
-            g.wizard(other).expect("a wizard").casting().is_some(),
+            w.wizard(other).expect("a wizard").casting().is_some(),
             "{name}: the cast was ended"
         );
     }
@@ -885,23 +885,23 @@ fn a_spell_gives_way_to_the_stronger_ones_it_is_not_cumulative_with_and_not_the_
         } else {
             Kind::OwnUnit
         };
-        let mut g = snapshot.clone().restore(content()).expect("restores");
-        let Some(target) = target_of(&g, p, other, kind) else {
+        let mut w = snapshot.clone().restore(content()).expect("restores");
+        let Some(target) = target_of(&w, p, other, kind) else {
             continue;
         };
         let Target::Unit(unit) = target else { continue };
-        g.cheat_learn_spell(p, newer);
-        g.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(100_000);
+        w.cheat_learn_spell(p, newer);
+        w.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(100_000);
         // What it must give way to: on the unit, or among the caster's global enchantments.
         if unit_target(held_def.target) {
-            g.scenario_enchant_unit(unit, held, p);
+            w.scenario_enchant_unit(unit, held, p);
         } else if held_def.target == SpellTarget::None {
-            g.scenario_add_global(p, held);
+            w.scenario_add_global(p, held);
         } else {
             continue;
         }
-        g.scenario_casting(p, newer, 0);
-        let events = g.apply(Command::ResolveCast { player: p, target });
+        w.scenario_casting(p, newer, 0);
+        let events = w.apply(Command::ResolveCast { player: p, target });
         match refusal(&events) {
             Some(Rejection::Magic(MagicError::NotCumulative)) => refused += 1,
             // The unit may not be the kind the spell takes at all: the matrix's business.
@@ -913,15 +913,15 @@ fn a_spell_gives_way_to_the_stronger_ones_it_is_not_cumulative_with_and_not_the_
         }
         // The other way round: the stronger spell goes on over the weaker one, unless it too names it.
         if unit_target(held_def.target) && !held_def.not_with.contains(&newer) {
-            let mut g = snapshot.clone().restore(content()).expect("restores");
-            let Some(Target::Unit(unit)) = target_of(&g, p, other, kind) else {
+            let mut w = snapshot.clone().restore(content()).expect("restores");
+            let Some(Target::Unit(unit)) = target_of(&w, p, other, kind) else {
                 continue;
             };
-            g.cheat_learn_spell(p, held);
-            g.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(100_000);
-            g.scenario_enchant_unit(unit, newer, p);
-            g.scenario_casting(p, held, 0);
-            let events = g.apply(Command::ResolveCast {
+            w.cheat_learn_spell(p, held);
+            w.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(100_000);
+            w.scenario_enchant_unit(unit, newer, p);
+            w.scenario_casting(p, held, 0);
+            let events = w.apply(Command::ResolveCast {
                 player: p,
                 target: Target::Unit(unit),
             });

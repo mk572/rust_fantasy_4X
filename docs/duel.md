@@ -80,7 +80,7 @@ creature's spell is cast as in a real game). The 1.50 patch's gaze at strength 0
 A hero has the nine levels of its path, a normal unit six (Recruit to Champion; levels 7 to 9 are
 Champion again) and a fantastic or summoned creature none (it enters with its base stats). Experience
 gives a normal unit up to Elite; Ultra-Elite and Champion are given the way the game gives them, by
-the Warlord retort and the Crusade spell on the player (`Game::scenario_level_bonus`).
+the Warlord retort and the Crusade spell on the player (`World::scenario_level_bonus`).
 
 **Reading a row.** `first_winner` is who won the 4:4; `cell` is the first cell where that side stops
 winning, `winner_at_cell` who wins there (`a`, `b`, `even`, `draw`; after a flip it is the weaker
@@ -203,7 +203,7 @@ What it showed (20 November 2026, reference units 47 and 101, the soak-out analy
   measure is wrong, then fit its weights. (No test enforces the ratings: they are a guide that changes with the rules,
   `combat-rating.md`.)
 - **Spells, hero items, walls, terrain, wizards**: not in the battles yet. A spell needs a wizard
-  with mana and the cast orders of `f4x_ai::battle::cast::next_command(&Game)` (it works on a `Game`,
+  with mana and the cast orders of `f4x_ai::battle::cast::next_command(&World)` (it works on a `World`,
   not on a `Battle` alone); walls need `BattleMap::with_city(true)` and units placed inside.
 - **Speed**: single threaded; a `--jobs` as in `soak` would need the fights split by unit.
 

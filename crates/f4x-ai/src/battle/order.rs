@@ -6,15 +6,15 @@
 //! (damage dealt against what the target has left, and what it is worth), so a side focuses its
 //! fire on the unit it can kill; shooters stay where they can shoot instead of walking into melee;
 //! a defender inside a walled city stays behind the wall. Spells are chosen by the wizard's brain
-//! with the whole game (`game.rs`), not here: a [`Battle`] alone knows nothing of the wizard.
+//! with the whole game (`world.rs`), not here: a [`Battle`] alone knows nothing of the wizard.
 
 use f4x_battle::attack::Mode;
 use f4x_battle::battle::{Battle, BattleCommand, RangedKind};
 use f4x_battle::map::{distance, in_city_area, Pos};
 use f4x_battle::{BattleUnit, Side};
-use f4x_core::game::setting::MeleeVsFliers;
 use f4x_core::rules::unit_flag::UnitFlag;
 use f4x_core::rules::{Ability, Rules};
+use f4x_core::world::setting::MeleeVsFliers;
 use f4x_def::half_int::HalfInt;
 use f4x_def::rules::attack_nature::AttackNature;
 use f4x_def::rules::immunity::Immunities;

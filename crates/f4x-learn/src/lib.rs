@@ -208,7 +208,7 @@ mod tests {
             let env = BattleEnv::new(&content, generate(&content, seed)).unwrap();
             let side = env.to_play().unwrap();
             let o = spec
-                .observe(&env.game, side, Brief::default())
+                .observe(&env.world, side, Brief::default())
                 .expect("a battle is on");
             let b = env.battle().unwrap();
             let active = b.units.iter().filter(|u| u.is_active()).count();
@@ -226,7 +226,7 @@ mod tests {
                 .all(|v| v.is_finite()));
             assert_eq!(
                 o.spell_mask.iter().filter(|&&m| m).count(),
-                env.game
+                env.world
                     .battle_spells(b.player_of(side))
                     .len()
                     .min(MAX_SPELLS)
@@ -253,21 +253,21 @@ mod tests {
             .expect("a scenario with a wizard");
         let side = env.to_play().unwrap();
         let player = env.battle().unwrap().player_of(side);
-        env.game
+        env.world
             .wizard_mut(player)
             .unwrap()
             .get_mut::<f4x_core::wizard::sheet::KnownSpells>()
             .known
             .insert(spell);
         // Skill and mana enough for it.
-        env.game
+        env.world
             .battle
             .as_mut()
             .unwrap()
             .battle
             .set_caster(side, f4x_core::battle::BattleCaster::new(100, 1000, 10));
         let before = spec
-            .observe(&env.game, side, Brief::default())
+            .observe(&env.world, side, Brief::default())
             .unwrap()
             .unit_mask
             .iter()
@@ -283,12 +283,12 @@ mod tests {
             .map(|u| u.id)
             .unwrap();
         {
-            let u = &mut env.game.battle.as_mut().unwrap().battle.units[fallen];
+            let u = &mut env.world.battle.as_mut().unwrap().battle.units[fallen];
             u.status = Status::Dead;
             u.set_figures(0);
             u.damage_kinds = [3, 0, 0];
         }
-        let o = spec.observe(&env.game, side, Brief::default()).unwrap();
+        let o = spec.observe(&env.world, side, Brief::default()).unwrap();
         let now = o.unit_mask.iter().filter(|&&m| m).count();
         assert_eq!(now, before, "the dead unit's token replaces its live one");
         let slot = (0..obs::MAX_UNITS)
@@ -300,7 +300,7 @@ mod tests {
             "a fallen unit shows no figures"
         );
         // The spell may be aimed at it, and the aim is in the vocabulary.
-        let casts = env.game.legal_battle_casts();
+        let casts = env.world.legal_battle_casts();
         let cast = casts.iter().find(|c| c.spell == spell);
         let aim = cast.and_then(|c| {
             c.aims
@@ -423,11 +423,11 @@ mod brain_tests {
         for seed in 0..4 {
             let mut env = BattleEnv::new(&content, generate(&content, seed)).unwrap();
             let brain = brain::LearnedBrain::load(&content, &file).unwrap();
-            env.game
+            env.world
                 .set_battle_brain(build::ATTACKER, Some(Box::new(brain)));
             let mut steps = 0;
             while !env.done() && steps < 4000 {
-                let c = env.game.next_battle_command().expect("a battle is on");
+                let c = env.world.next_battle_command().expect("a battle is on");
                 env.step(c).unwrap_or_else(|e| {
                     panic!("seed {seed}: the brain's command was refused: {e}")
                 });

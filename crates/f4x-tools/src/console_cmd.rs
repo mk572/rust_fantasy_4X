@@ -39,12 +39,12 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let dir = content_dir.unwrap_or_else(|| f4x_def::SHIPPED_CONTENT.into());
     let content = f4x_def::load::load_content_layers(&[&dir, Path::new(f4x_def::SHIPPED_CONTENT)])
         .map_err(|e| e.to_string())?;
-    let mut game = match load {
+    let mut world = match load {
         Some(path) => {
-            let (mut g, _) =
-                f4x_core::game::save::load_game(&path, content).map_err(|e| e.to_string())?;
-            g.ensure_human(HUMAN);
-            g
+            let (mut w, _) =
+                f4x_core::world::save::load_game(&path, content).map_err(|e| e.to_string())?;
+            w.ensure_human(HUMAN);
+            w
         }
         None => new_game(
             &content,
@@ -72,7 +72,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
         if !interactive {
             println!("> {trimmed}");
         }
-        let reply = console.execute(&mut game, trimmed);
+        let reply = console.execute(&mut world, trimmed);
         let text = reply.text();
         if !text.is_empty() {
             println!("{text}");

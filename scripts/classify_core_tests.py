@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Sort the tests in crates/f4x-core/src by the rule in docs/rust_coding_rules.md ("Where a test lives").
 
-A test is a candidate for crates/f4x-core/tests/it/ when it needs a Game or Content (directly, or
+A test is a candidate for crates/f4x-core/tests/it/ when it needs a World or Content (directly, or
 through a test helper of its file that does), names a shipped id, or is longer than LONG lines, AND
-reaches no internals of the crate (`g.world`, `g.content`, `g.map`, `crate::...`, `put_*`, `super::*`
+reaches no internals of the crate (`w.ecs`, `w.content`, `w.map`, `crate::...`, `put_*`, `super::*`
 items): those stay unit tests on `testutil::shipped()`. "move" below counts the candidates.
 
     python3 scripts/classify_core_tests.py            # one line per file
@@ -27,14 +27,14 @@ if __name__ == "__main__":
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "crates/f4x-core/src"
 LONG = 25
-GAME = re.compile(
-    r"\bGame\b|testutil|\bscenario_\w+|\bContent\b|\bcontent\(\)|\.apply\(|\bnew_game\b|\breal_\w+\(|\bcontent_with_\w+"
+WORLD = re.compile(
+    r"\bWorld\b|testutil|\bscenario_\w+|\bContent\b|\bcontent\(\)|\.apply\(|\bnew_game\b|\breal_\w+\(|\bcontent_with_\w+"
 )
 
 
 INTERNAL = re.compile(
-    r"\bg(?:ame)?\.(?:world|content|map|settings|rng|events|threat|fog|turn|next_serial)\b|\.world\.|"
-    r"\bcrate::(?!testdir|game::(?:Command|Event|Rejection))|\bput_(?:feature|lair|node)\w*\(|\bsuper::"
+    r"\bw(?:orld)?\.(?:ecs|content|map|settings|rng|events|threat|fog|turn|next_serial)\b|\.ecs\.|"
+    r"\bcrate::(?!testdir|world::(?:Command|Event|Rejection))|\bput_(?:feature|lair|node)\w*\(|\bsuper::"
 )
 
 
@@ -80,7 +80,7 @@ def classify(ids):
     for path in sorted(SRC.rglob("*.rs")):
         part = test_part(path, path.read_text())
         fns = functions(part)
-        heavy = {n for n, t, _, b, _ in fns if not t and GAME.search(b)}
+        heavy = {n for n, t, _, b, _ in fns if not t and WORLD.search(b)}
         changed = True
         while changed:
             changed = False
@@ -96,7 +96,7 @@ def classify(ids):
                 re.search(rf"\b{h}\(", body) and INTERNAL.search(b2)
                 for h, b2 in [(n2, b3) for n2, t2, _, b3, _ in fns if not t2]
             )
-            if GAME.search(body) or any(re.search(rf"\b{h}\(", body) for h in heavy):
+            if WORLD.search(body) or any(re.search(rf"\b{h}\(", body) for h in heavy):
                 why.append("game")
             lits = set(re.findall(r'"([a-z0-9_]+)"', body)) & ids
             if lits:

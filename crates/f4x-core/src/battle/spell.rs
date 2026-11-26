@@ -27,7 +27,6 @@ use rand_pcg::Pcg64Mcg;
 
 use super::field::Field;
 use super::{Battle, BattleError, BattleEvent, Side};
-use crate::game::{DispelSite, Event, Game};
 use crate::map::Position;
 use crate::player::PlayerId;
 use crate::rules::defs::{CastContext, SpellDef};
@@ -35,6 +34,7 @@ use crate::rules::stats::Modifier;
 use crate::rules::SpellId;
 use crate::spell::target_error::TargetError;
 use crate::spell::unit_effect::UnitEffect;
+use crate::world::{DispelSite, Event, World};
 use f4x_battle::battlemagic::aim::AimWorld;
 use f4x_battle::battlemagic::caster::{BattleCaster, SpellAim};
 use f4x_battle::battlemagic::error::SpellError;
@@ -50,7 +50,7 @@ use f4x_def::rules::realm::Realm;
 mod unit_cast;
 pub use unit_cast::{SpellSource, UnitSpell};
 
-impl Game {
+impl World {
     /// The wizard of `player` in the battle, if one is on.
     fn battle_caster_of(&self, player: PlayerId) -> Option<BattleCaster> {
         let b = self.battle()?;
@@ -421,9 +421,9 @@ impl Game {
         let Some(entity) = self.battle_source(source) else {
             return Vec::new();
         };
-        self.world.remove_one::<crate::unit::Hurt>(entity).ok();
+        self.ecs.remove_one::<crate::unit::Hurt>(entity).ok();
         crate::spell::instance::remove_on(
-            &mut self.world,
+            &mut self.ecs,
             crate::spell::instance::SpellTarget::Unit(entity),
             |_, _| true,
         );
@@ -469,7 +469,7 @@ impl Game {
             return Vec::new();
         };
         self.make_undead(entity);
-        self.world.remove_one::<crate::unit::Hurt>(entity).ok();
+        self.ecs.remove_one::<crate::unit::Hurt>(entity).ok();
         let Some(mut unit) = self.battle_unit_from(entity, side, source) else {
             return Vec::new();
         };
@@ -910,7 +910,7 @@ impl Game {
         let Some(entity) = active.sources.get(index).copied() else {
             return false;
         };
-        let mut rng = std::mem::replace(&mut self.rng, crate::game::rng::GameRng::lent());
+        let mut rng = std::mem::replace(&mut self.rng, crate::world::rng::GameRng::lent());
         let done = self.mutate(entity, &mut rng).is_some();
         self.rng = rng;
         if !done {
@@ -931,7 +931,7 @@ impl Game {
     }
 }
 
-impl AimWorld for Game {
+impl AimWorld for World {
     fn source_kind(&self, unit: &super::BattleUnit) -> Option<(crate::rules::UnitKind, bool)> {
         let entity = unit.source.and_then(|i| self.battle_source(i))?;
         let units = self.units();
@@ -947,11 +947,11 @@ impl AimWorld for Game {
     }
 
     fn summon_point(&self, player: PlayerId) -> Option<Position> {
-        Game::summon_point(self, player)
+        World::summon_point(self, player)
     }
 
     fn summon_circles(&self, player: PlayerId) -> Vec<Position> {
-        Game::summon_circles(self, player)
+        World::summon_circles(self, player)
     }
 
     fn caster_has_global(&self, player: PlayerId, spell: SpellId) -> bool {

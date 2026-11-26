@@ -37,8 +37,8 @@ peace), and among themselves they make treaties, trade spells and declare wars.
 
 ### Independent players (a departure from the original)
 
-The independent cities of a race are one player (task 522, `Game::race_player`; the code and older text call it the "neutral player" of the race, but it is not neutral: only the monsters are). It takes part in diplomacy with the **full rules**, like a
-wizard: `Game::takes_part_in_diplomacy` (wizards and race players, not the monsters) is the one
+The independent cities of a race are one player (task 522, `World::race_player`; the code and older text call it the "neutral player" of the race, but it is not neutral: only the monsters are). It takes part in diplomacy with the **full rules**, like a
+wizard: `World::takes_part_in_diplomacy` (wizards and race players, not the monsters) is the one
 predicate the rules ask, and `PlayerView::is_diplomat` is the AI's. They meet by sight, hold
 relations and treaties, declare war, make peace, and answer proposals with the same `rate`. They
 trade gold, items, units and heroes by the same rules as a wizard (an item goes into the vault
@@ -390,7 +390,7 @@ has seen, the treaties and the proposals.
    peace one turn in three, at most once in 25 turns per wizard (`Remark::WarWeary`). `peace_ok` is the other side: a wizard
    far ahead (130 percent of the power) does not accept peace while the war has taken no city from the other and is
    under 80 turns old. (The stalled war is task 561.) The core keeps when a war began and the cities each side held
-   (`Pair::war_since`, `Pair::war_cities`, `Game::war_age`, `Game::war_gain`).
+   (`Pair::war_since`, `Pair::war_cities`, `World::war_age`, `World::war_gain`).
 5. *Trades* (tasks 504 and 597, `f4x-ai/src/trade.rs`, `f4x-core/src/diplomacy/trade.rs`). A proposal `ProposalKind::Trade { give, get }`
    is two bundles of `Goods`: gold, a spell, an item of the vault or award list, a unit that is not a hero and stands in a city,
    each optional (a swap of two spells, a spell for gold and an item for a unit are all one kind). The core checks that each
@@ -444,9 +444,9 @@ and the tuning of the numbers above by soak.
 ## 9. Implementation plan
 
 New module `crates/f4x-core/src/diplomacy/mod.rs` (and `diplomacy/` submodules if it grows), data in
-`Game`, saved and loaded with the game (`game/save.rs`).
+`World`, saved and loaded with the game (`world/save.rs`).
 
-**9.1 State.** `Diplomacy` in `Game`: a vector of `Relation` records indexed by ordered pair
+**9.1 State.** `Diplomacy` in `World`: a vector of `Relation` records indexed by ordered pair
 (`PlayerId` is a `u8`; there can be more than four rivals, task P3, so it is sized by the number of
 players, not a constant 6), plus per-player `Personality` and `Objective` (task 64). Content-
 defined tables (personality mod, message tables) in `rules.ron` where the numbers are data.

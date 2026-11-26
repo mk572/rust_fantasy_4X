@@ -7,9 +7,9 @@
 use f4x_def::half_int::HalfInt;
 use std::collections::BTreeMap;
 
-use crate::game::Game;
 use crate::player::PlayerId;
 use crate::rules::RealmId;
+use crate::world::World;
 
 /// Turns the history keeps; the oldest drop off after that.
 pub const HISTORY_TURNS: usize = 288;
@@ -25,7 +25,7 @@ pub struct Astrology {
     pub research: i32,
 }
 
-impl Game {
+impl World {
     /// The raw scores of one wizard.
     pub fn astrology(&self, player: PlayerId) -> Astrology {
         let upkeep: HalfInt = self
@@ -74,7 +74,7 @@ impl Game {
                     .iter()
                     .filter(|(_, c, _)| c.owner == id)
                     .map(|(e, ..)| {
-                        self.world
+                        self.ecs
                             .get::<&crate::city::economy::Population>(*e)
                             .map_or(0, |p| p.figures as i32)
                     })

@@ -1,12 +1,12 @@
 //! What the domains (diplomacy, magic and the rest) ask of the game: who is in it, what a wizard
 //! can see, how much an army costs. The questions answer in plain data, so a domain takes a
-//! `&Game` that it only reads and never an entity or a component of its own. Tests of a domain
-//! build a real game (`game/testutil.rs`) and run on it.
+//! `&World` that it only reads and never an entity or a component of its own. Tests of a domain
+//! build a real game (`world/testutil.rs`) and run on it.
 
 use crate::map::Position;
 use crate::player::PlayerId;
 
-use crate::game::Game;
+use crate::world::World;
 
 /// Something of another player that a wizard can see: one of its cities, or a unit the wizard
 /// can make out.
@@ -24,7 +24,7 @@ pub struct UnitInfo {
     pub cost: u32,
 }
 
-impl Game {
+impl World {
     /// The game's difficulty: 0 intro, 1 easy, 2 normal, 3 hard, 4 extreme, 5 impossible.
     pub fn difficulty(&self) -> u8 {
         self.settings.basic.difficulty
@@ -42,7 +42,7 @@ impl Game {
 
     /// A player that takes part in diplomacy: it can meet, talk, make treaties and declare war.
     /// The wizards and the neutral player of each race (task 522); not the monsters. Every
-    /// diplomacy rule asks this and not [`Game::is_wizard`] (the spell parts of diplomacy keep
+    /// diplomacy rule asks this and not [`World::is_wizard`] (the spell parts of diplomacy keep
     /// asking for the wizard itself).
     pub fn takes_part_in_diplomacy(&self, id: PlayerId) -> bool {
         self.is_wizard(id) || self.race_of_player(id).is_some()
@@ -84,7 +84,7 @@ impl Game {
         })
     }
 
-    /// The owners of [`Game::foreign_sightings_near`], once each, in player order: what a move
+    /// The owners of [`World::foreign_sightings_near`], once each, in player order: what a move
     /// asks for to see whom the mover meets. The same answer without building the list of
     /// sightings, and the test of sight only for an owner not yet found.
     pub fn foreign_owners_near(
@@ -106,14 +106,14 @@ impl Game {
             match owner_ids.iter().find(|(e, _)| *e == owner) {
                 Some((_, id)) => *id,
                 None => {
-                    let id = crate::player::id_of(&self.world, owner);
+                    let id = crate::player::id_of(&self.ecs, owner);
                     owner_ids.push((owner, id));
                     id
                 }
             }
         };
         for (_, (_, pos, owner)) in self
-            .world
+            .ecs
             .query::<(&crate::city::City, &Position, &crate::player::Owner)>()
             .iter()
         {
@@ -125,7 +125,7 @@ impl Game {
             }
         }
         for (unit, (_, pos, owner)) in self
-            .world
+            .ecs
             .query::<(&crate::unit::Unit, &Position, &crate::player::Owner)>()
             .iter()
         {

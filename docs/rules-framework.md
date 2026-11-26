@@ -146,7 +146,7 @@ general game-event system. The game does not broadcast events to every rule and 
 run matching effects. Instead, each subsystem explicitly reads the rules it knows how to
 interpret, and the turn itself is an ordered sequence of direct method calls. The authoritative
 turn sequence is documented in [game-flow.md](game-flow.md) and implemented by
-`game/mod.rs::end_turn` and `turn.rs::process_turn`.
+`world/mod.rs::end_turn` and `turn.rs::process_turn`.
 
 The complete `Trigger` enum has two triggers (task 491 removed five that nothing dispatched):
 
@@ -166,7 +166,7 @@ data directly where they need specialised behaviour.
 
 The start-of-turn event is currently a notification, not an effect trigger:
 
-1. `Game::end_turn` performs its pre-turn cleanup, increments `Game.turn`, processes stasis,
+1. `World::end_turn` performs its pre-turn cleanup, increments `World.turn`, processes stasis,
    refills unit movement and emits `Event::TurnStarted { turn }`.
 2. It then calls `process_turn`, which directly calls the turn-step methods in a fixed order.
    Among those are treasury settlement, random events, city production and growth, global and world enchantments, experience, wizard magic, healing, threats and
@@ -176,7 +176,7 @@ The start-of-turn event is currently a notification, not an effect trigger:
 
 The precise order is maintained in [game-flow.md](game-flow.md). `Event::TurnStarted` is returned to the caller
 alongside other outcome/notification events; it is not sent back into the rules executor.
-More generally, `Game::apply` returns `Event` values for the client, log and other callers.
+More generally, `World::apply` returns `Event` values for the client, log and other callers.
 They are not an internal event bus that automatically invokes `EffectRule`s.
 
 No scripting language is used: rules are serialisable data. `Custom` and `Special` are

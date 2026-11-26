@@ -126,8 +126,8 @@ impl App {
 
     /// For the screenshot check: a full table of made-up entries, not read from or written to the file.
     pub(crate) fn open_test_hall_of_fame(&mut self) {
-        let races = self.game.content().rules.races.defs();
-        let wizards = self.game.content().rules.wizards.defs();
+        let races = self.world.content().rules.races.defs();
+        let wizards = self.world.content().rules.wizards.defs();
         let table = (0..SCORES)
             .map(|i| Entry {
                 name: self
@@ -170,7 +170,7 @@ impl Page for HallPage {
                 "hall.of_the",
                 &Args::new().text("name", &e.name).text(
                     "race",
-                    plural(&app.names, &app.game.content().rules.races, &e.race),
+                    plural(&app.names, &app.world.content().rules.races, &e.race),
                 ),
             );
             app.draw_styled(view, &hof_style(2), &who, x + 9.0, y);

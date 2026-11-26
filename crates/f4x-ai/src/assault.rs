@@ -2,9 +2,9 @@
 //! site, assaulting it, striking a stack next to it. (The independent cities have no AI of their
 //! own: the neutral player of each race plays as any AI does, task 522.)
 
-use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
+use f4x_core::world::{Command, Event, World};
 
 use crate::view::distance;
 use crate::{Ai, Attack};
@@ -50,17 +50,22 @@ pub(crate) enum MarchError {
 
 /// The facts of a march the game refused for want of room: how many the party is and how full
 /// each square beside the site is (the limit of a square is `max_tile`).
-pub(crate) fn march_detail(ai: &Ai, game: &Game, units: &[hecs::Entity], site: Position) -> String {
-    let view = PlayerView::new(game, ai.player);
+pub(crate) fn march_detail(
+    ai: &Ai,
+    world: &World,
+    units: &[hecs::Entity],
+    site: Position,
+) -> String {
+    let view = PlayerView::new(world, ai.player);
     let squares: Vec<String> = crate::military::neighbours(&view, site)
         .into_iter()
-        .filter(|&p| !game.economy().army_at(p).is_empty())
+        .filter(|&p| !world.economy().army_at(p).is_empty())
         .map(|p| {
             format!(
                 "({}, {}) holds {}",
                 p.x,
                 p.y,
-                game.economy().army_at(p).len()
+                world.economy().army_at(p).len()
             )
         })
         .collect();
@@ -69,7 +74,7 @@ pub(crate) fn march_detail(ai: &Ai, game: &Game, units: &[hecs::Entity], site: P
         units.len(),
         site.x,
         site.y,
-        game.max_tile(),
+        world.max_tile(),
         if squares.is_empty() {
             "no square with units".to_string()
         } else {
@@ -82,7 +87,7 @@ pub(crate) fn march_detail(ai: &Ai, game: &Game, units: &[hecs::Entity], site: P
 /// error says why it could not be sent.
 pub(crate) fn march(
     ai: &Ai,
-    game: &mut Game,
+    world: &mut World,
     units: &[hecs::Entity],
     site: Position,
     events: &mut Vec<Event>,
@@ -90,7 +95,7 @@ pub(crate) fn march(
     march_with(
         &mut crate::view::ReachCache::default(),
         ai,
-        game,
+        world,
         units,
         site,
         events,
@@ -102,7 +107,7 @@ pub(crate) fn march(
 pub(crate) fn march_with(
     reached: &mut crate::view::ReachCache,
     ai: &Ai,
-    game: &mut Game,
+    world: &mut World,
     units: &[hecs::Entity],
     site: Position,
     events: &mut Vec<Event>,
@@ -111,7 +116,7 @@ pub(crate) fn march_with(
         return Err(MarchError::NoUnits);
     };
     let spots = {
-        let view = PlayerView::new(game, ai.player);
+        let view = PlayerView::new(world, ai.player);
         let from = view.unit_position(first).unwrap_or(site);
         let open: Vec<Position> = crate::military::neighbours(&view, site)
             .into_iter()
@@ -134,16 +139,16 @@ pub(crate) fn march_with(
     // the party is sent to, so the others need no search.
     let mut refused = None;
     for spot in spots {
-        if !PlayerView::new(game, ai.player).can_reach(units, spot) {
+        if !PlayerView::new(world, ai.player).can_reach(units, spot) {
             continue;
         }
         // A square with no room for the party is left alone (a way exists: it may be free later).
-        if !Ai::room_at(game, spot, units.len()) {
+        if !Ai::room_at(world, spot, units.len()) {
             refused = Some(f4x_core::unit::movement::MoveError::StackFull);
             continue;
         }
         let sent = ai.send(
-            game,
+            world,
             Command::GoTo {
                 units: units.to_vec(),
                 to: spot,
@@ -155,7 +160,7 @@ pub(crate) fn march_with(
         match sent {
             Ok(()) => return Ok(()),
             Err(
-                crate::SendError::Rejected(f4x_core::game::Rejection::Move(why))
+                crate::SendError::Rejected(f4x_core::world::Rejection::Move(why))
                 | crate::SendError::Stopped(why),
             ) => {
                 refused = Some(why);
@@ -169,13 +174,13 @@ pub(crate) fn march_with(
 /// Assault the site with the units that still have moves, and fight the battle out.
 pub(crate) fn assault(
     ai: &Ai,
-    game: &mut Game,
+    world: &mut World,
     units: &[hecs::Entity],
     site: Position,
     events: &mut Vec<Event>,
 ) {
     let fighters: Vec<hecs::Entity> = {
-        let view = PlayerView::new(game, ai.player);
+        let view = PlayerView::new(world, ai.player);
         units
             .iter()
             .copied()
@@ -189,7 +194,7 @@ pub(crate) fn assault(
     // then walks onto it (below).
     let sent = ai
         .probe(
-            game,
+            world,
             Command::EnterSite {
                 units: fighters.clone(),
                 to: site,
@@ -201,7 +206,7 @@ pub(crate) fn assault(
         // A site nobody guards (the guards cannot be seen from outside) is not fought for: the
         // stack walks onto it and takes the treasure.
         ai.order(
-            game,
+            world,
             Command::GoTo {
                 units: fighters,
                 to: site,
@@ -212,17 +217,17 @@ pub(crate) fn assault(
     }
     // The battle AI plays both sides; a battle that stalls ends with the active side fleeing.
     for _ in 0..20_000 {
-        let Some(command) = game.next_battle_command() else {
+        let Some(command) = world.next_battle_command() else {
             break;
         };
-        if !ai.send(game, Command::Battle(command), events).is_ok() {
+        if !ai.send(world, Command::Battle(command), events).is_ok() {
             break;
         }
     }
-    while game.in_battle() {
+    while world.in_battle() {
         if !ai
             .send(
-                game,
+                world,
                 Command::Battle(f4x_battle::battle::BattleCommand::Flee),
                 events,
             )
@@ -237,17 +242,17 @@ pub(crate) fn assault(
 /// defence to them (the host plays it out), else the battle AI plays both sides.
 pub(crate) fn strike(
     ai: &mut Ai,
-    game: &mut Game,
+    world: &mut World,
     attackers: Vec<hecs::Entity>,
     defenders: Vec<hecs::Entity>,
     events: &mut Vec<Event>,
 ) {
-    if crate::military::held_by_treaty(ai, game, &defenders) {
+    if crate::military::held_by_treaty(ai, world, &defenders) {
         return;
     }
     let in_person = defenders
         .first()
-        .and_then(|&d| game.units().unit_owner(d))
+        .and_then(|&d| world.units().unit_owner(d))
         .is_some_and(|owner| ai.defended_by.contains(&owner));
     if in_person {
         ai.attacks.push(Attack {
@@ -255,6 +260,6 @@ pub(crate) fn strike(
             defenders,
         });
     } else {
-        crate::military::resolve(ai, game, attackers, defenders, events);
+        crate::military::resolve(ai, world, attackers, defenders, events);
     }
 }

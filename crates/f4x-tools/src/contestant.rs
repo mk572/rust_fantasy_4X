@@ -4,8 +4,8 @@
 //!
 //! Tests: none of its own, because it only picks between the two AI crates; `metrics` plays it in a test.
 
-use f4x_core::game::{Event, Game};
 use f4x_core::player::PlayerId;
+use f4x_core::world::{Event, World};
 use f4x_master::{Controller, Master, Seat, Status, Until};
 use std::cell::RefCell;
 
@@ -30,14 +30,14 @@ pub struct Refused {
 /// What the soak needs from an AI player, whichever crate it comes from.
 pub trait Contestant {
     fn player(&self) -> PlayerId;
-    fn play_turn(&mut self, game: &mut Game) -> Vec<Event>;
+    fn play_turn(&mut self, world: &mut World) -> Vec<Event>;
     fn record_refusals(&mut self, on: bool);
     fn take_refusals(&self) -> Vec<Refused>;
     /// The AI's own state for the soak's detail lines: the tail of the player's line.
     fn describe(&self) -> String;
     /// The diplomacy system the wizard plays and its state, for the detail lines (empty for a version
     /// without systems).
-    fn diplomacy_note(&self, _game: &Game) -> String {
+    fn diplomacy_note(&self, _world: &World) -> String {
         String::new()
     }
     /// The turns a situation called for a kind of spell the wizard did not know, by the kind; none
@@ -54,18 +54,18 @@ pub trait Contestant {
     fn settler_failures(&self) -> Vec<(&'static str, u32)> {
         Vec::new()
     }
-    /// What the AI has in mind, as text for a save (`Game::set_plans`); `None` for a version that
+    /// What the AI has in mind, as text for a save (`World::set_plans`); `None` for a version that
     /// cannot write it (a reference forked before plans existed).
     fn plans(&self) -> Option<String> {
         None
     }
-    /// Take back the plans a loaded game carries for this player (`Game::plans`); a version that
+    /// Take back the plans a loaded game carries for this player (`World::plans`); a version that
     /// cannot read them starts afresh.
-    fn recall(&mut self, _game: &Game) {}
+    fn recall(&mut self, _world: &World) {}
     /// Join the game's table of memories (`f4x_ai::Diplomats`), and hear the events of the turns, as
     /// the live AI does; the reference copy has neither.
     fn join(&mut self, _diplomats: &f4x_ai::Diplomats) {}
-    fn notice(&mut self, _game: &Game, _events: &[Event]) {}
+    fn notice(&mut self, _world: &World, _events: &[Event]) {}
 }
 
 macro_rules! contestant {
@@ -74,8 +74,8 @@ macro_rules! contestant {
             fn player(&self) -> PlayerId {
                 self.player
             }
-            fn play_turn(&mut self, game: &mut Game) -> Vec<Event> {
-                $krate::Ai::play_turn(self, game)
+            fn play_turn(&mut self, world: &mut World) -> Vec<Event> {
+                $krate::Ai::play_turn(self, world)
             }
             fn record_refusals(&mut self, on: bool) {
                 $krate::Ai::record_refusals(self, on);
@@ -128,19 +128,19 @@ macro_rules! contestant {
                 fn join(&mut self, diplomats: &f4x_ai::Diplomats) {
                     $krate::Ai::$memory(self, diplomats);
                 }
-                fn notice(&mut self, game: &Game, events: &[Event]) {
-                    $krate::Ai::notice(self, game, events);
+                fn notice(&mut self, world: &World, events: &[Event]) {
+                    $krate::Ai::notice(self, world, events);
                 }
-                fn diplomacy_note(&self, game: &Game) -> String {
-                    $krate::Ai::diplomacy_note(self, game)
+                fn diplomacy_note(&self, world: &World) -> String {
+                    $krate::Ai::diplomacy_note(self, world)
                 }
             )?
             $(
                 fn plans(&self) -> Option<String> {
                     self.$plans().ok()
                 }
-                fn recall(&mut self, game: &Game) {
-                    $krate::Ai::recall(game, std::slice::from_mut(self));
+                fn recall(&mut self, world: &World) {
+                    $krate::Ai::recall(world, std::slice::from_mut(self));
                 }
             )?
         }
@@ -235,7 +235,7 @@ impl Neutrals {
         }
     }
 
-    /// What the neutral players have in mind, as text for a save (`Game::set_plans`).
+    /// What the neutral players have in mind, as text for a save (`World::set_plans`).
     pub fn plans(&self) -> Vec<(PlayerId, String)> {
         match self.version {
             Version::New => self.new.plans(),
@@ -253,17 +253,17 @@ impl Neutrals {
         }
     }
 
-    fn notice(&mut self, game: &Game, events: &[Event]) {
+    fn notice(&mut self, world: &World, events: &[Event]) {
         if self.version == Version::New {
-            Controller::notice(&mut self.new, game, events);
+            Controller::notice(&mut self.new, world, events);
         }
     }
 
-    fn play(&mut self, game: &mut Game, players: &[PlayerId], events: &mut Vec<Event>) {
+    fn play(&mut self, world: &mut World, players: &[PlayerId], events: &mut Vec<Event>) {
         match self.version {
-            Version::New => self.new.play_turn(game, players, events),
+            Version::New => self.new.play_turn(world, players, events),
             #[cfg(feature = "reference")]
-            Version::Reference => self.reference.play_turn(game, players, events),
+            Version::Reference => self.reference.play_turn(world, players, events),
             #[cfg(not(feature = "reference"))]
             Version::Reference => without_reference(),
         }
@@ -289,17 +289,17 @@ struct ContestantSeat<'a> {
 }
 
 impl Controller for ContestantSeat<'_> {
-    fn play(&mut self, game: &mut Game, _: &[PlayerId], _: &mut Vec<Event>) -> Status {
+    fn play(&mut self, world: &mut World, _: &[PlayerId], _: &mut Vec<Event>) -> Status {
         let started = std::time::Instant::now();
         PLAYING.with(|p| {
             *p.borrow_mut() = format!(
                 "seed {} turn {} player {}",
-                game.seed(),
-                game.turn,
+                world.seed(),
+                world.turn,
                 self.contestant.player().0
             );
         });
-        let events = self.contestant.play_turn(game);
+        let events = self.contestant.play_turn(world);
         self.times
             .borrow_mut()
             .players
@@ -310,8 +310,8 @@ impl Controller for ContestantSeat<'_> {
         Status::Done
     }
 
-    fn notice(&mut self, game: &Game, events: &[Event]) {
-        self.contestant.notice(game, events);
+    fn notice(&mut self, world: &World, events: &[Event]) {
+        self.contestant.notice(world, events);
     }
 }
 
@@ -319,15 +319,15 @@ impl Controller for ContestantSeat<'_> {
 struct NeutralSeat<'a>(&'a mut Neutrals, &'a RefCell<RoundTimes>);
 
 impl Controller for NeutralSeat<'_> {
-    fn play(&mut self, game: &mut Game, players: &[PlayerId], events: &mut Vec<Event>) -> Status {
+    fn play(&mut self, world: &mut World, players: &[PlayerId], events: &mut Vec<Event>) -> Status {
         let started = std::time::Instant::now();
-        self.0.play(game, players, events);
+        self.0.play(world, players, events);
         self.1.borrow_mut().neutrals += started.elapsed();
         Status::Done
     }
 
-    fn notice(&mut self, game: &Game, events: &[Event]) {
-        self.0.notice(game, events);
+    fn notice(&mut self, world: &World, events: &[Event]) {
+        self.0.notice(world, events);
     }
 }
 
@@ -364,7 +364,7 @@ impl RoundTimes {
 
 /// [`play_round`] with the time each seat took.
 pub fn play_round_timed(
-    game: &mut Game,
+    world: &mut World,
     players: &mut [Box<dyn Contestant>],
     neutrals: &mut Neutrals,
 ) -> (PlayerTurns, Vec<Event>, RoundTimes) {
@@ -384,7 +384,7 @@ pub fn play_round_timed(
         ));
     }
     seats.push(Seat::neutrals(Box::new(NeutralSeat(neutrals, &times))));
-    let rest = Master::new(seats).run(game, Until::Rounds(1)).events;
+    let rest = Master::new(seats).run(world, Until::Rounds(1)).events;
     let mut times = times.into_inner();
     times.total = started.elapsed();
     (turns.into_inner(), rest, times)

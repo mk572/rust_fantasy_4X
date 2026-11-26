@@ -2,18 +2,18 @@
 //!
 //! An instant spell does its work and leaves nothing behind. A spell that lasts (an enchantment,
 //! a cast in progress) is an entity with [`SpellCast`], [`Caster`], [`SpellTarget`] and a
-//! [`Serial`], made by [`Game::spawn_spell`]. It has no timer: a spell of the game is either instant
+//! [`Serial`], made by [`World::spawn_spell`]. It has no timer: a spell of the game is either instant
 //! or lasts until it is dispelled or its caster loses it (`SpellDef::duration`). It goes when it
-//! is dispelled or cancelled ([`Game::despawn_spell`]), when its target goes
-//! ([`Game::despawn_with_spells`], used wherever a unit, city or feature is removed) and when its
-//! caster is defeated ([`Game::despawn_spells_of`]). Queries come back oldest first, so that
+//! is dispelled or cancelled ([`World::despawn_spell`]), when its target goes
+//! ([`World::despawn_with_spells`], used wherever a unit, city or feature is removed) and when its
+//! caster is defeated ([`World::despawn_spells_of`]). Queries come back oldest first, so that
 //! anything the player or the AI can see happens in a fixed order.
 
-use crate::game::serial::Serial;
-use crate::game::Game;
 use crate::player::PlayerId;
 use crate::rules::SpellId;
 use crate::wizard::entity::PlayerLink;
+use crate::world::serial::Serial;
+use crate::world::World;
 
 /// Which spell this is: its definition in `crates/f4x-def/content/spells.ron`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,17 +72,17 @@ struct Enchanted(Vec<hecs::Entity>);
 #[derive(Debug, Clone)]
 struct KeepsGlobal(Vec<hecs::Entity>);
 
-/// A new instance in `world`, with the markers that go with it.
+/// A new instance in `ecs`, with the markers that go with it.
 pub(crate) fn spawn_instance(
-    world: &mut hecs::World,
+    ecs: &mut hecs::World,
     def: SpellId,
     caster: hecs::Entity,
     target: SpellTarget,
     serial: Serial,
 ) -> hecs::Entity {
-    let instance = world.spawn((SpellCast { def }, Caster(caster), target, serial));
+    let instance = ecs.spawn((SpellCast { def }, Caster(caster), target, serial));
     if target == SpellTarget::Global {
-        let listed = match world.get::<&mut KeepsGlobal>(caster) {
+        let listed = match ecs.get::<&mut KeepsGlobal>(caster) {
             Ok(mut list) => {
                 list.0.push(instance);
                 true
@@ -90,11 +90,11 @@ pub(crate) fn spawn_instance(
             Err(_) => false,
         };
         if !listed {
-            crate::game::put_in(world, caster, KeepsGlobal(vec![instance]));
+            crate::world::put_in(ecs, caster, KeepsGlobal(vec![instance]));
         }
     }
     if let Some(e) = target.entity() {
-        let listed = match world.get::<&mut Enchanted>(e) {
+        let listed = match ecs.get::<&mut Enchanted>(e) {
             Ok(mut list) => {
                 list.0.push(instance);
                 true
@@ -102,33 +102,33 @@ pub(crate) fn spawn_instance(
             Err(_) => false,
         };
         if !listed {
-            crate::game::put_in(world, e, Enchanted(vec![instance]));
+            crate::world::put_in(ecs, e, Enchanted(vec![instance]));
         }
     }
     instance
 }
 
 /// Remove one instance, and the markers it was the last reason for.
-fn despawn_instance(world: &mut hecs::World, instance: hecs::Entity) {
-    let target = world.get::<&SpellTarget>(instance).ok().map(|t| *t);
-    let caster = world.get::<&Caster>(instance).ok().map(|c| c.0);
-    let _ = world.despawn(instance);
+fn despawn_instance(ecs: &mut hecs::World, instance: hecs::Entity) {
+    let target = ecs.get::<&SpellTarget>(instance).ok().map(|t| *t);
+    let caster = ecs.get::<&Caster>(instance).ok().map(|c| c.0);
+    let _ = ecs.despawn(instance);
     if let (Some(SpellTarget::Global), Some(c)) = (target, caster) {
-        let emptied = world.get::<&mut KeepsGlobal>(c).is_ok_and(|mut list| {
+        let emptied = ecs.get::<&mut KeepsGlobal>(c).is_ok_and(|mut list| {
             list.0.retain(|&i| i != instance);
             list.0.is_empty()
         });
         if emptied {
-            crate::game::strip_in::<KeepsGlobal>(world, c);
+            crate::world::strip_in::<KeepsGlobal>(ecs, c);
         }
     }
     if let Some(e) = target.and_then(SpellTarget::entity) {
-        let emptied = world.get::<&mut Enchanted>(e).is_ok_and(|mut list| {
+        let emptied = ecs.get::<&mut Enchanted>(e).is_ok_and(|mut list| {
             list.0.retain(|&i| i != instance);
             list.0.is_empty()
         });
         if emptied {
-            crate::game::strip_in::<Enchanted>(world, e);
+            crate::world::strip_in::<Enchanted>(ecs, e);
         }
     }
 }
@@ -136,12 +136,12 @@ fn despawn_instance(world: &mut hecs::World, instance: hecs::Entity) {
 /// A read handle on the spell instances of a world.
 #[derive(Clone, Copy)]
 pub struct Spells<'a> {
-    world: &'a hecs::World,
+    ecs: &'a hecs::World,
 }
 
 impl<'a> Spells<'a> {
-    pub(crate) fn new(world: &'a hecs::World) -> Self {
-        Self { world }
+    pub(crate) fn new(ecs: &'a hecs::World) -> Self {
+        Self { ecs }
     }
 
     /// Every spell instance, oldest first.
@@ -153,7 +153,7 @@ impl<'a> Spells<'a> {
     pub fn on(&self, target: SpellTarget) -> Vec<hecs::Entity> {
         match self.listed(target) {
             Some(mut list) => {
-                list.sort_by_key(|&i| self.world.get::<&Serial>(i).ok().map(|s| *s));
+                list.sort_by_key(|&i| self.ecs.get::<&Serial>(i).ok().map(|s| *s));
                 list
             }
             None => self.matching(|_, _, t| t == target),
@@ -164,7 +164,7 @@ impl<'a> Spells<'a> {
     /// target that is no entity or is gone (the query decides).
     fn listed(&self, target: SpellTarget) -> Option<Vec<hecs::Entity>> {
         let e = target.entity()?;
-        match self.world.get::<&Enchanted>(e) {
+        match self.ecs.get::<&Enchanted>(e) {
             Ok(list) => Some(list.0.clone()),
             Err(hecs::ComponentError::NoSuchEntity) => None,
             Err(_) => Some(Vec::new()),
@@ -201,13 +201,13 @@ impl<'a> Spells<'a> {
     /// The player behind the wizard that cast an instance.
     pub fn caster_player(&self, instance: hecs::Entity) -> Option<PlayerId> {
         let wizard = self.caster(instance)?;
-        let player = self.world.get::<&PlayerLink>(wizard).ok()?.0;
-        crate::player::id_of(self.world, player)
+        let player = self.ecs.get::<&PlayerLink>(wizard).ok()?.0;
+        crate::player::id_of(self.ecs, player)
     }
 
     /// The cast a wizard is paying for, if any.
     pub fn cast_of(&self, caster: hecs::Entity) -> Option<hecs::Entity> {
-        self.world
+        self.ecs
             .query::<(&Owed, &Caster)>()
             .iter()
             .find(|(_, (_, c))| c.0 == caster)
@@ -216,13 +216,13 @@ impl<'a> Spells<'a> {
 
     /// The lasting spells a wizard keeps going on the whole world, oldest first.
     pub fn globals_of(&self, caster: hecs::Entity) -> Vec<hecs::Entity> {
-        let Ok(list) = self.world.get::<&KeepsGlobal>(caster) else {
+        let Ok(list) = self.ecs.get::<&KeepsGlobal>(caster) else {
             return Vec::new();
         };
         let mut found: Vec<(Serial, hecs::Entity)> = list
             .0
             .iter()
-            .filter_map(|&i| Some((*self.world.get::<&Serial>(i).ok()?, i)))
+            .filter_map(|&i| Some((*self.ecs.get::<&Serial>(i).ok()?, i)))
             .collect();
         found.sort();
         found.into_iter().map(|(_, e)| e).collect()
@@ -230,12 +230,12 @@ impl<'a> Spells<'a> {
 
     /// Does the wizard keep a global spell going for which `wanted` holds? (No list built, no sort.)
     pub fn any_global_of(&self, caster: hecs::Entity, wanted: impl Fn(SpellId) -> bool) -> bool {
-        let Ok(list) = self.world.get::<&KeepsGlobal>(caster) else {
+        let Ok(list) = self.ecs.get::<&KeepsGlobal>(caster) else {
             return false;
         };
         list.0
             .iter()
-            .any(|&i| self.world.get::<&SpellCast>(i).is_ok_and(|c| wanted(c.def)))
+            .any(|&i| self.ecs.get::<&SpellCast>(i).is_ok_and(|c| wanted(c.def)))
     }
 
     /// The instances of one spell, oldest first.
@@ -248,9 +248,9 @@ impl<'a> Spells<'a> {
         if let Some(list) = self.listed(target) {
             return list
                 .iter()
-                .any(|&i| self.world.get::<&SpellCast>(i).is_ok_and(|c| c.def == def));
+                .any(|&i| self.ecs.get::<&SpellCast>(i).is_ok_and(|c| c.def == def));
         }
-        self.world
+        self.ecs
             .query::<(&SpellCast, &SpellTarget)>()
             .iter()
             .any(|(_, (cast, t))| cast.def == def && *t == target)
@@ -258,17 +258,17 @@ impl<'a> Spells<'a> {
 
     /// The spell an instance is of.
     pub fn def(&self, instance: hecs::Entity) -> Option<SpellId> {
-        Some(self.world.get::<&SpellCast>(instance).ok()?.def)
+        Some(self.ecs.get::<&SpellCast>(instance).ok()?.def)
     }
 
     /// The wizard that cast an instance.
     pub fn caster(&self, instance: hecs::Entity) -> Option<hecs::Entity> {
-        Some(self.world.get::<&Caster>(instance).ok()?.0)
+        Some(self.ecs.get::<&Caster>(instance).ok()?.0)
     }
 
     /// What an instance is on.
     pub fn target(&self, instance: hecs::Entity) -> Option<SpellTarget> {
-        self.world.get::<&SpellTarget>(instance).ok().map(|t| *t)
+        self.ecs.get::<&SpellTarget>(instance).ok().map(|t| *t)
     }
 
     fn matching(
@@ -276,7 +276,7 @@ impl<'a> Spells<'a> {
         keep: impl Fn(SpellId, hecs::Entity, SpellTarget) -> bool,
     ) -> Vec<hecs::Entity> {
         let mut found: Vec<(Serial, hecs::Entity)> = self
-            .world
+            .ecs
             .query::<(&SpellCast, &Caster, &SpellTarget, &Serial)>()
             .iter()
             .filter(|(_, (cast, caster, target, _))| keep(cast.def, caster.0, **target))
@@ -287,14 +287,14 @@ impl<'a> Spells<'a> {
     }
 }
 
-/// Remove from `world` the instances on `target` that `gone` picks, by spell and by the player who
+/// Remove from `ecs` the instances on `target` that `gone` picks, by spell and by the player who
 /// cast it. For code that has the world and not the game.
 pub(crate) fn remove_on(
-    world: &mut hecs::World,
+    ecs: &mut hecs::World,
     target: SpellTarget,
     gone: impl Fn(SpellId, PlayerId) -> bool,
 ) {
-    let spells = Spells::new(world);
+    let spells = Spells::new(ecs);
     let doomed: Vec<hecs::Entity> = spells
         .on(target)
         .into_iter()
@@ -303,19 +303,19 @@ pub(crate) fn remove_on(
         })
         .collect();
     for instance in doomed {
-        despawn_instance(world, instance);
+        despawn_instance(ecs, instance);
     }
 }
 
 /// Take instances off the list of the entity they are on, or put them back (the instances stay in
 /// the world): for a look at the entity as if the spell were off.
 pub(crate) fn set_listed(
-    world: &mut hecs::World,
+    ecs: &mut hecs::World,
     entity: hecs::Entity,
     instances: &[hecs::Entity],
     listed: bool,
 ) {
-    if let Ok(mut list) = world.get::<&mut Enchanted>(entity) {
+    if let Ok(mut list) = ecs.get::<&mut Enchanted>(entity) {
         list.0.retain(|i| !instances.contains(i));
         if listed {
             list.0.extend_from_slice(instances);
@@ -323,14 +323,14 @@ pub(crate) fn set_listed(
         return;
     }
     if listed {
-        crate::game::put_in(world, entity, Enchanted(instances.to_vec()));
+        crate::world::put_in(ecs, entity, Enchanted(instances.to_vec()));
     }
 }
 
-impl Game {
+impl World {
     /// The spell instances of the game.
     pub fn spells(&self) -> Spells<'_> {
-        Spells::new(&self.world)
+        Spells::new(&self.ecs)
     }
 
     /// Cast a lasting spell: a new instance on `target`, paid for by the wizard `caster`.
@@ -341,7 +341,7 @@ impl Game {
         target: SpellTarget,
     ) -> hecs::Entity {
         let serial = self.take_serial();
-        spawn_instance(&mut self.world, def, caster, target, serial)
+        spawn_instance(&mut self.ecs, def, caster, target, serial)
     }
 
     /// A lasting spell of `caster` is put on a city; a wizard has each spell on a city once.
@@ -409,7 +409,7 @@ impl Game {
         spell: SpellId,
         caster: PlayerId,
     ) {
-        remove_on(&mut self.world, target, |s, c| s == spell && c == caster);
+        remove_on(&mut self.ecs, target, |s, c| s == spell && c == caster);
     }
 
     /// A wizard turns off one of their own spells on a target. False if it is not there.
@@ -469,19 +469,19 @@ impl Game {
         let Some(cast) = self.spells().cast_of(wizard) else {
             return 0;
         };
-        self.world.get::<&Extra>(cast).map_or(0, |e| e.0)
+        self.ecs.get::<&Extra>(cast).map_or(0, |e| e.0)
     }
 
     /// Remove one instance (dispelled, cancelled, or its effect is over).
     pub(crate) fn despawn_spell(&mut self, instance: hecs::Entity) {
-        despawn_instance(&mut self.world, instance);
+        despawn_instance(&mut self.ecs, instance);
     }
 
     /// Remove an entity, and with it every spell instance that is on it. Every unit, city and
     /// feature goes through here, so that no instance has a target that is gone.
     pub(crate) fn despawn_with_spells(&mut self, entity: hecs::Entity) {
         self.despawn_spells_on(entity);
-        let _ = self.world.despawn(entity);
+        let _ = self.ecs.despawn(entity);
     }
 
     /// Remove every spell instance that is on `entity` (a hero's body that died keeps the hero's

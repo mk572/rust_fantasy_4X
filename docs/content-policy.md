@@ -132,12 +132,12 @@ the game then running on values the code holds: the behaviour would differ from 
 1. No load of content (rules, settings, help, event texts) goes through `unwrap_or_default`, `.ok()` or a quiet
    fallback. A load either gives the content or the issues; the client stops with them (until the issue screen of
    task 768 shows them), a tool returns them as its error.
-2. `Default` on a content type is the empty value for a game that has no content yet (`Game::new`); the loader never
+2. `Default` on a content type is the empty value for a game that has no content yet (`World::new`); the loader never
    calls it, and a test game sets its content before it plays.
-3. Closed (22 November 2026): `Game::set_content` sets the game's settings from the level the content's new-game
+3. Closed (22 November 2026): `World::set_content` sets the game's settings from the level the content's new-game
    choices name, so a modded content plays its own figures; a save from before a setting existed migrates from the
    player's default, else from the content it is loaded into (`load_game`), never from a compiled-in copy.
-   `rules_settings.ron` must have all six levels. Still open: a game made by `Game::new` and never given content
+   `rules_settings.ron` must have all six levels. Still open: a game made by `World::new` and never given content
    plays on the empty rules (tests only; no production path does it).
 
 ### R7. Mods (decided: in this work; built: `f4x-client --mod DIR`, `issue_screen.rs`)

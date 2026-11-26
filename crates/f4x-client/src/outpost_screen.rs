@@ -13,7 +13,7 @@ use crate::modal::{keep, Modal};
 use crate::page::Page;
 use crate::text::Args;
 use crate::ui;
-use f4x_core::game::Command;
+use f4x_core::world::Command;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;
@@ -78,12 +78,12 @@ impl App {
 
     /// For the screenshot check: show the wizard's first city as an outpost.
     pub fn open_first_outpost(&mut self, new: bool) {
-        if let Some((city, ..)) = self.game.economy().cities().first() {
+        if let Some((city, ..)) = self.world.economy().cities().first() {
             let city = *city;
             if !new {
                 // Eight city spells of the player's own, to see the list page and turn off.
                 let spells: Vec<_> = self
-                    .game
+                    .world
                     .content()
                     .rules
                     .spells
@@ -91,10 +91,10 @@ impl App {
                     .iter()
                     .filter(|s| s.target == f4x_def::rules::SpellTarget::OwnCity)
                     .take(8)
-                    .filter_map(|s| self.game.content().rules.spells.id_numbered(s.num))
+                    .filter_map(|s| self.world.content().rules.spells.id_numbered(s.num))
                     .collect();
                 for spell in spells {
-                    self.game.attach_enchantment(
+                    self.world.attach_enchantment(
                         f4x_core::rules::exec::Target::City(city),
                         spell,
                         HUMAN,
@@ -121,22 +121,22 @@ impl App {
         let at = self.city_position(city);
         let myrror = at.plane == f4x_core::map::Plane::Myrror;
         let (mut mountain, mut hills) = (false, false);
-        if let Some(map) = self.game.map() {
+        if let Some(map) = self.world.map() {
             let grid = map.plane(at.plane);
             for (dx, dy) in [(-1, -1), (0, -1), (1, -1), (0, 0)] {
                 let class = grid
                     .get(at.x as i32 + dx, at.y as i32 + dy)
-                    .and_then(|t| self.game.content().terrains.get(t))
+                    .and_then(|t| self.world.content().terrains.get(t))
                     .map(|d| d.class);
                 mountain |= class == Some(f4x_core::map::terrain::TerrainClass::Mountains);
                 hills |= class == Some(f4x_core::map::terrain::TerrainClass::Hills);
             }
         }
-        let flying = self.game.spells().city_enchantments(city).iter().any(
+        let flying = self.world.spells().city_enchantments(city).iter().any(
             |&(s, _)| s == f4x_def::rules::SpellId::new(77), /* flying_fortress */
         );
-        let house_type = self.game.city_race(city).map_or(0, |r| {
-            self.game.content().rules.races.get(r).house_type as usize
+        let house_type = self.world.city_race(city).map_or(0, |r| {
+            self.world.content().rules.races.get(r).house_type as usize
         });
         let (x, y) = (SCAPE.0 - 65.0, SCAPE.1);
         let lay = *lay;
@@ -203,7 +203,7 @@ impl App {
         let lay = Layout::new();
         let prompt = self.text("outpost.name_starting");
         if self.name_box(&lay, (60.0, 30.0), &prompt, &mut name, input) {
-            let events = self.game.apply(Command::RenameCity { city, name });
+            let events = self.world.apply(Command::RenameCity { city, name });
             self.note(events);
             None
         } else {
@@ -214,11 +214,11 @@ impl App {
     /// Offer the naming box for the human capital, if there is one.
     pub(crate) fn offer_capital_naming(&mut self) {
         let capital = self
-            .game
+            .world
             .economy()
             .cities()
             .into_iter()
-            .find(|(e, c, _)| c.owner == HUMAN && self.game.economy().is_fortress_city(*e));
+            .find(|(e, c, _)| c.owner == HUMAN && self.world.economy().is_fortress_city(*e));
         if let Some((city, ..)) = capital {
             let name = self.city_name(city);
             self.modals.open(CapitalName { city, name });
@@ -234,7 +234,7 @@ impl Page for OutpostUi {
     fn frame(&mut self, app: &mut App, input: &Input) {
         let city = self.city;
         let at = app.city_position(city);
-        if app.game.economy().city_at(at) != Some(city) {
+        if app.world.economy().city_at(at) != Some(city) {
             app.screen = Screen::Map;
             return;
         }
@@ -263,12 +263,12 @@ impl Page for OutpostUi {
         app.draw_outpost_scape(&lay, city);
 
         // The houses: bright for those grown, dark for the rest.
-        let pop = app.game.city_population(city);
+        let pop = app.world.city_population(city);
         let house_type = app
-            .game
+            .world
             .city_race(city)
             .map_or(0, |r| {
-                app.game.content().rules.races.get(r).house_type as usize
+                app.world.content().rules.races.get(r).house_type as usize
             })
             .min(2);
         for i in 0..10 {
@@ -297,11 +297,11 @@ impl Page for OutpostUi {
             wy + 6.0,
         );
         let race = app
-            .game
+            .world
             .city_race(city)
             .map(|r| {
                 app.names
-                    .race(app.game.content().rules.races.get(r).num)
+                    .race(app.world.content().rules.races.get(r).num)
                     .to_string()
             })
             .unwrap_or_default();
@@ -311,7 +311,12 @@ impl Page for OutpostUi {
         let units: Vec<_> = if ui.new {
             Vec::new()
         } else {
-            app.game.units().units_at(at).into_iter().take(10).collect()
+            app.world
+                .units()
+                .units_at(at)
+                .into_iter()
+                .take(10)
+                .collect()
         };
         let (mut left, mut right) = (None, None);
         for (slot, &unit) in units.iter().enumerate() {
@@ -352,7 +357,7 @@ impl Page for OutpostUi {
         } else if input.key_pressed(KeyCode::Escape)
             || (input.mouse_pressed(MouseButton::Left) && !on_list)
         {
-            if left.is_some() && app.game.economy().city_owner(city) == Some(HUMAN) {
+            if left.is_some() && app.world.economy().city_owner(city) == Some(HUMAN) {
                 app.select_at(at);
             }
             app.screen = Screen::Map;
@@ -372,7 +377,7 @@ impl OutpostUi {
         self.name = name;
         if done {
             let name = std::mem::take(&mut self.name);
-            let events = app.game.apply(Command::RenameCity { city, name });
+            let events = app.world.apply(Command::RenameCity { city, name });
             app.note(events);
             self.naming = false;
         }

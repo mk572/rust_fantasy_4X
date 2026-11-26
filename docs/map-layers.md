@@ -155,7 +155,7 @@ enchanted already.
 Cities are entities with a `Position`, not tiles, so a tile can hold a city, units and a
 feature at once.
 
-**Founding** (`Game::can_found_city`) fails with, in order: no map; off the map; terrain that
+**Founding** (`World::can_found_city`) fails with, in order: no map; off the map; terrain that
 is ocean or has `can_found_city: false`; a blocking feature on the tile (tower, node,
 encounter; minerals do not block); a city already there; or another city on the same plane
 within **three** tiles (`min_city_distance` is 4, i.e. cities are at least four apart).

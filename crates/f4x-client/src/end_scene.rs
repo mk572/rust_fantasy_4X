@@ -183,28 +183,28 @@ pub(crate) fn zap_growth(stage: u32) -> Option<usize> {
 impl App {
     /// Queue the scene of the game's end: the human's victory or defeat, before the score.
     pub(crate) fn queue_game_over_scene(&mut self) {
-        let Some(over) = self.game.game_over else {
+        let Some(over) = self.world.game_over else {
             return;
         };
         let wizard = self
-            .game
+            .world
             .wizard(HUMAN)
             .map_or(0, |w| usize::from(w.portrait()));
-        if over.winner == HUMAN && over.kind == f4x_core::game::endgame::EndKind::SpellOfMastery {
+        if over.winner == HUMAN && over.kind == f4x_core::world::endgame::EndKind::SpellOfMastery {
             // Every rival who is not banished passes by.
             let rivals = self
-                .game
+                .world
                 .player_ids()
                 .into_iter()
-                .filter(|&p| p != HUMAN && self.game.is_wizard(p))
-                .filter_map(|p| self.game.wizard(p))
+                .filter(|&p| p != HUMAN && self.world.is_wizard(p))
+                .filter_map(|p| self.world.wizard(p))
                 .filter(|w| !w.is_banished())
                 .map(|w| usize::from(w.portrait()))
                 .collect();
             self.end_scenes
                 .push_back(Scene::new(Kind::Parade { wizard, rivals }));
         }
-        if over.winner != HUMAN && over.kind == f4x_core::game::endgame::EndKind::SpellOfMastery {
+        if over.winner != HUMAN && over.kind == f4x_core::world::endgame::EndKind::SpellOfMastery {
             let realm = self.primary_realm();
             self.end_scenes.push_back(Scene::new(Kind::MasteryLost {
                 wizard,
@@ -228,7 +228,7 @@ impl App {
         by: Option<PlayerId>,
         banished: bool,
     ) {
-        let Some(loser) = self.game.wizard(player) else {
+        let Some(loser) = self.world.wizard(player) else {
             return;
         };
         let (portrait, feminine) = (
@@ -237,8 +237,9 @@ impl App {
         );
         // This scene, with the conquering wizard in the raiders' place, is our own addition for a
         // wizard who banishes or defeats another.
-        let conqueror = by.filter(|&b| self.game.is_wizard(b));
-        let winner = conqueror.and_then(|b| self.game.wizard(b).map(|w| usize::from(w.portrait())));
+        let conqueror = by.filter(|&b| self.world.is_wizard(b));
+        let winner =
+            conqueror.and_then(|b| self.world.wizard(b).map(|w| usize::from(w.portrait())));
         let key = match (winner.is_some(), banished) {
             (false, true) => "end.raiders_fortress",
             (false, false) => "end.raiders",
@@ -270,14 +271,14 @@ impl App {
     /// For screenshots and checks: queue a scene (`win`, `lose`, `conquest`, `return`).
     pub fn open_test_scene(&mut self, name: &str) {
         let wizard = self
-            .game
+            .world
             .wizard(HUMAN)
             .map_or(0, |w| usize::from(w.portrait()));
         let rival = self
-            .game
+            .world
             .player_ids()
             .into_iter()
-            .find(|&p| p != HUMAN && self.game.is_wizard(p))
+            .find(|&p| p != HUMAN && self.world.is_wizard(p))
             .unwrap_or(HUMAN);
         match name {
             "win" => self.end_scenes.push_back(Scene::new(Kind::Win { wizard })),
@@ -292,7 +293,7 @@ impl App {
             }
             "parade" => {
                 let rivals = vec![usize::from(
-                    self.game.wizard(rival).map_or(1, |w| w.portrait()),
+                    self.world.wizard(rival).map_or(1, |w| w.portrait()),
                 )];
                 self.end_scenes
                     .push_back(Scene::new(Kind::Parade { wizard, rivals }));
@@ -326,7 +327,7 @@ impl App {
 
     /// Draw the scene on top, if any. Returns whether it took the frame.
     pub(crate) fn end_scene_frame(&mut self, input: &Input) -> bool {
-        if self.game.in_battle() {
+        if self.world.in_battle() {
             return false;
         }
         let Some(scene) = self.end_scenes.front_mut() else {

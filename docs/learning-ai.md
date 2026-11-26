@@ -98,7 +98,7 @@ f4x-ai           gains LearnedAi next to Ai: same entry point, loads a checkpoin
   `evaluate` subcommands. `f4x-tools` has only `soak --battle-ai CHECKPOINT` (feature
   `learned`).
 - There is no `LearnedAi` in `f4x-ai` (that is the strategic AI of phase 6). The battle AI
-  plugs into the core through the `BattleBrain` hook (`Game::set_battle_brain`), so the core
+  plugs into the core through the `BattleBrain` hook (`World::set_battle_brain`), so the core
   stays free of ML.
 
 **Rust, not Python.** The choice was "whichever is less resource-intensive". A Rust trainer
@@ -144,14 +144,14 @@ training run is fixed by `(seeds, config, code version)`.
 
 The console (`docs/console.md`) already is the definition of what a player may do: every client
 action has a **legal command** (`move`, `produce`, `cast`, `research`, `bmove`, `bshoot`...),
-sent through `Game::apply`, and in legal mode its queries show only what the player can see.
+sent through `World::apply`, and in legal mode its queries show only what the player can see.
 The learner uses exactly that:
 
 0. **What is done.** `Battle::legal_commands()` (every move, melee attack, shot and wall
-   attack of the side to play, then `Done`, `EndTurn`, `Flee`) and `Game::legal_battle_casts()`
+   attack of the side to play, then `Done`, `EndTurn`, `Flee`) and `World::legal_battle_casts()`
    (each castable spell with its aims and least and most mana) are in the core, tested against
-   `Battle::apply` and `Game::battle_command` (the first exhaustively over every command that
-   could be written), and the console's `blegal` query prints them. `Game::battle_command`
+   `Battle::apply` and `World::battle_command` (the first exhaustively over every command that
+   could be written), and the console's `blegal` query prints them. `World::battle_command`
    checks a cast through the same `check_cast` the list uses. The overland enumerators (stack
    moves, spell targets, production items) wait for the strategic phases.
 1. **Action families = the console's legal commands**, with the same arguments. Nothing is
@@ -161,7 +161,7 @@ The learner uses exactly that:
    (`can_build` behind `options`, `can_found_city`, `can_shift_plane`, `can_use_earth_gate`,
    `Battle::reachable`, `battle_spells`), the mask calls it. Where the console only tries the
    command and reports `apply`'s rejection (`move`, `cast` targets, battle targets), we add an
-   **enumerator** in the core (`Game::legal_moves`, `legal_cast_targets`,
+   **enumerator** in the core (`World::legal_moves`, `legal_cast_targets`,
    `Battle::legal_commands` and so on) and make the console's queries use the same function,
    so `options`, and new queries such as `moves <units>` and `targets <spell>`, print what the
    mask contains. One source of truth, and the console gains the queries a human or an MCP
@@ -182,7 +182,7 @@ Other core changes, small:
 - The observation tensors of section 5.1 and 7.2 are built in `f4x-learn` (`obs.rs`) from the
   core's public accessors: the core stays free of any tensor layout.
 - `mana_budget` as a battle setting checked in `Cast`.
-- Starting games and battles from a `Snapshot` (exists in `game/save.rs`), for the curriculum.
+- Starting games and battles from a `Snapshot` (exists in `world/save.rs`), for the curriculum.
 - The policy's RNG is separate from the game's; episodes replay from the command log.
 
 ## 5. Strategic AI
@@ -367,7 +367,7 @@ for tests and for the evaluation suite). What a scenario holds:
 | **Odds** | The strength ratio is sampled on purpose, not left to chance: even fights, **overwhelming** (the agent should win with little loss), **overwhelmed** (it should sell its units dearly or flee), and lopsided in kind (all fliers against no ranged). Without the second and third kind the reward terms of 7.4 never get exercised. |
 | **Ground** | The overland terrain under the fight (the battlefield it makes), the plane, an open field, a city (walls, gate, towers, buildings, Wall of Fire or Darkness, a Spell Ward), a node, a lair or tower with guards. Which side attacks. |
 | **Wizards** | Each side has a wizard or none (independent cities and monsters have none). If present: the **books and retorts** (these set the cost reductions and the realms of the spells), the **casting skill**, the **mana in the reserve**, the **distance to the fortress and plane** (the range multiplier of `combat.md` section 8, so the same mana buys less far away), and the spells known. |
-| **Spells known** | A random subset (from 16 October: of the spells of one or two realms, 90% of wizards, or of three to five, and the arcane ones; at most 40, the number of spell tokens) of the spells the game can cast in battle, drawn **from `Game::battle_spells`**, the same list the console's `bspells` shows (bolts and damage, healing, summons, dispels, Counter Magic, the lasting spells on a unit, as `combat.md` section 8 lists), with the realm mix of the books. From none (a wizard who cannot cast) to the whole list. |
+| **Spells known** | A random subset (from 16 October: of the spells of one or two realms, 90% of wizards, or of three to five, and the arcane ones; at most 40, the number of spell tokens) of the spells the game can cast in battle, drawn **from `World::battle_spells`**, the same list the console's `bspells` shows (bolts and damage, healing, summons, dispels, Counter Magic, the lasting spells on a unit, as `combat.md` section 8 lists), with the realm mix of the books. From none (a wizard who cannot cast) to the whole list. |
 | **Mana** | The reserve and the **budget** (`mana_budget` of the brief): below the cost of any spell, only enough for one cheap spell, plenty. Budget 0 is a normal case: the agent must fight without the wizard. |
 | **Battlefield enchantments** | Present at the start on either side, where the rules allow. |
 | **Brief** | `stakes` and `may_flee` (section 2). |
@@ -469,10 +469,10 @@ What `f4x-learn` does today (the numbers are in section 7.8):
   of 16 October were trained without it, and the run `run-20261016-v2c` with it but with
   evaluations that left it out, and with units counted one each.
 - **In the game** (`brain.rs`): `LearnedBrain` plays a wizard's battles through the core's
-  `BattleBrain` hook (`Game::set_battle_brain`; auto-resolve and the battle screen's AI side
-  ask `Game::next_battle_command`). `f4x-tools soak --battle-ai CHECKPOINT` (built with
+  `BattleBrain` hook (`World::set_battle_brain`; auto-resolve and the battle screen's AI side
+  ask `World::next_battle_command`). `f4x-tools soak --battle-ai CHECKPOINT` (built with
   `--features learned`) lets the AI wizards fight with a checkpoint; without one nothing changes.
-  `Game::set_battle_mana_budget` limits a wizard's mana in the battle in progress, in the
+  `World::set_battle_mana_budget` limits a wizard's mana in the battle in progress, in the
   mask and in the casting rules (`BattleCaster::budget`).
 
 ### 7.8 Results of the first runs (12 October 2026)

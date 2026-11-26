@@ -84,8 +84,8 @@ impl App {
     }
 
     fn city_rows(&self) -> Vec<Row> {
-        let eco = self.game.economy();
-        let rules = &self.game.content().rules;
+        let eco = self.world.economy();
+        let rules = &self.world.content().rules;
         eco.cities()
             .into_iter()
             .filter(|(_, c, _)| c.owner == HUMAN)
@@ -105,11 +105,11 @@ impl App {
                     city,
                     name: self.city_name(city),
                     race: self
-                        .game
+                        .world
                         .city_race(city)
                         .map(|r| self.names.race(rules.races.get(r).num).to_string())
                         .unwrap_or_default(),
-                    pop: self.game.city_population(city).figures,
+                    pop: self.world.city_population(city).figures,
                     gold: e.gold - e.gold_upkeep,
                     production: e.production,
                     building: prod.item.map(|i| self.item_name(i)).unwrap_or_default(),
@@ -156,7 +156,7 @@ impl Page for CityListUi {
 
         // The title, the column heads and the reserves.
         let owner = app
-            .game
+            .world
             .wizard(HUMAN)
             .map_or_else(String::new, |w| w.name());
         let title = app.text_with("cities.title", &Args::new().text("owner", owner));
@@ -176,7 +176,7 @@ impl Page for CityListUi {
             let head = app.text(head);
             app.draw_styled(view, &Style::city_list_text(1), &head, x, 17.0);
         }
-        let (reserve_gold, reserve_mana) = app.game.player(HUMAN).map_or(
+        let (reserve_gold, reserve_mana) = app.world.player(HUMAN).map_or(
             (
                 f4x_def::half_int::HalfInt::ZERO,
                 f4x_def::half_int::HalfInt::ZERO,
@@ -292,14 +292,14 @@ impl Page for CityListUi {
                 99.0,
                 158.0,
             );
-            let list: Vec<_> = app.game.spells().city_enchantments(row.city);
+            let list: Vec<_> = app.world.spells().city_enchantments(row.city);
             let rules_names: Vec<(String, u8)> = list
                 .iter()
                 .take(8)
                 .map(|&(s, caster)| {
                     (
                         app.names
-                            .spell(app.game.content().rules.spells.get(s).num)
+                            .spell(app.world.content().rules.spells.get(s).num)
                             .to_string(),
                         caster.0,
                     )

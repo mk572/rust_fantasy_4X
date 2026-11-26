@@ -4,7 +4,7 @@
 //! this differs). The wizard is an entity (`wizard/entity.rs`); its sheet is components
 //! (`wizard/sheet.rs`). This file keeps the retorts, and the rules that need nothing but the
 //! content and the random numbers. What needs the world (power from the cities,
-//! the upkeep items, resolving a spell, the turn change) is in `wizard/magic_game.rs`.
+//! the upkeep items, resolving a spell, the turn change) is in `wizard/magic_world.rs`.
 //!
 //! Tests: below.
 
@@ -13,9 +13,9 @@ use std::collections::BTreeSet;
 
 use crate::spell::cast::UpkeepItem;
 
-use crate::game::rng::GameRng;
 use crate::rules::effects::Effect;
 use crate::rules::{Id, Rarity, RealmId, RetortDef, SpellDef, SpellId};
+use crate::world::rng::GameRng;
 use f4x_def::content::Content;
 
 /// A retort: its number in `retorts.ron`. The saved game writes the number; the name is the text

@@ -11,18 +11,18 @@
 //!
 //! Tests: below.
 
-use f4x_core::game::Game;
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::{Plane, Position};
+use f4x_core::world::World;
 
 /// The most passes with smaller distances before giving up.
 const MAX_PASSES: u32 = 60;
 
 /// One site for each wizard, in order, `planes[k]` being wizard `k`'s plane. `None` if no pass
 /// found them all.
-pub(super) fn fortress_sites(game: &mut Game, planes: &[Plane]) -> Option<Vec<Position>> {
-    let (w, h) = game.map().map(|m| (m.width(), m.height()))?;
-    let sites = game.economy().site_squares();
+pub(super) fn fortress_sites(world: &mut World, planes: &[Plane]) -> Option<Vec<Position>> {
+    let (w, h) = world.map().map(|m| (m.width(), m.height()))?;
+    let sites = world.economy().site_squares();
     let (mut apart, mut clear) = (16u32, 8u32);
     for _ in 0..MAX_PASSES {
         let mut placed: Vec<Position> = Vec::new();
@@ -35,10 +35,10 @@ pub(super) fn fortress_sites(game: &mut Game, planes: &[Plane]) -> Option<Vec<Po
                 tries += 1;
                 let pos = Position {
                     plane,
-                    x: 2 + game.roll(w - 6),
-                    y: 2 + game.roll(h - 6),
+                    x: 2 + world.roll(w - 6),
+                    y: 2 + world.roll(h - 6),
                 };
-                let grid = game.map()?.plane(plane);
+                let grid = world.map()?.plane(plane);
                 let wrap = |a: u32, b: u32| {
                     let d = a.abs_diff(b);
                     d.min(w - d)
@@ -46,18 +46,18 @@ pub(super) fn fortress_sites(game: &mut Game, planes: &[Plane]) -> Option<Vec<Po
                 let dist = |o: &Position| wrap(o.x, pos.x).max(o.y.abs_diff(pos.y));
                 let water = grid
                     .get(pos.x as i32, pos.y as i32)
-                    .and_then(|t| game.content().terrains.get(t))
+                    .and_then(|t| world.content().terrains.get(t))
                     .is_none_or(|d| d.class == TerrainClass::Ocean);
                 if water
                     || placed.iter().any(|f| f.plane == plane && dist(f) < apart)
                     || sites
                         .iter()
                         .any(|s| s.plane == plane && dist(s) < clear / 2)
-                    || game.can_found_city(pos).is_err()
+                    || world.can_found_city(pos).is_err()
                 {
                     continue;
                 }
-                if game.economy().site_max_size(pos) < 8 - k as u32 / 3 {
+                if world.economy().site_max_size(pos) < 8 - k as u32 / 3 {
                     hungry += 1;
                     if hungry > 500 {
                         break 'wizards;
@@ -85,7 +85,7 @@ mod tests {
     use f4x_def::testdir::shipped;
     use f4x_def::testdir::TestResult;
 
-    fn original(seed: u64, wizards: u8) -> Result<Game, crate::error::NewGameError> {
+    fn original(seed: u64, wizards: u8) -> Result<World, crate::error::NewGameError> {
         let mut spec = NewGame::with_wizards(wizards);
         spec.seed = seed;
         spec.all_ai = true;
@@ -93,37 +93,37 @@ mod tests {
         new_game(shipped(), &spec)
     }
 
-    fn fortress(g: &Game, p: PlayerId) -> Option<Position> {
-        g.wizard(p)?.fortress()
+    fn fortress(w: &World, p: PlayerId) -> Option<Position> {
+        w.wizard(p)?.fortress()
     }
 
     #[test]
     fn every_wizard_gets_a_fortress_on_land_that_can_feed_the_start() -> TestResult {
-        let g = original(3, 4)?;
+        let w = original(3, 4)?;
         for k in 0..4 {
             let p = PlayerId(k);
-            let pos = fortress(&g, p).ok_or("no fortress")?;
-            let class = g
+            let pos = fortress(&w, p).ok_or("no fortress")?;
+            let class = w
                 .map()
                 .and_then(|m| m.plane(pos.plane).get(pos.x as i32, pos.y as i32))
-                .and_then(|t| g.content().terrains.get(t))
+                .and_then(|t| w.content().terrains.get(t))
                 .map(|d| d.class);
             assert_ne!(
                 class,
                 Some(TerrainClass::Ocean),
                 "wizard {k} stands on land"
             );
-            assert!(g.economy().site_max_size(pos) >= 5, "wizard {k} is fed");
+            assert!(w.economy().site_max_size(pos) >= 5, "wizard {k} is fed");
         }
         Ok(())
     }
 
     #[test]
     fn fortresses_on_one_plane_are_far_apart_across_the_wrapping_edge() -> TestResult {
-        let g = original(5, 4)?;
-        let w = g.map().ok_or("no map")?.width();
+        let w = original(5, 4)?;
+        let width = w.map().ok_or("no map")?.width();
         let sites: Vec<Position> = (0..4)
-            .map(|k| fortress(&g, PlayerId(k)))
+            .map(|k| fortress(&w, PlayerId(k)))
             .collect::<Option<_>>()
             .ok_or("a wizard has no fortress")?;
         for (i, a) in sites.iter().enumerate() {
@@ -132,7 +132,7 @@ mod tests {
                     continue;
                 }
                 let dx = a.x.abs_diff(b.x);
-                let apart = dx.min(w - dx).max(a.y.abs_diff(b.y));
+                let apart = dx.min(width - dx).max(a.y.abs_diff(b.y));
                 assert!(apart >= 10, "{a:?} and {b:?} are {apart} apart");
             }
         }
@@ -142,8 +142,8 @@ mod tests {
     #[test]
     fn the_same_seed_rolls_the_same_sites_and_another_seed_others() -> TestResult {
         let sites = |seed| -> Result<Vec<Position>, String> {
-            let g = original(seed, 3)?;
-            Ok((0..3).filter_map(|k| fortress(&g, PlayerId(k))).collect())
+            let w = original(seed, 3)?;
+            Ok((0..3).filter_map(|k| fortress(&w, PlayerId(k))).collect())
         };
         assert_eq!(sites(8)?, sites(8)?);
         assert_ne!(sites(8)?, sites(9)?);
@@ -152,7 +152,7 @@ mod tests {
 
     #[test]
     fn a_game_with_no_map_has_no_sites() {
-        let mut g = Game::new(1);
-        assert_eq!(fortress_sites(&mut g, &[Plane::Arcanus]), None);
+        let mut w = World::new(1);
+        assert_eq!(fortress_sites(&mut w, &[Plane::Arcanus]), None);
     }
 }

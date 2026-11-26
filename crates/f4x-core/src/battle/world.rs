@@ -3,13 +3,13 @@
 //!
 //! Tests: in battle/tests.rs.
 
-use crate::game::{Event, Game};
 use crate::map::Position;
 use crate::player::PlayerId;
 use crate::rules::unit_flag::{UnitFlag, UnitFlags};
 use crate::rules::Ability;
 use crate::rules::{MovementType, Stat, UnitId};
 use crate::unit::Hurt;
+use crate::world::{Event, World};
 use f4x_def::half_int::HalfInt;
 
 use super::field::Field;
@@ -29,7 +29,7 @@ pub struct ActiveBattle {
     /// fate of their side.
     pub left_out: Vec<(Side, hecs::Entity)>,
     /// Defenders that stood on the square but are not among the nine who fight. They stay out
-    /// of the battle; if the defence loses they flee (`Game::bench_flees`), if it wins they stay.
+    /// of the battle; if the defence loses they flee (`World::bench_flees`), if it wins they stay.
     pub benched: Vec<hecs::Entity>,
     /// The lair being assaulted, if this is a fight against a site's guards (`Battle::site` is
     /// the square the fight is on).
@@ -88,25 +88,25 @@ pub use f4x_battle::weapon::{caster_mana_of, ranged_kind_of, weapon_attack_of, w
 
 /// Something that plays a wizard's side of a battle: it is asked for one command at a time.
 /// The scripted player is `f4x_ai::battle`, set once with [`set_battle_ai`]; a learned one
-/// (`f4x-learn`) is plugged in with [`Game::set_battle_brain`]. The brain sees the whole game, as
+/// (`f4x-learn`) is plugged in with [`World::set_battle_brain`]. The brain sees the whole game, as
 /// a player does.
 pub trait BattleBrain {
     /// The next command for the side to play in the battle in progress.
-    fn command(&mut self, game: &Game) -> BattleCommand;
+    fn command(&mut self, world: &World) -> BattleCommand;
 }
 
 /// The scripted battle player that plays every side no brain was set for.
-static BATTLE_AI: std::sync::OnceLock<fn(&Game) -> Option<BattleCommand>> =
+static BATTLE_AI: std::sync::OnceLock<fn(&World) -> Option<BattleCommand>> =
     std::sync::OnceLock::new();
 
 /// Name the scripted battle player: `f4x_ai::battle::install` calls this once. The battle AI is
 /// behaviour, so it lives in the AI crate; the game only asks it for the next command. Without
 /// one (and without a brain for the side) a battle has no next command.
-pub fn set_battle_ai(ai: fn(&Game) -> Option<BattleCommand>) {
+pub fn set_battle_ai(ai: fn(&World) -> Option<BattleCommand>) {
     let _ = BATTLE_AI.set(ai);
 }
 
-impl Game {
+impl World {
     /// Let `brain` play the battles of `player` (an AI wizard) from now on; `None` goes back to
     /// the scripted battle AI.
     pub fn set_battle_brain(&mut self, player: PlayerId, brain: Option<Box<dyn BattleBrain>>) {
@@ -187,7 +187,7 @@ impl Game {
     /// items' spells and its spell save, and the spells its abilities cast (once a battle).
     fn unit_casting(&self, unit: hecs::Entity, abilities: &[Ability]) -> super::UnitCasting {
         let mut casting = super::UnitCasting::of_abilities(abilities, &self.content().rules);
-        if let Ok(hero) = self.world.get::<&crate::hero::Hero>(unit) {
+        if let Ok(hero) = self.ecs.get::<&crate::hero::Hero>(unit) {
             if hero.casting_skill > 0 {
                 casting.innate = hero.spells.clone();
             }
@@ -237,7 +237,7 @@ impl Game {
         if view.unit_has_innate_magical_weapon(unit) {
             flags.insert(UnitFlag::MagicalWeapon);
         }
-        let hero = self.world.get::<&crate::hero::Hero>(unit).ok();
+        let hero = self.ecs.get::<&crate::hero::Hero>(unit).ok();
         let mut sheet = Sheet::plain(side, def.stats.clone());
         sheet.modifiers = view.own_modifiers(unit);
         sheet.granted = view.unit_granted_abilities(unit);
@@ -261,7 +261,7 @@ impl Game {
         let hits = view.unit_stat(unit, Stat::MaxHp).max(1);
         let figures = view.unit_stat(unit, Stat::Figures).max(1) as u32;
         let hurt = self
-            .world
+            .ecs
             .get::<&Hurt>(unit)
             .map_or(0, |h| h.0 as i32)
             .min(hits * figures as i32 - 1);
@@ -326,7 +326,7 @@ impl Game {
         let hits = view.unit_stat(unit, Stat::MaxHp).max(1);
         let figures = view.unit_stat(unit, Stat::Figures).max(1) as u32;
         let hurt = self
-            .world
+            .ecs
             .get::<&Hurt>(unit)
             .map_or(0, |h| h.0 as i32)
             .min(hits * figures as i32 - 1);
@@ -451,18 +451,18 @@ impl Game {
         if self.battle.is_some() {
             return Err(BattleStartError::InProgress);
         }
-        let side_info = |game: &Game, units: &[hecs::Entity]| -> Option<(PlayerId, Position)> {
+        let side_info = |world: &World, units: &[hecs::Entity]| -> Option<(PlayerId, Position)> {
             let first = *units.first()?;
-            let pos = game.units().unit_position(first)?;
-            let owner = game.units().unit_owner(first)?;
+            let pos = world.units().unit_position(first)?;
+            let owner = world.units().unit_owner(first)?;
             // A stack in a tower is on both planes: its units may stand on either.
-            let mirror = game.economy().tower_mirror(pos);
+            let mirror = world.economy().tower_mirror(pos);
             units
                 .iter()
                 .all(|&u| {
-                    let at = game.units().unit_position(u);
+                    let at = world.units().unit_position(u);
                     (at == Some(pos) || (mirror.is_some() && at == mirror))
-                        && game.units().unit_owner(u) == Some(owner)
+                        && world.units().unit_owner(u) == Some(owner)
                 })
                 .then_some((owner, pos))
         };
@@ -506,7 +506,7 @@ impl Game {
         };
         let mut left_out = Vec::new();
         // An army and a battle side are at most nine; a defended square may hold more, and the
-        // strongest nine fight (`Game::fighter_preset`).
+        // strongest nine fight (`World::fighter_preset`).
         let attackers = self.pick_fighters(attackers).0;
         let attackers = &attackers[..];
         let (defenders, benched) = self.pick_defenders(defenders, d_owner, site);
@@ -957,7 +957,7 @@ impl Game {
             // The charges an item's spell has left stay on the item.
             if !u.casting.item_charges.is_empty() {
                 for c in &u.casting.item_charges {
-                    if let Ok(mut item) = self.world.get::<&mut crate::item::Item>(c.item) {
+                    if let Ok(mut item) = self.ecs.get::<&mut crate::item::Item>(c.item) {
                         if let Some((_, charges)) = item.charges.as_mut() {
                             *charges = c.charges;
                         }
@@ -1068,7 +1068,7 @@ impl Game {
             let def = self.units().unit_def(*sources.get(i)?)?;
             Some(def.cost)
         })?;
-        Some(self.world.get::<&crate::unit::Unit>(sources[index]).ok()?.0)
+        Some(self.ecs.get::<&crate::unit::Unit>(sources[index]).ok()?.0)
     }
 
     /// Put the drained dead on the winner's square as undead units, as many as it has room for.
@@ -1262,7 +1262,7 @@ impl Game {
         self.auto_resolve_with(attackers, defenders, None)
     }
 
-    /// [`Game::auto_resolve`] with a limit on the mana one wizard may spend from the reserve
+    /// [`World::auto_resolve`] with a limit on the mana one wizard may spend from the reserve
     /// (strategic combat, `Command::AutoResolve::mana_budget`).
     pub fn auto_resolve_with(
         &mut self,
@@ -1270,28 +1270,28 @@ impl Game {
         defenders: &[hecs::Entity],
         mana_budget: Option<(PlayerId, u32)>,
     ) -> Vec<Event> {
-        let near = |game: &Game| -> Option<bool> {
-            let a = game.units().unit_position(*attackers.first()?)?;
-            let mut d = game.units().unit_position(*defenders.first()?)?;
+        let near = |world: &World| -> Option<bool> {
+            let a = world.units().unit_position(*attackers.first()?)?;
+            let mut d = world.units().unit_position(*defenders.first()?)?;
             // The same tower square, seen from the attacker's plane.
             if d.plane != a.plane {
-                d = game
+                d = world
                     .economy()
                     .tower_mirror(d)
                     .filter(|m| m.plane == a.plane)
                     .unwrap_or(d);
             }
-            let map = game.map.as_ref()?;
+            let map = world.map.as_ref()?;
             Some(a.plane == d.plane && map.plane(a.plane).chebyshev((a.x, a.y), (d.x, d.y)) <= 1)
         };
         if near(self) == Some(false) {
-            return vec![Event::Rejected(crate::game::Rejection::BattleStart(
+            return vec![Event::Rejected(crate::world::Rejection::BattleStart(
                 BattleStartError::NotAdjacent,
             ))];
         }
         let mut events = match self.start_battle(attackers, defenders) {
             Ok(e) => e,
-            Err(e) => return vec![Event::Rejected(crate::game::Rejection::BattleStart(e))],
+            Err(e) => return vec![Event::Rejected(crate::world::Rejection::BattleStart(e))],
         };
         if let Some((player, mana)) = mana_budget {
             let side = self.battle().and_then(|b| b.side_of(player));

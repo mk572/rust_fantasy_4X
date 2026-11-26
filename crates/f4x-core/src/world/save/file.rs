@@ -4,8 +4,8 @@
 use std::fmt;
 use std::path::Path;
 
-use crate::game::save::{ContentCheck, Integrity, LoadError, Snapshot};
-use crate::game::Game;
+use crate::world::save::{ContentCheck, Integrity, LoadError, Snapshot};
+use crate::world::World;
 use f4x_def::content::Content;
 
 #[derive(Debug)]
@@ -27,8 +27,8 @@ impl std::error::Error for SaveError {}
 
 /// Write the game to `path`. The text goes to a temporary file next to it and is renamed
 /// into place, so a crash while saving never leaves a half-written save over a good one.
-pub fn save_game(path: &Path, game: &Game) -> Result<(), SaveError> {
-    let text = game.snapshot().to_text().map_err(SaveError::Load)?;
+pub fn save_game(path: &Path, world: &World) -> Result<(), SaveError> {
+    let text = world.snapshot().to_text().map_err(SaveError::Load)?;
     if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
         std::fs::create_dir_all(dir)
             .map_err(|e| SaveError::Io(format!("{}: {e}", dir.display())))?;
@@ -42,7 +42,7 @@ pub fn save_game(path: &Path, game: &Game) -> Result<(), SaveError> {
 
 /// A save that was read: the game, whether the file was edited, and what the player should be told.
 pub struct Loaded {
-    pub game: Game,
+    pub world: World,
     pub integrity: Integrity,
     /// Rows the game plays without, and rows it was played without that are back
     /// (`Snapshot::restore_with`).
@@ -53,9 +53,9 @@ pub struct Loaded {
 /// an edited save still loads, and the caller warns about it. A save whose settings are out of
 /// range, or that was made with other content files, is refused (`load_game_with` can ignore the
 /// second).
-pub fn load_game(path: &Path, content: Content) -> Result<(Game, Integrity), SaveError> {
+pub fn load_game(path: &Path, content: Content) -> Result<(World, Integrity), SaveError> {
     let loaded = load_game_with(path, content, ContentCheck::Strict)?;
-    Ok((loaded.game, loaded.integrity))
+    Ok((loaded.world, loaded.integrity))
 }
 
 /// [`load_game`] with the choice of the content check, and the notes for the player.
@@ -70,7 +70,7 @@ pub fn load_game_with(
     // (`with_fallback`), else from the content the save is loaded into: never from a built-in.
     let fallback = content.settings.default_game();
     let read = |content| Snapshot::from_text(&text).and_then(|s| s.restore_with(content, check));
-    let (game, notes) = match fallback {
+    let (world, notes) = match fallback {
         Some(f) if !f4x_def::settings::has_fallback() => {
             f4x_def::settings::with_fallback(f, || read(content))
         }
@@ -78,7 +78,7 @@ pub fn load_game_with(
     }
     .map_err(SaveError::Load)?;
     Ok(Loaded {
-        game,
+        world,
         integrity: Snapshot::integrity(&text),
         notes,
     })

@@ -6,9 +6,9 @@
 
 use std::path::{Path, PathBuf};
 
-use f4x_core::game::save::Snapshot;
-use f4x_core::game::{Command, Game};
 use f4x_core::player::PlayerId;
+use f4x_core::world::save::Snapshot;
+use f4x_core::world::{Command, World};
 use f4x_def::content::Content;
 use f4x_def::testdir::TestResult;
 use f4x_newgame::setup::{new_game, NewGame};
@@ -21,13 +21,13 @@ fn folder() -> PathBuf {
     Path::new("../../tests/regression").to_path_buf()
 }
 
-fn end_turns(g: &mut Game, n: usize) {
+fn end_turns(w: &mut World, n: usize) {
     for _ in 0..n {
-        g.apply(Command::EndTurn);
+        w.apply(Command::EndTurn);
     }
 }
 
-fn fresh(seed: u64) -> Result<Game, f4x_newgame::error::NewGameError> {
+fn fresh(seed: u64) -> Result<World, f4x_newgame::error::NewGameError> {
     new_game(
         shipped(),
         &NewGame {
@@ -39,40 +39,40 @@ fn fresh(seed: u64) -> Result<Game, f4x_newgame::error::NewGameError> {
 }
 
 /// A game a few turns old: the first ten turns of the AI's opening.
-fn early() -> Result<Game, String> {
-    let mut g = fresh(11)?;
-    end_turns(&mut g, 2);
-    Ok(g)
+fn early() -> Result<World, String> {
+    let mut w = fresh(11)?;
+    end_turns(&mut w, 2);
+    Ok(w)
 }
 
 /// A game in the middle, with the first two wizards at war.
-fn war() -> Result<Game, String> {
-    let mut g = fresh(21)?;
-    end_turns(&mut g, 40);
-    let ids = g.player_ids();
+fn war() -> Result<World, String> {
+    let mut w = fresh(21)?;
+    end_turns(&mut w, 40);
+    let ids = w.player_ids();
     let (a, b) = (ids[0], ids[1]);
-    g.declare_war(a, b);
-    Ok(g)
+    w.declare_war(a, b);
+    Ok(w)
 }
 
 /// A game in which the first wizard keeps three global enchantments going.
-fn enchanted() -> Result<Game, String> {
-    let mut g = fresh(31)?;
-    let me = g.player_ids()[0];
-    g.treasury_mut(me).ok_or("no treasury")?.mana = f4x_def::half_int::HalfInt::from_int(30_000);
+fn enchanted() -> Result<World, String> {
+    let mut w = fresh(31)?;
+    let me = w.player_ids()[0];
+    w.treasury_mut(me).ok_or("no treasury")?.mana = f4x_def::half_int::HalfInt::from_int(30_000);
     for id in [
         57,  /* wind_mastery */
         158, /* crusade */
         157, /* tranquility */
     ] {
-        let spell = g
+        let spell = w
             .content()
             .rules
             .spells
             .id_numbered(id)
             .ok_or_else(|| format!("no spell {id}"))?;
-        g.cheat_learn_spell(me, spell);
-        let events = g.apply(Command::CastSpell {
+        w.cheat_learn_spell(me, spell);
+        let events = w.apply(Command::CastSpell {
             player: me,
             spell,
             target: None,
@@ -82,15 +82,15 @@ fn enchanted() -> Result<Game, String> {
             events.is_empty()
                 || !events
                     .iter()
-                    .any(|e| matches!(e, f4x_core::game::Event::Rejected(_))),
+                    .any(|e| matches!(e, f4x_core::world::Event::Rejected(_))),
             "{events:?}"
         );
         // The cast is paid over the turns the wizard's skill needs.
         for _ in 0..80 {
-            if g.global_instance(me, spell).is_some() {
+            if w.global_instance(me, spell).is_some() {
                 break;
             }
-            end_turns(&mut g, 1);
+            end_turns(&mut w, 1);
         }
     }
     for id in [
@@ -98,25 +98,25 @@ fn enchanted() -> Result<Game, String> {
         158, /* crusade */
         157, /* tranquility */
     ] {
-        let spell = g.content().rules.spells.id_numbered(id).ok_or("no spell")?;
-        if g.global_instance(me, spell).is_none() {
+        let spell = w.content().rules.spells.id_numbered(id).ok_or("no spell")?;
+        if w.global_instance(me, spell).is_none() {
             return Err(format!("{id} is not in force after the casts"));
         }
     }
-    Ok(g)
+    Ok(w)
 }
 
 /// The commands each scenario plays on its prepared save.
-fn play(name: &str, g: &mut Game) {
+fn play(name: &str, w: &mut World) {
     match name {
-        "early" => end_turns(g, 15),
-        "war" => end_turns(g, 15),
-        _ => end_turns(g, 10),
+        "early" => end_turns(w, 15),
+        "war" => end_turns(w, 15),
+        _ => end_turns(w, 10),
     }
 }
 
-fn money(g: &Game, id: PlayerId) -> String {
-    g.player(id).map_or_else(String::new, |p| {
+fn money(w: &World, id: PlayerId) -> String {
+    w.player(id).map_or_else(String::new, |p| {
         let t = p.treasury();
         format!("gold {} mana {}", t.gold, t.mana)
     })
@@ -127,8 +127,8 @@ fn money(g: &Game, id: PlayerId) -> String {
 /// and squares, spells, gold and mana), then how many units there are of each kind. A change shows
 /// as the line that moved, so the diff of a target says what a change did (the save text itself
 /// is not compared: a new field in the format is not a change of a rule).
-fn digest(g: &Game) -> Result<String, Box<dyn std::error::Error>> {
-    let snap = g.snapshot();
+fn digest(w: &World) -> Result<String, Box<dyn std::error::Error>> {
+    let snap = w.snapshot();
     let mut out = format!(
         "turn {}\ndraws {}\ncities {}\nunits {}\nspells {}\nitems {}\n",
         snap.turn,
@@ -138,40 +138,40 @@ fn digest(g: &Game) -> Result<String, Box<dyn std::error::Error>> {
         snap.spells.len(),
         snap.items.len()
     );
-    let buildings: Vec<_> = g
+    let buildings: Vec<_> = w
         .content()
         .rules
         .buildings
         .iter()
         .map(|(id, _)| id)
         .collect();
-    for id in g.player_ids() {
-        let cities = g.economy().cities_of(id);
+    for id in w.player_ids() {
+        let cities = w.economy().cities_of(id);
         let citizens: u32 = cities
             .iter()
-            .map(|&(c, _)| g.economy().city_economy(c).map_or(0, |e| e.figures))
+            .map(|&(c, _)| w.economy().city_economy(c).map_or(0, |e| e.figures))
             .sum();
         let built: usize = cities
             .iter()
             .map(|&(c, _)| {
                 buildings
                     .iter()
-                    .filter(|&&b| g.economy().city_has_building(c, b))
+                    .filter(|&&b| w.economy().city_has_building(c, b))
                     .count()
             })
             .sum();
-        let units = g.units().player_units(id);
+        let units = w.units().player_units(id);
         let (mut hits, mut max, mut x, mut y) = (0, 0, 0, 0);
         for &u in &units {
-            let (h, m) = g.units().unit_hits(u);
+            let (h, m) = w.units().unit_hits(u);
             hits += h;
             max += m;
-            if let Some(p) = g.units().unit_position(u) {
+            if let Some(p) = w.units().unit_position(u) {
                 x += p.x;
                 y += p.y;
             }
         }
-        let known = g.wizard(id).map_or(0, |w| w.known().len());
+        let known = w.wizard(id).map_or(0, |wizard| wizard.known().len());
         out.push_str(&format!(
             "player {} cities {} citizens {} buildings {} units {} hits {}/{} squares x {} y {} spells {} {}\n",
             id.0,
@@ -184,13 +184,13 @@ fn digest(g: &Game) -> Result<String, Box<dyn std::error::Error>> {
             x,
             y,
             known,
-            money(g, id)
+            money(w, id)
         ));
     }
     let mut kinds: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
-    for id in g.player_ids() {
-        for u in g.units().player_units(id) {
-            if let Some(d) = g.units().unit_def(u) {
+    for id in w.player_ids() {
+        for u in w.units().player_units(id) {
+            if let Some(d) = w.units().unit_def(u) {
                 *kinds.entry(d.id.clone()).or_default() += 1;
             }
         }
@@ -204,7 +204,7 @@ fn refresh() -> Option<String> {
     std::env::var("F4X_REFRESH_REGRESSION").ok()
 }
 
-fn check(name: &str, build: fn() -> Result<Game, String>) -> TestResult {
+fn check(name: &str, build: fn() -> Result<World, String>) -> TestResult {
     let saves = folder();
     let save = saves.join(format!("{name}.save"));
     let target = saves.join(format!("{name}.target"));
@@ -219,9 +219,9 @@ fn check(name: &str, build: fn() -> Result<Game, String>) -> TestResult {
             save.display()
         )
     })?;
-    let mut g = Snapshot::from_text(&text)?.restore(shipped().clone())?;
-    play(name, &mut g);
-    let got = digest(&g)?;
+    let mut w = Snapshot::from_text(&text)?.restore(shipped().clone())?;
+    play(name, &mut w);
+    let got = digest(&w)?;
     if refresh.is_some() {
         std::fs::write(&target, &got)?;
         return Ok(());

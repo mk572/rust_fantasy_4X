@@ -1,15 +1,15 @@
 //! What a wizard earns and owes each turn, worked out over a small read-only view of the world
 //! ([`IncomeView`]): the power base (cities, fortress, volcanoes, blighted squares, nodes), the research the cities
-//! make, the split of the power, the research income and the mana upkeep. `Game`
-//! gives the view through [`GameIncome`]; tests give a fake one, so none of this needs a world.
+//! make, the split of the power, the research income and the mana upkeep. `World`
+//! gives the view through [`WorldIncome`]; tests give a fake one, so none of this needs a world.
 //!
 //! Tests: in wizard/magic_income/tests.rs.
 
-use crate::game::Game;
 use crate::map::Plane;
 use crate::player::PlayerId;
 use crate::wizard::entity::Wizard;
 use crate::wizard::magic::PowerShares;
+use crate::world::World;
 use f4x_def::content::Content;
 use f4x_def::half_int::HalfInt;
 
@@ -118,11 +118,11 @@ pub(crate) fn income(view: &impl IncomeView, player: PlayerId) -> Income {
 }
 
 /// [`IncomeView`] over a whole game.
-pub(crate) struct GameIncome<'a>(pub &'a Game);
+pub(crate) struct WorldIncome<'a>(pub &'a World);
 
-impl IncomeView for GameIncome<'_> {
+impl IncomeView for WorldIncome<'_> {
     fn node_percent(&self, player: PlayerId) -> i32 {
-        crate::player::component::<crate::player::Bonus>(&self.0.world, player)
+        crate::player::component::<crate::player::Bonus>(&self.0.ecs, player)
             .map_or(100, |b| b.mana)
     }
 
@@ -156,7 +156,7 @@ impl IncomeView for GameIncome<'_> {
     fn fortress_plane(&self, player: PlayerId) -> Option<Plane> {
         let city = self.0.economy().fortress_city(player)?;
         self.0
-            .world
+            .ecs
             .get::<&crate::map::Position>(city)
             .ok()
             .map(|p| p.plane)
@@ -183,15 +183,15 @@ impl IncomeView for GameIncome<'_> {
     }
 }
 
-impl Game {
+impl World {
     /// What a wizard owes in mana each turn: `income(player).mana_upkeep`, without working out
     /// the income (the battle AI asks at every command).
     pub fn mana_upkeep(&self, player: PlayerId) -> HalfInt {
-        mana_upkeep(&GameIncome(self), player)
+        mana_upkeep(&WorldIncome(self), player)
     }
 
     /// What a wizard earns and owes (see [`Income`]).
     pub fn income(&self, player: PlayerId) -> Income {
-        income(&GameIncome(self), player)
+        income(&WorldIncome(self), player)
     }
 }

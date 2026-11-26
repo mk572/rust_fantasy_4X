@@ -22,10 +22,10 @@
 pub use f4x_battle::battle::info::*;
 
 use super::Battle;
-use crate::game::Game;
 use crate::player::PlayerId;
+use crate::world::World;
 
-impl Game {
+impl World {
     /// The combat information window for `viewer`, a wizard in the battle being fought.
     pub fn battle_info(&self, viewer: PlayerId) -> Option<BattleInfo> {
         let battle: &Battle = self.battle()?;

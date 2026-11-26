@@ -5,8 +5,8 @@
 //!
 //! Tests: in spell/wizard/tests.rs.
 
-use crate::game::rng::GameRng;
-use crate::game::{Event, Game};
+use crate::world::rng::GameRng;
+use crate::world::{Event, World};
 use f4x_battle::resistance::resistance_failure;
 use f4x_def::rules::realm::Realm;
 
@@ -19,10 +19,10 @@ pub enum Stasis {
     Lingering,
 }
 
-impl Game {
+impl World {
     /// Whether the unit is held in stasis.
     pub fn unit_in_stasis(&self, unit: hecs::Entity) -> bool {
-        self.world.get::<&Stasis>(unit).is_ok()
+        self.ecs.get::<&Stasis>(unit).is_ok()
     }
 
     /// Stasis on one unit of the chosen square: enemy units only, and not those that Magic
@@ -46,7 +46,7 @@ impl Game {
     /// Call before the moves are refilled.
     pub(crate) fn process_stasis(&mut self, player: crate::player::PlayerId) -> Vec<Event> {
         let mut held: Vec<(hecs::Entity, Stasis)> = self
-            .world
+            .ecs
             .query::<&Stasis>()
             .iter()
             .map(|(e, s)| (e, *s))

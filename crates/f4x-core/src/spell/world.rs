@@ -7,21 +7,21 @@
 use crate::rules::damage_type::DamageType;
 use rand::SeedableRng;
 
-use crate::game::rng::GameRng;
 use crate::map::{Plane, Position};
 use crate::player::PlayerId;
+use crate::world::rng::GameRng;
 use f4x_def::rules::attack_nature::AttackNature;
 use f4x_def::rules::realm::Realm;
 
-use crate::game::{Event, Game};
 use crate::rules::effects::DamageTraits;
 use crate::unit::Hurt;
+use crate::world::{Event, World};
 
-impl Game {
+impl World {
     /// One turn of the world-scale enchantments every wizard keeps going.
     pub(crate) fn process_world_enchantments(&mut self) -> Vec<Event> {
         let mut events = Vec::new();
-        let players: Vec<PlayerId> = crate::player::ids(&self.world);
+        let players: Vec<PlayerId> = crate::player::ids(&self.ecs);
         for player in players {
             if self.has_global_effect(
                 player,
@@ -70,7 +70,7 @@ impl Game {
         player: PlayerId,
         spare_cities: bool,
         sea_percent: u32,
-        fit: impl Fn(&Game, Position) -> bool,
+        fit: impl Fn(&World, Position) -> bool,
     ) -> Vec<Position> {
         let Some((w, h)) = self.map.as_ref().map(|m| (m.width(), m.height())) else {
             return Vec::new();
@@ -110,7 +110,7 @@ impl Game {
     /// Great Wasting: any land squares, the caster's own cities' too, are corrupted (the caster
     /// is proof against it, see `city/economy.rs`).
     fn great_wasting(&mut self, player: PlayerId) -> Vec<Event> {
-        let squares = self.pick_squares(player, false, 100, |g, at| g.check_corrupt(at).is_ok());
+        let squares = self.pick_squares(player, false, 100, |w, at| w.check_corrupt(at).is_ok());
         squares
             .into_iter()
             .flat_map(|at| self.corrupt(at))
@@ -124,7 +124,7 @@ impl Game {
             player,
             false,
             self.content.rules.config.spell_effects.sea_percent,
-            |g, at| g.can_armageddon_volcano(at),
+            |w, at| w.can_armageddon_volcano(at),
         );
         let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(self.next_u64() ^ 0xA2E6);
         squares
@@ -200,7 +200,7 @@ impl Game {
         city: hecs::Entity,
         rng: &mut GameRng,
     ) -> (u32, u32, u32) {
-        let Ok(at) = self.world.get::<&Position>(city).map(|p| *p) else {
+        let Ok(at) = self.ecs.get::<&Position>(city).map(|p| *p) else {
             return (0, 0, 0);
         };
         let width = self.map.as_ref().map_or(1, |m| m.width()) as i32;
@@ -250,10 +250,7 @@ impl Game {
             }
         }
         if citizens_lost > 0 {
-            if let Ok(mut pop) = self
-                .world
-                .get::<&mut crate::city::economy::Population>(city)
-            {
+            if let Ok(mut pop) = self.ecs.get::<&mut crate::city::economy::Population>(city) {
                 pop.figures -= citizens_lost;
             }
         }
@@ -261,7 +258,7 @@ impl Game {
     }
 
     fn buildings_of(&self, city: hecs::Entity) -> Vec<crate::rules::BuildingId> {
-        self.world
+        self.ecs
             .get::<&crate::city::economy::Buildings>(city)
             .map(|b| b.0.clone())
             .unwrap_or_default()
@@ -270,7 +267,7 @@ impl Game {
     /// Damage that ignores defence: the unit is destroyed if it takes all its hit points.
     fn hurt_directly(&mut self, unit: hecs::Entity, amount: u32) -> bool {
         let (left, _) = self.units().unit_hits(unit);
-        let hurt = self.world.get::<&Hurt>(unit).map_or(0, |h| h.0);
+        let hurt = self.ecs.get::<&Hurt>(unit).map_or(0, |h| h.0);
         let dealt = amount.min(left);
         self.put(unit, Hurt(hurt + dealt));
         if dealt >= left {

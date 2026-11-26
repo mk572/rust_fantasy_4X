@@ -13,9 +13,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, PoisonError};
 use std::time::Instant;
 
-use f4x_core::game::endgame::GameOver;
-use f4x_core::game::Game;
 use f4x_core::player::PlayerId;
+use f4x_core::world::endgame::GameOver;
+use f4x_core::world::World;
 use f4x_core::world_event::EventKind;
 use f4x_def::content::Content;
 use f4x_newgame::setup::{new_game, NewGame};
@@ -187,7 +187,7 @@ impl Options {
             }
             let text =
                 std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-            let saved = f4x_core::game::save::Snapshot::from_text(&text)
+            let saved = f4x_core::world::save::Snapshot::from_text(&text)
                 .map_err(|e| format!("{}: {e}", path.display()))?;
             (o.first, o.last) = (saved.seed, saved.seed);
         }
@@ -387,7 +387,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
 }
 
 /// Run `work` on every item, `jobs` at a time, and return the results in the order of the items
-/// (the first error, if any). Each game builds its own `Game` on its thread, so nothing of the
+/// (the first error, if any). Each game builds its own `World` on its thread, so nothing of the
 /// game itself crosses threads.
 pub fn in_parallel<T: Sync, R: Send>(
     jobs: usize,
@@ -427,17 +427,17 @@ pub fn game(
     refused_out: &RefusedLog,
 ) -> Result<GameResult, String> {
     let players = opts.players;
-    let mut game = match &opts.from {
+    let mut world = match &opts.from {
         Some(path) => {
-            let (game, integrity) = f4x_core::game::save::load_game(path, content.clone())
+            let (world, integrity) = f4x_core::world::save::load_game(path, content.clone())
                 .map_err(|e| format!("{}: {e}", path.display()))?;
-            if integrity != f4x_core::game::save::Integrity::Intact {
+            if integrity != f4x_core::world::save::Integrity::Intact {
                 eprintln!("{}: was edited after it was saved", path.display());
             }
-            let seated = game
+            let seated = world
                 .player_ids()
                 .into_iter()
-                .filter(|&p| game.is_wizard(p))
+                .filter(|&p| world.is_wizard(p))
                 .count();
             if seated != roster.versions.len() {
                 return Err(format!(
@@ -445,7 +445,7 @@ pub fn game(
                     path.display()
                 ));
             }
-            game
+            world
         }
         None => {
             let mut spec = NewGame {
@@ -479,9 +479,9 @@ pub fn game(
             new_game(content, &spec)?
         }
     };
-    game.set_undo(false);
+    world.set_undo(false);
     // A game that was loaded has its own seed: the one asked for here is only the default range.
-    let seed = game.seed();
+    let seed = world.seed();
     let tag = if label.is_empty() {
         format!("seed {seed}")
     } else {
@@ -491,7 +491,7 @@ pub fn game(
         #[cfg(feature = "learned")]
         for k in 0..players {
             let brain = f4x_learn::brain::LearnedBrain::load(content, path)?;
-            game.set_battle_brain(PlayerId(k), Some(Box::new(brain)));
+            world.set_battle_brain(PlayerId(k), Some(Box::new(brain)));
         }
         #[cfg(not(feature = "learned"))]
         return Err(format!(
@@ -520,7 +520,7 @@ pub fn game(
     );
     for ai in &mut ais {
         // A game that was saved carries what its AIs had in mind.
-        ai.recall(&game);
+        ai.recall(&world);
         ai.record_refusals(
             refused_out
                 .lock()
@@ -542,14 +542,14 @@ pub fn game(
     };
     let started = Instant::now();
     let mut last_line = started;
-    let mut tally = Tally::new(&game);
+    let mut tally = Tally::new(&world);
     let mut stood = Stood::default();
     let mut log = Log {
         tag: tag.clone(),
         live: opts.every > 0 || opts.trace > 0 || opts.detail,
         lines: Vec::new(),
     };
-    for line in profile_lines(&game) {
+    for line in profile_lines(&world) {
         logln!(log, "{line}");
     }
     // Rounds that ended with a battle still open (nothing may be: every battle is fought out
@@ -560,11 +560,12 @@ pub fn game(
     // The time of each phase since the last `--every` line, in order: one per wizard, the
     // neutrals, the rest (turn changes, other players' turn ends).
     let mut phases = vec![std::time::Duration::ZERO; usize::from(players) + 2];
-    while game.turn <= opts.turns && game.game_over.is_none() {
-        if opts.grant_mastery == Some(game.turn) {
-            grant_mastery_to_all(&mut game);
+    while world.turn <= opts.turns && world.game_over.is_none() {
+        if opts.grant_mastery == Some(world.turn) {
+            grant_mastery_to_all(&mut world);
         }
-        let (turns, rest, times) = contestant::play_round_timed(&mut game, &mut ais, &mut neutrals);
+        let (turns, rest, times) =
+            contestant::play_round_timed(&mut world, &mut ais, &mut neutrals);
         for (player, d) in &times.players {
             if let Some(slot) = phases.get_mut(usize::from(player.0)) {
                 *slot += *d;
@@ -573,17 +574,17 @@ pub fn game(
         phases[usize::from(players)] += times.neutrals;
         phases[usize::from(players) + 1] += times.rest();
         for (player, events) in &turns {
-            tally.record(&game, Some(*player), events);
+            tally.record(&world, Some(*player), events);
         }
-        tally.record(&game, None, &rest);
-        tally.sample_mana(&game);
-        watch.observe(&game);
-        if game.in_battle() {
+        tally.record(&world, None, &rest);
+        tally.sample_mana(&world);
+        watch.observe(&world);
+        if world.in_battle() {
             open_rounds += 1;
-            first_open.get_or_insert(game.turn);
+            first_open.get_or_insert(world.turn);
         }
-        if game.turn <= opts.trace && opts.trace > 0 {
-            trace_turn(&game, &ais, &turns, &rest);
+        if world.turn <= opts.trace && opts.trace > 0 {
+            trace_turn(&world, &ais, &turns, &rest);
         }
         if let Some(out) = refused_out
             .lock()
@@ -596,23 +597,23 @@ pub fn game(
                 .chain(neutrals.take_refusals());
             {
                 for r in all {
-                    tally.note_refused_cast(&game, &r.command, &r.reason);
+                    tally.note_refused_cast(&world, &r.command, &r.reason);
                     let stood = stood.count(&r);
                     writeln!(out, "{}", refused_line(seed, &r, stood))
                         .map_err(|e| e.to_string())?;
                 }
             }
         }
-        if opts.every > 0 && game.turn % opts.every == 0 {
+        if opts.every > 0 && world.turn % opts.every == 0 {
             // The time since the last line shows where a game slows down.
             let now = Instant::now();
             let per_turn = now.duration_since(last_line).as_secs_f32() * 1000.0 / opts.every as f32;
             last_line = now;
             println!(
                 "{tag} turn {}: {} ({} entities) [{:.1}s, {per_turn:.0} ms a turn]",
-                game.turn,
-                status(&game),
-                game.entity_count(),
+                world.turn,
+                status(&world),
+                world.entity_count(),
                 started.elapsed().as_secs_f32(),
             );
             let ms = |d: &std::time::Duration| d.as_secs_f32() * 1000.0 / opts.every as f32;
@@ -631,13 +632,13 @@ pub fn game(
                 .iter_mut()
                 .for_each(|d| *d = std::time::Duration::ZERO);
             if opts.detail {
-                for line in detail_lines(&game, &ais) {
+                for line in detail_lines(&world, &ais) {
                     println!("    {line}");
                 }
             }
         }
         if let Some(n) = opts.snapshots_every.filter(|&n| n > 0) {
-            if game.turn % n == 0 {
+            if world.turn % n == 0 {
                 // The plans of the AIs go into the save, so it is a full game save.
                 let plans: Vec<_> = ais
                     .iter()
@@ -645,21 +646,21 @@ pub fn game(
                     .chain(neutrals.plans())
                     .collect();
                 if !plans.is_empty() {
-                    game.set_plans(plans);
+                    world.set_plans(plans);
                 }
-                fingerprints.push((game.turn, save_snapshot(&game, snapshot_dir.as_deref())?));
+                fingerprints.push((world.turn, save_snapshot(&world, snapshot_dir.as_deref())?));
             }
         }
     }
     if opts.detail {
-        city_lines(&game);
+        city_lines(&world);
     }
-    let outcome = match game.game_over {
+    let outcome = match world.game_over {
         Some(o) => format!(
             "won by player {} ({:?}) on turn {}",
             o.winner.0, o.kind, o.turn
         ),
-        None => format!("no winner after {} turns", game.turn - 1),
+        None => format!("no winner after {} turns", world.turn - 1),
     };
     let open = match first_open {
         Some(turn) => {
@@ -671,7 +672,7 @@ pub fn game(
     let seconds = started.elapsed().as_secs_f32();
     logln!(log,
         "{outcome}; {}; {} battles, {} cities taken, {} wars declared, {} wizards met, {} diplomatic actions started, {} refused orders ({} by a treaty){open}; {seconds:.1}s",
-        status(&game),
+        status(&world),
         total.battles_won,
         total.cities_captured,
         total.wars_declared,
@@ -700,23 +701,23 @@ pub fn game(
             .collect::<Vec<_>>()
             .join(", ")
     );
-    for line in magic_lines(&game) {
+    for line in magic_lines(&world) {
         logln!(log, "{line}");
     }
-    for line in empire_lines(&game) {
+    for line in empire_lines(&world) {
         logln!(log, "{line}");
     }
-    if game.game_over.is_none() {
-        for line in scout_lines(&game) {
+    if world.game_over.is_none() {
+        for line in scout_lines(&world) {
             logln!(log, "{line}");
         }
-        for line in reach_lines(&game) {
+        for line in reach_lines(&world) {
             logln!(log, "{line}");
         }
     }
-    logln!(log, "defeats: {}", defeat_line(&game, &tally));
+    logln!(log, "defeats: {}", defeat_line(&world, &tally));
     logln!(log, "far captures: {}", far_capture_line(&tally));
-    for line in undefended_lines(&game, &tally) {
+    for line in undefended_lines(&world, &tally) {
         logln!(log, "{line}");
     }
     logln!(log, "wars: {}", war_line(&tally));
@@ -726,12 +727,12 @@ pub fn game(
             "attacks lost on a neutral city or lair: p{p} {count} at {place}"
         );
     }
-    for line in unit_lines(&game) {
+    for line in unit_lines(&world) {
         logln!(log, "{line}");
     }
     // Every counter of every wizard, one line each, for the report script (`scripts/soak_report.py`).
-    for p in game.player_ids() {
-        if game.wizard(p).is_none() {
+    for p in world.player_ids() {
+        if world.wizard(p).is_none() {
             continue;
         }
         logln!(
@@ -750,7 +751,7 @@ pub fn game(
     // The same for each race's neutral player, without what only a wizard has. The prefix keeps
     // them apart from the wizards for the report script.
     // (a race whose cities are all gone has no player any more, but its counts stay)
-    let races = game.content().rules.races.iter().count();
+    let races = world.content().rules.races.iter().count();
     for race in 0..races {
         let race = f4x_core::rules::RaceId::new(race as u16);
         let p = f4x_core::player::race_player::race_player_id(race);
@@ -761,7 +762,7 @@ pub fn game(
             log,
             "neutral stats p{} ({}): {}",
             p.0,
-            game.content().rules.races.get(race).id,
+            world.content().rules.races.get(race).id,
             tally
                 .of(p)
                 .neutral_rows()
@@ -774,9 +775,10 @@ pub fn game(
     logln!(
         log,
         "production rushed with gold (items, gold): {}",
-        game.player_ids()
+        world
+            .player_ids()
             .into_iter()
-            .filter(|&p| game.wizard(p).is_some())
+            .filter(|&p| world.wizard(p).is_some())
             .map(|p| {
                 let m = tally.of(p);
                 format!("p{} {} ({}g)", p.0, m.production_rushed, m.gold_rushed)
@@ -787,9 +789,10 @@ pub fn game(
     logln!(
         log,
         "research stalled turns: {}",
-        game.player_ids()
+        world
+            .player_ids()
             .into_iter()
-            .filter(|&p| game.wizard(p).is_some())
+            .filter(|&p| world.wizard(p).is_some())
             .map(|p| format!("p{} {}", p.0, tally.of(p).research_stalled))
             .collect::<Vec<_>>()
             .join(", ")
@@ -857,9 +860,9 @@ pub fn game(
         "wanted a spell it did not know (kind of spell, turns): {}",
         unmet_line(tally.unmet_wants())
     );
-    tally.note_known(&game);
-    logln!(log, "mana {}", mana_line(&game, &tally));
-    for line in neutral_lines(&game, &tally) {
+    tally.note_known(&world);
+    logln!(log, "mana {}", mana_line(&world, &tally));
+    for line in neutral_lines(&world, &tally) {
         logln!(log, "{line}");
     }
     logln!(log, "casts: {}", casts_line(tally.casts()));
@@ -879,7 +882,7 @@ pub fn game(
     logln!(
         log,
         "spell table (wizards that could research, learned, knew, cast; casts; per knower):\n{}",
-        spell_table(&game.content().rules, tally.spell_rows())
+        spell_table(&world.content().rules, tally.spell_rows())
     );
     logln!(
         log,
@@ -887,16 +890,16 @@ pub fn game(
         failure_lines(tally.cast_failures())
     );
     if opts.events {
-        logln!(log, "{}", watch.summary(game.turn.saturating_sub(1)));
+        logln!(log, "{}", watch.summary(world.turn.saturating_sub(1)));
     }
-    let standing = game
+    let standing = world
         .player_ids()
         .into_iter()
-        .filter(|&p| game.is_wizard(p))
-        .map(|p| (p, Standing::of(&game, p)))
+        .filter(|&p| world.is_wizard(p))
+        .map(|p| (p, Standing::of(&world, p)))
         .collect();
     Ok(GameResult {
-        over: game.game_over,
+        over: world.game_over,
         tally,
         standing,
         fingerprints,
@@ -917,8 +920,8 @@ struct EventWatch {
 
 impl EventWatch {
     /// Look at the table after a round.
-    fn observe(&mut self, game: &Game) {
-        let events = game.events();
+    fn observe(&mut self, world: &World) {
+        let events = world.events();
         if events.last_event() != self.last_draw {
             self.last_draw = events.last_event();
             self.draws += 1;
@@ -976,62 +979,62 @@ impl EventWatch {
 
 /// Fingerprint the saved game (without its checksum line) and, when `dir` is given, write it as
 /// `tNNNN.f4x`.
-fn save_snapshot(game: &Game, dir: Option<&Path>) -> Result<u64, String> {
-    let text = game.snapshot().to_text().map_err(|e| e.to_string())?;
+fn save_snapshot(world: &World, dir: Option<&Path>) -> Result<u64, String> {
+    let text = world.snapshot().to_text().map_err(|e| e.to_string())?;
     let mut hasher = DefaultHasher::new();
     text.split_once('\n')
         .map_or(&*text, |(_, body)| body)
         .hash(&mut hasher);
     if let Some(dir) = dir {
-        let path = dir.join(format!("t{:04}.f4x", game.turn));
+        let path = dir.join(format!("t{:04}.f4x", world.turn));
         std::fs::write(&path, text).map_err(|e| format!("{}: {e}", path.display()))?;
     }
     Ok(hasher.finish())
 }
 
 fn trace_turn(
-    game: &Game,
+    world: &World,
     ais: &[Box<dyn Contestant>],
-    turns: &[(PlayerId, Vec<f4x_core::game::Event>)],
-    rest: &[f4x_core::game::Event],
+    turns: &[(PlayerId, Vec<f4x_core::world::Event>)],
+    rest: &[f4x_core::world::Event],
 ) {
     for ai in ais {
-        println!("  [t{}] ai {} {}", game.turn, ai.player().0, ai.describe());
+        println!("  [t{}] ai {} {}", world.turn, ai.player().0, ai.describe());
     }
-    for (c, city, _) in game.economy().cities() {
-        let prod = game.economy().city_production(c);
-        let item = prod.item.map(|i| f4x_console::describe::item(game, i));
-        let eco = game.economy().city_economy(c);
+    for (c, city, _) in world.economy().cities() {
+        let prod = world.economy().city_production(c);
+        let item = prod.item.map(|i| f4x_console::describe::item(world, i));
+        let eco = world.economy().city_economy(c);
         println!(
             "  [t{}] {} (p{}): {:?} {}/{} eco {:?}",
-            game.turn,
+            world.turn,
             city.name,
             city.owner.0,
             item,
             prod.progress,
-            prod.item.map_or(0, |i| game.economy().item_cost(c, i)),
+            prod.item.map_or(0, |i| world.economy().item_cost(c, i)),
             eco.map(|e| (e.figures, e.farmers, e.production, e.food))
         );
     }
     for e in turns.iter().flat_map(|(_, events)| events).chain(rest) {
         println!(
             "  [t{}] {}",
-            game.turn,
-            f4x_console::describe::event(game, e)
+            world.turn,
+            f4x_console::describe::event(world, e)
         );
     }
 }
 
 /// Each city of a wizard with who has explored it (the soak's `--detail` lines).
-fn city_lines(game: &Game) {
-    for (c, city, pos) in game.economy().cities() {
-        if game.is_neutral_player(city.owner) {
+fn city_lines(world: &World) {
+    for (c, city, pos) in world.economy().cities() {
+        if world.is_neutral_player(city.owner) {
             continue;
         }
-        let seen_by: Vec<String> = game
+        let seen_by: Vec<String> = world
             .player_ids()
             .into_iter()
-            .filter(|&p| p != city.owner && game.is_explored(p, pos))
+            .filter(|&p| p != city.owner && world.is_explored(p, pos))
             .map(|p| format!("p{}", p.0))
             .collect();
         println!(
@@ -1041,7 +1044,7 @@ fn city_lines(game: &Game) {
             pos.plane,
             pos.x,
             pos.y,
-            game.economy().city_economy(c).map_or(0, |e| e.figures),
+            world.economy().city_economy(c).map_or(0, |e| e.figures),
             seen_by.join(" ")
         );
     }
@@ -1049,12 +1052,12 @@ fn city_lines(game: &Game) {
 
 /// For a game with no winner: what each wizard with cities could do about each rival with cities, so a
 /// stall reads at a glance. `p2>p0 War: sees 4 of 13 cities, rival on Myrror 13, own Arcanus 33`.
-fn reach_lines(game: &Game) -> Vec<String> {
-    let cities: Vec<(PlayerId, f4x_core::map::Position)> = game
+fn reach_lines(world: &World) -> Vec<String> {
+    let cities: Vec<(PlayerId, f4x_core::map::Position)> = world
         .economy()
         .cities()
         .into_iter()
-        .filter(|(_, city, _)| !game.is_neutral_player(city.owner))
+        .filter(|(_, city, _)| !world.is_neutral_player(city.owner))
         .map(|(_, city, pos)| (city.owner, pos))
         .collect();
     let planes = |who: PlayerId| {
@@ -1070,7 +1073,7 @@ fn reach_lines(game: &Game) -> Vec<String> {
         }
         names.join(" ")
     };
-    let owners: Vec<PlayerId> = game
+    let owners: Vec<PlayerId> = world
         .player_ids()
         .into_iter()
         .filter(|&p| cities.iter().any(|(o, _)| *o == p))
@@ -1084,13 +1087,13 @@ fn reach_lines(game: &Game) -> Vec<String> {
             let theirs: Vec<_> = cities.iter().filter(|(o, _)| *o == b).collect();
             let seen = theirs
                 .iter()
-                .filter(|(_, p)| game.is_explored(a, *p))
+                .filter(|(_, p)| world.is_explored(a, *p))
                 .count();
             lines.push(format!(
                 "reach: p{}>p{} {:?}: sees {} of {} cities (rival {}; own {})",
                 a.0,
                 b.0,
-                game.treaty(a, b),
+                world.treaty(a, b),
                 seen,
                 theirs.len(),
                 planes(b),
@@ -1104,15 +1107,15 @@ fn reach_lines(game: &Game) -> Vec<String> {
 /// Per wizard with cities: how much of each plane it has explored, how many of its units stand on
 /// each, and its towers (seen, guarded, open and whether any of its units could walk to the open
 /// ones). Why a wizard does or does not find a rival on the other plane (tasks 435, 502).
-fn scout_lines(game: &Game) -> Vec<String> {
+fn scout_lines(world: &World) -> Vec<String> {
     use f4x_core::map::Plane;
     use f4x_core::player::view::PlayerView;
     let mut lines = Vec::new();
-    for p in game.player_ids() {
-        if game.wizard(p).is_none() || game.is_neutral_player(p) {
+    for p in world.player_ids() {
+        if world.wizard(p).is_none() || world.is_neutral_player(p) {
             continue;
         }
-        let view = PlayerView::new(game, p);
+        let view = PlayerView::new(world, p);
         if view.my_cities().is_empty() {
             continue;
         }
@@ -1165,8 +1168,8 @@ fn scout_lines(game: &Game) -> Vec<String> {
 /// Per wizard with cities: the power before the split, the mana the split gives, the upkeep of its
 /// lasting spells and creatures, the pool, and how many of its cities hold each of the four
 /// buildings that give mana (shrine, temple, parthenon, cathedral). Where the mana goes.
-fn magic_lines(game: &Game) -> Vec<String> {
-    let rules = &game.content().rules;
+fn magic_lines(world: &World) -> Vec<String> {
+    let rules = &world.content().rules;
     let ids: Vec<_> = ["shrine", "temple", "parthenon", "cathedral"]
         .iter()
         .filter_map(|name| {
@@ -1178,11 +1181,11 @@ fn magic_lines(game: &Game) -> Vec<String> {
         })
         .collect();
     let mut lines = Vec::new();
-    for p in game.player_ids() {
-        if game.wizard(p).is_none() || game.is_neutral_player(p) {
+    for p in world.player_ids() {
+        if world.wizard(p).is_none() || world.is_neutral_player(p) {
             continue;
         }
-        let cities: Vec<_> = game
+        let cities: Vec<_> = world
             .economy()
             .cities_of(p)
             .into_iter()
@@ -1191,13 +1194,13 @@ fn magic_lines(game: &Game) -> Vec<String> {
         if cities.is_empty() {
             continue;
         }
-        let income = game.income(p);
+        let income = world.income(p);
         let built: Vec<String> = ids
             .iter()
             .map(|&b| {
                 cities
                     .iter()
-                    .filter(|&&c| game.economy().city_has_building(c, b))
+                    .filter(|&&c| world.economy().city_has_building(c, b))
                     .count()
                     .to_string()
             })
@@ -1208,7 +1211,7 @@ fn magic_lines(game: &Game) -> Vec<String> {
             income.power_base.as_f32(),
             income.split.mana.as_f32(),
             income.mana_upkeep.as_f32(),
-            f4x_core::player::view::PlayerView::new(game, p)
+            f4x_core::player::view::PlayerView::new(world, p)
                 .treasury()
                 .mana
                 .as_f32(),
@@ -1221,15 +1224,15 @@ fn magic_lines(game: &Game) -> Vec<String> {
 
 /// Per wizard with cities: how many cities, the average population of a city (figures) and the
 /// average and total number of buildings (every building a city has, replaced ones included).
-fn empire_lines(game: &Game) -> Vec<String> {
-    let rules = &game.content().rules;
+fn empire_lines(world: &World) -> Vec<String> {
+    let rules = &world.content().rules;
     let all: Vec<_> = rules.buildings.iter().map(|(id, _)| id).collect();
     let mut lines = Vec::new();
-    for p in game.player_ids() {
-        if game.wizard(p).is_none() || game.is_neutral_player(p) {
+    for p in world.player_ids() {
+        if world.wizard(p).is_none() || world.is_neutral_player(p) {
             continue;
         }
-        let cities: Vec<_> = game
+        let cities: Vec<_> = world
             .economy()
             .cities_of(p)
             .into_iter()
@@ -1240,13 +1243,13 @@ fn empire_lines(game: &Game) -> Vec<String> {
         }
         let figures: u32 = cities
             .iter()
-            .map(|&c| game.economy().city_economy(c).map_or(0, |e| e.figures))
+            .map(|&c| world.economy().city_economy(c).map_or(0, |e| e.figures))
             .sum();
         let buildings: usize = cities
             .iter()
             .map(|&c| {
                 all.iter()
-                    .filter(|&&b| game.economy().city_has_building(c, b))
+                    .filter(|&&b| world.economy().city_has_building(c, b))
                     .count()
             })
             .sum();
@@ -1266,13 +1269,13 @@ fn empire_lines(game: &Game) -> Vec<String> {
 /// Mana spent over the game and left at the end, per wizard, e.g. `p0 spent 5200 left 80`.
 /// One line per wizard about what was rolled and picked for it: the race of its capital, the plane
 /// it started on, its personality and objective, its books and its retorts.
-pub(crate) fn profile_lines(game: &Game) -> Vec<String> {
-    let rules = &game.content().rules;
-    game.player_ids()
+pub(crate) fn profile_lines(world: &World) -> Vec<String> {
+    let rules = &world.content().rules;
+    world.player_ids()
         .into_iter()
-        .filter(|&p| game.is_wizard(p))
+        .filter(|&p| world.is_wizard(p))
         .filter_map(|p| {
-            let w = game.wizard(p)?;
+            let w = world.wizard(p)?;
             let race = w
                 .capital_race()
                 .map_or("none".to_string(), |r| rules.races.get(r).id.clone());
@@ -1304,12 +1307,12 @@ pub(crate) fn profile_lines(game: &Game) -> Vec<String> {
 
 /// One line for the neutral players (the races' cities and the monsters): what they hold at the end
 /// and what happened to them over the game. The monsters' slot also takes whatever has no number.
-fn neutral_lines(game: &Game, tally: &Tally) -> Vec<String> {
-    let rules = &game.content().rules;
-    let mut ids: Vec<PlayerId> = game
+fn neutral_lines(world: &World, tally: &Tally) -> Vec<String> {
+    let rules = &world.content().rules;
+    let mut ids: Vec<PlayerId> = world
         .player_ids()
         .into_iter()
-        .filter(|&p| game.is_neutral_player(p))
+        .filter(|&p| world.is_neutral_player(p))
         .collect();
     ids.push(f4x_core::player::MONSTERS);
     let parts: Vec<String> = ids
@@ -1318,17 +1321,17 @@ fn neutral_lines(game: &Game, tally: &Tally) -> Vec<String> {
             let name = if p == f4x_core::player::MONSTERS {
                 "monsters".to_string()
             } else {
-                game.race_of_player(p)
+                world.race_of_player(p)
                     .map_or(format!("p{}", p.0), |r| rules.races.get(r).id.clone())
             };
             let m = tally.of(p);
-            let cities = game
+            let cities = world
                 .economy()
                 .cities()
                 .iter()
                 .filter(|(_, c, _)| c.owner == p)
                 .count();
-            let units = game.units().player_units(p).len();
+            let units = world.units().player_units(p).len();
             format!(
                 "{name} {cities}c/{units}u (founded {}, lost {}, taken {}, battles won {} lost {}, units lost in battle {} outside {}, city-turns undefended {})",
                 m.cities_founded,
@@ -1348,20 +1351,20 @@ fn neutral_lines(game: &Game, tally: &Tally) -> Vec<String> {
 /// What each wizard fields at the end: the units by kind, most numerous first, with the share of
 /// spearmen and the units a city holds on average, e.g. `units p0: 120 in 14 cities (8.6 a city),
 /// spearmen 54% [high_men_spearmen 60, high_men_swordsmen 20, ...]`.
-fn unit_lines(game: &Game) -> Vec<String> {
+fn unit_lines(world: &World) -> Vec<String> {
     let mut lines = Vec::new();
-    for p in game.player_ids() {
-        if game.wizard(p).is_none() || game.is_neutral_player(p) {
+    for p in world.player_ids() {
+        if world.wizard(p).is_none() || world.is_neutral_player(p) {
             continue;
         }
-        let units = game.units().player_units(p);
+        let units = world.units().player_units(p);
         if units.is_empty() {
             continue;
         }
         let mut kinds: std::collections::BTreeMap<String, usize> =
             std::collections::BTreeMap::new();
         for &u in &units {
-            if let Some(d) = game.units().unit_def(u) {
+            if let Some(d) = world.units().unit_def(u) {
                 *kinds.entry(d.id.clone()).or_default() += 1;
             }
         }
@@ -1370,7 +1373,7 @@ fn unit_lines(game: &Game) -> Vec<String> {
             .filter(|(k, _)| k.ends_with("spearmen"))
             .map(|(_, n)| n)
             .sum();
-        let cities = game.economy().cities_of(p).len().max(1);
+        let cities = world.economy().cities_of(p).len().max(1);
         let mut list: Vec<(String, usize)> = kinds.into_iter().collect();
         list.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
         lines.push(format!(
@@ -1414,7 +1417,7 @@ fn far_capture_line(tally: &Tally) -> String {
 /// The cities (outposts too) that held no unit but engineers, settlers and mana spirits: one line
 /// for each run of turns in a row, `undefended: p1 Arcanus (12, 7) turns 30-45 (16)`; `undefended:
 /// none` when there was none.
-fn undefended_lines(game: &Game, tally: &Tally) -> Vec<String> {
+fn undefended_lines(world: &World, tally: &Tally) -> Vec<String> {
     use std::collections::BTreeMap;
     let mut by_city: BTreeMap<(u8, usize, u32, u32), Vec<u32>> = BTreeMap::new();
     for &(turn, owner, at) in tally.undefended() {
@@ -1438,10 +1441,10 @@ fn undefended_lines(game: &Game, tally: &Tally) -> Vec<String> {
         }
         for (first, last) in runs {
             // A neutral player is a race: its name follows the number.
-            let who = game
+            let who = world
                 .race_of_player(PlayerId(owner))
                 .map_or(format!("p{owner}"), |r| {
-                    format!("p{owner} ({})", game.content().rules.races.get(r).id)
+                    format!("p{owner} ({})", world.content().rules.races.get(r).id)
                 });
             lines.push(format!(
                 "undefended: {who} {name} ({x}, {y}) turns {first}-{last} ({})",
@@ -1469,8 +1472,8 @@ fn war_line(tally: &Tally) -> String {
 /// Who defeated each wizard that fell: `p3 by p1 (turn 340)` for a rival wizard, `p0 by neutral
 /// high_men (turn 120)` for an independent race's cities, `by monsters`, or `by nobody` when it lost
 /// its last city without anyone taking it. `none` when no wizard fell.
-fn defeat_line(game: &Game, tally: &Tally) -> String {
-    let rules = &game.content().rules;
+fn defeat_line(world: &World, tally: &Tally) -> String {
+    let rules = &world.content().rules;
     let parts: Vec<String> = tally
         .defeats()
         .iter()
@@ -1478,9 +1481,9 @@ fn defeat_line(game: &Game, tally: &Tally) -> String {
             let who = match killer.map(PlayerId) {
                 None => "nobody".to_string(),
                 Some(k) if k == f4x_core::player::MONSTERS => "monsters".to_string(),
-                Some(k) if game.is_neutral_player(k) => format!(
+                Some(k) if world.is_neutral_player(k) => format!(
                     "neutral {}",
-                    game.race_of_player(k).map_or("?".to_string(), |r| rules
+                    world.race_of_player(k).map_or("?".to_string(), |r| rules
                         .races
                         .get(r)
                         .id
@@ -1498,11 +1501,12 @@ fn defeat_line(game: &Game, tally: &Tally) -> String {
     }
 }
 
-fn mana_line(game: &Game, tally: &Tally) -> String {
+fn mana_line(world: &World, tally: &Tally) -> String {
     let (spent, left) = tally.mana();
-    game.player_ids()
+    world
+        .player_ids()
         .into_iter()
-        .filter(|&p| game.wizard(p).is_some())
+        .filter(|&p| world.wizard(p).is_some())
         .map(|p| {
             let k = usize::from(p.0);
             format!(
@@ -1517,31 +1521,32 @@ fn mana_line(game: &Game, tally: &Tally) -> String {
 }
 
 /// Objective and temper, cities, units and gold of each wizard, e.g. `p0[Mil/Agg] 5c(1o)/14u/80g` (`o`: outposts, counted in the cities).
-pub(crate) fn status(game: &Game) -> String {
-    game.player_ids()
+pub(crate) fn status(world: &World) -> String {
+    world
+        .player_ids()
         .into_iter()
-        .filter(|id| game.is_wizard(*id))
+        .filter(|id| world.is_wizard(*id))
         .map(|id| {
-            let cities = game
+            let cities = world
                 .economy()
                 .cities()
                 .iter()
                 .filter(|(_, c, _)| c.owner == id)
                 .count();
             // Outposts: cities with no citizen yet (they are counted in the cities).
-            let outposts = game
+            let outposts = world
                 .economy()
                 .cities()
                 .iter()
-                .filter(|(e, c, _)| c.owner == id && game.city_population(*e).figures == 0)
+                .filter(|(e, c, _)| c.owner == id && world.city_population(*e).figures == 0)
                 .count();
-            let units = game.units().player_units(id).len();
-            let tag = if game.player(id).is_some_and(|p| p.is_defeated()) {
+            let units = world.units().player_units(id).len();
+            let tag = if world.player(id).is_some_and(|p| p.is_defeated()) {
                 " (defeated)"
             } else {
                 ""
             };
-            let temper = game.wizard(id).map_or(String::new(), |w| {
+            let temper = world.wizard(id).map_or(String::new(), |w| {
                 let short = |s: String| s.chars().take(3).collect::<String>();
                 format!(
                     "[{}/{}]",
@@ -1553,7 +1558,7 @@ pub(crate) fn status(game: &Game) -> String {
             format!(
                 "p{}{temper} {cities}c({outposts}o)/{units}u/{}g{tag}",
                 id.0,
-                game.player(id).map_or(0, |p| p.treasury().gold.floor())
+                world.player(id).map_or(0, |p| p.treasury().gold.floor())
             )
         })
         .collect::<Vec<_>>()
@@ -1562,19 +1567,19 @@ pub(crate) fn status(game: &Game) -> String {
 
 /// One line per wizard about magic and exploring: mana, spells known, research, the spell being
 /// cast and how much of the map is explored.
-fn detail_lines(game: &Game, ais: &[Box<dyn Contestant>]) -> Vec<String> {
+fn detail_lines(world: &World, ais: &[Box<dyn Contestant>]) -> Vec<String> {
     let mut out = Vec::new();
-    for id in game
+    for id in world
         .player_ids()
         .into_iter()
-        .filter(|id| game.is_wizard(*id))
+        .filter(|id| world.is_wizard(*id))
     {
-        let Some(m) = game.wizard(id) else {
+        let Some(m) = world.wizard(id) else {
             continue;
         };
-        let name = |s: f4x_def::rules::SpellId| game.content().rules.spells.get(s).id.clone();
-        let explored = game.explored_squares(id);
-        let income = game.income(id);
+        let name = |s: f4x_def::rules::SpellId| world.content().rules.spells.get(s).id.clone();
+        let explored = world.explored_squares(id);
+        let income = world.income(id);
         let mut known: Vec<String> = m.known().iter().map(|&s| name(s)).collect();
         known.sort();
         out.push(format!("  known: {}", known.join(" ")));
@@ -1582,14 +1587,14 @@ fn detail_lines(game: &Game, ais: &[Box<dyn Contestant>]) -> Vec<String> {
             "p{}: skill {}/{}, gold {} (cities {}, buildings -{}, units -{}, food {}), food {}, mana {} (+{} upkeep {}), spells {}, researching {} ({} left), casting {}, split {}/{}/{}, explored {}{}",
             id.0,
             m.skill_left(),
-            m.casting_skill(&game.content().rules),
-            game.budget(id).net_gold(),
-            game.budget(id).city_gold,
-            game.budget(id).building_upkeep,
-            game.budget(id).unit_upkeep,
-            game.budget(id).food_gold,
-            game.budget(id).food_surplus,
-            game.player(id).map_or(0, |p| p.treasury().mana.floor()),
+            m.casting_skill(&world.content().rules),
+            world.budget(id).net_gold(),
+            world.budget(id).city_gold,
+            world.budget(id).building_upkeep,
+            world.budget(id).unit_upkeep,
+            world.budget(id).food_gold,
+            world.budget(id).food_surplus,
+            world.player(id).map_or(0, |p| p.treasury().mana.floor()),
             income.split.mana,
             income.mana_upkeep,
             m.known().len(),
@@ -1607,7 +1612,7 @@ fn detail_lines(game: &Game, ais: &[Box<dyn Contestant>]) -> Vec<String> {
                 .map_or(String::new(), |a| a.describe())
         ));
         if let Some(a) = ais.iter().find(|a| a.player() == id) {
-            let note = a.diplomacy_note(game);
+            let note = a.diplomacy_note(world);
             if !note.is_empty() {
                 out.push(format!("  p{}: {note}", id.0));
             }
@@ -1618,22 +1623,22 @@ fn detail_lines(game: &Game, ais: &[Box<dyn Contestant>]) -> Vec<String> {
 
 /// Give every wizard the Spell of Mastery with the mana and skill to cast it, so a game shows
 /// whether the AI casts it and wins without waiting for the 60,000 research points.
-fn grant_mastery_to_all(game: &mut Game) {
-    let Some(spell) = game.content().rules.spells.id_numbered(213)
+fn grant_mastery_to_all(world: &mut World) {
+    let Some(spell) = world.content().rules.spells.id_numbered(213)
     /* spell_of_mastery */
     else {
         return;
     };
-    let ids: Vec<PlayerId> = game
+    let ids: Vec<PlayerId> = world
         .player_ids()
         .into_iter()
-        .filter(|id| game.is_wizard(*id))
+        .filter(|id| world.is_wizard(*id))
         .collect();
     for id in ids {
-        if let Some(t) = game.treasury_mut(id) {
+        if let Some(t) = world.treasury_mut(id) {
             t.mana += 6000;
         }
-        if let Some(mut w) = game.wizard_mut(id) {
+        if let Some(mut w) = world.wizard_mut(id) {
             let mut spells = w.get_mut::<f4x_core::wizard::sheet::KnownSpells>();
             spells.known.insert(spell);
             spells.researchable.remove(&spell);
@@ -1707,7 +1712,7 @@ mod tests {
     #[test]
     fn the_profile_and_neutral_lines_name_each_wizard_and_the_neutral_races() -> TestResult {
         let content = crate::testutil::shipped();
-        let game = new_game(
+        let world = new_game(
             content,
             &NewGame {
                 seed: 3,
@@ -1715,7 +1720,7 @@ mod tests {
                 ..NewGame::with_wizards(3)
             },
         )?;
-        let profiles = profile_lines(&game);
+        let profiles = profile_lines(&world);
         assert_eq!(profiles.len(), 3, "{profiles:?}");
         for (k, line) in profiles.iter().enumerate() {
             assert!(line.starts_with(&format!("profile p{k}:")), "{line}");
@@ -1734,13 +1739,14 @@ mod tests {
                 "{line}"
             );
         }
-        let tally = Tally::new(&game);
-        let neutrals = neutral_lines(&game, &tally);
+        let tally = Tally::new(&world);
+        let neutrals = neutral_lines(&world, &tally);
         assert_eq!(neutrals.len(), 1);
         assert!(neutrals[0].contains("monsters "), "{neutrals:?}");
         // Which races the independent cities have is the map's: some race is named.
         assert!(
-            game.content()
+            world
+                .content()
                 .rules
                 .races
                 .defs()

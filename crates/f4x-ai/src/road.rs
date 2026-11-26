@@ -16,10 +16,10 @@
 use crate::roles::Role;
 use crate::Ai;
 use f4x_core::city::production::ProductionItem;
-use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::rules::Stat;
+use f4x_core::world::{Command, Event, World};
 
 /// The nearest cities an engineer links a city to.
 const NEIGHBOURS: usize = 3;
@@ -48,11 +48,11 @@ pub(crate) fn engineers_possible(view: &PlayerView) -> bool {
 }
 
 /// One turn of the engineers: each that is idle gets a road to build, or a place to walk to.
-pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     let me = ai.player;
-    let turn = game.turn;
+    let turn = world.turn;
     let (count, engineers) = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         let mut engineers: Vec<hecs::Entity> = view
             .my_units()
             .into_iter()
@@ -67,7 +67,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     }
     for engineer in engineers {
         let (serial, busy) = {
-            let view = PlayerView::new(game, me);
+            let view = PlayerView::new(world, me);
             (
                 view.serial_of(engineer),
                 view.unit_builds_road(engineer) || view.unit_has_order(engineer),
@@ -79,14 +79,14 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         }
         // An engineer aboard a ship at sea has no road to build.
         let afloat = {
-            let view = PlayerView::new(game, me);
+            let view = PlayerView::new(world, me);
             view.unit_position(engineer)
                 .is_some_and(|p| !view.road_possible(p))
         };
         if afloat || ai.roles.claim(serial, Role::Road, turn, None).is_err() {
             continue;
         }
-        match work(ai, game, engineer, events) {
+        match work(ai, world, engineer, events) {
             Some(to) => {
                 let _ = ai.roles.claim(serial, Role::Road, turn, Some(to));
             }
@@ -100,13 +100,13 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 /// Give one idle engineer its work: the square it works toward, when it found some.
 fn work(
     ai: &mut Ai,
-    game: &mut Game,
+    world: &mut World,
     engineer: hecs::Entity,
     events: &mut Vec<Event>,
 ) -> Option<Position> {
     let me = ai.player;
     let (here, cities) = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         let mut cities: Vec<(hecs::Entity, Position)> = view.my_cities();
         cities.sort_by_key(|&(c, _)| view.serial_of(c));
         (view.unit_position(engineer)?, cities)
@@ -114,7 +114,7 @@ fn work(
     // In a city: build the first link that lacks a road.
     if let Some(&(city, _)) = cities.iter().find(|&&(_, p)| p == here) {
         let mut near: Vec<(u32, Position)> = {
-            let view = PlayerView::new(game, me);
+            let view = PlayerView::new(world, me);
             cities
                 .iter()
                 .filter(|&&(_, p)| p != here)
@@ -125,7 +125,7 @@ fn work(
         near.sort_by_key(|&(d, p)| (d, p.plane as u8, p.y, p.x));
         // A link another engineer is on its way to or building is left to it.
         let others: Vec<Position> = {
-            let serial = PlayerView::new(game, me).serial_of(engineer);
+            let serial = PlayerView::new(world, me).serial_of(engineer);
             ai.roles
                 .targeted(Role::Road)
                 .into_iter()
@@ -138,24 +138,24 @@ fn work(
                 continue;
             }
             let path = {
-                let view = PlayerView::new(game, me);
+                let view = PlayerView::new(world, me);
                 view.path(&[engineer], to)
             };
             let Some(path) = path else { continue };
             if !path
                 .iter()
-                .all(|&p| PlayerView::new(game, me).road_possible(p))
+                .all(|&p| PlayerView::new(world, me).road_possible(p))
             {
                 continue;
             }
-            if path.iter().all(|&p| PlayerView::new(game, me).has_road(p)) {
+            if path.iter().all(|&p| PlayerView::new(world, me).has_road(p)) {
                 continue;
             }
-            if build(ai, game, engineer, path, events) {
+            if build(ai, world, engineer, path, events) {
                 return Some(to);
             }
         }
-        let serial = PlayerView::new(game, me).serial_of(city);
+        let serial = PlayerView::new(world, me).serial_of(city);
         if !ai.road_checked.contains(&serial) {
             ai.road_checked.push(serial);
         }
@@ -163,17 +163,17 @@ fn work(
     // Every city looked at: toward the campaign target.
     if cities.iter().all(|&(c, _)| {
         ai.road_checked
-            .contains(&PlayerView::new(game, me).serial_of(c))
+            .contains(&PlayerView::new(world, me).serial_of(c))
     }) {
-        return frontier(ai, game, engineer, events);
+        return frontier(ai, world, engineer, events);
     }
     // Else to the nearest city not looked at, that has room for the engineer (a full city
     // refuses it, `StackFull`; the cities with no room wait). With none left, to the frontier.
-    let Some(next) = nearest_unchecked(ai, game, engineer, here, &cities) else {
-        return frontier(ai, game, engineer, events);
+    let Some(next) = nearest_unchecked(ai, world, engineer, here, &cities) else {
+        return frontier(ai, world, engineer, events);
     };
     ai.send(
-        game,
+        world,
         Command::GoTo {
             units: vec![engineer],
             to: next,
@@ -188,16 +188,16 @@ fn work(
 /// reach and that has room for it.
 fn nearest_unchecked(
     ai: &Ai,
-    game: &Game,
+    world: &World,
     engineer: hecs::Entity,
     here: Position,
     cities: &[(hecs::Entity, Position)],
 ) -> Option<Position> {
-    let view = PlayerView::new(game, ai.player);
+    let view = PlayerView::new(world, ai.player);
     cities
         .iter()
         .filter(|&&(c, p)| p != here && !ai.road_checked.contains(&view.serial_of(c)))
-        .filter(|&&(_, p)| Ai::room_at(game, p, 1))
+        .filter(|&&(_, p)| Ai::room_at(world, p, 1))
         .filter_map(|&(_, p)| view.distance(here, p).map(|d| (d, p)))
         .filter(|&(_, p)| view.can_reach(&[engineer], p))
         .min_by_key(|&(d, p)| (d, p.plane as u8, p.y, p.x))
@@ -207,13 +207,13 @@ fn nearest_unchecked(
 /// Build a road along `path`: whether the game took the order.
 fn build(
     ai: &Ai,
-    game: &mut Game,
+    world: &mut World,
     engineer: hecs::Entity,
     path: Vec<Position>,
     events: &mut Vec<Event>,
 ) -> bool {
     ai.send(
-        game,
+        world,
         Command::BuildRoad {
             units: vec![engineer],
             path,
@@ -229,8 +229,8 @@ const ENEMY_NEAR: u32 = 8;
 /// The way a road is built toward: the campaign target, else the nearest tower, whichever has a
 /// way to it that lacks a road. The squares of that way, the last (the city or tower itself) left
 /// out, and the first without a road.
-fn frontier_way(ai: &Ai, game: &Game, engineer: hecs::Entity) -> Option<(Vec<Position>, usize)> {
-    let view = PlayerView::new(game, ai.player);
+fn frontier_way(ai: &Ai, world: &World, engineer: hecs::Entity) -> Option<(Vec<Position>, usize)> {
+    let view = PlayerView::new(world, ai.player);
     let here = view.unit_position(engineer)?;
     let mut towers: Vec<Position> = view
         .towers()
@@ -255,15 +255,15 @@ fn frontier_way(ai: &Ai, game: &Game, engineer: hecs::Entity) -> Option<(Vec<Pos
 /// one. Near a rival's cities it works only with an escort.
 fn frontier(
     ai: &mut Ai,
-    game: &mut Game,
+    world: &mut World,
     engineer: hecs::Entity,
     events: &mut Vec<Event>,
 ) -> Option<Position> {
     let me = ai.player;
-    let (path, first) = frontier_way(ai, game, engineer)?;
+    let (path, first) = frontier_way(ai, world, engineer)?;
     // The stretch another engineer is on is left to it.
     {
-        let serial = PlayerView::new(game, me).serial_of(engineer);
+        let serial = PlayerView::new(world, me).serial_of(engineer);
         if ai
             .roles
             .targeted(Role::Road)
@@ -277,7 +277,7 @@ fn frontier(
         let stretch: Vec<Position> = path.into_iter().take(STRETCH).collect();
         let end = *stretch.last()?;
         let near_enemy = {
-            let view = PlayerView::new(game, me);
+            let view = PlayerView::new(world, me);
             view.known_cities().into_iter().any(|(_, owner, city)| {
                 owner != me
                     && view.is_rival_wizard(owner)
@@ -286,15 +286,15 @@ fn frontier(
                         .any(|&p| view.distance(p, city).is_some_and(|d| d <= ENEMY_NEAR))
             })
         };
-        if near_enemy && !crate::escort::guard(ai, game, engineer, events) {
+        if near_enemy && !crate::escort::guard(ai, world, engineer, events) {
             // It waits where it stands for the escort to come.
-            return PlayerView::new(game, me).unit_position(engineer);
+            return PlayerView::new(world, me).unit_position(engineer);
         }
-        return build(ai, game, engineer, stretch, events).then_some(end);
+        return build(ai, world, engineer, stretch, events).then_some(end);
     }
     let to = path[first - 1];
     ai.send(
-        game,
+        world,
         Command::GoTo {
             units: vec![engineer],
             to,
@@ -313,17 +313,17 @@ fn engineers_wanted(cities: usize) -> usize {
 
 /// The engineers' production: while there is road to build and fewer engineers than
 /// [`engineers_wanted`], the city of most people that can make them builds one.
-pub fn build_engineer(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+pub fn build_engineer(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     let me = ai.player;
     let city = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         if !engineers_possible(&view) {
             return;
         }
         let cities = view.my_cities();
         let work = cities.len() >= 2 && ai.road_checked.len() < cities.len()
             || ai.campaign.is_some()
-            || !PlayerView::new(game, me).towers().is_empty();
+            || !PlayerView::new(world, me).towers().is_empty();
         let engineers = view
             .my_units()
             .iter()
@@ -363,8 +363,8 @@ pub fn build_engineer(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         best
     };
     if let Some((_, city, item)) = city {
-        if game.economy().city_production(city).item != Some(item) {
-            ai.order(game, Command::SetProduction { city, item }, events);
+        if world.economy().city_production(city).item != Some(item) {
+            ai.order(world, Command::SetProduction { city, item }, events);
         }
     }
 }
@@ -408,21 +408,21 @@ mod tests {
     #[test]
     fn roads_are_possible_only_with_a_race_that_has_engineers_or_an_engineer() {
         let possible = |race: u16| {
-            let g = game(COAST_CITY, race);
-            engineers_possible(&PlayerView::new(&g, P0))
+            let w = game(COAST_CITY, race);
+            engineers_possible(&PlayerView::new(&w, P0))
         };
         assert!(possible(8), "high men build engineers");
         assert!(!possible(7), "high elves have none");
-        let mut g = game(COAST_CITY, 7);
+        let mut w = game(COAST_CITY, 7);
         spawn(
-            &mut g,
+            &mut w,
             P0,
             at(COAST_CITY.0, COAST_CITY.1),
             110, /* high_men_engineers */
             1,
         );
         assert!(
-            engineers_possible(&PlayerView::new(&g, P0)),
+            engineers_possible(&PlayerView::new(&w, P0)),
             "a captured one"
         );
     }
@@ -430,10 +430,10 @@ mod tests {
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
     /// Two cities of player 0 and engineers (high men) in the first.
-    fn world() -> Result<(Game, hecs::Entity), Box<dyn std::error::Error>> {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let race = g.content().rules.races.id_numbered(8).ok_or("high men")?;
-        let events = g.apply(Command::FoundCity {
+    fn world() -> Result<(World, hecs::Entity), Box<dyn std::error::Error>> {
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let race = w.content().rules.races.id_numbered(8).ok_or("high men")?;
+        let events = w.apply(Command::FoundCity {
             owner: P0,
             pos: at(INLAND_CITY.0, INLAND_CITY.1),
             name: "Second".into(),
@@ -444,18 +444,18 @@ mod tests {
             !events.iter().any(|e| matches!(e, Event::Rejected(_))),
             "{events:?}"
         );
-        let engineer = spawn(&mut g, P0, at(COAST_CITY.0, COAST_CITY.1), 110, 1)[0];
-        g.balance_farmers(P0);
-        Ok((g, engineer))
+        let engineer = spawn(&mut w, P0, at(COAST_CITY.0, COAST_CITY.1), 110, 1)[0];
+        w.balance_farmers(P0);
+        Ok((w, engineer))
     }
 
     /// An engineer in a city with another own city near, and no road between them, builds one.
     #[test]
     fn an_engineer_builds_the_road_to_the_next_city() -> TestResult {
-        let (mut g, engineer) = world()?;
+        let (mut w, engineer) = world()?;
         let mut ai = Ai::new(P0);
-        run(&mut ai, &mut g, &mut Vec::new());
-        let view = PlayerView::new(&g, P0);
+        run(&mut ai, &mut w, &mut Vec::new());
+        let view = PlayerView::new(&w, P0);
         let serial = view.serial_of(engineer);
         assert!(view.unit_builds_road(engineer));
         assert_eq!(ai.roles.role_of(serial), Some(Role::Road));
@@ -469,30 +469,30 @@ mod tests {
     /// A city with no room for one more unit is not the engineer's next stop (`StackFull`).
     #[test]
     fn an_engineer_does_not_walk_to_a_full_city() -> TestResult {
-        let (mut g, engineer) = world()?;
+        let (mut w, engineer) = world()?;
         let ai = Ai::new(P0);
         let (first, second) = (
             at(COAST_CITY.0, COAST_CITY.1),
             at(INLAND_CITY.0, INLAND_CITY.1),
         );
-        let cities: Vec<_> = PlayerView::new(&g, P0).my_cities();
+        let cities: Vec<_> = PlayerView::new(&w, P0).my_cities();
         assert_eq!(
-            nearest_unchecked(&ai, &g, engineer, first, &cities),
+            nearest_unchecked(&ai, &w, engineer, first, &cities),
             Some(second)
         );
-        let room = g
+        let room = w
             .max_tile()
-            .saturating_sub(g.units().units_at(second).len());
-        spawn(&mut g, P0, second, 110, room);
-        assert_eq!(nearest_unchecked(&ai, &g, engineer, first, &cities), None);
+            .saturating_sub(w.units().units_at(second).len());
+        spawn(&mut w, P0, second, 110, room);
+        assert_eq!(nearest_unchecked(&ai, &w, engineer, first, &cities), None);
         Ok(())
     }
 
     /// Engineers are not soldiers: no escort, march or garrison count takes them.
     #[test]
     fn an_engineer_is_no_fighter() -> TestResult {
-        let (g, engineer) = world()?;
-        let view = PlayerView::new(&g, P0);
+        let (w, engineer) = world()?;
+        let view = PlayerView::new(&w, P0);
         assert!(!crate::view::is_fighter(&view, engineer));
         Ok(())
     }
@@ -501,26 +501,26 @@ mod tests {
     /// are marked as looked at.
     #[test]
     fn an_engineer_with_nothing_to_build_gives_the_role_back() -> TestResult {
-        let (mut g, engineer) = world()?;
+        let (mut w, engineer) = world()?;
         let mut ai = Ai::new(P0);
-        run(&mut ai, &mut g, &mut Vec::new());
+        run(&mut ai, &mut w, &mut Vec::new());
         // Let the work finish.
         for _ in 0..30 {
-            if !PlayerView::new(&g, P0).unit_builds_road(engineer) {
+            if !PlayerView::new(&w, P0).unit_builds_road(engineer) {
                 break;
             }
-            g.apply(Command::EndTurn);
+            w.apply(Command::EndTurn);
         }
         // It looks at the other city, finds the link done and has nothing left.
-        let serial = PlayerView::new(&g, P0).serial_of(engineer);
+        let serial = PlayerView::new(&w, P0).serial_of(engineer);
         for _ in 0..10 {
-            run(&mut ai, &mut g, &mut Vec::new());
+            run(&mut ai, &mut w, &mut Vec::new());
             if !ai.roles.has_role(serial) {
                 break;
             }
-            g.apply(Command::EndTurn);
+            w.apply(Command::EndTurn);
         }
-        let view = PlayerView::new(&g, P0);
+        let view = PlayerView::new(&w, P0);
         assert!(!ai.roles.has_role(serial));
         assert!(!view.unit_builds_road(engineer));
         // The road between the cities is there.
@@ -535,15 +535,15 @@ mod tests {
     /// A wizard with two cities and no engineers makes its biggest city build them.
     #[test]
     fn a_wizard_with_roads_to_build_and_no_engineer_builds_one() -> TestResult {
-        let (mut g, engineer) = world()?;
-        g.cheat_remove_unit(engineer);
+        let (mut w, engineer) = world()?;
+        w.cheat_remove_unit(engineer);
         let mut ai = Ai::new(P0);
-        build_engineer(&mut ai, &mut g, &mut Vec::new());
-        let city = g
+        build_engineer(&mut ai, &mut w, &mut Vec::new());
+        let city = w
             .economy()
             .city_at(at(COAST_CITY.0, COAST_CITY.1))
             .ok_or("city")?;
-        let item = g.economy().city_production(city).item;
+        let item = w.economy().city_production(city).item;
         // The city has no builders' hall yet: it builds that toward the engineers.
         assert!(
             matches!(item, Some(ProductionItem::Building(_))),
@@ -564,10 +564,10 @@ mod tests {
     /// Two engineers in a city take two different links.
     #[test]
     fn two_engineers_take_different_links() -> TestResult {
-        let (mut g, first) = world()?;
-        let race = g.content().rules.races.id_numbered(8).ok_or("high men")?;
+        let (mut w, first) = world()?;
+        let race = w.content().rules.races.id_numbered(8).ok_or("high men")?;
         for (x, y) in [(6, 10), (10, 10)] {
-            let events = g.apply(Command::FoundCity {
+            let events = w.apply(Command::FoundCity {
                 owner: P0,
                 pos: at(x, y),
                 name: format!("C{x}{y}"),
@@ -579,11 +579,11 @@ mod tests {
                 "{events:?}"
             );
         }
-        g.balance_farmers(P0);
-        let second = spawn(&mut g, P0, at(COAST_CITY.0, COAST_CITY.1), 110, 1)[0];
+        w.balance_farmers(P0);
+        let second = spawn(&mut w, P0, at(COAST_CITY.0, COAST_CITY.1), 110, 1)[0];
         let mut ai = Ai::new(P0);
-        run(&mut ai, &mut g, &mut Vec::new());
-        let view = PlayerView::new(&g, P0);
+        run(&mut ai, &mut w, &mut Vec::new());
+        let view = PlayerView::new(&w, P0);
         let (a, b) = (view.serial_of(first), view.serial_of(second));
         let (ta, tb) = (
             ai.roles.target_of(a, Role::Road),
@@ -596,13 +596,13 @@ mod tests {
     /// With every city looked at and no campaign, the engineer builds toward the nearest tower.
     #[test]
     fn an_engineer_builds_toward_a_tower_when_the_cities_are_linked() -> TestResult {
-        let (mut g, engineer) = world()?;
+        let (mut w, engineer) = world()?;
         let tower = at(8, 3);
-        crate::testworld::spawn_tower(&mut g, tower, true)?;
-        g.explore(P0, tower, f4x_def::half_int::HalfInt::from_int(3));
+        crate::testworld::spawn_tower(&mut w, tower, true)?;
+        w.explore(P0, tower, f4x_def::half_int::HalfInt::from_int(3));
         let mut ai = Ai::new(P0);
         {
-            let view = PlayerView::new(&g, P0);
+            let view = PlayerView::new(&w, P0);
             ai.road_cities = view.my_cities().len();
             ai.road_checked = view
                 .my_cities()
@@ -610,8 +610,8 @@ mod tests {
                 .map(|&(c, _)| view.serial_of(c))
                 .collect();
         }
-        run(&mut ai, &mut g, &mut Vec::new());
-        let view = PlayerView::new(&g, P0);
+        run(&mut ai, &mut w, &mut Vec::new());
+        let view = PlayerView::new(&w, P0);
         let serial = view.serial_of(engineer);
         assert_eq!(ai.roles.role_of(serial), Some(Role::Road));
         assert!(view.unit_builds_road(engineer) || view.unit_has_order(engineer));
@@ -620,8 +620,8 @@ mod tests {
 
     #[test]
     fn a_way_over_water_is_no_way_for_a_road() {
-        let g = game(COAST_CITY, 8 /* high_men */);
-        let view = PlayerView::new(&g, P0);
+        let w = game(COAST_CITY, 8 /* high_men */);
+        let view = PlayerView::new(&w, P0);
         let (width, height) = view.map_size().expect("a map");
         let squares: Vec<Position> = (0..height)
             .flat_map(|y| (0..width).map(move |x| at(x, y)))

@@ -4,51 +4,51 @@
 use crate::support::*;
 
 /// The whole game as text: a save. Equal text is an equal game.
-fn text(world: World) -> String {
-    fresh_game(world)
+fn text(case: WorldCase) -> String {
+    fresh_game(case)
         .snapshot()
         .to_text()
         .expect("the game saves")
 }
 
 /// A cut of the worlds: the standard one, each variant, the corner sizes, both kinds of game.
-fn cut() -> Vec<World> {
+fn cut() -> Vec<WorldCase> {
     let std = standard();
     let mut v = vec![
         std,
-        World {
+        WorldCase {
             all_ai: false,
             ..std
         },
     ];
     for &variant in VARIANTS {
-        v.push(World {
+        v.push(WorldCase {
             variant,
             seed: 21,
             ..std
         });
     }
     for (width, height) in sizes() {
-        v.push(World {
+        v.push(WorldCase {
             width,
             height,
             seed: 22,
             ..std
         });
     }
-    v.push(World {
+    v.push(WorldCase {
         seed: u64::MAX,
         ..std
     });
-    v.sort_by_key(|w| format!("{w:?}"));
+    v.sort_by_key(|case| format!("{case:?}"));
     v.dedup();
     v
 }
 
 #[test]
 fn the_same_call_makes_the_same_game_every_time() {
-    for world in cut() {
-        assert_eq!(text(world), text(world), "{world:?}");
+    for case in cut() {
+        assert_eq!(text(case), text(case), "{case:?}");
     }
 }
 
@@ -56,17 +56,17 @@ fn the_same_call_makes_the_same_game_every_time() {
 fn other_seeds_make_other_worlds() {
     // Without this the test above could pass on a generator that ignores its seed.
     let std = standard();
-    let a = text(World { seed: 1, ..std });
+    let a = text(WorldCase { seed: 1, ..std });
     for seed in [2, 3, u64::MAX] {
-        assert_ne!(a, text(World { seed, ..std }), "seed {seed}");
+        assert_ne!(a, text(WorldCase { seed, ..std }), "seed {seed}");
     }
 }
 
 #[test]
 fn games_made_in_another_order_are_the_same_games() {
     let worlds = cut();
-    let forward: Vec<String> = worlds.iter().map(|&w| text(w)).collect();
-    let backward: Vec<String> = worlds.iter().rev().map(|&w| text(w)).collect();
+    let forward: Vec<String> = worlds.iter().map(|&case| text(case)).collect();
+    let backward: Vec<String> = worlds.iter().rev().map(|&case| text(case)).collect();
     let backward: Vec<String> = backward.into_iter().rev().collect();
     assert_eq!(forward, backward);
 }
@@ -74,10 +74,10 @@ fn games_made_in_another_order_are_the_same_games() {
 #[test]
 fn games_made_at_the_same_time_on_other_threads_are_the_same_games() {
     let worlds = cut();
-    let alone: Vec<String> = worlds.iter().map(|&w| text(w)).collect();
+    let alone: Vec<String> = worlds.iter().map(|&case| text(case)).collect();
     let handles: Vec<_> = worlds
         .iter()
-        .map(|&w| std::thread::spawn(move || text(w)))
+        .map(|&case| std::thread::spawn(move || text(case)))
         .collect();
     let together: Vec<String> = handles
         .into_iter()
@@ -88,11 +88,10 @@ fn games_made_at_the_same_time_on_other_threads_are_the_same_games() {
 
 #[test]
 fn the_generator_alone_is_the_same_map_every_time() {
-    for world in cut() {
-        let a = generated(world);
-        let b =
-            f4x_newgame::mapgen::generate(world.seed, &params(world), content()).expect("a map");
-        assert_eq!(*a, b, "{world:?}");
+    for case in cut() {
+        let a = generated(case);
+        let b = f4x_newgame::mapgen::generate(case.seed, &params(case), content()).expect("a map");
+        assert_eq!(*a, b, "{case:?}");
     }
 }
 
@@ -125,8 +124,8 @@ fn the_number_of_wizards_does_not_move_the_towers_nodes_and_sites() {
     // The map is made before the wizards: asking for more of them must not change it.
     let std = standard();
     let sites = |wizards| {
-        let g = fresh_game(World { wizards, ..std });
-        let mut v = g.economy().site_squares();
+        let w = fresh_game(WorldCase { wizards, ..std });
+        let mut v = w.economy().site_squares();
         v.sort_by_key(|p| (p.plane.index(), p.y, p.x));
         v
     };

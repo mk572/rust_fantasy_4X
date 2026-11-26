@@ -42,7 +42,7 @@ pub fn decode_png(bytes: &[u8]) -> Result<(usize, usize, Vec<u8>), String> {
     let mut reader = decoder.read_info().map_err(|e| e.to_string())?;
     let mut buf = vec![0; reader.output_buffer_size()];
     let info = reader.next_frame(&mut buf).map_err(|e| e.to_string())?;
-    let (w, h) = (info.width as usize, info.height as usize);
+    let (width, h) = (info.width as usize, info.height as usize);
     let data = &buf[..info.buffer_size()];
     let rgba = match info.color_type {
         png::ColorType::Rgba => data.to_vec(),
@@ -61,10 +61,10 @@ pub fn decode_png(bytes: &[u8]) -> Result<(usize, usize, Vec<u8>), String> {
             .collect(),
         png::ColorType::Indexed => return Err("indexed PNG left unexpanded".to_string()),
     };
-    if rgba.len() != w * h * 4 {
+    if rgba.len() != width * h * 4 {
         return Err("PNG data of the wrong size".to_string());
     }
-    Ok((w, h, rgba))
+    Ok((width, h, rgba))
 }
 
 /// PNG bytes of an RGBA image (the same settings as the loose files), with a text chunk.

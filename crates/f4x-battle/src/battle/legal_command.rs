@@ -1,5 +1,5 @@
 //! Every command the side to play may give now (without spells, which need the rules: see
-//! `Game::legal_battle_casts`). The console's battle queries and the learning environment
+//! `World::legal_battle_casts`). The console's battle queries and the learning environment
 //! (`docs/learning-ai.md` section 4) use the same list; a test checks it against
 //! [`Battle::apply`] for every command that could be written.
 //!

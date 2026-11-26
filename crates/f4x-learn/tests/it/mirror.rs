@@ -1,6 +1,6 @@
 //! The scripted battle AI against its own starting point (`docs/ai-design.md` section 8.2):
 //! the same random armies are fought twice, the smarter AI (unit orders and wizard spells, as
-//! `Game::next_battle_command` plays a wizard) on each side in turn against the plain one
+//! `World::next_battle_command` plays a wizard) on each side in turn against the plain one
 //! (`ai::baseline_command`, which casts nothing), and it must win more of them than it loses.
 
 use f4x_ai::battle::order as ai;
@@ -15,7 +15,7 @@ fn fight(content: &Content, seed: u64, side: Side) -> Option<bool> {
     let mut env = BattleEnv::new(content, scenario).ok()?;
     while !env.done() {
         let command: BattleCommand = if env.battle()?.active == side {
-            env.game.next_battle_command()?
+            env.world.next_battle_command()?
         } else {
             ai::baseline_command(env.battle()?)
         };
@@ -84,8 +84,8 @@ fn a_wizard_with_a_bolt_casts_it_on_the_first_turn() {
     let content = f4x_def::testdir::shipped().clone();
     let env = BattleEnv::new(&content, bolt_scenario(&content, 100)).unwrap();
     let bolt = content.rules.spells.id_numbered(83).unwrap();
-    let mut game = env.game;
-    match game.next_battle_command() {
+    let mut world = env.world;
+    match world.next_battle_command() {
         Some(BattleCommand::Cast { spell, .. }) => assert_eq!(spell, bolt),
         other => panic!("expected a cast, got {other:?}"),
     }
@@ -95,9 +95,9 @@ fn a_wizard_with_a_bolt_casts_it_on_the_first_turn() {
 fn a_wizard_without_mana_to_spare_casts_nothing() {
     let content = f4x_def::testdir::shipped().clone();
     let env = BattleEnv::new(&content, bolt_scenario(&content, 0)).unwrap();
-    let mut game = env.game;
+    let mut world = env.world;
     assert!(!matches!(
-        game.next_battle_command(),
+        world.next_battle_command(),
         Some(BattleCommand::Cast { .. })
     ));
 }

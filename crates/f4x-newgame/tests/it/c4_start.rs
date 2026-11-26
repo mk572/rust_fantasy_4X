@@ -6,49 +6,49 @@
 //! game that each rule can fire, and play a few turns on a cut of the worlds.
 
 use crate::support::*;
-use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::PlayerId;
 use f4x_core::wizard::retort_available;
+use f4x_core::world::{Command, Event, World};
 use f4x_def::half_int::HalfInt;
 use f4x_newgame::neutral::{FORTRESS_CLEARANCE, SITE_CLEARANCE};
 use f4x_newgame::setup::{parse_retort, MIN_START_SIZE};
 
-fn class_at(g: &Game, c: &f4x_def::content::Content, p: Position) -> Option<TerrainClass> {
-    let id = g.map()?.plane(p.plane).get(p.x as i32, p.y as i32)?;
+fn class_at(w: &World, c: &f4x_def::content::Content, p: Position) -> Option<TerrainClass> {
+    let id = w.map()?.plane(p.plane).get(p.x as i32, p.y as i32)?;
     Some(c.terrains.get(id)?.class)
 }
 
 /// Every rule the started game breaks, as `rule: what`.
-pub fn start_problems(g: &Game, world: World) -> Vec<String> {
-    let c = g.content();
+pub fn start_problems(w: &World, case: WorldCase) -> Vec<String> {
+    let c = w.content();
     let rules = &c.rules;
-    let s = g.settings();
+    let s = w.settings();
     let mut bad = Vec::new();
     let mut say = |rule: &str, what: String| bad.push(format!("{rule}: {what}"));
-    let Some(map) = g.map() else {
+    let Some(map) = w.map() else {
         return vec!["map: the game has no map".into()];
     };
     let width = map.width();
     let myrran = parse_retort(rules, "myrran").expect("the content has the Myrran retort");
 
-    let ids = g.player_ids();
+    let ids = w.player_ids();
     let wizards: Vec<PlayerId> = ids
         .iter()
         .copied()
-        .filter(|&p| !g.is_neutral_player(p) && g.wizard(p).is_some())
+        .filter(|&p| !w.is_neutral_player(p) && w.wizard(p).is_some())
         .collect();
-    if wizards.len() != usize::from(world.wizards) {
+    if wizards.len() != usize::from(case.wizards) {
         say(
             "wizards",
-            format!("{} wizards for {}", wizards.len(), world.wizards),
+            format!("{} wizards for {}", wizards.len(), case.wizards),
         );
     }
-    if g.human().is_some() == world.all_ai {
+    if w.human().is_some() == case.all_ai {
         say(
             "human",
-            format!("human is {:?}, all_ai is {}", g.human(), world.all_ai),
+            format!("human is {:?}, all_ai is {}", w.human(), case.all_ai),
         );
     }
 
@@ -56,17 +56,17 @@ pub fn start_problems(g: &Game, world: World) -> Vec<String> {
     let mut fortresses: Vec<(PlayerId, Position)> = Vec::new();
     let mut myrrans = 0;
     for &id in &wizards {
-        let w = g.wizard(id).expect("a wizard");
-        let books = w.books();
-        let retorts = w.retorts();
-        let is_myrran = w.has(myrran);
+        let wizard = w.wizard(id).expect("a wizard");
+        let books = wizard.books();
+        let retorts = wizard.retorts();
+        let is_myrran = wizard.has(myrran);
         myrrans += usize::from(is_myrran);
-        let Some(at) = w.fortress() else {
+        let Some(at) = wizard.fortress() else {
             say("fortress", format!("{id:?} has no fortress"));
             continue;
         };
         fortresses.push((id, at));
-        if class_at(g, c, at) == Some(TerrainClass::Ocean) || class_at(g, c, at).is_none() {
+        if class_at(w, c, at) == Some(TerrainClass::Ocean) || class_at(w, c, at).is_none() {
             say("fortress-land", format!("{id:?} at {at:?} is in the sea"));
         }
         if (at.plane == Plane::Myrror) != is_myrran {
@@ -78,9 +78,9 @@ pub fn start_problems(g: &Game, world: World) -> Vec<String> {
                 ),
             );
         }
-        match g.economy().city_at(at) {
+        match w.economy().city_at(at) {
             Some(city) => {
-                if g.economy()
+                if w.economy()
                     .cities()
                     .iter()
                     .find(|(e, _, _)| *e == city)
@@ -94,33 +94,33 @@ pub fn start_problems(g: &Game, world: World) -> Vec<String> {
                 }
                 // A start on land that feeds less than the least is the last resort, and right only
                 // when no square of the plane that can take a city feeds that many.
-                if g.economy().site_max_size(at) < MIN_START_SIZE {
+                if w.economy().site_max_size(at) < MIN_START_SIZE {
                     if let Some(better) = (0..map.height())
                         .flat_map(|y| (0..width).map(move |x| (x, y)))
                         .map(|(x, y)| Position { x, y, ..at })
                         .find(|&p| {
-                            g.can_found_city(p).is_ok()
-                                && g.economy().site_max_size(p) >= MIN_START_SIZE
+                            w.can_found_city(p).is_ok()
+                                && w.economy().site_max_size(p) >= MIN_START_SIZE
                         })
                     {
                         say(
                             "start-size",
                             format!(
                                 "{id:?}: the land holds {}, and {better:?} would feed more",
-                                g.economy().site_max_size(at)
+                                w.economy().site_max_size(at)
                             ),
                         );
                     }
                 }
-                let army = g
+                let army = w
                     .city_race(city)
                     .map(|r| rules.races.get(r).start_army.len())
                     .unwrap_or(usize::MAX);
-                let here = g
+                let here = w
                     .units()
                     .units_at(at)
                     .into_iter()
-                    .filter(|&u| g.units().unit_owner(u) == Some(id))
+                    .filter(|&u| w.units().unit_owner(u) == Some(id))
                     .count();
                 if here < army {
                     say(
@@ -171,8 +171,8 @@ pub fn start_problems(g: &Game, world: World) -> Vec<String> {
                 say("life-and-death", format!("{id:?} has both"));
             }
         }
-        let human = g.human() == Some(id);
-        let purse = g.player(id).map(|p| p.treasury());
+        let human = w.human() == Some(id);
+        let purse = w.player(id).map(|p| p.treasury());
         let (gold, mana) = (
             HalfInt::from_int(s.wizards.starting_gold.of(human)),
             HalfInt::from_int(s.wizards.starting_mana.of(human)),
@@ -210,7 +210,7 @@ pub fn start_problems(g: &Game, world: World) -> Vec<String> {
     let mut banners = std::collections::BTreeSet::new();
     let mut portraits = std::collections::BTreeSet::new();
     for &id in &wizards {
-        if let Some(p) = g.player(id) {
+        if let Some(p) = w.player(id) {
             banners.insert(p.banner());
             portraits.insert(p.portrait());
         }
@@ -236,7 +236,7 @@ pub fn start_problems(g: &Game, world: World) -> Vec<String> {
                 continue;
             }
             here += 1;
-            if let Some(r) = g.economy().city_at(at).and_then(|e| g.city_race(e)) {
+            if let Some(r) = w.economy().city_at(at).and_then(|e| w.city_race(e)) {
                 if taken.contains(&r) {
                     let on_plane = rules
                         .races
@@ -257,15 +257,15 @@ pub fn start_problems(g: &Game, world: World) -> Vec<String> {
     }
 
     // The independent cities.
-    let sites = g.economy().site_squares();
+    let sites = w.economy().site_squares();
     let target = s.basic.neutral_city_count() as usize;
     let mut neutral: Vec<Position> = Vec::new();
-    for (e, info, at) in g.economy().cities() {
-        if !g.is_neutral_player(info.owner) {
+    for (e, info, at) in w.economy().cities() {
+        if !w.is_neutral_player(info.owner) {
             continue;
         }
         neutral.push(at);
-        if class_at(g, c, at) == Some(TerrainClass::Ocean) || class_at(g, c, at).is_none() {
+        if class_at(w, c, at) == Some(TerrainClass::Ocean) || class_at(w, c, at).is_none() {
             say("neutral-land", format!("the city at {at:?} is in the sea"));
         }
         for &(id, f) in &fortresses {
@@ -281,7 +281,7 @@ pub fn start_problems(g: &Game, world: World) -> Vec<String> {
                 say("neutral-site", format!("{at:?} is near the site {sq:?}"));
             }
         }
-        if let Some(r) = g.city_race(e) {
+        if let Some(r) = w.city_race(e) {
             let def = rules.races.get(r);
             let ok = if s.rules.mix_neutral_races {
                 match at.plane {
@@ -316,12 +316,12 @@ pub fn start_problems(g: &Game, world: World) -> Vec<String> {
     }
     // Every site square is on land.
     for sq in &sites {
-        if class_at(g, c, *sq) == Some(TerrainClass::Ocean) {
+        if class_at(w, c, *sq) == Some(TerrainClass::Ocean) {
             say("site-land", format!("{sq:?} is in the sea"));
         }
     }
     // One of each hero.
-    let heroes = g.units().all_heroes().len();
+    let heroes = w.units().all_heroes().len();
     if heroes != rules.hero_templates.len() {
         say(
             "heroes",
@@ -334,11 +334,11 @@ pub fn start_problems(g: &Game, world: World) -> Vec<String> {
 #[test]
 fn every_world_of_the_matrix_starts_playable() {
     let mut failures = Vec::new();
-    for world in worlds() {
-        let g = game(world);
-        let problems = start_problems(&g, world);
+    for case in worlds() {
+        let w = game(case);
+        let problems = start_problems(&w, case);
         if !problems.is_empty() {
-            failures.push(format!("{world:?}\n  {}", problems.join("\n  ")));
+            failures.push(format!("{case:?}\n  {}", problems.join("\n  ")));
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
@@ -346,8 +346,8 @@ fn every_world_of_the_matrix_starts_playable() {
 
 #[test]
 fn the_standard_world_has_no_problem_to_start_from() {
-    let w = standard();
-    assert_eq!(start_problems(&game(w), w), Vec::<String>::new());
+    let case = standard();
+    assert_eq!(start_problems(&game(case), case), Vec::<String>::new());
 }
 
 fn has_rule(problems: &[String], rule: &str) -> bool {
@@ -356,10 +356,10 @@ fn has_rule(problems: &[String], rule: &str) -> bool {
 
 #[test]
 fn a_wizard_with_a_book_too_many_is_found() {
-    let w = standard();
-    let mut g = fresh_game(w);
+    let case = standard();
+    let mut w = fresh_game(case);
     // The limit comes down under what a wizard holds: the same as a wizard over the limit.
-    let most = g
+    let most = w
         .wizard(PlayerId(0))
         .expect("a wizard")
         .books()
@@ -367,40 +367,40 @@ fn a_wizard_with_a_book_too_many_is_found() {
         .copied()
         .max()
         .expect("a book");
-    g.scenario_change_settings(|s| s.wizards.max_books_per_realm = most - 1);
-    assert!(has_rule(&start_problems(&g, w), "books"));
+    w.scenario_change_settings(|s| s.wizards.max_books_per_realm = most - 1);
+    assert!(has_rule(&start_problems(&w, case), "books"));
 }
 
 #[test]
 fn a_fortress_in_the_sea_is_found() {
-    let w = standard();
-    let mut g = fresh_game(w);
-    let at = g
+    let case = standard();
+    let mut w = fresh_game(case);
+    let at = w
         .wizard(PlayerId(0))
-        .and_then(|w| w.fortress())
+        .and_then(|wizard| wizard.fortress())
         .expect("a fortress");
-    let sea = g
+    let sea = w
         .content()
         .terrains
         .first_of_class(TerrainClass::Ocean, at.plane)
         .expect("a sea");
-    g.scenario_set_terrain(at, sea);
-    assert!(has_rule(&start_problems(&g, w), "fortress-land"));
+    w.scenario_set_terrain(at, sea);
+    assert!(has_rule(&start_problems(&w, case), "fortress-land"));
 }
 
 #[test]
 fn a_neutral_city_beside_a_fortress_is_found() {
-    let w = standard();
-    let mut g = fresh_game(w);
-    let at = g
+    let case = standard();
+    let mut w = fresh_game(case);
+    let at = w
         .wizard(PlayerId(0))
-        .and_then(|w| w.fortress())
+        .and_then(|wizard| wizard.fortress())
         .expect("a fortress");
-    let race = g
+    let race = w
         .content()
         .rules
         .races
-        .id_numbered(g.content().rules.races.defs()[0].num)
+        .id_numbered(w.content().rules.races.defs()[0].num)
         .expect("a race");
     // The nearest square a city may be founded on that is closer than the clearance asks.
     let mut founded = false;
@@ -408,18 +408,18 @@ fn a_neutral_city_beside_a_fortress_is_found() {
         for dy in -d..=d {
             for dx in -d..=d {
                 let pos = Position {
-                    x: (at.x as i32 + dx).rem_euclid(g.map().expect("a map").width() as i32) as u32,
-                    y: (at.y as i32 + dy).clamp(0, g.map().expect("a map").height() as i32 - 1)
+                    x: (at.x as i32 + dx).rem_euclid(w.map().expect("a map").width() as i32) as u32,
+                    y: (at.y as i32 + dy).clamp(0, w.map().expect("a map").height() as i32 - 1)
                         as u32,
                     ..at
                 };
                 let near = range(
-                    g.map().expect("a map").width(),
+                    w.map().expect("a map").width(),
                     (at.x, at.y),
                     (pos.x, pos.y),
                 ) < FORTRESS_CLEARANCE;
-                if near && g.can_found_city(pos).is_ok() {
-                    g.found_neutral_city(pos, race);
+                if near && w.can_found_city(pos).is_ok() {
+                    w.found_neutral_city(pos, race);
                     founded = true;
                     break 'find;
                 }
@@ -427,24 +427,24 @@ fn a_neutral_city_beside_a_fortress_is_found() {
         }
     }
     assert!(founded, "a square beside the fortress to found a city on");
-    let problems = start_problems(&g, w);
+    let problems = start_problems(&w, case);
     assert!(has_rule(&problems, "neutral-fortress"), "{problems:?}");
 }
 
 #[test]
 fn a_wizard_without_gold_is_found() {
-    let w = standard();
-    let mut g = fresh_game(w);
-    g.treasury_mut(PlayerId(0)).expect("a purse").gold = HalfInt::from_int(-1);
-    assert!(has_rule(&start_problems(&g, w), "purse"));
+    let case = standard();
+    let mut w = fresh_game(case);
+    w.treasury_mut(PlayerId(0)).expect("a purse").gold = HalfInt::from_int(-1);
+    assert!(has_rule(&start_problems(&w, case), "purse"));
 }
 
 /// Ten turns of the computer's play on a game, with every refusal listed.
-fn played_refusals(world: World, turns: usize) -> Vec<String> {
-    let mut g = fresh_game(world);
+fn played_refusals(case: WorldCase, turns: usize) -> Vec<String> {
+    let mut w = fresh_game(case);
     let mut refused = Vec::new();
     for _ in 0..turns {
-        for e in g.apply(Command::EndTurn) {
+        for e in w.apply(Command::EndTurn) {
             if matches!(e, Event::Rejected(_)) {
                 refused.push(format!("{e:?}"));
             }
@@ -458,14 +458,14 @@ fn turns_pass_on_a_cut_of_the_worlds_without_a_refusal_or_a_panic() {
     let std = standard();
     let mut worlds = vec![std];
     for &variant in VARIANTS {
-        worlds.push(World {
+        worlds.push(WorldCase {
             variant,
             seed: 3,
             ..std
         });
     }
     for (width, height) in sizes() {
-        worlds.push(World {
+        worlds.push(WorldCase {
             width,
             height,
             seed: 6,
@@ -473,41 +473,41 @@ fn turns_pass_on_a_cut_of_the_worlds_without_a_refusal_or_a_panic() {
         });
     }
     for w in [2, most_wizards()] {
-        worlds.push(World {
+        worlds.push(WorldCase {
             wizards: w,
             seed: 8,
             ..std
         });
     }
-    for world in worlds {
-        let refused = played_refusals(world, 10);
-        assert!(refused.is_empty(), "{world:?}: {refused:?}");
+    for case in worlds {
+        let refused = played_refusals(case, 10);
+        assert!(refused.is_empty(), "{case:?}: {refused:?}");
     }
 }
 
 #[test]
 fn a_new_game_saves_and_loads_into_the_same_game() {
-    for world in [
+    for case in [
         standard(),
-        World {
+        WorldCase {
             all_ai: false,
             ..standard()
         },
-        World {
+        WorldCase {
             variant: Variant::OriginalGenerator,
             ..standard()
         },
     ] {
-        let g = fresh_game(world);
-        let text = g.snapshot().to_text().expect("the game saves");
-        let loaded = f4x_core::game::save::Snapshot::from_text(&text)
+        let w = fresh_game(case);
+        let text = w.snapshot().to_text().expect("the game saves");
+        let loaded = f4x_core::world::save::Snapshot::from_text(&text)
             .expect("the text reads")
             .restore(content().clone())
             .expect("the game loads");
         assert_eq!(
             loaded.snapshot().to_text().expect("saves again"),
             text,
-            "{world:?}"
+            "{case:?}"
         );
     }
 }

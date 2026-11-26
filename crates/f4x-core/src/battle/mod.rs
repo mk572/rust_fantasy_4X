@@ -3,7 +3,7 @@
 //! A [`Battle`] is a self-contained record, not part of the overland world: it is built from
 //! the units that meet (their statistics are copied at the start, with every modifier
 //! applied), played through [`Battle::apply`] with [`BattleCommand`]s, and when it ends the
-//! game takes the results back (`game.rs`). Because it needs nothing from the world, battles
+//! game takes the results back (`world.rs`). Because it needs nothing from the world, battles
 //! can be tested, replayed and driven by an AI on their own.
 //!
 //! Sides alternate: the attacker plays all its units, then the defender, and a new turn
@@ -25,9 +25,9 @@ pub(crate) use f4x_battle::{
 };
 
 pub mod forecast;
-pub mod game;
 mod immunity;
 pub mod info;
 pub mod save;
 pub mod spell;
 pub mod spoils;
+pub mod world;

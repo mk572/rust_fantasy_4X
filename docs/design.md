@@ -1,7 +1,7 @@
 # High-level design: a Master of Magic-style 4X in Rust with ECS
 
 Status: living document. Scope: gameplay-faithful reimagining, not a port of the original code, data or art.
-Related documents: [`rules-framework.md`](rules-framework.md) (the rules layer), [`map-layers.md`](map-layers.md) (map layers and generation), [`game-flow.md`](game-flow.md) (commands, turn, movement, production, treasury), [`ecs-structure.md`](ecs-structure.md) (how state is stored and how it differs from the original), [`architecture-plan.md`](archive/architecture-plan.md) (the audit of `Game` and the plan for self-contained domains), [`mechanics-gaps.md`](archive/mechanics-gaps.md) (what the original does that we have not built), [`help-vs-implementation-conflicts.md`](help-vs-implementation-conflicts.md) (resolved and open source conflicts), [`local-assets.md`](local-assets.md) (local-only original art and data), [`sound.md`](sound.md) (every music track and sound effect of the original and when it plays).
+Related documents: [`rules-framework.md`](rules-framework.md) (the rules layer), [`map-layers.md`](map-layers.md) (map layers and generation), [`game-flow.md`](game-flow.md) (commands, turn, movement, production, treasury), [`ecs-structure.md`](ecs-structure.md) (how state is stored and how it differs from the original), [`architecture-plan.md`](archive/architecture-plan.md) (the audit of `World` and the plan for self-contained domains), [`mechanics-gaps.md`](archive/mechanics-gaps.md) (what the original does that we have not built), [`help-vs-implementation-conflicts.md`](help-vs-implementation-conflicts.md) (resolved and open source conflicts), [`local-assets.md`](local-assets.md) (local-only original art and data), [`sound.md`](sound.md) (every music track and sound effect of the original and when it plays).
 
 ## 1. Goals and constraints
 - Replicate MoM's *gameplay*: two planes (Arcanus/Myrror), wizard-led spell-casting, cities and unit production, hero units, tactical battles, and five magic realms.
@@ -43,24 +43,24 @@ The crate rules (who may depend on whom) are in [`rust_coding_rules.md`](rust_co
 
 
 ## 3. ECS choice
-Decided: `hecs` inside `f4x-core`, not a full engine. Only state with identity and varied attributes is an entity; everything else is plain data owned by `Game`. The client renders with macroquad and only reads the core. The details, and how this differs from the original game's fixed arrays, are in [`ecs-structure.md`](ecs-structure.md).
+Decided: `hecs` inside `f4x-core`, not a full engine. Only state with identity and varied attributes is an entity; everything else is plain data owned by `World`. The client renders with macroquad and only reads the core. The details, and how this differs from the original game's fixed arrays, are in [`ecs-structure.md`](ecs-structure.md).
 
-### Base rule: domain logic is written over the pieces it needs, not over `Game`
+### Base rule: domain logic is written over the pieces it needs, not over `World`
 Write the rules of a domain (diplomacy, magic, economy, production, movement...) as functions
-or methods that take the pieces they use, such as `(&mut World, &Content, &mut GameRng)` or a
-domain struct (`&mut Diplomacy`) with a small context, **instead of `&mut Game`**. `Game` owns the
+or methods that take the pieces they use, such as `(&mut hecs::World, &Content, &mut GameRng)` or a
+domain struct (`&mut Diplomacy`) with a small context, **instead of `&mut World`**. `World` owns the
 state, routes each `Command` to a domain, builds the arguments by borrowing its fields apart,
 and applies what the domain returns; it does not hold the rules.
 
-- A function that reads only takes `&World`, `&Content` and so on, and a function that changes one
+- A function that reads only takes `&hecs::World`, `&Content` and so on, and a function that changes one
   thing takes `&mut` of that thing only. The signature then says what the rule depends on.
 - Where a domain needs a few facts from the rest of the game (a wizard's cities, whether a unit is
   visible), it asks through a small read-only trait, not through the whole game.
 - A domain's state is private to its module. Other modules call its methods; they do not reach
   into its fields.
-- A thin `Game` method that calls the function is fine for the public interface (`Game::apply`,
+- A thin `World` method that calls the function is fine for the public interface (`World::apply`,
   queries the client uses); the logic itself is not in it.
-- New code follows this from the start. The pure parts (`rules/`, `map`, the battle engine) are the model; older `impl Game` code is moved over a group of methods at a time
+- New code follows this from the start. The pure parts (`rules/`, `map`, the battle engine) are the model; older `impl World` code is moved over a group of methods at a time
   (the audit and the plan are in [`architecture-plan.md`](archive/architecture-plan.md)).
 
 Why: with every rule a method of one struct, any rule can read or write anything, tests need a
@@ -107,7 +107,7 @@ apart. Layers, rules, generation and differences from the original are in
 - New content needs no recompilation, which is mod-friendly.
 
 ## 6. Game flow and systems
-All player and AI actions are `Command` values applied with `Game::apply`, which validates
+All player and AI actions are `Command` values applied with `World::apply`, which validates
 them and returns `Event`s (refusals are events, not panics). Read-only queries take `&self`
 and are used freely by the client. A turn is `EndTurn`: refill moves, process cities (outposts
 grow, production completes, population changes), settle each player's treasury (income, spare
@@ -226,9 +226,9 @@ Every attack is made of a set of damage types (`f4x-def/src/rules/damage_type.rs
 - Before any public release, all placeholders must be replaced with original art or art under a free licence. Treat anything in `assets-local/` and `content-local/` as temporary. The rules data in `crates/f4x-def/content/` stays: it is ours to change.
 
 ## 10. Cross-cutting
-- **Determinism:** seeded RNG (`rand_pcg`) behind `Game::roll`; entity iteration in logic is sorted by creation number (`Serial`), never by `hecs` id; no floats in rules; integer maths with a fixed order in the stats engine.
+- **Determinism:** seeded RNG (`rand_pcg`) behind `World::roll`; entity iteration in logic is sorted by creation number (`Serial`), never by `hecs` id; no floats in rules; integer maths with a fixed order in the stats engine.
 - **Save/load:** a save is a text snapshot (RON) of the whole game with content referenced by name, a version number and load-time checks; autosave runs each turn. Details in [`game-flow.md`](game-flow.md) section 8.
-- **Replays:** commands name entities, and entity ids change on a load, so the command log writes creation numbers (`Serial`) in their place (`game/replay.rs`).
+- **Replays:** commands name entities, and entity ids change on a load, so the command log writes creation numbers (`Serial`) in their place (`world/replay.rs`).
 - **Testing and where tests live:** [`rust_coding_rules.md`](rust_coding_rules.md) (tests run on the shipped rules and real spells; unit tests sit in the file they test; integration tests in a crate's `tests/it/`).
 - **Lint and format:** `cargo fmt`, `cargo clippy` clean.
 
@@ -237,7 +237,7 @@ Every attack is made of a set of damage types (`f4x-def/src/rules/damage_type.rs
 Deliberate departures from the original are listed in [`divergences.md`](divergences.md); add new ones there.
 
 Code structure
-- Domain logic takes the pieces it needs, not `&mut Game` (section 3, base rule). `Game` owns, routes and applies.
+- Domain logic takes the pieces it needs, not `&mut World` (section 3, base rule). `World` owns, routes and applies.
 
 Rules and data
 - Number scale, magic structure (five realms plus arcane, spell books from picks, per-realm research), heroes and items from day one, and "deviation only after parity" are as in `rules-framework.md` section 8.

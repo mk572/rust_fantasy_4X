@@ -3,7 +3,7 @@
 //! The wizard designs an item ([`ItemDesign`]): a kind, up to four powers and, for a staff or wand,
 //! a spell with charges. [`check`] says whether the wizard may have it, [`cost`] what it is worth,
 //! and [`build`] makes the [`Item`]. The rules are those of `ItemMake.c` (design in
-//! `docs/heroes-items-design.md` section 3.3). `Game::craft_item` (below) starts the casting; the
+//! `docs/heroes-items-design.md` section 3.3). `World::craft_item` (below) starts the casting; the
 //! item waits with the cast in progress until the spell has been paid for, then goes to the armory.
 
 use crate::rules::ItemPowerId;
@@ -472,7 +472,7 @@ impl CraftingError {
     }
 }
 
-impl crate::game::Game {
+impl crate::world::World {
     /// Start casting Enchant Item or Create Artifact for the item `design` describes. The cost
     /// is the item's value less the wizard's reduction for the spell; if skill and mana pay for
     /// it now the item is made now (the vault, else the award list), otherwise it waits in
@@ -482,7 +482,7 @@ impl crate::game::Game {
         player: crate::player::PlayerId,
         craft: Craft,
         design: &ItemDesign,
-    ) -> Result<Vec<crate::game::Event>, CraftingError> {
+    ) -> Result<Vec<crate::world::Event>, CraftingError> {
         let spell = craft.spell();
         if self.content.rules.spells.try_get(spell).is_none() {
             return Err(CraftingError::Magic(
@@ -523,7 +523,7 @@ impl crate::game::Game {
             if let Some((by, counter)) =
                 self.suppressed_at_cost(player, spell, Some(price.max(0) as u32))
             {
-                return Ok(vec![crate::game::Event::SpellSuppressed {
+                return Ok(vec![crate::world::Event::SpellSuppressed {
                     player,
                     spell,
                     by,
@@ -558,12 +558,12 @@ impl crate::game::Game {
         player: crate::player::PlayerId,
         spell: crate::rules::SpellId,
         item: Item,
-    ) -> Vec<crate::game::Event> {
+    ) -> Vec<crate::world::Event> {
         let shown = item.clone();
         let placed = self.give_item(player, item);
         vec![
-            crate::game::Event::SpellCast { player, spell },
-            crate::game::Event::ItemMade {
+            crate::world::Event::SpellCast { player, spell },
+            crate::world::Event::ItemMade {
                 player,
                 item: shown,
                 placed,
@@ -576,13 +576,13 @@ impl crate::game::Game {
     pub(crate) fn complete_crafting(
         &mut self,
         player: crate::player::PlayerId,
-    ) -> Vec<crate::game::Event> {
-        let Some((entity, item)) = crate::item::entity::crafting_of(&self.world, player) else {
+    ) -> Vec<crate::world::Event> {
+        let Some((entity, item)) = crate::item::entity::crafting_of(&self.ecs, player) else {
             return Vec::new();
         };
         let shown = item.clone();
         let placed = self.place_item(player, entity);
-        vec![crate::game::Event::ItemMade {
+        vec![crate::world::Event::ItemMade {
             player,
             item: shown,
             placed,

@@ -5,13 +5,13 @@
 //! Tests: in this file.
 
 use crate::Ai;
-use f4x_core::game::{Command, Event, Game};
 use f4x_core::player::view::PlayerView;
+use f4x_core::world::{Command, Event, World};
 
 /// Turn the whole mana of a player without a wizard into gold.
-pub(crate) fn run(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
+pub(crate) fn run(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
     let mana = {
-        let view = PlayerView::new(game, ai.player);
+        let view = PlayerView::new(world, ai.player);
         if view.wizard().is_some() {
             return;
         }
@@ -19,7 +19,7 @@ pub(crate) fn run(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     };
     if mana > 0 {
         ai.order(
-            game,
+            world,
             Command::Alchemy {
                 player: ai.player,
                 amount: mana,
@@ -39,7 +39,7 @@ mod tests {
 
     #[test]
     fn a_player_without_a_wizard_turns_its_mana_into_gold_and_a_wizard_keeps_it() -> TestResult {
-        let mut g = new_game(
+        let mut w = new_game(
             f4x_def::testdir::shipped(),
             &NewGame {
                 seed: 7,
@@ -47,31 +47,31 @@ mod tests {
                 ..Default::default()
             },
         )?;
-        let race = g
+        let race = w
             .economy()
             .cities()
             .into_iter()
-            .find_map(|(e, c, _)| g.race_of_player(c.owner).and(g.city_race(e)))
+            .find_map(|(e, c, _)| w.race_of_player(c.owner).and(w.city_race(e)))
             .ok_or("no neutral city")?;
         let id = f4x_core::player::race_player::race_player_id(race);
         let wizard = f4x_core::player::PlayerId(0);
         for p in [id, wizard] {
-            g.treasury_mut(p).ok_or("no treasury")?.mana = HalfInt::from_int(41);
+            w.treasury_mut(p).ok_or("no treasury")?.mana = HalfInt::from_int(41);
         }
-        let gold = |g: &Game, p| g.player(p).map(|p| p.treasury().gold);
-        let (race_gold, wizard_gold) = (gold(&g, id), gold(&g, wizard));
+        let gold = |w: &World, p| w.player(p).map(|p| p.treasury().gold);
+        let (race_gold, wizard_gold) = (gold(&w, id), gold(&w, wizard));
         for p in [id, wizard] {
-            run(&Ai::new(p), &mut g, &mut Vec::new());
+            run(&Ai::new(p), &mut w, &mut Vec::new());
         }
-        let mana = |g: &Game, p| g.player(p).map(|p| p.treasury().mana);
-        assert_eq!(mana(&g, id), Some(HalfInt::ZERO));
+        let mana = |w: &World, p| w.player(p).map(|p| p.treasury().mana);
+        assert_eq!(mana(&w, id), Some(HalfInt::ZERO));
         assert_eq!(
-            gold(&g, id),
+            gold(&w, id),
             race_gold.map(|g| g + HalfInt::from_int(20)),
             "41 mana at 50% is 20 gold"
         );
-        assert_eq!(mana(&g, wizard), Some(HalfInt::from_int(41)));
-        assert_eq!(gold(&g, wizard), wizard_gold);
+        assert_eq!(mana(&w, wizard), Some(HalfInt::from_int(41)));
+        assert_eq!(gold(&w, wizard), wizard_gold);
         Ok(())
     }
 }

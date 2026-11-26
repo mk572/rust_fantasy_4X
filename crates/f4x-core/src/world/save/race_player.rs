@@ -5,7 +5,7 @@
 //! them; the fog of the old players is dropped (the new player sees what its cities and units
 //! see); a city player with no city is dropped with its units.
 //!
-//! Tests: in game/save/tests.rs.
+//! Tests: in world/save/tests.rs.
 
 use super::{HeldSave, Snapshot};
 use crate::player::race_player::FIRST_RACE_PLAYER;

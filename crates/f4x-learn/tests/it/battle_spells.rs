@@ -45,13 +45,13 @@ fn every_battle_spell_that_is_offered_is_accepted_and_the_fight_goes_on() {
             }
             scenario.attacker_wizard = wizard.clone();
             scenario.defender_wizard = wizard;
-            let Ok(mut game) = build(&content, &scenario) else {
+            let Ok(mut world) = build(&content, &scenario) else {
                 continue;
             };
             // The attacker's turn first, then the defender's (a wall can only be raised by it).
             for turn in 0..2 {
-                let offered = game.legal_battle_casts().into_iter().find(|c| {
-                    game.content().rules.spells.get(c.spell).num == *id && !c.aims.is_empty()
+                let offered = world.legal_battle_casts().into_iter().find(|c| {
+                    world.content().rules.spells.get(c.spell).num == *id && !c.aims.is_empty()
                 });
                 if let Some(c) = offered {
                     let command = BattleCommand::Cast {
@@ -59,21 +59,23 @@ fn every_battle_spell_that_is_offered_is_accepted_and_the_fight_goes_on() {
                         aim: c.aims[0],
                         mana: c.least_mana,
                     };
-                    game.battle_command(command)
+                    world
+                        .battle_command(command)
                         .unwrap_or_else(|e| panic!("{id}, seed {seed}: refused {e:?}"));
                     for _ in 0..60 {
-                        if !game.in_battle() {
+                        if !world.in_battle() {
                             break;
                         }
-                        let next = game.next_battle_command().expect("a command");
-                        game.battle_command(next)
+                        let next = world.next_battle_command().expect("a command");
+                        world
+                            .battle_command(next)
                             .unwrap_or_else(|e| panic!("{id}, seed {seed}: refused {e:?}"));
                     }
                     cast = true;
                     break 'seeds;
                 }
-                if turn == 0 && game.battle().is_some_and(|b| b.active == Side::Attacker) {
-                    game.battle_command(BattleCommand::EndTurn).ok();
+                if turn == 0 && world.battle().is_some_and(|b| b.active == Side::Attacker) {
+                    world.battle_command(BattleCommand::EndTurn).ok();
                 }
             }
         }

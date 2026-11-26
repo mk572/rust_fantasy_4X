@@ -2,8 +2,8 @@
 //! counts of towers and cities, the picks, the book limits), through the public interface only.
 
 use crate::support::{knobs, limits};
-use f4x_core::game::{Command, Event, Game};
 use f4x_core::wizard::BuildError;
+use f4x_core::world::{Command, Event, World};
 use f4x_def::content::Content;
 use f4x_def::settings::{BOOKS_PER_REALM_RANGE, BOOKS_TOTAL_RANGE};
 use f4x_def::testdir::TestResult;
@@ -14,8 +14,8 @@ fn shipped() -> &'static Content {
     f4x_def::testdir::shipped()
 }
 
-fn end_turns(g: &mut Game, n: usize) -> Vec<Event> {
-    (0..n).flat_map(|_| g.apply(Command::EndTurn)).collect()
+fn end_turns(w: &mut World, n: usize) -> Vec<Event> {
+    (0..n).flat_map(|_| w.apply(Command::EndTurn)).collect()
 }
 
 /// A new game on the shipped content with the map-size counts set by hand.
@@ -23,7 +23,7 @@ fn game_with_counts(
     seed: u64,
     towers: Option<u8>,
     neutral_cities: Option<u8>,
-) -> Result<Game, NewGameError> {
+) -> Result<World, NewGameError> {
     let mut spec = NewGame {
         seed,
         all_ai: true,
@@ -34,8 +34,8 @@ fn game_with_counts(
     new_game(shipped(), &spec)
 }
 
-fn towers_in(g: &Game) -> usize {
-    let economy = g.economy();
+fn towers_in(w: &World) -> usize {
+    let economy = w.economy();
     economy
         .lairs()
         .iter()
@@ -47,8 +47,8 @@ fn towers_in(g: &Game) -> usize {
         .count()
 }
 
-fn neutral_cities_on(g: &Game, plane: f4x_core::map::Plane) -> usize {
-    let economy = g.economy();
+fn neutral_cities_on(w: &World, plane: f4x_core::map::Plane) -> usize {
+    let economy = w.economy();
     economy
         .cities()
         .iter()
@@ -56,7 +56,7 @@ fn neutral_cities_on(g: &Game, plane: f4x_core::map::Plane) -> usize {
             pos.plane == plane
                 && economy
                     .city_owner(*c)
-                    .is_some_and(|o| g.is_neutral_player(o))
+                    .is_some_and(|o| w.is_neutral_player(o))
         })
         .count()
 }
@@ -64,16 +64,16 @@ fn neutral_cities_on(g: &Game, plane: f4x_core::map::Plane) -> usize {
 #[test]
 fn the_settings_say_how_many_towers_a_map_gets() -> TestResult {
     for towers in [0u8, 2, 5] {
-        let g = game_with_counts(4, Some(towers), None)?;
+        let w = game_with_counts(4, Some(towers), None)?;
         assert!(
-            towers_in(&g) <= usize::from(towers),
+            towers_in(&w) <= usize::from(towers),
             "{towers} towers asked, {} made",
-            towers_in(&g)
+            towers_in(&w)
         );
         assert!(
-            towers_in(&g) + 2 >= usize::from(towers),
+            towers_in(&w) + 2 >= usize::from(towers),
             "{towers} towers asked, {} made",
-            towers_in(&g)
+            towers_in(&w)
         );
     }
     // The default follows the area: six on the normal map.
@@ -83,22 +83,22 @@ fn the_settings_say_how_many_towers_a_map_gets() -> TestResult {
 
 #[test]
 fn the_settings_cap_the_neutral_cities_of_each_plane() -> TestResult {
-    let g = game_with_counts(4, None, Some(3))?;
+    let w = game_with_counts(4, None, Some(3))?;
     for plane in f4x_core::map::Plane::all() {
-        let n = neutral_cities_on(&g, plane);
+        let n = neutral_cities_on(&w, plane);
         assert!(n <= 3, "{plane:?}: {n} neutral cities with a cap of 3");
     }
     let open = game_with_counts(4, None, None)?;
-    let total = |g: &Game| -> usize {
+    let total = |w: &World| -> usize {
         f4x_core::map::Plane::all()
-            .map(|p| neutral_cities_on(g, p))
+            .map(|p| neutral_cities_on(w, p))
             .sum()
     };
     assert!(
-        total(&open) > total(&g),
+        total(&open) > total(&w),
         "without a cap there are more: {} against {}",
         total(&open),
-        total(&g)
+        total(&w)
     );
     Ok(())
 }
@@ -174,27 +174,28 @@ fn no_wizard_starts_with_more_books_in_a_realm_than_the_setting_allows() -> Test
                 spec.settings.wizards.max_books_total = *BOOKS_TOTAL_RANGE.end();
                 spec.settings.wizards.picks.ai = picks;
                 spec.settings.ai.wizards.randomise = randomise;
-                let g = new_game(shipped(), &spec)?;
-                let wizards: Vec<_> = g
+                let w = new_game(shipped(), &spec)?;
+                let wizards: Vec<_> = w
                     .player_ids()
                     .into_iter()
-                    .filter_map(|p| g.wizard(p))
+                    .filter_map(|p| w.wizard(p))
                     .collect();
                 assert_eq!(
                     wizards.len(),
                     usize::from(spec.settings.basic.opponents) + 1,
                     "the opponents and the one who would be you"
                 );
-                for w in wizards {
-                    let books = w.books();
+                for wizard in wizards {
+                    let books = wizard.books();
                     assert!(
                         books.values().all(|&n| n <= most),
                         "seed {seed}, at most {most}, randomise {randomise}: {books:?}"
                     );
                     let spent = books.values().sum::<u8>()
-                        + w.retorts()
+                        + wizard
+                            .retorts()
                             .iter()
-                            .map(|&r| f4x_core::wizard::retort_cost(&g.content().rules, r))
+                            .map(|&r| f4x_core::wizard::retort_cost(&w.content().rules, r))
                             .sum::<u8>();
                     // Whatever the cap took off is spent again: no wizard spends fewer picks
                     // than the poorest ready-made one, nor more than there are.
@@ -260,13 +261,13 @@ fn wizards_with_more_books_in_a_realm_than_the_default_allows_play_on() -> TestR
         spec.settings.wizards.max_books_per_realm = *BOOKS_PER_REALM_RANGE.end();
         spec.settings.wizards.max_books_total = *BOOKS_TOTAL_RANGE.end();
         spec.settings.wizards.picks.ai = most_picks();
-        let mut g = new_game(shipped(), &spec)?;
-        for p in g.player_ids() {
-            if let Some(w) = g.wizard(p) {
-                most_seen = most_seen.max(w.books().values().copied().max().unwrap_or(0));
+        let mut w = new_game(shipped(), &spec)?;
+        for p in w.player_ids() {
+            if let Some(wizard) = w.wizard(p) {
+                most_seen = most_seen.max(wizard.books().values().copied().max().unwrap_or(0));
             }
         }
-        let refused: Vec<_> = end_turns(&mut g, 3)
+        let refused: Vec<_> = end_turns(&mut w, 3)
             .into_iter()
             .filter(|e| matches!(e, Event::Rejected(_)))
             .collect();

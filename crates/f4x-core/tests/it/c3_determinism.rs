@@ -3,30 +3,30 @@
 //! random hashers, so a result that depends on the order of a hash-ordered walk differs between them.
 
 use crate::support::{busy_round, content, shape, text, worlds};
-use f4x_core::game::save::Snapshot;
-use f4x_core::game::Game;
+use f4x_core::world::save::Snapshot;
+use f4x_core::world::World;
 
-fn copy(g: &Game) -> Game {
-    Snapshot::from_text(&text(g))
+fn copy(w: &World) -> World {
+    Snapshot::from_text(&text(w))
         .expect("reads")
         .restore(content())
         .expect("restores")
 }
 
 /// The events of each round and the text of the game after it.
-fn play(mut g: Game, rounds: usize) -> Vec<(String, String)> {
+fn play(mut w: World, rounds: usize) -> Vec<(String, String)> {
     (0..rounds)
         .map(|_| {
-            let events = shape(&busy_round(&mut g, 6));
-            (events, text(&g))
+            let events = shape(&busy_round(&mut w, 6));
+            (events, text(&w))
         })
         .collect()
 }
 
 #[test]
 fn two_copies_of_a_game_play_alike() {
-    for (name, g) in worlds() {
-        let (a, b) = (play(copy(&g), 25), play(copy(&g), 25));
+    for (name, w) in worlds() {
+        let (a, b) = (play(copy(&w), 25), play(copy(&w), 25));
         for (round, (x, y)) in a.iter().zip(&b).enumerate() {
             assert_eq!(x.0, y.0, "{name}, round {round}: the events differ");
             assert_eq!(x.1, y.1, "{name}, round {round}: the games differ");
@@ -59,15 +59,15 @@ fn a_game_played_in_turns_with_another_plays_as_it_does_alone() {
 
 #[test]
 fn a_game_plays_the_same_on_another_thread() {
-    for (name, g) in worlds() {
-        let here = play(copy(&g), 15);
-        let start = text(&g);
+    for (name, w) in worlds() {
+        let here = play(copy(&w), 15);
+        let start = text(&w);
         let there = std::thread::spawn(move || {
-            let g = Snapshot::from_text(&start)
+            let w = Snapshot::from_text(&start)
                 .expect("reads")
                 .restore(content())
                 .expect("restores");
-            play(g, 15)
+            play(w, 15)
         })
         .join()
         .expect("the thread played");

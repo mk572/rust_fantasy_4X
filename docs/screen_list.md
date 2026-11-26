@@ -160,7 +160,7 @@ Not part of the `e_SCREENS` loop. The "entered" column says what leads to each.
 | Win or lose animation | `Win_Animation`, `Lose_Animation` (`CONQUEST.c`): a short full-screen picture sequence. | **Done** (`end_scene.rs`, task 134): the win, lose, conquest, return and parade scenes. |
 | Score screen | `End_Of_Game_Score` (`SCORE.c`): the score and its parts. | **Done** (`game_over_screen.rs`, on the original's art: icon rows, bar). |
 | Hall of fame | After the score, then the main menu. | **Done** (task 88). |
-| Triggered by | A wizard finishing the Spell of Mastery (checked each turn, `Get_Winner`); the last wizard standing; the human wizard banished. | **Done** in the core (`game/endgame.rs`). |
+| Triggered by | A wizard finishing the Spell of Mastery (checked each turn, `Get_Winner`); the last wizard standing; the human wizard banished. | **Done** in the core (`world/endgame.rs`). |
 
 ## 7. Screens this project has that the original lacks
 

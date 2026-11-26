@@ -9,7 +9,7 @@
 
 #![allow(clippy::needless_range_loop)]
 
-use f4x_core::game::rng::random;
+use f4x_core::world::rng::random;
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
 

@@ -1,4 +1,4 @@
-//! `f4x-tools game-methods`: how many methods `Game` has per source file of f4x-core. A report on
+//! `f4x-tools world-methods`: how many methods `World` has per source file of f4x-core. A report on
 //! how well the code is divided, not a test and not a limit: it prints the files over `GUIDELINE`
 //! and exits with success whatever the counts are.
 
@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// About how many methods on `Game` one file should have; `game/access.rs` and `game/cheat.rs` are
+/// About how many methods on `World` one file should have; `world/access.rs` and `world/cheat.rs` are
 /// deliberate surfaces and may go beyond it.
 const GUIDELINE: usize = 12;
 
@@ -16,7 +16,7 @@ pub fn run(_args: &[String]) -> Result<(), String> {
     let mut ranked: Vec<_> = counts.iter().collect();
     ranked.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
     println!(
-        "methods on Game: {} in {} files",
+        "methods on World: {} in {} files",
         counts.values().sum::<usize>(),
         counts.len()
     );
@@ -45,8 +45,8 @@ fn source_files(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
     Ok(())
 }
 
-/// Whether a line opens an `impl` block for `Game` itself (a trait implemented for `Game` counts).
-fn opens_game_impl(line: &str) -> bool {
+/// Whether a line opens an `impl` block for `World` itself (a trait implemented for `World` counts).
+fn opens_world_impl(line: &str) -> bool {
     let Some(head) = line.strip_prefix("impl ") else {
         return false;
     };
@@ -56,17 +56,17 @@ fn opens_game_impl(line: &str) -> bool {
     let target = head.rsplit(" for ").next().unwrap_or(head).trim();
     matches!(
         target,
-        "Game" | "crate::game::Game" | "f4x_core::game::Game"
+        "World" | "crate::world::World" | "f4x_core::world::World"
     )
 }
 
-/// Methods in `impl Game` blocks of one file: `fn` items at the block's top level (four spaces in).
+/// Methods in `impl World` blocks of one file: `fn` items at the block's top level (four spaces in).
 fn count_methods(text: &str) -> usize {
     let mut inside = false;
     let mut count = 0;
     for line in text.lines() {
         if !inside {
-            inside = opens_game_impl(line);
+            inside = opens_world_impl(line);
         } else if line.starts_with('}') {
             inside = false;
         } else if let Some(item) = line.strip_prefix("    ") {
@@ -109,9 +109,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn counter_reads_game_impls_only() {
+    fn counter_reads_world_impls_only() {
         let text = "\
-impl Game {
+impl World {
     pub fn a(&self) {}
     pub(crate) fn b(&self) {
         fn inner() {}
@@ -123,11 +123,11 @@ impl Other {
     fn d(&self) {}
 }
 
-impl Trait for Game {
+impl Trait for World {
     fn e(&self) {}
 }
 
-impl crate::game::Game {
+impl crate::world::World {
     pub fn f(&self) {}
 }
 ";

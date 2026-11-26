@@ -8,7 +8,7 @@ use crate::font::{Ink, Style};
 use crate::font_ramp;
 use crate::input::Input;
 use crate::text::Args;
-use f4x_core::game::{Event, LossCause};
+use f4x_core::world::{Event, LossCause};
 use f4x_core::world_event::EventKind;
 use f4x_def::rules::SpellTarget;
 use macroquad::prelude::*;
@@ -76,8 +76,8 @@ impl Chancellor {
 impl App {
     /// What the player should be told about a turn change, from its events.
     pub(crate) fn collect_report(&self, events: &[Event]) -> Vec<Section> {
-        let rules = &self.game.content().rules;
-        let mine = |city: hecs::Entity| self.game.economy().city_owner(city) == Some(HUMAN);
+        let rules = &self.world.content().rules;
+        let mine = |city: hecs::Entity| self.world.economy().city_owner(city) == Some(HUMAN);
         let mut disbanded = Vec::new();
         let mut growth = Vec::new();
         let mut deaths = Vec::new();
@@ -86,7 +86,7 @@ impl App {
         let mut ships = Vec::new();
         // Wizards we have met are known by name; their shortages are news.
         let rival_name = |player: &f4x_core::player::PlayerId| {
-            (*player != HUMAN && self.game.have_met(HUMAN, *player))
+            (*player != HUMAN && self.world.have_met(HUMAN, *player))
                 .then(|| self.player_name(*player))
                 .flatten()
         };
@@ -116,9 +116,9 @@ impl App {
                 }
                 Event::Shortage { player, what } if rival_name(player).is_some() => {
                     let what = self.names.word(match what {
-                        f4x_core::game::Shortage::Mana => "resource.mana",
-                        f4x_core::game::Shortage::Gold => "resource.gold",
-                        f4x_core::game::Shortage::Food => "resource.food",
+                        f4x_core::world::Shortage::Mana => "resource.mana",
+                        f4x_core::world::Shortage::Gold => "resource.gold",
+                        f4x_core::world::Shortage::Food => "resource.food",
                     });
                     let args = self
                         .wizard_arg(Args::new(), "wizard", *player)
@@ -231,7 +231,7 @@ impl App {
     /// The lines of the events that are going on: the world event, and the plague and the
     /// population boom in the human's cities (`REPORT.c`).
     fn running_events(&self) -> Vec<String> {
-        let events = self.game.events();
+        let events = self.world.events();
         let mut lines = Vec::new();
         if let Some(kind) = events.world_event() {
             lines.push(self.text(match kind {
@@ -251,11 +251,11 @@ impl App {
             };
             let Some(city) = lasting
                 .city
-                .and_then(|s| self.game.units().entity_of_serial(s))
+                .and_then(|s| self.world.units().entity_of_serial(s))
             else {
                 continue;
             };
-            if self.game.economy().city_owner(city) == Some(HUMAN) {
+            if self.world.economy().city_owner(city) == Some(HUMAN) {
                 lines.push(self.text_with(key, &Args::new().text("city", self.city_name(city))));
             }
         }
@@ -290,13 +290,13 @@ impl App {
     /// What the next turn change cannot pay for, if anything.
     fn shortfall_forecast(&self) -> Option<Section> {
         let mut lines = Vec::new();
-        if let Some(m) = self.game.upkeep_shortfall(HUMAN) {
+        if let Some(m) = self.world.upkeep_shortfall(HUMAN) {
             let args = Args::new()
                 .text("needed", self.texts.half_amount(m.owed))
                 .text("reserve", self.texts.half_amount(m.reserve));
             lines.push(self.text_with("chancellor.forecast_mana", &args));
         }
-        if let Some(t) = self.game.treasury_shortfall(HUMAN) {
+        if let Some(t) = self.world.treasury_shortfall(HUMAN) {
             let (food, gold) = t.missing(&[]);
             if food > f4x_def::half_int::HalfInt::ZERO {
                 lines.push(self.text_with(
@@ -479,7 +479,7 @@ mod tests {
     fn the_report_names_the_running_world_event() -> f4x_def::testdir::TestResult {
         let mut app = App::for_test();
         assert!(app.running_events().is_empty());
-        app.game.cheat_event(EventKind::GoodMoon, HUMAN)?;
+        app.world.cheat_event(EventKind::GoodMoon, HUMAN)?;
         assert_eq!(app.running_events(), vec![app.text("event.good_moon")]);
         Ok(())
     }

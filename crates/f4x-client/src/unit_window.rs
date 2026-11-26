@@ -9,9 +9,9 @@ use crate::font_ramp;
 use crate::input::Input;
 use crate::text::Args;
 use crate::ui;
-use f4x_core::game::Command;
 use f4x_core::map::Position;
 use f4x_core::unit::Standby;
+use f4x_core::world::Command;
 use f4x_def::half_int::HalfInt;
 use f4x_def::rules::Ability;
 use macroquad::prelude::*;
@@ -49,7 +49,7 @@ pub(crate) enum Special {
 impl App {
     /// Which special action the selected units have (the original's `special_action_flag`).
     pub(crate) fn special_action(&self) -> Special {
-        let units = self.game.units();
+        let units = self.world.units();
         let any = |ability: Ability| {
             self.selection
                 .iter()
@@ -92,7 +92,7 @@ impl App {
         tint: Color,
     ) {
         let Some((lbx, entry)) = self
-            .game
+            .world
             .units()
             .unit_def(unit)
             .and_then(|d| self.art.unit_entry(&d.id))
@@ -137,7 +137,7 @@ impl App {
     /// The damage bar, experience medals and weapon icon of one picture
     /// (`Unit_Window_Draw_Unit_Attributes`).
     fn draw_unit_attributes(&mut self, lay: &Layout, unit: hecs::Entity, at: (f32, f32)) {
-        let (hits, max) = self.game.units().unit_hits(unit);
+        let (hits, max) = self.world.units().unit_hits(unit);
         if hits < max && hits > 0 {
             let length = (hits * 10 / max).saturating_sub(1) as f32;
             let colour = if length >= 6.0 {
@@ -156,7 +156,7 @@ impl App {
                 colour,
             );
         }
-        let level = self.game.units().unit_level(unit);
+        let level = self.world.units().unit_level(unit);
         if level > 0 {
             let (medal, zero) = match level {
                 7.. => (53, 6),
@@ -174,7 +174,7 @@ impl App {
                 );
             }
         }
-        let quality = usize::from(self.game.units().unit_weapon_quality(unit));
+        let quality = usize::from(self.world.units().unit_weapon_quality(unit));
         if quality > 0 {
             let frame = (get_time() * 6.0) as usize % 4;
             self.draw_pic(lay, "main", 53 + quality, frame, at.0 + 13.0, at.1 + 19.0);
@@ -195,8 +195,8 @@ impl App {
             // The slot's own background is one pixel up and left of the picture.
             self.draw_pic(lay, "main", 24 + i, 0, at.0 - 1.0, at.1 - 1.0);
             let selected = self.selection.contains(&unit);
-            let patrolling = self.game.units().unit_standby(unit) == Some(Standby::Patrol);
-            let spent = self.game.units().unit_moves_left(unit) == 0;
+            let patrolling = self.world.units().unit_standby(unit) == Some(Standby::Patrol);
+            let spent = self.world.units().unit_moves_left(unit) == 0;
             let tint = if patrolling || spent {
                 Color::new(0.6, 0.6, 0.6, 1.0)
             } else {
@@ -204,9 +204,9 @@ impl App {
             };
             self.draw_unit_picture(lay, unit, at, selected, tint);
             self.draw_unit_attributes(lay, unit, at);
-            let mark = if self.game.unit_building_road(unit) {
+            let mark = if self.world.unit_building_road(unit) {
                 Some("B")
-            } else if self.game.unit_has_order(unit) {
+            } else if self.world.unit_has_order(unit) {
                 Some("G")
             } else {
                 None
@@ -271,7 +271,7 @@ impl App {
         let moves = self
             .selection
             .iter()
-            .map(|&u| self.game.units().unit_moves_left(u))
+            .map(|&u| self.world.units().unit_moves_left(u))
             .min()
             .unwrap_or(HalfInt::ZERO);
         if moves > 0 {
@@ -317,7 +317,7 @@ impl App {
 
     /// The Done and Patrol buttons: the units are skipped, and the next stack is picked.
     pub(crate) fn stand_by(&mut self, units: Vec<hecs::Entity>, standby: Standby) {
-        self.game.apply(Command::SetStandby {
+        self.world.apply(Command::SetStandby {
             units,
             standby: Some(standby),
         });
@@ -329,11 +329,11 @@ impl App {
     pub(crate) fn select_next_idle(&mut self, keep: bool) {
         let from = self.selection_position();
         let mut idle: Vec<Position> = Vec::new();
-        for unit in self.game.units().player_units(HUMAN) {
-            let Some(at) = self.game.units().unit_position(unit) else {
+        for unit in self.world.units().player_units(HUMAN) {
+            let Some(at) = self.world.units().unit_position(unit) else {
                 continue;
             };
-            if self.game.unit_is_idle(unit) && !idle.contains(&at) {
+            if self.world.unit_is_idle(unit) && !idle.contains(&at) {
                 idle.push(at);
             }
         }
@@ -355,11 +355,11 @@ impl App {
     /// Whether the human has no unit left that waits for orders (the Next Turn button shows).
     pub(crate) fn all_units_moved(&self) -> bool {
         !self
-            .game
+            .world
             .units()
             .player_units(HUMAN)
             .into_iter()
-            .any(|u| self.game.unit_is_idle(u))
+            .any(|u| self.world.unit_is_idle(u))
     }
 }
 
@@ -371,20 +371,20 @@ mod tests {
     /// The human's first unit stands on a square; `unit` is put there and selected alone.
     fn select_new(app: &mut App, unit: u16) -> Result<(), Box<dyn std::error::Error>> {
         let at = app
-            .game
+            .world
             .units()
             .player_units(HUMAN)
             .first()
-            .and_then(|&u| app.game.units().unit_position(u))
+            .and_then(|&u| app.world.units().unit_position(u))
             .ok_or("the human has no unit")?;
         let id = app
-            .game
+            .world
             .content()
             .rules
             .units
             .id_numbered(unit)
             .ok_or(format!("no unit {unit}"))?;
-        let spawned = app.game.spawn_unit(HUMAN, at, id);
+        let spawned = app.world.spawn_unit(HUMAN, at, id);
         app.selection = vec![spawned];
         Ok(())
     }
@@ -421,8 +421,8 @@ mod tests {
     fn next_turn_shows_once_every_unit_has_moved() {
         let mut app = App::for_test();
         assert!(!app.all_units_moved());
-        for u in app.game.units().player_units(HUMAN) {
-            app.game.scenario_set_moves_left(u, HalfInt::from_int(0));
+        for u in app.world.units().player_units(HUMAN) {
+            app.world.scenario_set_moves_left(u, HalfInt::from_int(0));
         }
         assert!(app.all_units_moved());
     }

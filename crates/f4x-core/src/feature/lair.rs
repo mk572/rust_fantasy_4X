@@ -24,8 +24,8 @@ use f4x_def::content::Content;
 use crate::rules::{Rarity, RealmId, SpellId, Stat, UnitId, UnitKind};
 use crate::unit::movement::MoveError;
 
-use crate::game::{Event, Game};
 use crate::wizard::{all_retorts, retort_available, retort_cost};
+use crate::world::{Event, World};
 
 /// Units that can guard a site of `realm`: summoned creatures of that realm that are not
 /// transports, with their costs, in the data's order.
@@ -161,7 +161,7 @@ impl SiteError {
 pub(crate) fn award_spell(
     wizard: &mut crate::wizard::sheet::WizardMut<'_>,
     content: &Content,
-    rng: &mut crate::game::rng::GameRng,
+    rng: &mut crate::world::rng::GameRng,
     rarity: i32,
 ) -> Option<SpellId> {
     let mut realms: Vec<RealmId> = crate::rules::BOOK_REALMS
@@ -215,7 +215,7 @@ pub(crate) fn award_spell(
 pub(crate) fn award_special(
     rules: &crate::rules::Rules,
     wizard: &mut crate::wizard::sheet::WizardMut<'_>,
-    rng: &mut crate::game::rng::GameRng,
+    rng: &mut crate::world::rng::GameRng,
     lair: &LairInfo,
     picks: i32,
     books_limit: i32,
@@ -273,7 +273,7 @@ pub(crate) fn award_special(
     }
 }
 
-impl Game {
+impl World {
     /// Fight the guards of the site on `to`, which a stack next to it has been stopped at.
     /// The guards are created as neutral units on the site for the battle.
     pub fn enter_site(
@@ -319,7 +319,7 @@ impl Game {
             Ok(events) => {
                 // Whoever fights for a site, win or lose, knows what guards it from then on.
                 if let Some(player) = units.first().and_then(|&u| self.units().unit_owner(u)) {
-                    if let Ok(mut l) = self.world.get::<&mut Lair>(site) {
+                    if let Ok(mut l) = self.ecs.get::<&mut Lair>(site) {
                         if !l.fought_by.contains(&player) {
                             l.fought_by.push(player);
                         }
@@ -358,7 +358,7 @@ impl Game {
     /// `None` if there is none or it is cleared already.
     pub(crate) fn clear_site(&mut self, entity: hecs::Entity) -> Option<LairInfo> {
         let lair = self.economy().lair_of(entity).filter(|l| l.intact)?;
-        if let Ok(mut l) = self.world.get::<&mut Lair>(entity) {
+        if let Ok(mut l) = self.ecs.get::<&mut Lair>(entity) {
             l.intact = false;
         }
         let is_encounter =
@@ -448,8 +448,8 @@ impl Game {
         if let Some(mut w) = self
             .player_index
             .get(&player)
-            .and_then(|&e| crate::wizard::entity::of_player(&self.world, e))
-            .map(|e| crate::wizard::sheet::WizardMut::new(&mut self.world, e))
+            .and_then(|&e| crate::wizard::entity::of_player(&self.ecs, e))
+            .map(|e| crate::wizard::sheet::WizardMut::new(&mut self.ecs, e))
         {
             match lair.special {
                 5 | 6 => {
@@ -537,8 +537,8 @@ impl Game {
     /// A spell for the wizard `player` from a hoard of `rarity` (`award_spell`).
     fn award_lair_spell(&mut self, player: PlayerId, rarity: u8) -> Option<SpellId> {
         let entity = self.player_index.get(&player).copied()?;
-        let wizard = crate::wizard::entity::of_player(&self.world, entity)?;
-        let mut w = crate::wizard::sheet::WizardMut::new(&mut self.world, wizard);
+        let wizard = crate::wizard::entity::of_player(&self.ecs, entity)?;
+        let mut w = crate::wizard::sheet::WizardMut::new(&mut self.ecs, wizard);
         award_spell(&mut w, &self.content, &mut self.rng, i32::from(rarity))
     }
 
@@ -556,8 +556,8 @@ impl Game {
         let mut kept: Vec<(UnitId, u32)> = Vec::new();
         for (i, &unit) in instances.iter().enumerate() {
             let hurt = match fought.get(i) {
-                Some(&u) if self.world.contains(u) => {
-                    self.world.get::<&crate::unit::Hurt>(u).map_or(0, |h| h.0)
+                Some(&u) if self.ecs.contains(u) => {
+                    self.ecs.get::<&crate::unit::Hurt>(u).map_or(0, |h| h.0)
                 }
                 // A guard of the fight that is gone is dead.
                 Some(_) => continue,
@@ -574,7 +574,7 @@ impl Game {
             }
         }
         let hurt: Vec<u32> = kept.iter().map(|&(_, h)| h).collect();
-        if let Ok(mut l) = self.world.get::<&mut Lair>(site) {
+        if let Ok(mut l) = self.ecs.get::<&mut Lair>(site) {
             l.guards = guards;
             l.hurt = if hurt.iter().any(|&h| h > 0) {
                 hurt
@@ -614,7 +614,7 @@ impl Game {
             healed.push((lair.entity, hurt));
         }
         for (site, hurt) in healed {
-            if let Ok(mut l) = self.world.get::<&mut Lair>(site) {
+            if let Ok(mut l) = self.ecs.get::<&mut Lair>(site) {
                 l.hurt = if hurt.iter().any(|&h| h > 0) {
                     hurt
                 } else {
@@ -653,7 +653,7 @@ impl Game {
         let survivors: Vec<hecs::Entity> = attackers
             .iter()
             .copied()
-            .filter(|&u| self.world.contains(u))
+            .filter(|&u| self.ecs.contains(u))
             .collect();
         let mut events = self.claim_lair(site, winner);
         if !survivors.is_empty() {
@@ -674,7 +674,7 @@ impl Game {
 
 pub mod create;
 
-impl Game {
+impl World {
     /// The spells a retort starts a wizard with (`spell_library.retort_known`), taught to a wizard
     /// who gains the retort later and does not know them yet. Returns the spells learned.
     pub(crate) fn grant_retort_spells(

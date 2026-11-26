@@ -2,10 +2,10 @@
 
 use f4x_core::city::autobuild::{BuildPlan, Focus, Mix};
 use f4x_core::city::production::ProductionItem;
-use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
+use f4x_core::world::{Command, Event, World};
 use f4x_def::half_int::HalfInt;
 
 use crate::builder;
@@ -14,15 +14,15 @@ use crate::Ai;
 
 /// The lowest tax rate (up to a limit) that leaves the treasury a small surplus, else the
 /// rate that earns the most. Rebels from high taxes are counted by the treasury forecast.
-pub fn taxes(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+pub fn taxes(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     const MAX_RATE: u8 = 3;
     let wanted_net = crate::knob("NET", 3.0) as i32;
     let me = ai.player;
     let mut best: Option<(HalfInt, u8)> = None;
     let mut chosen = None;
     for rate in 0..=MAX_RATE {
-        game.apply(Command::SetTaxRate { player: me, rate });
-        let net = PlayerView::new(game, me).budget().net_gold();
+        world.apply(Command::SetTaxRate { player: me, rate });
+        let net = PlayerView::new(world, me).budget().net_gold();
         if best.is_none_or(|(n, _)| net > n) {
             best = Some((net, rate));
         }
@@ -32,7 +32,7 @@ pub fn taxes(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         }
     }
     let rate = chosen.or(best.map(|(_, r)| r)).unwrap_or(1);
-    ai.order(game, Command::SetTaxRate { player: me, rate }, events);
+    ai.order(world, Command::SetTaxRate { player: me, rate }, events);
 }
 
 /// How many ships the wizard wants. A landing on a big army needs a fleet: one ship per twelve
@@ -186,10 +186,10 @@ const RIVAL_RANGE: u32 = 12;
 /// build by themselves each time they finish something. The AI's own part is the plan: what
 /// matters (war, expansion or both), how much of the production goes to the army, and which
 /// cities may build settlers. It keeps the port that builds the ship, and buys what it can.
-pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+pub fn cities(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     let me = ai.player;
     let (mine, mut settlers_planned) = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         let mut mine = view.my_cities();
         mine.sort_by_key(|(e, _)| view.serial_of(*e));
         let in_production = mine
@@ -206,7 +206,7 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     };
     // The list of sites: its length is the room for more cities (`phase::width` leans wide with it).
     let (free_sites, room) = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         let taken = ai.roles.targets(crate::roles::Role::Settle);
         let list = ai.sites.refreshed(&view);
         (
@@ -214,25 +214,25 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             !list.is_empty(),
         )
     };
-    let wide = crate::phase::width(&PlayerView::new(game, me), room);
+    let wide = crate::phase::width(&PlayerView::new(world, me), room);
     let war_force = ai.campaign.map(|target| {
-        let view = PlayerView::new(game, me);
-        let edge = crate::military::campaign_ratio(game, me);
+        let view = PlayerView::new(world, me);
+        let edge = crate::military::campaign_ratio(world, me);
         let strength =
-            crate::war_plan::strength_wanted(&view, &ai.city_memory, game.turn, target, edge);
+            crate::war_plan::strength_wanted(&view, &ai.city_memory, world.turn, target, edge);
         crate::war_plan::units_for(&view, strength)
     });
-    let empire = Empire::of(&PlayerView::new(game, me));
-    let roster = Roster::of(ai, &PlayerView::new(game, me));
+    let empire = Empire::of(&PlayerView::new(world, me));
+    let roster = Roster::of(ai, &PlayerView::new(world, me));
     // Fewer scouts than a wizard that builds up wants (`scout::wanted`) and no soldier spare: one
     // city builds the unit that scouts (the first that is not full, so that the others go on with
     // their plans).
     let scout_city = (roster.scouts < crate::scout::wanted(mine.len(), true)
         && roster.idle_fighters == 0
         && !ai.frontier_closed
-        && crate::phase::phase(&PlayerView::new(game, me)) == crate::phase::Phase::Build)
+        && crate::phase::phase(&PlayerView::new(world, me)) == crate::phase::Phase::Build)
         .then(|| {
-            let view = PlayerView::new(game, me);
+            let view = PlayerView::new(world, me);
             mine.iter()
                 .map(|&(c, p)| (c, p))
                 .find(|&(c, p)| {
@@ -244,16 +244,16 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         })
         .flatten();
     let (elite, forges) = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         (crate::forge::active(&view), crate::forge::forges(&view))
     };
     // Each city's auto-builder reads the net gold: kept and patched for the cities whose item
     // changes, not worked out for the whole empire in every city.
-    game.begin_kept_budget();
+    world.begin_kept_budget();
     // The food of the units the cities have in production: they are not in `empire.spare_food`
     // yet, and each unit chosen below joins them.
     let mut queued_food = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         mine.iter()
             .filter_map(|&(c, _)| match view.city_production(c).item {
                 Some(ProductionItem::Unit(u)) => {
@@ -265,7 +265,7 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     };
     for (city, pos) in mine {
         let port_item = {
-            let view = PlayerView::new(game, me);
+            let view = PlayerView::new(world, me);
             let current = view.city_production(city).item;
             if matches!(current, Some(ProductionItem::Unit(u)) if is_settler_def(&view, u)) {
                 settlers_planned = settlers_planned.saturating_sub(1);
@@ -275,7 +275,7 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             if size == 0 {
                 if current != Some(ProductionItem::Housing) {
                     ai.order(
-                        game,
+                        world,
                         Command::SetProduction {
                             city,
                             item: ProductionItem::Housing,
@@ -404,18 +404,18 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             item
         };
         if let Some(ProductionItem::Unit(u)) = port_item {
-            if game.economy().city_production(city).item != port_item {
-                queued_food += game.content().rules.units.get(u).upkeep.food;
+            if world.economy().city_production(city).item != port_item {
+                queued_food += world.content().rules.units.get(u).upkeep.food;
             }
         }
         if let Some(item) = port_item {
-            if game.economy().city_production(city).item != Some(item) {
-                ai.order(game, Command::SetProduction { city, item }, events);
+            if world.economy().city_production(city).item != Some(item) {
+                ai.order(world, Command::SetProduction { city, item }, events);
             }
         }
     }
-    game.end_kept_budget();
-    spend_gold(ai, game, events);
+    world.end_kept_budget();
+    spend_gold(ai, world, events);
 }
 
 /// The most soldiers the garrison floor asks of a city while the wizard builds up and no enemy is near
@@ -639,8 +639,12 @@ fn plan_for(
 /// The gold the wizard keeps in the treasury when it buys production: a base and some turns of
 /// its net income, so that a richer wizard saves more and has something to pay a trade with
 /// (`AIK_GOLD_RESERVE_BASE`, `AIK_GOLD_RESERVE_INCOME`).
-pub(crate) fn gold_reserve(game: &Game, me: PlayerId) -> i32 {
-    let net = PlayerView::new(game, me).budget().net_gold().floor().max(0);
+pub(crate) fn gold_reserve(world: &World, me: PlayerId) -> i32 {
+    let net = PlayerView::new(world, me)
+        .budget()
+        .net_gold()
+        .floor()
+        .max(0);
     let base = crate::knob("GOLD_RESERVE_BASE", 40.0) as i32;
     let turns = crate::knob("GOLD_RESERVE_INCOME", 3.0) as i32;
     base + turns * net
@@ -648,11 +652,11 @@ pub(crate) fn gold_reserve(game: &Game, me: PlayerId) -> i32 {
 
 /// Buy what is being built when the treasury has gold to spare, settlers and the first
 /// guard of each city before the rest.
-fn spend_gold(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+fn spend_gold(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     let me = ai.player;
-    let reserve = gold_reserve(game, me);
+    let reserve = gold_reserve(world, me);
     let wanted = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         let mut wanted: Vec<(u32, HalfInt, hecs::Entity)> = Vec::new();
         for (city, pos) in view.my_cities() {
             let Some(item) = view.city_production(city).item else {
@@ -673,9 +677,9 @@ fn spend_gold(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         wanted
     };
     for (_, cost, city) in wanted {
-        let gold = PlayerView::new(game, me).treasury().gold;
+        let gold = PlayerView::new(world, me).treasury().gold;
         if gold - cost >= HalfInt::from_int(reserve) {
-            ai.order(game, Command::BuyProduction { city }, events);
+            ai.order(world, Command::BuyProduction { city }, events);
         }
     }
 }
@@ -708,17 +712,17 @@ mod tests {
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
     /// The capital of player 0.
-    fn capital(g: &Game) -> Result<hecs::Entity, &'static str> {
-        g.economy()
+    fn capital(w: &World) -> Result<hecs::Entity, &'static str> {
+        w.economy()
             .city_at(crate::testworld::at(COAST_CITY.0, COAST_CITY.1))
             .ok_or("player 0 has a city on the coast")
     }
 
     /// The plan the AI works out for a city of player 0 (the plan decides what the chooser may
     /// build; it is not stored in the game).
-    fn plan_of(g: &Game, ai: &Ai, city: hecs::Entity) -> Result<BuildPlan, &'static str> {
-        let view = PlayerView::new(g, P0);
-        let pos = g.city_position(city).ok_or("the city has a position")?;
+    fn plan_of(w: &World, ai: &Ai, city: hecs::Entity) -> Result<BuildPlan, &'static str> {
+        let view = PlayerView::new(w, P0);
+        let pos = w.city_position(city).ok_or("the city has a position")?;
         let empire = Empire::of(&view);
         let mut planned = settlers_alive(&view);
         Ok(plan_for(
@@ -745,25 +749,25 @@ mod tests {
 
     #[test]
     fn a_young_wizard_plans_for_growth_and_the_city_builds_by_the_plan() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
         // The wizard has looked at its island: there are places for cities.
-        g.explore(P0, crate::testworld::at(7, 6), HalfInt::from_int(4));
+        w.explore(P0, crate::testworld::at(7, 6), HalfInt::from_int(4));
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();
-        let city = capital(&g)?;
-        let plan = plan_of(&g, &ai, city)?;
+        let city = capital(&w)?;
+        let plan = plan_of(&w, &ai, city)?;
         assert_eq!(plan.primary, Focus::Production, "room for more cities");
         assert_eq!(plan.secondary, Some(Focus::Population));
         assert!(plan.settlers && plan.eager_settlers && plan.min_settler_pop == 3);
         // The city is building something now (the chooser took over from housing), and a second
         // look leaves a standing order alone.
-        cities(&mut ai, &mut g, &mut events);
-        let item = g.economy().city_production(city).item;
+        cities(&mut ai, &mut w, &mut events);
+        let item = w.economy().city_production(city).item;
         assert!(!builder::is_open(item), "{item:?}");
-        cities(&mut ai, &mut g, &mut events);
-        assert_eq!(g.economy().city_production(city).item, item);
+        cities(&mut ai, &mut w, &mut events);
+        assert_eq!(w.economy().city_production(city).item, item);
         assert!(
-            g.autobuild_of(city).is_none(),
+            w.autobuild_of(city).is_none(),
             "the AI does not use the helper"
         );
         Ok(())
@@ -773,62 +777,62 @@ mod tests {
     fn a_port_that_can_only_build_triremes_builds_one_and_counts_it_as_its_ship() -> TestResult {
         use crate::testworld::{at, build, spawn, ENEMY_CITY};
         let enemy = at(ENEMY_CITY.0, ENEMY_CITY.1);
-        let builds_trireme = |g: &Game| -> Result<bool, &'static str> {
-            let item = g.economy().city_production(capital(g)?).item;
-            let rules = &g.content().rules;
+        let builds_trireme = |w: &World| -> Result<bool, &'static str> {
+            let item = w.economy().city_production(capital(w)?).item;
+            let rules = &w.content().rules;
             Ok(matches!(item, Some(ProductionItem::Unit(u))
                 if rules.units.get(u).id == "trireme"))
         };
         // Beastmen have no Ship Yard: the Ship Wrights Guild is the end of their ships.
-        let mut g = game(COAST_CITY, 1 /* beastmen */);
+        let mut w = game(COAST_CITY, 1 /* beastmen */);
         build(
-            &mut g,
+            &mut w,
             at(COAST_CITY.0, COAST_CITY.1),
             &[12 /* ship_wrights_guild */],
         );
-        g.reveal_map(P0);
+        w.reveal_map(P0);
         let mut ai = Ai::new(P0);
         ai.unreachable.push(enemy);
-        crate::naval::run(&mut ai, &mut g, &mut Vec::new());
+        crate::naval::run(&mut ai, &mut w, &mut Vec::new());
         assert!(ai.naval.is_some(), "a landing is planned");
-        cities(&mut ai, &mut g, &mut Vec::new());
+        cities(&mut ai, &mut w, &mut Vec::new());
         assert!(
-            builds_trireme(&g)?,
+            builds_trireme(&w)?,
             "no ship yet: the port builds the trireme"
         );
         // With the trireme there, the port goes back to its usual builds.
         spawn(
-            &mut g,
+            &mut w,
             P0,
             at(COAST_CITY.0, COAST_CITY.1),
             35, /* trireme */
             1,
         );
-        let city = capital(&g)?;
-        let _ = g.set_production(city, ProductionItem::Housing);
-        cities(&mut ai, &mut g, &mut Vec::new());
-        assert!(!builds_trireme(&g)?, "one trireme is the ship");
+        let city = capital(&w)?;
+        let _ = w.set_production(city, ProductionItem::Housing);
+        cities(&mut ai, &mut w, &mut Vec::new());
+        assert!(!builds_trireme(&w)?, "one trireme is the ship");
         Ok(())
     }
 
     #[test]
     fn a_wizard_with_nobody_scouting_builds_a_unit_that_can() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
         let mut ai = Ai::new(P0);
-        cities(&mut ai, &mut g, &mut Vec::new());
-        let item = g.economy().city_production(capital(&g)?).item;
+        cities(&mut ai, &mut w, &mut Vec::new());
+        let item = w.economy().city_production(capital(&w)?).item;
         assert!(
             matches!(item, Some(ProductionItem::Unit(_))),
             "a unit for the scouting: {item:?}"
         );
         // Once somebody scouts, the city goes back to its plan.
         ai.frontier_closed = true;
-        let city = capital(&g)?;
-        let _ = g.set_production(city, ProductionItem::Housing);
-        cities(&mut ai, &mut g, &mut Vec::new());
+        let city = capital(&w)?;
+        let _ = w.set_production(city, ProductionItem::Housing);
+        cities(&mut ai, &mut w, &mut Vec::new());
         assert!(!matches!(
-            g.economy().city_production(city).item,
-            Some(ProductionItem::Unit(u)) if g.content().rules.units.get(u).id == "high_men_cavalry"
+            w.economy().city_production(city).item,
+            Some(ProductionItem::Unit(u)) if w.content().rules.units.get(u).id == "high_men_cavalry"
         ));
         Ok(())
     }
@@ -837,9 +841,9 @@ mod tests {
     fn units_awaiting_transport_and_no_ship_make_the_nearest_port_build_one() -> TestResult {
         use crate::testworld::{at, build, spawn};
         let port = at(COAST_CITY.0, COAST_CITY.1);
-        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
         build(
-            &mut g,
+            &mut w,
             port,
             &[
                 12, /* ship_wrights_guild */
@@ -847,11 +851,11 @@ mod tests {
                 13, /* ship_yard */
             ],
         );
-        let stranded = spawn(&mut g, P0, at(9, 9), 104 /* high_men_spearmen */, 2);
+        let stranded = spawn(&mut w, P0, at(9, 9), 104 /* high_men_spearmen */, 2);
         let mut ai = Ai::new(P0);
         ai.frontier_closed = true;
         let serials: Vec<_> = {
-            let view = PlayerView::new(&g, P0);
+            let view = PlayerView::new(&w, P0);
             stranded.iter().map(|&u| view.serial_of(u)).collect()
         };
         for s in &serials {
@@ -860,9 +864,9 @@ mod tests {
                 .claim(*s, crate::roles::Role::Reinforce, 1, Some(port));
             ai.roles.set_crossing(*s, Some(crate::roles::Crossing::Sea));
         }
-        cities(&mut ai, &mut g, &mut Vec::new());
-        let item = g.economy().city_production(capital(&g)?).item;
-        let rules = &g.content().rules;
+        cities(&mut ai, &mut w, &mut Vec::new());
+        let item = w.economy().city_production(capital(&w)?).item;
+        let rules = &w.content().rules;
         assert!(
             matches!(item, Some(ProductionItem::Unit(u)) if rules.units.get(u).id == "galley"),
             "{item:?}"
@@ -877,9 +881,9 @@ mod tests {
         use crate::testworld::{at, build, spawn};
         for (waiting, builds_galley) in [(2, false), (6, true)] {
             let port = at(COAST_CITY.0, COAST_CITY.1);
-            let mut g = game(COAST_CITY, 8 /* high_men */);
+            let mut w = game(COAST_CITY, 8 /* high_men */);
             build(
-                &mut g,
+                &mut w,
                 port,
                 &[
                     12, /* ship_wrights_guild */
@@ -887,9 +891,9 @@ mod tests {
                     13, /* ship_yard */
                 ],
             );
-            spawn(&mut g, P0, port, 35 /* trireme */, 1);
+            spawn(&mut w, P0, port, 35 /* trireme */, 1);
             let stranded = spawn(
-                &mut g,
+                &mut w,
                 P0,
                 at(9, 9),
                 104, /* high_men_spearmen */
@@ -897,9 +901,9 @@ mod tests {
             );
             let mut ai = Ai::new(P0);
             ai.frontier_closed = true;
-            crate::roles::register(&mut ai, &g);
+            crate::roles::register(&mut ai, &w);
             let serials: Vec<_> = {
-                let view = PlayerView::new(&g, P0);
+                let view = PlayerView::new(&w, P0);
                 stranded.iter().map(|&u| view.serial_of(u)).collect()
             };
             for s in &serials {
@@ -908,9 +912,9 @@ mod tests {
                     .claim(*s, crate::roles::Role::Reinforce, 1, Some(port));
                 ai.roles.set_crossing(*s, Some(crate::roles::Crossing::Sea));
             }
-            cities(&mut ai, &mut g, &mut Vec::new());
-            let item = g.economy().city_production(capital(&g)?).item;
-            let rules = &g.content().rules;
+            cities(&mut ai, &mut w, &mut Vec::new());
+            let item = w.economy().city_production(capital(&w)?).item;
+            let rules = &w.content().rules;
             let galley =
                 matches!(item, Some(ProductionItem::Unit(u)) if rules.units.get(u).id == "galley");
             assert_eq!(galley, builds_galley, "{waiting} waiting: {item:?}");
@@ -921,31 +925,31 @@ mod tests {
     #[test]
     fn soldiers_awaiting_orders_are_enough_and_no_more_are_built() -> TestResult {
         use crate::testworld::{at, spawn};
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        spawn(&mut g, P0, at(9, 9), 104 /* high_men_spearmen */, 6);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        spawn(&mut w, P0, at(9, 9), 104 /* high_men_spearmen */, 6);
         let mut ai = Ai::new(P0);
         ai.frontier_closed = true;
-        crate::roles::register(&mut ai, &g);
-        let roster = Roster::of(&ai, &PlayerView::new(&g, P0));
+        crate::roles::register(&mut ai, &w);
+        let roster = Roster::of(&ai, &PlayerView::new(&w, P0));
         assert!(roster.idle_army(), "{}", roster.idle_fighters);
-        let plan = plan_of(&g, &ai, capital(&g)?)?;
+        let plan = plan_of(&w, &ai, capital(&w)?)?;
         assert_ne!(plan.mix, Mix::Units);
         Ok(())
     }
 
     #[test]
     fn a_city_that_cannot_feed_settlers_or_has_no_room_plans_without_them() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
         let ai = Ai::new(P0);
         // Six settlers on their way count as cities to come: no more are wanted.
         crate::testworld::spawn(
-            &mut g,
+            &mut w,
             P0,
             crate::testworld::at(10, 6),
             111, /* high_men_settlers */
             6,
         );
-        let plan = plan_of(&g, &ai, capital(&g)?)?;
+        let plan = plan_of(&w, &ai, capital(&w)?)?;
         assert!(!plan.settlers);
         assert_eq!(plan.primary, Focus::Balanced);
         Ok(())
@@ -954,11 +958,11 @@ mod tests {
     #[test]
     fn a_wizard_that_builds_up_still_has_one_settler_on_the_way_while_there_is_room() -> TestResult
     {
-        let g = game(COAST_CITY, 8 /* high_men */);
+        let w = game(COAST_CITY, 8 /* high_men */);
         let ai = Ai::new(P0);
-        let city = capital(&g)?;
-        let view = PlayerView::new(&g, P0);
-        let pos = g.city_position(city).ok_or("the city has a position")?;
+        let city = capital(&w)?;
+        let view = PlayerView::new(&w, P0);
+        let pos = w.city_position(city).ok_or("the city has a position")?;
         // All the cities it wanted, and a leaning to build up: it does not press for more.
         let mut empire = Empire::of(&view);
         empire.traits.cities_wanted = 0;
@@ -992,11 +996,11 @@ mod tests {
         free: usize,
         planned: usize,
     ) -> Result<BuildPlan, Box<dyn std::error::Error>> {
-        let g = game(COAST_CITY, 8 /* high_men */);
+        let w = game(COAST_CITY, 8 /* high_men */);
         let ai = Ai::new(P0);
-        let city = capital(&g)?;
-        let view = PlayerView::new(&g, P0);
-        let pos = g.city_position(city).ok_or("the city has a position")?;
+        let city = capital(&w)?;
+        let view = PlayerView::new(&w, P0);
+        let pos = w.city_position(city).ok_or("the city has a position")?;
         let mut empire = Empire::of(&view);
         empire.traits.cities_wanted = 0;
         let mut planned = planned;
@@ -1048,19 +1052,19 @@ mod tests {
     #[test]
     fn a_militarist_that_has_settled_builds_for_offence() -> TestResult {
         use f4x_core::wizard::objective::Objective;
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.wizard_mut(P0)
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.wizard_mut(P0)
             .ok_or("player 0 is a wizard")?
             .put(Some(Objective::Militarist));
         // Six cities to come (Militarist wants six): the wizard is done expanding.
         crate::testworld::spawn(
-            &mut g,
+            &mut w,
             P0,
             crate::testworld::at(10, 6),
             111, /* high_men_settlers */
             6,
         );
-        let plan = plan_of(&g, &Ai::new(P0), capital(&g)?)?;
+        let plan = plan_of(&w, &Ai::new(P0), capital(&w)?)?;
         assert_eq!(plan.primary, Focus::Offense);
         assert_eq!(plan.secondary, Some(Focus::Production));
         Ok(())
@@ -1069,38 +1073,38 @@ mod tests {
     #[test]
     fn a_city_on_trade_goods_looks_at_every_building_it_can_build() -> TestResult {
         use f4x_core::wizard::objective::Objective;
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.wizard_mut(P0)
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.wizard_mut(P0)
             .ok_or("player 0 is a wizard")?
             .put(Some(Objective::Militarist));
         crate::testworld::spawn(
-            &mut g,
+            &mut w,
             P0,
             crate::testworld::at(10, 6),
             111, /* high_men_settlers */
             6,
         );
-        let city = capital(&g)?;
+        let city = capital(&w)?;
         // A garrison stands, so that the city is free for its buildings.
         crate::testworld::spawn(
-            &mut g,
+            &mut w,
             P0,
             crate::testworld::at(COAST_CITY.0, COAST_CITY.1),
             104, /* high_men_spearmen */
             2,
         );
         // An army that waits for orders is enough: the city builds no more soldiers.
-        crate::testworld::spawn(&mut g, P0, crate::testworld::at(9, 9), 104, 4);
-        g.apply(Command::SetProduction {
+        crate::testworld::spawn(&mut w, P0, crate::testworld::at(9, 9), 104, 4);
+        w.apply(Command::SetProduction {
             city,
             item: ProductionItem::TradeGoods,
         });
         let mut ai = Ai::new(P0);
         ai.frontier_closed = true;
-        crate::roles::register(&mut ai, &g);
-        cities(&mut ai, &mut g, &mut Vec::new());
+        crate::roles::register(&mut ai, &w);
+        cities(&mut ai, &mut w, &mut Vec::new());
         // It looks at every building it can build: a library or a temple is chosen over trade goods.
-        let item = g.economy().city_production(city).item;
+        let item = w.economy().city_production(city).item;
         assert!(
             matches!(item, Some(ProductionItem::Building(_))),
             "{item:?}"

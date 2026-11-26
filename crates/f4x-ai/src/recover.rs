@@ -6,9 +6,9 @@
 //!
 //! Tests: below, on shipped units.
 
-use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
+use f4x_core::world::{Command, Event, World};
 use f4x_def::rules::Ability;
 
 use crate::view::{distance, is_fighter};
@@ -32,10 +32,10 @@ pub(crate) fn needs_rest(view: &PlayerView, unit: hecs::Entity) -> bool {
 
 /// Send the wounded units that are out in the field to a healer or home, and let go of the tasks
 /// they were on.
-pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     let me = ai.player;
     let orders: Vec<(hecs::Entity, Position)> = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         let cities: Vec<Position> = view.my_cities().into_iter().map(|(_, p)| p).collect();
         let busy = |serial| {
             ai.roles.is(serial, crate::roles::Role::SeaParty)
@@ -87,7 +87,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         out
     };
     for (unit, to) in orders {
-        let serial = PlayerView::new(game, me).serial_of(unit);
+        let serial = PlayerView::new(world, me).serial_of(unit);
         ai.roles.retain_role(crate::roles::Role::Raid, |s| {
             let s = &s;
             *s != serial
@@ -96,9 +96,9 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             let s = &s;
             *s != serial
         });
-        ai.order(game, Command::ClearOrders { units: vec![unit] }, events);
+        ai.order(world, Command::ClearOrders { units: vec![unit] }, events);
         ai.order(
-            game,
+            world,
             Command::GoTo {
                 units: vec![unit],
                 to,
@@ -117,33 +117,33 @@ mod tests {
 
     #[test]
     fn a_unit_below_sixty_percent_rests_and_one_above_does_not() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let u = spawn(&mut g, P0, at(5, 5), 113 /* high_men_paladins */, 1)[0];
-        assert!(!needs_rest(&PlayerView::new(&g, P0), u));
-        let (_, max) = PlayerView::new(&g, P0).unit_hits(u);
-        g.scenario_set_hurt(u, max * 2 / 5 + 1);
-        assert!(needs_rest(&PlayerView::new(&g, P0), u));
-        g.scenario_set_hurt(u, max / 5);
-        assert!(!needs_rest(&PlayerView::new(&g, P0), u));
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let u = spawn(&mut w, P0, at(5, 5), 113 /* high_men_paladins */, 1)[0];
+        assert!(!needs_rest(&PlayerView::new(&w, P0), u));
+        let (_, max) = PlayerView::new(&w, P0).unit_hits(u);
+        w.scenario_set_hurt(u, max * 2 / 5 + 1);
+        assert!(needs_rest(&PlayerView::new(&w, P0), u));
+        w.scenario_set_hurt(u, max / 5);
+        assert!(!needs_rest(&PlayerView::new(&w, P0), u));
         Ok(())
     }
 
     #[test]
     fn a_wounded_unit_in_the_field_walks_home_and_drops_its_raid() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let u = spawn(&mut g, P0, at(5, 5), 113 /* high_men_paladins */, 1)[0];
-        let (_, max) = PlayerView::new(&g, P0).unit_hits(u);
-        g.scenario_set_hurt(u, max * 3 / 4);
-        let serial = PlayerView::new(&g, P0).serial_of(u);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let u = spawn(&mut w, P0, at(5, 5), 113 /* high_men_paladins */, 1)[0];
+        let (_, max) = PlayerView::new(&w, P0).unit_hits(u);
+        w.scenario_set_hurt(u, max * 3 / 4);
+        let serial = PlayerView::new(&w, P0).serial_of(u);
         let mut ai = Ai::new(P0);
         let _ = ai.roles.claim(serial, crate::roles::Role::Raid, 1, None);
-        run(&mut ai, &mut g, &mut Vec::new());
+        run(&mut ai, &mut w, &mut Vec::new());
         assert!(
             !ai.roles.any(crate::roles::Role::Raid),
             "the raid is dropped"
         );
         assert!(
-            PlayerView::new(&g, P0).unit_has_order(u),
+            PlayerView::new(&w, P0).unit_has_order(u),
             "it is on its way"
         );
         Ok(())
@@ -152,15 +152,15 @@ mod tests {
     #[test]
     fn a_wounded_unit_far_from_every_city_or_over_the_sea_mends_where_it_stands() -> TestResult {
         use crate::testworld::ENEMY_CITY;
-        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
         // On the other island: a city of its own is over the sea and far.
         let spot = at(ENEMY_CITY.0 + 1, ENEMY_CITY.1 + 2);
-        let u = spawn(&mut g, P0, spot, 113 /* high_men_paladins */, 1)[0];
-        let (_, max) = PlayerView::new(&g, P0).unit_hits(u);
-        g.scenario_set_hurt(u, max * 3 / 4);
-        run(&mut Ai::new(P0), &mut g, &mut Vec::new());
+        let u = spawn(&mut w, P0, spot, 113 /* high_men_paladins */, 1)[0];
+        let (_, max) = PlayerView::new(&w, P0).unit_hits(u);
+        w.scenario_set_hurt(u, max * 3 / 4);
+        run(&mut Ai::new(P0), &mut w, &mut Vec::new());
         assert!(
-            !PlayerView::new(&g, P0).unit_has_order(u),
+            !PlayerView::new(&w, P0).unit_has_order(u),
             "no retreat that needs a ship or is further than {CITY_RANGE} squares"
         );
         Ok(())
@@ -168,42 +168,42 @@ mod tests {
 
     #[test]
     fn a_wounded_unit_in_a_city_stays_to_mend() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
         let city = at(COAST_CITY.0, COAST_CITY.1);
-        let u = spawn(&mut g, P0, city, 113 /* high_men_paladins */, 1)[0];
-        let (_, max) = PlayerView::new(&g, P0).unit_hits(u);
-        g.scenario_set_hurt(u, max * 3 / 4);
-        run(&mut Ai::new(P0), &mut g, &mut Vec::new());
-        assert!(!PlayerView::new(&g, P0).unit_has_order(u));
+        let u = spawn(&mut w, P0, city, 113 /* high_men_paladins */, 1)[0];
+        let (_, max) = PlayerView::new(&w, P0).unit_hits(u);
+        w.scenario_set_hurt(u, max * 3 / 4);
+        run(&mut Ai::new(P0), &mut w, &mut Vec::new());
+        assert!(!PlayerView::new(&w, P0).unit_has_order(u));
         Ok(())
     }
 
     #[test]
     fn a_wounded_unit_is_not_sent_to_a_full_city_and_not_ordered_twice() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
         let city = at(COAST_CITY.0, COAST_CITY.1);
-        let u = spawn(&mut g, P0, at(5, 5), 113 /* high_men_paladins */, 1)[0];
-        let (_, max) = PlayerView::new(&g, P0).unit_hits(u);
-        g.scenario_set_hurt(u, max * 3 / 4);
+        let u = spawn(&mut w, P0, at(5, 5), 113 /* high_men_paladins */, 1)[0];
+        let (_, max) = PlayerView::new(&w, P0).unit_hits(u);
+        w.scenario_set_hurt(u, max * 3 / 4);
         // The only city has no room for one more.
-        let room = PlayerView::new(&g, P0).max_tile();
-        spawn(&mut g, P0, city, 104 /* high_men_spearmen */, room);
-        run(&mut Ai::new(P0), &mut g, &mut Vec::new());
+        let room = PlayerView::new(&w, P0).max_tile();
+        spawn(&mut w, P0, city, 104 /* high_men_spearmen */, room);
+        run(&mut Ai::new(P0), &mut w, &mut Vec::new());
         assert!(
-            !PlayerView::new(&g, P0).unit_has_order(u),
+            !PlayerView::new(&w, P0).unit_has_order(u),
             "no room: it stays"
         );
         // With room again it is sent once, and a second turn leaves its order alone.
         for _ in 0..3 {
-            let last = g.units().units_at(city).pop().ok_or("a unit in the city")?;
-            g.cheat_remove_unit(last);
+            let last = w.units().units_at(city).pop().ok_or("a unit in the city")?;
+            w.cheat_remove_unit(last);
         }
         let mut events = Vec::new();
         let mut ai = Ai::new(P0);
-        run(&mut ai, &mut g, &mut events);
-        assert!(PlayerView::new(&g, P0).unit_has_order(u));
+        run(&mut ai, &mut w, &mut events);
+        assert!(PlayerView::new(&w, P0).unit_has_order(u));
         let before = events.len();
-        run(&mut ai, &mut g, &mut events);
+        run(&mut ai, &mut w, &mut events);
         assert_eq!(events.len(), before, "the order is not given again");
         Ok(())
     }

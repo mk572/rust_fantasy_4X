@@ -71,7 +71,7 @@ pub(crate) fn unarmed_share(view: &PlayerView, units: &[hecs::Entity]) -> f32 {
 
 /// Is there a city of the neutral cities (no wizard's) on the square that it may attack? One it has a
 /// pact or an alliance with is not: the game refuses the attack until a player has broken the treaty
-/// (`Game::bound_by_treaty`), and the AI breaks no treaty to raid (task 776).
+/// (`World::bound_by_treaty`), and the AI breaks no treaty to raid (task 776).
 pub(crate) fn neutral_city(view: &PlayerView, p: Position) -> bool {
     view.known_cities().iter().any(|&(_, owner, q)| {
         q == p
@@ -176,10 +176,10 @@ mod tests {
     #[test]
     fn a_tower_is_left_alone_while_a_rival_city_that_can_be_walked_to_is_on_its_plane() -> TestResult
     {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        spawn_tower(&mut g, at(33, 9), true)?;
-        g.reveal_map(P0);
-        let view = PlayerView::new(&g, P0);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        spawn_tower(&mut w, at(33, 9), true)?;
+        w.reveal_map(P0);
+        let view = PlayerView::new(&w, P0);
         let rival = at(28, 6);
         // A rival city the army can walk to holds the towers back.
         let blocked = blocked_planes(&view, &[], None);

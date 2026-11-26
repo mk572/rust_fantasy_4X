@@ -1,8 +1,8 @@
-//! The game itself: [`Game`] owns the world and every domain's state and turns a [`Command`]
+//! The game itself: [`World`] owns the world and every domain's state and turns a [`Command`]
 //! into [`Event`]s. Around it are the parts that keep a game going: setting one up, saving,
 //! replaying and undoing.
 //!
-//! Tests: in game/tests.rs, and in the tests of the modules that add methods to `Game`.
+//! Tests: in world/tests.rs, and in the tests of the modules that add methods to `World`.
 
 pub(crate) mod access;
 pub mod actor;
@@ -20,7 +20,7 @@ pub mod testutil;
 pub mod undo;
 pub mod view;
 
-use crate::{battle, city, diplomacy, game, map, player, threat, unit, wizard, world_event};
+use crate::{battle, city, diplomacy, map, player, threat, unit, wizard, world, world_event};
 use f4x_def::content;
 use f4x_def::half_int::HalfInt;
 use rand::RngCore;
@@ -39,7 +39,7 @@ fn events_or_reject(r: Result<Vec<Event>, wizard::magic::MagicError>) -> Vec<Eve
     r.unwrap_or_else(|e| vec![Event::Rejected(Rejection::Magic(e))])
 }
 
-/// See [`Game::net_gold_memo`].
+/// See [`World::net_gold_memo`].
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) enum NetGoldMemo {
     #[default]
@@ -51,14 +51,14 @@ pub(crate) enum NetGoldMemo {
 /// How many map locations a player can save.
 pub const MAP_LOCATIONS: u8 = 8;
 
-pub struct Game {
-    pub(crate) world: hecs::World,
+pub struct World {
+    pub(crate) ecs: hecs::World,
     pub turn: u32,
     pub(crate) map: Option<map::Map>,
     pub(crate) content: std::sync::Arc<content::Content>,
     /// The name lists the game draws city, hero and rival names from (`NameBundle`). They are not
     /// saved: the names drawn are in the state, and whoever loads a game hands the lists in again
-    /// with [`Game::set_names`] (without them a new city is `<race id>_city_00`, and so on).
+    /// with [`World::set_names`] (without them a new city is `<race id>_city_00`, and so on).
     pub(crate) names: f4x_def::names::NameBundle,
     /// The one neutral player that owns the monsters (`player::MONSTERS`); it has no
     /// data, so it is in no list of players.
@@ -76,18 +76,18 @@ pub struct Game {
     /// squares that command can have pushed over the sanity limit.
     pub(crate) tile_watch: Vec<map::Position>,
     /// The figures the budget is made of while a player's cities build, patched after each
-    /// completed item instead of worked out afresh (`Game::kept_budget`).
+    /// completed item instead of worked out afresh (`World::kept_budget`).
     pub(crate) budget_parts: std::cell::RefCell<Option<player::finance::BudgetParts>>,
     pub(crate) next_serial: u64,
-    /// The seeded generator all randomness comes from; it counts its draws (see `game/rng.rs`).
-    pub(crate) rng: game::rng::GameRng,
+    /// The seeded generator all randomness comes from; it counts its draws (see `world/rng.rs`).
+    pub(crate) rng: world::rng::GameRng,
     /// What the game is played with (difficulty, node strength, ...). Chosen when the game is
-    /// made and fixed after that; read through [`Game::settings`].
-    pub(crate) settings: game::setting::GameSettings,
+    /// made and fixed after that; read through [`World::settings`].
+    pub(crate) settings: world::setting::GameSettings,
     /// The battle being fought, if any. A save taken in a battle holds it too (`battle/save.rs`).
-    pub battle: Option<battle::game::ActiveBattle>,
+    pub battle: Option<battle::world::ActiveBattle>,
     /// Set once the game has ended; every later command is refused.
-    pub game_over: Option<game::endgame::GameOver>,
+    pub game_over: Option<world::endgame::GameOver>,
     /// Contact, relations, treaties and proposals between wizards.
     pub diplomacy: diplomacy::Diplomacy,
     /// The random events that are going on.
@@ -96,11 +96,11 @@ pub struct Game {
     pub(crate) threat: threat::Threat,
     /// Where the game is in its round, as the master (`f4x-master`) wrote it: opaque text that
     /// is saved with the game. The lifecycle commands clear it, so it never outlives the step
-    /// it describes (see [`Game::flow`]).
+    /// it describes (see [`World::flow`]).
     flow: Option<String>,
-    /// What each computer player has in mind, as text the AI wrote (see [`Game::plans`]).
+    /// What each computer player has in mind, as text the AI wrote (see [`World::plans`]).
     plans: Vec<(player::PlayerId, String)>,
-    /// The map locations each player saved to come back to, by slot (see [`Game::locations`]).
+    /// The map locations each player saved to come back to, by slot (see [`World::locations`]).
     locations: Vec<(player::PlayerId, u8, map::Position)>,
     /// Items that fell to wizards from slain heroes since the last command ended: the wizard,
     /// the item's name and whether the armory had room for it.
@@ -109,14 +109,14 @@ pub struct Game {
     pub(crate) override_log: Vec<String>,
     /// The prefab items given out so far, by id (`Make_Item` gives each once a game).
     pub(crate) prefab_taken: Vec<crate::rules::ItemId>,
-    /// Players of battles that play for some wizards (a learned one; see `battle::game`).
-    pub(crate) battle_brains: Vec<(hecs::Entity, Box<dyn battle::game::BattleBrain>)>,
-    pub(crate) recording: Option<game::replay::Recording>,
+    /// Players of battles that play for some wizards (a learned one; see `battle::world`).
+    pub(crate) battle_brains: Vec<(hecs::Entity, Box<dyn battle::world::BattleBrain>)>,
+    pub(crate) recording: Option<world::replay::Recording>,
     /// Set while a command the caster confirmed runs (`Command::Anyway`): a spell that would do
     /// nothing is cast anyway.
     pub(crate) confirmed: bool,
     undo_on: bool,
-    undo_stack: Vec<game::undo::UndoEntry>,
+    undo_stack: Vec<world::undo::UndoEntry>,
 }
 
 /// Give `entity` a component. Hecs refuses only when the entity is gone, which for a caller that
@@ -124,11 +124,11 @@ pub struct Game {
 /// (`debug_assert!`), a release build goes on, as it did before the helper (task 554).
 #[track_caller]
 pub(crate) fn put_in<C: hecs::Component>(
-    world: &mut hecs::World,
+    ecs: &mut hecs::World,
     entity: hecs::Entity,
     component: C,
 ) {
-    let put = world.insert_one(entity, component);
+    let put = ecs.insert_one(entity, component);
     debug_assert!(
         put.is_ok(),
         "no such entity to give a component to: {put:?}"
@@ -138,8 +138,8 @@ pub(crate) fn put_in<C: hecs::Component>(
 /// Take a component off `entity`. A component that is not there is fine (that is what this is
 /// for: "make sure it is off"); an entity that is gone is a bug, as for [`put_in`].
 #[track_caller]
-pub(crate) fn strip_in<C: hecs::Component>(world: &mut hecs::World, entity: hecs::Entity) {
-    let taken = world.remove_one::<C>(entity);
+pub(crate) fn strip_in<C: hecs::Component>(ecs: &mut hecs::World, entity: hecs::Entity) {
+    let taken = ecs.remove_one::<C>(entity);
     debug_assert!(
         !matches!(taken, Err(hecs::ComponentError::NoSuchEntity)),
         "no such entity to take a component off"
@@ -149,15 +149,15 @@ pub(crate) fn strip_in<C: hecs::Component>(world: &mut hecs::World, entity: hecs
 /// Give `entity` a bundle of components; see [`put_in`].
 #[track_caller]
 pub(crate) fn put_bundle_in(
-    world: &mut hecs::World,
+    ecs: &mut hecs::World,
     entity: hecs::Entity,
     bundle: impl hecs::DynamicBundle,
 ) {
-    let put = world.insert(entity, bundle);
+    let put = ecs.insert(entity, bundle);
     debug_assert!(put.is_ok(), "no such entity to give components to: {put:?}");
 }
 
-impl Game {
+impl World {
     /// Give `entity` a component (or replace it); see [`put_in`].
     #[track_caller]
     pub(crate) fn put<C: hecs::Component>(&mut self, entity: hecs::Entity, component: C) {
@@ -165,26 +165,26 @@ impl Game {
         if let Some(&at) = (&component as &dyn std::any::Any).downcast_ref::<map::Position>() {
             self.watch_tile(at);
         }
-        put_in(&mut self.world, entity, component);
+        put_in(&mut self.ecs, entity, component);
     }
 
     /// Take a component off `entity` if it has it; see [`strip_in`].
     #[track_caller]
     pub(crate) fn strip<C: hecs::Component>(&mut self, entity: hecs::Entity) {
-        strip_in::<C>(&mut self.world, entity);
+        strip_in::<C>(&mut self.ecs, entity);
     }
 
     /// Give `entity` a bundle of components; see [`put_in`].
     #[track_caller]
     pub(crate) fn put_bundle(&mut self, entity: hecs::Entity, bundle: impl hecs::DynamicBundle) {
-        put_bundle_in(&mut self.world, entity, bundle);
+        put_bundle_in(&mut self.ecs, entity, bundle);
     }
 
     pub fn new(seed: u64) -> Self {
-        let mut world = hecs::World::new();
-        let monsters = world.spawn((player::MONSTERS, player::Neutral));
+        let mut ecs = hecs::World::new();
+        let monsters = ecs.spawn((player::MONSTERS, player::Neutral));
         Self {
-            world,
+            ecs,
             monsters,
             turn: 1,
             map: None,
@@ -197,10 +197,10 @@ impl Game {
             tile_watch: Vec::new(),
             budget_parts: Default::default(),
             next_serial: 1,
-            rng: game::rng::GameRng::new(seed),
+            rng: world::rng::GameRng::new(seed),
             // The Average level of the shipped rules; a game made for play gets its level from
             // `f4x_newgame::setup::new_game`.
-            settings: game::setting::GameSettings::default(),
+            settings: world::setting::GameSettings::default(),
             battle: None,
             game_over: None,
             diplomacy: diplomacy::Diplomacy::default(),
@@ -233,7 +233,7 @@ impl Game {
     }
 
     /// What each computer player has in mind (its targets, marches, voyages), as opaque text the
-    /// AI wrote with [`Game::set_plans`]. It is saved and loaded with the game, so a loaded game
+    /// AI wrote with [`World::set_plans`]. It is saved and loaded with the game, so a loaded game
     /// plays on as the saved one would have. Empty for a game nobody has set it on.
     pub fn plans(&self) -> &[(player::PlayerId, String)] {
         &self.plans
@@ -280,7 +280,7 @@ impl Game {
     }
 
     /// The settings the game is played with.
-    pub fn settings(&self) -> &game::setting::GameSettings {
+    pub fn settings(&self) -> &world::setting::GameSettings {
         &self.settings
     }
 
@@ -290,7 +290,7 @@ impl Game {
         // about many squares, most of them water or blocked, and a query costs more than the
         // check.
         city::check_site(&self.economy(), pos, || {
-            self.world
+            self.ecs
                 .query::<(&city::City, &map::Position)>()
                 .iter()
                 .map(|(_, (_, at))| *at)
@@ -316,7 +316,7 @@ impl Game {
     /// Whether `id` is the monsters' owner or an independent city's player: not a wizard.
     pub fn is_neutral_player(&self, id: player::PlayerId) -> bool {
         self.player_entity(id)
-            .is_some_and(|e| self.world.satisfies::<&player::Neutral>(e).unwrap_or(false))
+            .is_some_and(|e| self.ecs.satisfies::<&player::Neutral>(e).unwrap_or(false))
     }
 
     /// Make the player entity for `id`, and with it a wizard called `name`.
@@ -325,13 +325,13 @@ impl Game {
             self.player_entity(id).is_none(),
             "player {id:?} is made twice"
         );
-        let e = self.world.spawn(player::bundle(
+        let e = self.ecs.spawn(player::bundle(
             id,
             self.content.rules.config.wizard.start_tax_rate,
         ));
-        let _ = self.world.insert_one(e, player::Control::Ai);
-        let w = self.world.spawn(wizard::entity::bundle(id, name.into(), e));
-        let _ = self.world.insert_one(e, player::WizardLink(w));
+        let _ = self.ecs.insert_one(e, player::Control::Ai);
+        let w = self.ecs.spawn(wizard::entity::bundle(id, name.into(), e));
+        let _ = self.ecs.insert_one(e, player::WizardLink(w));
         self.player_index.insert(id, e);
         e
     }
@@ -339,11 +339,11 @@ impl Game {
     /// Make the player of one independent city: it has a treasury and pays its way like a wizard,
     /// but is no wizard (no magic, no victory, no AI).
     pub fn add_neutral_player(&mut self, id: player::PlayerId) -> hecs::Entity {
-        let e = self.world.spawn(player::bundle(
+        let e = self.ecs.spawn(player::bundle(
             id,
             self.content.rules.config.wizard.start_tax_rate,
         ));
-        let _ = self.world.insert_one(e, player::Neutral);
+        let _ = self.ecs.insert_one(e, player::Neutral);
         self.player_index.insert(id, e);
         e
     }
@@ -351,7 +351,7 @@ impl Game {
     /// The read handle on a player (the monsters' owner too).
     pub fn player(&self, id: player::PlayerId) -> Option<player::entity::Player<'_>> {
         Some(player::entity::Player::new(
-            &self.world,
+            &self.ecs,
             self.player_entity(id)?,
             id,
         ))
@@ -359,14 +359,14 @@ impl Game {
 
     /// The wizard of a player, if it has one.
     pub fn wizard(&self, id: player::PlayerId) -> Option<wizard::entity::Wizard<'_>> {
-        let w = wizard::entity::of_player(&self.world, self.player_entity(id)?)?;
-        Some(wizard::entity::Wizard::new(&self.world, w))
+        let w = wizard::entity::of_player(&self.ecs, self.player_entity(id)?)?;
+        Some(wizard::entity::Wizard::new(&self.ecs, w))
     }
 
     /// A write handle on the wizard of a player, if it has one.
     pub fn wizard_mut(&mut self, id: player::PlayerId) -> Option<wizard::sheet::WizardMut<'_>> {
-        let w = wizard::entity::of_player(&self.world, self.player_entity(id)?)?;
-        Some(wizard::sheet::WizardMut::new(&mut self.world, w))
+        let w = wizard::entity::of_player(&self.ecs, self.player_entity(id)?)?;
+        Some(wizard::sheet::WizardMut::new(&mut self.ecs, w))
     }
 
     /// A write handle on the wizard of a player, with the rules it plays by.
@@ -374,9 +374,9 @@ impl Game {
         &mut self,
         id: player::PlayerId,
     ) -> Option<(wizard::sheet::WizardMut<'_>, &crate::rules::Rules)> {
-        let w = wizard::entity::of_player(&self.world, self.player_entity(id)?)?;
+        let w = wizard::entity::of_player(&self.ecs, self.player_entity(id)?)?;
         Some((
-            wizard::sheet::WizardMut::new(&mut self.world, w),
+            wizard::sheet::WizardMut::new(&mut self.ecs, w),
             &self.content.rules,
         ))
     }
@@ -403,26 +403,26 @@ impl Game {
     pub(crate) fn wizard_set<C: hecs::Component>(&mut self, id: player::PlayerId, value: C) {
         if let Some(w) = self
             .player_entity(id)
-            .and_then(|p| wizard::entity::of_player(&self.world, p))
+            .and_then(|p| wizard::entity::of_player(&self.ecs, p))
         {
-            let _ = self.world.insert_one(w, value);
+            let _ = self.ecs.insert_one(w, value);
         }
     }
 
     /// An independent city's player goes with its city; wizards' players are never removed.
     pub(crate) fn remove_player(&mut self, id: player::PlayerId) {
         if let Some(e) = self.player_index.remove(&id) {
-            if let Some(w) = wizard::entity::of_player(&self.world, e) {
-                let _ = self.world.despawn(w);
+            if let Some(w) = wizard::entity::of_player(&self.ecs, e) {
+                let _ = self.ecs.despawn(w);
             }
-            let _ = self.world.despawn(e);
+            let _ = self.ecs.despawn(e);
         }
     }
 
     /// Hand a unit or city to a player: its [`player::Owner`] becomes the player's entity.
     pub(crate) fn set_owner(&mut self, thing: hecs::Entity, player: player::PlayerId) {
         if let Some(e) = self.player_entity(player) {
-            let _ = self.world.insert_one(thing, player::Owner(e));
+            let _ = self.ecs.insert_one(thing, player::Owner(e));
         }
     }
 
@@ -445,7 +445,7 @@ impl Game {
         &self,
         id: player::PlayerId,
     ) -> Option<hecs::Ref<'_, C>> {
-        self.world.get::<&C>(self.player_entity(id)?).ok()
+        self.ecs.get::<&C>(self.player_entity(id)?).ok()
     }
 
     /// A component of a player, to change.
@@ -454,7 +454,7 @@ impl Game {
         id: player::PlayerId,
     ) -> Option<&mut C> {
         let e = self.player_entity(id)?;
-        self.world.query_one_mut::<&mut C>(e).ok()
+        self.ecs.query_one_mut::<&mut C>(e).ok()
     }
 
     /// A player's gold and mana.
@@ -465,7 +465,7 @@ impl Game {
 
     /// The human wizard, whose defeat ends the game at once.
     pub fn human(&self) -> Option<player::PlayerId> {
-        self.world
+        self.ecs
             .query::<(&player::PlayerId, &player::Control)>()
             .iter()
             .find(|(_, (_, &c))| c == player::Control::Human)
@@ -476,7 +476,7 @@ impl Game {
     /// computer wizards).
     pub fn set_human(&mut self, human: Option<player::PlayerId>) {
         for (_, (&id, control)) in self
-            .world
+            .ecs
             .query_mut::<(&player::PlayerId, &mut player::Control)>()
         {
             *control = if Some(id) == human {
@@ -501,9 +501,9 @@ impl Game {
             return;
         };
         if on {
-            let _ = self.world.insert_one(e, player::GrandVizier);
+            let _ = self.ecs.insert_one(e, player::GrandVizier);
         } else {
-            let _ = self.world.remove_one::<player::GrandVizier>(e);
+            let _ = self.ecs.remove_one::<player::GrandVizier>(e);
         }
     }
 
@@ -600,13 +600,13 @@ impl Game {
                     .filter_map(|&u| Some((u, self.units().unit_standby(u)?)))
                     .collect();
                 for &u in &units {
-                    let _ = self.world.remove_one::<unit::Standby>(u);
+                    let _ = self.ecs.remove_one::<unit::Standby>(u);
                 }
                 self.start_from_tower_on(&units, to);
                 let events = self.do_move(&units, to);
                 if events.iter().any(|e| matches!(e, Event::Rejected(_))) {
                     for (u, standby) in standing {
-                        let _ = self.world.insert_one(u, standby);
+                        let _ = self.ecs.insert_one(u, standby);
                     }
                 }
                 events
@@ -615,10 +615,10 @@ impl Game {
                 for u in units {
                     match standby {
                         Some(s) => {
-                            let _ = self.world.insert_one(u, s);
+                            let _ = self.ecs.insert_one(u, s);
                         }
                         None => {
-                            let _ = self.world.remove_one::<unit::Standby>(u);
+                            let _ = self.ecs.remove_one::<unit::Standby>(u);
                         }
                     }
                 }
@@ -627,7 +627,7 @@ impl Game {
             Command::GoTo { units, to } => match self.go_to_path(&units, to) {
                 Some(path) => {
                     for &u in &units {
-                        let _ = self.world.insert_one(u, unit::Order::GoTo(path.clone()));
+                        let _ = self.ecs.insert_one(u, unit::Order::GoTo(path.clone()));
                     }
                     self.follow_orders(&units)
                 }
@@ -637,8 +637,8 @@ impl Game {
             },
             Command::ClearOrders { units } => {
                 for u in units {
-                    let _ = self.world.remove_one::<unit::Order>(u);
-                    let _ = self.world.remove_one::<map::road::RoadWork>(u);
+                    let _ = self.ecs.remove_one::<unit::Order>(u);
+                    let _ = self.ecs.remove_one::<map::road::RoadWork>(u);
                 }
                 Vec::new()
             }
@@ -775,7 +775,7 @@ impl Game {
             Command::RenameCity { city, name } => {
                 let name: String = name.trim().chars().take(city::NAME_LEN).collect();
                 if !name.is_empty() {
-                    if let Ok(mut c) = self.world.get::<&mut city::City>(city) {
+                    if let Ok(mut c) = self.ecs.get::<&mut city::City>(city) {
                         c.name = name;
                     }
                 }
@@ -787,12 +787,12 @@ impl Game {
             },
             Command::SetFarmers { city, farmers } => {
                 let figures = self
-                    .world
+                    .ecs
                     .get::<&city::economy::Population>(city)
                     .map_or(0, |p| p.figures);
                 let min = self.economy().city_min_farmers(city);
                 let _ = self
-                    .world
+                    .ecs
                     .insert_one(city, city::economy::Farmers(farmers.clamp(min, figures)));
                 Vec::new()
             }
@@ -950,12 +950,12 @@ impl Game {
             let Some(pos) = self.units().unit_position(u) else {
                 continue;
             };
-            let order = self.world.get::<&unit::Order>(u).ok().map(|o| (*o).clone());
+            let order = self.ecs.get::<&unit::Order>(u).ok().map(|o| (*o).clone());
             let Some(order) = order else { continue };
             match groups.iter_mut().find(|g| {
                 let f = g[0];
                 self.units().unit_position(f) == Some(pos)
-                    && self.world.get::<&unit::Order>(f).ok().map(|o| (*o).clone())
+                    && self.ecs.get::<&unit::Order>(f).ok().map(|o| (*o).clone())
                         == Some(order.clone())
             }) {
                 Some(g) => g.push(u),
@@ -1001,11 +1001,7 @@ impl Game {
         let (mut went, mut stuck) = (false, false);
         // The lead unit of a group may have been lost to a battle that an earlier group's
         // move brought on: then the group has no order to follow any more.
-        let Ok(order) = self
-            .world
-            .get::<&unit::Order>(group[0])
-            .map(|o| (*o).clone())
-        else {
+        let Ok(order) = self.ecs.get::<&unit::Order>(group[0]).map(|o| (*o).clone()) else {
             return (false, false);
         };
         let unit::Order::GoTo(mut path) = order;
@@ -1065,9 +1061,9 @@ impl Game {
         }
         for &u in group {
             if path.is_empty() {
-                let _ = self.world.remove_one::<unit::Order>(u);
+                let _ = self.ecs.remove_one::<unit::Order>(u);
             } else {
-                let _ = self.world.insert_one(u, unit::Order::GoTo(path.clone()));
+                let _ = self.ecs.insert_one(u, unit::Order::GoTo(path.clone()));
             }
         }
         (went, stuck)
@@ -1108,15 +1104,15 @@ impl Game {
         if owner == player::MONSTERS {
             if let Some(city) = self.economy().city_at(to) {
                 for &u in units {
-                    let _ = self.world.insert_one(u, unit::MovesLeft(HalfInt::ZERO));
+                    let _ = self.ecs.insert_one(u, unit::MovesLeft(HalfInt::ZERO));
                 }
                 return self.rampage_city(city, 0, units);
             }
         }
         for &u in units {
-            let _ = self.world.insert_one(u, to);
+            let _ = self.ecs.insert_one(u, to);
             self.watch_tile(to);
-            let _ = self.world.insert_one(u, unit::MovesLeft(HalfInt::ZERO));
+            let _ = self.ecs.insert_one(u, unit::MovesLeft(HalfInt::ZERO));
         }
         self.explore(owner, to, map::fog::sight_for(2));
         let mut events = vec![Event::UnitsMoved {

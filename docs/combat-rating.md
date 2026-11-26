@@ -71,7 +71,7 @@ The first user of the rating in the game (20 November 2026): with the game setti
 (Custom screen, off by default) the question before an attack, and the question when a rival attacks the
 human, say how the sides compare: the sum of the ratings of the units each side would send (the strongest
 `max_battle_side`) against the other's, in seven steps from "You are completely outmatched" to "The enemy is
-completely outmatched" (`Game::combat_forecast`, `battle/forecast.rs`; the thresholds are `forecast.bands_pct`
+completely outmatched" (`World::combat_forecast`, `battle/forecast.rs`; the thresholds are `forecast.bands_pct`
 in `rules.ron`, [`game-settings.md`](game-settings.md)). It is as rough as the rating: walls, terrain, spells
 and the players' skill are not counted.
 
@@ -153,7 +153,7 @@ the combat factor in these combinations and leaves the others where they are.
   the uplift into `unit_power`. Until then a hero is assumed to carry nothing.
 - **Levels 5 and 6 of the normal units** (Ultra-Elite and Champion, task 723): `duel ladder --normal
   --cross 1-6`, needing the Warlord retort and the Crusade spell in the harness, which it has
-  (`Game::scenario_level_bonus`).
+  (`World::scenario_level_bonus`).
 - **A stale rating** (task 723): the file does not know that a unit changed. A check that the units,
   abilities and spells the rating was made for are the shipped ones (a hash in the header, tested)
   would flag it.

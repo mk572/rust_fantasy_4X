@@ -6,11 +6,11 @@
 //!
 //! Tests: in threat/tests.rs (the raider tests and `the_party_is_...`, `a_party_on_myrror_...`, `the_raiders_are_as_experienced_...`).
 
-use crate::game::{Event, Game};
 use crate::map::Position;
 use crate::player::{PlayerId, MONSTERS};
 use crate::rules::{Stat, UnitId, UnitKind};
 use crate::unit::{Experience, Unit, Unpaid};
+use crate::world::{Event, World};
 
 /// A neutral city that can raise a party: where it stands, who owns it and the kinds of troops
 /// it has (one entry for each unit, so a common kind is drawn more often).
@@ -22,7 +22,7 @@ struct Source {
     ai_fortress: bool,
 }
 
-impl Game {
+impl World {
     /// Run the raider clock and, when it runs out, raise a party in a random neutral city.
     pub(super) fn make_raiders(&mut self) -> Vec<Event> {
         let d = u32::from(self.difficulty());
@@ -136,7 +136,7 @@ impl Game {
                 .iter()
                 .copied()
                 .filter(|&u| self.units().unit_owner(u) == Some(owner) && self.raids(u))
-                .filter_map(|u| self.world.get::<&Unit>(u).ok().map(|k| k.0))
+                .filter_map(|u| self.ecs.get::<&Unit>(u).ok().map(|k| k.0))
                 .collect();
             if troops.is_empty() {
                 continue;

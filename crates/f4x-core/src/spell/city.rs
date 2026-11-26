@@ -8,19 +8,19 @@
 //! - **Evil Presence**: the magic power of the city's religious buildings (shrine, temple,
 //!   parthenon, cathedral) is destroyed, unless the city's owner can use death magic.
 //! - **Cloud of Shadow**, **Wall of Fire**, **Wall of Darkness**, **Flying Fortress**: read when
-//!   a battle starts at the city (`battle/game.rs`).
-//! - **Chaos Rift**: see [`Game::process_chaos_rifts`].
+//!   a battle starts at the city (`battle/world.rs`).
+//! - **Chaos Rift**: see [`World::process_chaos_rifts`].
 //!
 //! Tests: in spell/city/tests.rs.
 
 use crate::city::economy::{Buildings, Economy};
 use crate::city::production::ProductionItem;
-use crate::game::{Event, Game};
 use crate::player::PlayerId;
 use crate::rules::damage_type::DamageType;
 use crate::rules::RealmId;
 use crate::rules::SpellId;
 use crate::spell::target_error::TargetError;
+use crate::world::{Event, World};
 
 /// The hook of the city enchantments the engine reads by effect: casting only enchants the city.
 /// Its arguments are the [`CityEffect`]s the spell gives; a spell with rules of its own (stat
@@ -50,11 +50,11 @@ pub const WARD_REALMS: &[RealmId] = crate::rules::BOOK_REALMS;
 
 /// The realms a city has Spell Wards against (the ward spell itself, with its caster and its
 /// upkeep, is in the city's enchantments; this says which realms it was set to). Read through
-/// [`Game::city_wards`], which ignores it once the spell is gone.
+/// [`World::city_wards`], which ignores it once the spell is gone.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SpellWards(pub Vec<RealmId>);
 
-impl Game {
+impl World {
     /// Whether the city may be given walls by Wall of Stone: it has none (a city with walls
     /// built or replaced is refused).
     pub fn check_raise_wall_of_stone(&self, city: hecs::Entity) -> Result<(), TargetError> {
@@ -74,7 +74,7 @@ impl Game {
         if self.check_raise_wall_of_stone(city).is_err() {
             return Vec::new();
         }
-        if let Ok(mut b) = self.world.get::<&mut Buildings>(city) {
+        if let Ok(mut b) = self.ecs.get::<&mut Buildings>(city) {
             b.0.push(walls);
         }
         vec![Event::ProductionCompleted {
@@ -103,7 +103,7 @@ impl Game {
             })
             .collect();
         for city in rifts {
-            let Ok(at) = self.world.get::<&crate::map::Position>(city).map(|p| *p) else {
+            let Ok(at) = self.ecs.get::<&crate::map::Position>(city).map(|p| *p) else {
                 continue;
             };
             let traits = DamageTraits {
@@ -137,7 +137,7 @@ impl Game {
                     .chaos_rift_building_percent
             {
                 let candidates: Vec<crate::rules::BuildingId> = self
-                    .world
+                    .ecs
                     .get::<&Buildings>(city)
                     .map(|b| b.0.clone())
                     .unwrap_or_default()
@@ -245,7 +245,7 @@ impl Game {
 impl Economy<'_> {
     /// Whether the city carries the lasting spell, whoever cast it.
     pub fn city_has_enchantment(&self, city: hecs::Entity, spell: SpellId) -> bool {
-        crate::spell::instance::Spells::new(self.world)
+        crate::spell::instance::Spells::new(self.ecs)
             .city_enchantments(city)
             .iter()
             .any(|&(s, _)| s == spell)
@@ -253,7 +253,7 @@ impl Economy<'_> {
 
     /// Whether the city carries an enchantment with this effect, whoever cast it.
     pub fn city_has_effect(&self, city: hecs::Entity, effect: CityEffect) -> bool {
-        crate::spell::instance::Spells::new(self.world)
+        crate::spell::instance::Spells::new(self.ecs)
             .city_enchantments(city)
             .iter()
             .any(|&(s, _)| effect.is_in(self.content.rules.spells.get(s)))
@@ -265,7 +265,7 @@ impl Economy<'_> {
         city: Option<hecs::Entity>,
         effect: CityEffect,
     ) -> Option<SpellId> {
-        crate::spell::instance::Spells::new(self.world)
+        crate::spell::instance::Spells::new(self.ecs)
             .city_enchantments(city?)
             .iter()
             .map(|&(s, _)| s)
@@ -275,7 +275,7 @@ impl Economy<'_> {
     /// Whether the city carries a city wall spell (the `wall` hook) of this kind (`"fire"`,
     /// `"darkness"`), whoever cast it.
     pub fn city_has_wall(&self, city: hecs::Entity, kind: &str) -> bool {
-        crate::spell::instance::Spells::new(self.world)
+        crate::spell::instance::Spells::new(self.ecs)
             .city_enchantments(city)
             .iter()
             .any(|&(s, _)| {
@@ -309,7 +309,7 @@ impl Economy<'_> {
         if !self.city_has_effect(city, CityEffect::SpellWard) {
             return Vec::new();
         }
-        self.world
+        self.ecs
             .get::<&SpellWards>(city)
             .map(|w| w.0.clone())
             .unwrap_or_default()

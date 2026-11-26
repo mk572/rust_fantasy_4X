@@ -3,8 +3,8 @@
 //! (buildings, race traits, city enchantments) arrives as stat modifiers.
 //!
 //! The rules are in [`Economy`]: a read handle over the world, the map, the content
-//! and the players, made by `Game::economy()`. A city's yields are worked out from those alone,
-//! so a test needs a world, a map and the content, no `Game`. `Game` has thin methods that
+//! and the players, made by `World::economy()`. A city's yields are worked out from those alone,
+//! so a test needs a world, a map and the content, no `World`. `World` has thin methods that
 //! ask it.
 //!
 //! Units: population is in citizens ("figures", 1000 people each) with a fractional part
@@ -17,8 +17,6 @@ use f4x_def::half_int::HalfInt;
 use f4x_def::quarter_int::QuarterInt;
 use std::collections::{HashSet, VecDeque};
 
-use hecs::World;
-
 use crate::city::{City, CityInfo};
 use crate::map::terrain::TerrainClass;
 use crate::map::{Map, Plane, Position};
@@ -29,7 +27,7 @@ use crate::rules::stats::{compute, compute_half, passive_modifiers, Modifier, So
 use crate::rules::{RaceDef, RealmId, Stat};
 use crate::unit::UnitView;
 
-use crate::game::Game;
+use crate::world::World;
 
 mod breakdown;
 pub use breakdown::{Breakdown, Item, Line, Resource};
@@ -73,7 +71,7 @@ fn food_with(
 }
 
 /// The part of a city's economy that does not depend on its farmers, kept to work out its food
-/// for many numbers of them (`Game::balance_farmers`).
+/// for many numbers of them (`World::balance_farmers`).
 pub struct FoodBasis {
     figures: u32,
     rebels: u32,
@@ -191,7 +189,7 @@ fn wrap_distance(width: u32, a: u32, b: u32) -> u32 {
 /// owner's tax rate, capital race and retorts).
 #[derive(Clone, Copy)]
 pub struct Economy<'a> {
-    pub(crate) world: &'a World,
+    pub(crate) ecs: &'a hecs::World,
     pub(crate) map: Option<&'a Map>,
     pub(crate) content: &'a Content,
     /// The world events going on; none unless [`Economy::with_events`] says otherwise.
@@ -231,9 +229,9 @@ impl<'a> Economy<'a> {
         self.max_battle_side
     }
 
-    pub fn new(world: &'a World, map: Option<&'a Map>, content: &'a Content) -> Self {
+    pub fn new(ecs: &'a hecs::World, map: Option<&'a Map>, content: &'a Content) -> Self {
         Economy {
-            world,
+            ecs,
             map,
             content,
             events: &crate::world_event::NONE,
@@ -346,7 +344,7 @@ impl<'a> Economy<'a> {
     /// The squares of the cities `owner` holds.
     pub fn own_city_squares(&self, owner: PlayerId) -> crate::fast::FastSet<Position> {
         let mut squares = crate::fast::FastSet::default();
-        for (city, (_, pos)) in self.world.query::<(&City, &Position)>().iter() {
+        for (city, (_, pos)) in self.ecs.query::<(&City, &Position)>().iter() {
             if self.city_owner(city) == Some(owner) {
                 squares.insert(*pos);
             }
@@ -384,21 +382,21 @@ impl<'a> Economy<'a> {
 
     /// The unit rules over the same pieces.
     pub(crate) fn units(&self) -> UnitView<'a> {
-        UnitView::new(self.world, self.content)
+        UnitView::new(self.ecs, self.content)
     }
 
     pub(crate) fn wizard(&self, id: PlayerId) -> Option<crate::wizard::entity::Wizard<'a>> {
-        crate::wizard::entity::find(self.world, id)
+        crate::wizard::entity::find(self.ecs, id)
     }
 
     /// All cities with their positions, oldest first.
     pub fn cities(&self) -> Vec<(hecs::Entity, CityInfo, Position)> {
         let mut out: Vec<_> = self
-            .world
+            .ecs
             .query::<(&City, &Position, &Owner)>()
             .iter()
             .filter_map(|(e, (c, p, o))| {
-                let owner = crate::player::id_of(self.world, o.0)?;
+                let owner = crate::player::id_of(self.ecs, o.0)?;
                 Some((
                     e,
                     CityInfo {
@@ -417,7 +415,7 @@ impl<'a> Economy<'a> {
     /// Where the cities of every player stand (no names, no owners, no order): for a test of the
     /// squares round them.
     pub fn city_positions(&self) -> Vec<Position> {
-        self.world
+        self.ecs
             .query::<(&City, &Position)>()
             .iter()
             .map(|(_, (_, p))| *p)
@@ -432,11 +430,11 @@ impl<'a> Economy<'a> {
         keep: impl Fn(PlayerId, Position) -> bool,
     ) -> Vec<(hecs::Entity, PlayerId, Position)> {
         let mut out: Vec<_> = self
-            .world
+            .ecs
             .query::<(&City, &Position, &Owner)>()
             .iter()
             .filter_map(|(e, (_, p, o))| {
-                let owner = crate::player::id_of(self.world, o.0)?;
+                let owner = crate::player::id_of(self.ecs, o.0)?;
                 keep(owner, *p).then_some((e, owner, *p))
             })
             .collect();
@@ -449,7 +447,7 @@ impl<'a> Economy<'a> {
     /// owner, without the names and without looking up every city's owner.
     pub fn cities_of(&self, owner: PlayerId) -> Vec<(hecs::Entity, Position)> {
         let Some(player) = self
-            .world
+            .ecs
             .query::<&PlayerId>()
             .iter()
             .find(|(_, id)| **id == owner)
@@ -458,7 +456,7 @@ impl<'a> Economy<'a> {
             return Vec::new();
         };
         let mut out: Vec<_> = self
-            .world
+            .ecs
             .query::<(&City, &Position, &Owner)>()
             .iter()
             .filter(|(_, (_, _, o))| o.0 == player)
@@ -511,7 +509,7 @@ impl<'a> Economy<'a> {
     fn others_keep_curses(&self, owner: Option<PlayerId>) -> (bool, bool) {
         let rules = &self.content.rules;
         let (mut armageddon, mut wasting) = (false, false);
-        for (_, &id) in self.world.query::<&PlayerId>().iter() {
+        for (_, &id) in self.ecs.query::<&PlayerId>().iter() {
             if id == crate::player::MONSTERS || Some(id) == owner {
                 continue;
             }
@@ -530,11 +528,11 @@ impl<'a> Economy<'a> {
     pub fn city_modifiers(&self, city: hecs::Entity) -> Vec<Modifier> {
         let rules = &self.content.rules;
         let mut mods = Vec::new();
-        if let Ok(race) = self.world.get::<&CityRace>(city) {
+        if let Ok(race) = self.ecs.get::<&CityRace>(city) {
             let def = rules.races.get(race.0);
             mods.extend(passive_modifiers(&def.effects, Source::Race(race.0)));
         }
-        if let Ok(buildings) = self.world.get::<&Buildings>(city) {
+        if let Ok(buildings) = self.ecs.get::<&Buildings>(city) {
             let evil = self.evil_presence_active(city);
             // Divine and Infernal Power add half again to the power and the pacifying of the
             // religious buildings.
@@ -629,7 +627,7 @@ impl<'a> Economy<'a> {
                 ));
             }
         }
-        for (spell, _) in crate::spell::instance::Spells::new(self.world).city_enchantments(city) {
+        for (spell, _) in crate::spell::instance::Spells::new(self.ecs).city_enchantments(city) {
             mods.extend(passive_modifiers(
                 &rules.spells.get(spell).effects,
                 Source::Spell(spell),
@@ -656,7 +654,7 @@ impl<'a> Economy<'a> {
         city: hecs::Entity,
         building: crate::rules::BuildingId,
     ) -> bool {
-        self.world
+        self.ecs
             .get::<&Buildings>(city)
             .is_ok_and(|b| b.0.contains(&building))
     }
@@ -698,8 +696,8 @@ impl<'a> Economy<'a> {
             if e == city || p.plane != at.plane || !seen.contains(&(p.x, p.y)) {
                 continue;
             }
-            let pop = self.world.get::<&Population>(e).map_or(0, |p| p.figures) as i32;
-            let other = self.world.get::<&CityRace>(e).ok().map(|r| r.0);
+            let pop = self.ecs.get::<&Population>(e).map_or(0, |p| p.figures) as i32;
+            let other = self.ecs.get::<&CityRace>(e).ok().map(|r| r.0);
             total += if other == race { pop / 2 } else { pop };
         }
         total
@@ -764,7 +762,7 @@ impl<'a> Economy<'a> {
     pub fn square_ctx(&self, city: hecs::Entity) -> Option<SquareCtx> {
         let owner = self.city_owner(city)?;
         let race = self
-            .world
+            .ecs
             .get::<&CityRace>(city)
             .ok()
             .map(|r| self.content.rules.races.get(r.0));
@@ -900,7 +898,7 @@ impl<'a> Economy<'a> {
     /// not rebels), so the smallest number is found by halving; the economy is worked out about
     /// five times and not once for each farmer from none up. A test holds it to the linear search.
     pub fn city_min_farmers(&self, city: hecs::Entity) -> u32 {
-        let figures = self.world.get::<&Population>(city).map_or(0, |p| p.figures);
+        let figures = self.ecs.get::<&Population>(city).map_or(0, |p| p.figures);
         // A city with no economy (no basis) feeds no one: all its citizens farm.
         let Some(basis) = self.food_basis(city) else {
             return figures;
@@ -922,7 +920,7 @@ impl<'a> Economy<'a> {
     /// The linear search `city_min_farmers` replaced, for the test.
     #[cfg(test)]
     pub(crate) fn city_min_farmers_linear(&self, city: hecs::Entity) -> u32 {
-        let figures = self.world.get::<&Population>(city).map_or(0, |p| p.figures);
+        let figures = self.ecs.get::<&Population>(city).map_or(0, |p| p.figures);
         (0..=figures)
             .find(|&f| {
                 self.city_economy_with(city, f)
@@ -932,7 +930,7 @@ impl<'a> Economy<'a> {
     }
 
     pub fn city_economy(&self, city: hecs::Entity) -> Option<CityEconomy> {
-        let farmers = self.world.get::<&Farmers>(city).map_or(0, |f| f.0);
+        let farmers = self.ecs.get::<&Farmers>(city).map_or(0, |f| f.0);
         self.city_economy_with(city, farmers)
     }
 
@@ -1017,9 +1015,9 @@ impl<'a> Economy<'a> {
         mods: &[Modifier],
     ) -> u32 {
         let rules = &self.content.rules;
-        let tax_rate = crate::player::component::<crate::player::Tax>(self.world, owner)
+        let tax_rate = crate::player::component::<crate::player::Tax>(self.ecs, owner)
             .map_or(1, |t| t.0) as usize;
-        let capital = crate::wizard::entity::find(self.world, owner).and_then(|w| w.capital_race());
+        let capital = crate::wizard::entity::find(self.ecs, owner).and_then(|w| w.capital_race());
         let racial = match (capital, race_id) {
             (Some(c), Some(r)) => {
                 rules
@@ -1090,14 +1088,14 @@ impl<'a> Economy<'a> {
     /// The farmer-independent figures of a city's food (`FoodBasis`), by the same helpers
     /// `city_economy_with` uses.
     pub fn food_basis(&self, city: hecs::Entity) -> Option<FoodBasis> {
-        let at = *self.world.get::<&Position>(city).ok()?;
+        let at = *self.ecs.get::<&Position>(city).ok()?;
         let owner = self.city_owner(city)?;
         let figures = self
-            .world
+            .ecs
             .get::<&Population>(city)
             .map(|p| p.figures)
             .unwrap_or_default();
-        let race_id = self.world.get::<&CityRace>(city).ok().map(|r| r.0);
+        let race_id = self.ecs.get::<&CityRace>(city).ok().map(|r| r.0);
         self.map?;
         let mods = self.city_modifiers(city);
         let ctx = self.square_ctx(city)?;
@@ -1119,7 +1117,7 @@ impl<'a> Economy<'a> {
             race_id,
             terrain_food: land.terrain_food.floor_half(),
             wild_food: land.wild_food,
-            food_bonus: crate::player::component::<crate::player::Bonus>(self.world, owner)
+            food_bonus: crate::player::component::<crate::player::Bonus>(self.ecs, owner)
                 .map_or_else(crate::player::Bonus::default, |b| *b)
                 .food,
         })
@@ -1144,14 +1142,14 @@ impl<'a> Economy<'a> {
 
     /// Compute the city's yields as if `farmers` citizens farmed.
     pub fn city_economy_with(&self, city: hecs::Entity, farmers: u32) -> Option<CityEconomy> {
-        let at = *self.world.get::<&Position>(city).ok()?;
+        let at = *self.ecs.get::<&Position>(city).ok()?;
         let owner = self.city_owner(city)?;
         let pop = self
-            .world
+            .ecs
             .get::<&Population>(city)
             .map(|p| *p)
             .unwrap_or_default();
-        let race_id = self.world.get::<&CityRace>(city).ok().map(|r| r.0);
+        let race_id = self.ecs.get::<&CityRace>(city).ok().map(|r| r.0);
         let rules = &self.content.rules;
         let race: Option<&RaceDef> = race_id.map(|r| rules.races.get(r));
         self.map?;
@@ -1182,7 +1180,7 @@ impl<'a> Economy<'a> {
         let terrain_food = terrain_food.floor_half();
 
         // Rebels.
-        let tax_rate = crate::player::component::<crate::player::Tax>(self.world, owner)
+        let tax_rate = crate::player::component::<crate::player::Tax>(self.ecs, owner)
             .map_or(1, |t| t.0) as usize;
         let rebels = self.city_rebels(
             city,
@@ -1244,7 +1242,7 @@ impl<'a> Economy<'a> {
             Source::Other,
         ));
         let mut gold = compute_half(Stat::CityGold, gold, &gold_mods);
-        if let Ok(p) = self.world.get::<&crate::city::production::Production>(city) {
+        if let Ok(p) = self.ecs.get::<&crate::city::production::Production>(city) {
             if p.item == Some(crate::city::production::ProductionItem::TradeGoods) {
                 // Half a gold for each production point.
                 gold += production;
@@ -1258,7 +1256,7 @@ impl<'a> Economy<'a> {
         let mana = compute_half(Stat::CityMana, citizen_mana + mine_mana, &mods).max(HalfInt::ZERO);
 
         // Growth, with a bonus while the city builds housing.
-        let housing = match self.world.get::<&crate::city::production::Production>(city) {
+        let housing = match self.ecs.get::<&crate::city::production::Production>(city) {
             Ok(p) if p.item == Some(crate::city::production::ProductionItem::Housing) => {
                 let mut bonus = if figures == 1 {
                     50
@@ -1281,7 +1279,7 @@ impl<'a> Economy<'a> {
 
         // A computer wizard's difficulty bonuses come last, on the finished figures, as in the
         // original's `Do_City_Calculations`.
-        let bonus = crate::player::component::<crate::player::Bonus>(self.world, owner)
+        let bonus = crate::player::component::<crate::player::Bonus>(self.ecs, owner)
             .map_or_else(crate::player::Bonus::default, |b| *b);
         let of = crate::player::Bonus::of;
         let growth_tens = if growth_tens > 0 {
@@ -1344,7 +1342,7 @@ impl<'a> Economy<'a> {
     /// Gold the buildings of a city cost to maintain (replaced buildings are free).
     pub fn city_building_upkeep(&self, city: hecs::Entity) -> u32 {
         let rules = &self.content.rules;
-        let Ok(buildings) = self.world.get::<&Buildings>(city) else {
+        let Ok(buildings) = self.ecs.get::<&Buildings>(city) else {
             return 0;
         };
         let replaced: HashSet<_> = buildings
@@ -1370,7 +1368,7 @@ impl<'a> Economy<'a> {
     /// The city standing at `pos`.
     pub fn city_at(&self, pos: Position) -> Option<hecs::Entity> {
         // One city per square: no need to build and sort the list of all of them.
-        self.world
+        self.ecs
             .query::<(&City, &Position)>()
             .iter()
             .find(|(_, (_, p))| **p == pos)
@@ -1379,17 +1377,17 @@ impl<'a> Economy<'a> {
 
     /// The race of a city.
     pub fn city_race(&self, city: hecs::Entity) -> Option<crate::rules::RaceId> {
-        self.world.get::<&CityRace>(city).ok().map(|r| r.0)
+        self.ecs.get::<&CityRace>(city).ok().map(|r| r.0)
     }
 
     /// The player owning a city.
     pub fn city_owner(&self, city: hecs::Entity) -> Option<PlayerId> {
-        crate::player::id_of(self.world, self.city_owner_entity(city)?)
+        crate::player::id_of(self.ecs, self.city_owner_entity(city)?)
     }
 
     /// The player entity owning a city.
     pub fn city_owner_entity(&self, city: hecs::Entity) -> Option<hecs::Entity> {
-        self.world.get::<&Owner>(city).ok().map(|o| o.0)
+        self.ecs.get::<&Owner>(city).ok().map(|o| o.0)
     }
 
     /// Whether any unit of `owner` could be a garrison here (used by display code).
@@ -1397,7 +1395,7 @@ impl<'a> Economy<'a> {
         self.units()
             .units_at(at)
             .into_iter()
-            .filter(|&u| self.world.get::<&Owner>(u).is_ok())
+            .filter(|&u| self.ecs.get::<&Owner>(u).is_ok())
             .collect()
     }
 
@@ -1407,10 +1405,10 @@ impl<'a> Economy<'a> {
     }
 }
 
-impl Game {
+impl World {
     /// The economy rules over the world, the map, the content and the players.
     pub fn economy(&self) -> Economy<'_> {
-        Economy::new(&self.world, self.map.as_ref(), &self.content)
+        Economy::new(&self.ecs, self.map.as_ref(), &self.content)
             .with_events(&self.events)
             .with_diagonal_extra(self.settings.basic.diagonal_extra_cost)
             .with_river_roads(self.settings.rules.river_roads)

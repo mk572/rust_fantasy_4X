@@ -1,6 +1,6 @@
 //! The extra-mana slider (`Spellbook_Mana_Adder_Screen`): a spell that gets stronger with mana
 //! (Disenchant Area and True, Disjunction, Disjunction True, Spell Binding; see
-//! `Game::spell_takes_extra_mana`) asks how much to put into it before it is cast. The slider
+//! `World::spell_takes_extra_mana`) asks how much to put into it before it is cast. The slider
 //! runs from nothing to as much again as the spell costs; "Additional Power: +N" shows the
 //! amount. The keys Left and Right (or Down and Up) change it by one mana, a click or drag on the
 //! bar sets it, OK (Enter) casts and Esc gives the spell up. The amount goes with
@@ -59,12 +59,12 @@ pub(crate) fn thumb_at(extra: i32, most: i32) -> f32 {
 impl App {
     /// For screenshots: the slider of Disenchant Area, a third of the way along.
     pub(crate) fn open_test_extra_mana(&mut self) {
-        let Some(spell) = self.game.content().rules.spells.id_numbered(204)
+        let Some(spell) = self.world.content().rules.spells.id_numbered(204)
         /* disenchant_area */
         else {
             return;
         };
-        let most = most_extra(self.game.content().rules.spells.get(spell).cost as i32);
+        let most = most_extra(self.world.content().rules.spells.get(spell).cost as i32);
         self.modals.open(ExtraMana {
             spell,
             extra: most / 3,
@@ -78,7 +78,7 @@ impl Modal for ExtraMana {
     }
     fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
         let Self { spell, mut extra } = *self;
-        let def = app.game.content().rules.spells.get(spell);
+        let def = app.world.content().rules.spells.get(spell);
         let base = def.cost as i32;
         let most = most_extra(base);
         let lay = Layout::new();

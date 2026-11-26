@@ -2,7 +2,7 @@
 
 > Heroes and items are entities (the rework, tasks 326 to 333): the game has one hero entity of each
 > type, an individual that any wizard may hire while it is free (`hero/kind.rs` for the rules,
-> `hero/game.rs` for the entities), and each item is an entity held by a hero, a vault or an offer
+> `hero/world.rs` for the entities), and each item is an entity held by a hero, a vault or an offer
 > (`item/entity.rs`); see `ecs-structure.md` 3.5. There is no per-wizard roster and no `Armory`
 > component on the player.
 
@@ -10,7 +10,7 @@ The design of the heroes and items (tasks 47 to 51, 72, 127, 138 to 143, 174, 17
 262): what the original does (section 2), the pieces and how they were built (3 to 5), the assets
 (6) and where the help, the original and ReMoM disagree (7, task 223). Everything in it is built
 except what section 7 and the open questions in 8 say. It follows the base rule of `design.md`:
-each system is plain data plus functions over the pieces they need, not methods on `Game`
+each system is plain data plus functions over the pieces they need, not methods on `World`
 (`ecs-structure.md`, guideline 12).
 
 Sources, so every number can be checked: the original's data files (`ITEMDATA.LBX`, `ITEMPOW.LBX`,
@@ -25,10 +25,10 @@ stores (0 = "Hero", 8 = "Demi-God"); the original's formulas read `Level + 1`.
 |---|---|
 | 35 hero units in `crates/f4x-def/content/units.ron`, `crates/f4x-def/content/heroes.ron` | `kind: Hero`, `level_path: hero_xp`, `hero: (kind: Warrior / Bow / SwordOrStaff / Mage, portrait, hire_cost)` (the type fixes the three slots, `HeroKind::slots`, `SlotKind::fits`) and the 35 starting records of `NewGame.c:_hero_premade_table` (picks, fixed abilities by `HSA_*` name, casting skill, four innate spells), loaded into `Rules::hero_templates` and checked by `validate`. |
 | 250 items in `crates/f4x-def/content/items.ron`, 66 powers in `crates/f4x-def/content/item_powers.ron` | The original's items and powers: `ItemDef {id, name, slot, kind, cost, effects, spell_skill, spell_save, powers, charges, books, flag}`; plain bonuses are effects (movement as `Moves` in whole moves, to hit in pluses). |
-| `item/mod.rs`, `item/entity.rs` | `Item` (an instance: name, kind, value, `ItemBonus`, power ids, charges, the prefab id it copies) is the component of an item entity, held by `HeldBy` (a hero's slot, the vault, the award list, an offer). `HeroItems` is a hero's three slots read as one value. `modifiers` (attack and to hit to melee or ranged by kind, Flaming and Giant Strength), `Item::granted_spells` (the powers that are lasting spells in the original: the carrier gets them as spells that no dispel touches), `granted_abilities`. `Source::Item(slot)`; new stats `MeleeToHit`, `RangedToHit`. `Game::items()` is the item rules' read-only view (`items::Items`): what a unit carries, the spells, abilities and stat modifiers its items give, a wizard's armory. Which lasting spell or attack ability a power gives is data in `item_powers.ron` (`spell`, `attack`); only the few powers the code handles by id are in `OTHER_POWERS`. |
-| `item/armory.rs` | `Armory` (the vault, which has no limit, and the award list, read from the item entities), `Game::move_item` (the item screen's rules, 20 mana for a far hero, the drowning check), `give_item`, `scrap_item` (the anvil), `Command::MoveItem` and `ScrapItem`. `plan_move` works over the `ItemWorld` trait, tested without a `Game`. |
-| `item/crafting.rs`, `item/make.rs` | Enchant Item and Create Artifact (`ItemDesign`, `Craft`, `cost`, `check`, `available_powers`, `build`, `Game::craft_item` / `Command::CraftItem`, `Event::ItemMade`; the screen is `craft_screen.rs`), random and prefab items (`make_item`). |
-| `hero/mod.rs`, `hero/kind.rs`, `hero/game.rs` | `Hero` (kind, name, `HeroAbilities`, casting skill, innate spells) and `HeroState` (`Free`, `Serving`, `Dead`, `Gone`) are components of a hero entity; while it serves it also has the unit components, and `HeroAbilities::ids` feeds `unit_abilities` (so Noble, Armsmaster and the rest are unit abilities). `kind::roll` (`Init_Heroes`, called last in `new_game`), `kind::pick` (`Pick_Random_Hero`), `hire_cost`, `level_of`. `Units::hero_units`, `hero_kind`, `hero_standing`, `hero_hire_price`, `Game::spawn_hero`, `pick_hero`, and `remove_unit(unit, Fate)`, which every place that takes a unit out of the game uses so the hero entity follows. A wizard may serve any number of heroes (`divergences.md`). |
+| `item/mod.rs`, `item/entity.rs` | `Item` (an instance: name, kind, value, `ItemBonus`, power ids, charges, the prefab id it copies) is the component of an item entity, held by `HeldBy` (a hero's slot, the vault, the award list, an offer). `HeroItems` is a hero's three slots read as one value. `modifiers` (attack and to hit to melee or ranged by kind, Flaming and Giant Strength), `Item::granted_spells` (the powers that are lasting spells in the original: the carrier gets them as spells that no dispel touches), `granted_abilities`. `Source::Item(slot)`; new stats `MeleeToHit`, `RangedToHit`. `World::items()` is the item rules' read-only view (`items::Items`): what a unit carries, the spells, abilities and stat modifiers its items give, a wizard's armory. Which lasting spell or attack ability a power gives is data in `item_powers.ron` (`spell`, `attack`); only the few powers the code handles by id are in `OTHER_POWERS`. |
+| `item/armory.rs` | `Armory` (the vault, which has no limit, and the award list, read from the item entities), `World::move_item` (the item screen's rules, 20 mana for a far hero, the drowning check), `give_item`, `scrap_item` (the anvil), `Command::MoveItem` and `ScrapItem`. `plan_move` works over the `ItemWorld` trait, tested without a `World`. |
+| `item/crafting.rs`, `item/make.rs` | Enchant Item and Create Artifact (`ItemDesign`, `Craft`, `cost`, `check`, `available_powers`, `build`, `World::craft_item` / `Command::CraftItem`, `Event::ItemMade`; the screen is `craft_screen.rs`), random and prefab items (`make_item`). |
+| `hero/mod.rs`, `hero/kind.rs`, `hero/world.rs` | `Hero` (kind, name, `HeroAbilities`, casting skill, innate spells) and `HeroState` (`Free`, `Serving`, `Dead`, `Gone`) are components of a hero entity; while it serves it also has the unit components, and `HeroAbilities::ids` feeds `unit_abilities` (so Noble, Armsmaster and the rest are unit abilities). `kind::roll` (`Init_Heroes`, called last in `new_game`), `kind::pick` (`Pick_Random_Hero`), `hire_cost`, `level_of`. `Units::hero_units`, `hero_kind`, `hero_standing`, `hero_hire_price`, `World::spawn_hero`, `pick_hero`, and `remove_unit(unit, Fate)`, which every place that takes a unit out of the game uses so the hero entity follows. A wizard may serve any number of heroes (`divergences.md`). |
 | `unit/experience.rs` | Hero level path (`hero_xp`), Armsmaster training by the ability ids `armsmaster` and `super_armsmaster` (heroes themselves are not trained, as in the original). |
 | `battle/spoils.rs`, `feature/lair.rs` | Fame for fallen heroes and their items to the winner (task 221); `Loot` carries items and a freed prisoner. |
 | `player/offer.rs`, `spell/hero.rs`, `battle/spells/unit_cast.rs` | The hero, mercenary and merchant offers, the five hero spells, and the casting of heroes and items in battle. |
@@ -161,8 +161,8 @@ The factors of the ten tiered abilities are content: each hero ability of `crate
 ## 3. New self-contained systems
 
 Each is a module in `f4x-core` with plain data, free functions over what they need and a small read
-handle where the economy and unit handles already work that way. None adds a method to `Game`;
-`Game` only orchestrates (commands, events, saving).
+handle where the economy and unit handles already work that way. None adds a method to `World`;
+`World` only orchestrates (commands, events, saving).
 
 ### 3.1 `items` (what an item is)
 
@@ -217,7 +217,7 @@ Random items follow `Create_Random_Item` (type 1 to 10, powers drawn from the pl
 group, stop at the value or the power count); prefab items follow `Make_Item` (250 records, each
 once per game; the wizard's books are not looked at).
 
-**Built (tasks 244 and 262)** in `item/make.rs`: `make_item(rng, rules, grade, value, taken)` with `Grade::{Any, Enchant, Artifact}` (the original's `Power` 0, 1, 2) and `random_item`, as `Make_Item` and `Create_Random_Item` with the fixes of `divergences.md` section 10 (value test, no book check, a power count that follows the kind). `taken` is `Game::prefab_taken` (saved). A prefab item is found by up to 50 draws; the random item draws a kind, then plain powers (one per group, at most 200 each for Enchant) until the count (Enchant 2; else 4 for sword, mace, axe, staff, wand, 3 for the rest), the value or 50 draws; no value means 700 to 1700. Icons are task 261.
+**Built (tasks 244 and 262)** in `item/make.rs`: `make_item(rng, rules, grade, value, taken)` with `Grade::{Any, Enchant, Artifact}` (the original's `Power` 0, 1, 2) and `random_item`, as `Make_Item` and `Create_Random_Item` with the fixes of `divergences.md` section 10 (value test, no book check, a power count that follows the kind). `taken` is `World::prefab_taken` (saved). A prefab item is found by up to 50 draws; the random item draws a kind, then plain powers (one per group, at most 200 each for Enchant) until the count (Enchant 2; else 4 for sword, mace, axe, staff, wand, 3 for the rest), the value or 50 draws; no value means 700 to 1700. Icons are task 261.
 
 ### 3.4 `armory` (where a wizard's items are)
 
@@ -228,12 +228,12 @@ entities (`item/armory.rs`, `item/entity.rs`). `place` puts a new item in the va
 award list, else it is lost; the anvil (`scrap_item`) gives mana and the sale (`sell_item`) gold; both check the slot and the wizard before they take the item and answer `Result<_, ItemError>`, so a refusal leaves the item where it was (task 547); `move_item` moves between spots
 with the rules of the item screen. Moving between heroes in different places is refused as in
 `Check_Same_Location` (it costs 20 mana to a far hero); a hero may not be left to drown by taking
-away its Water Walking or Flight (`Check_Wont_Drown`, `Game::drown_stranded`).
+away its Water Walking or Flight (`Check_Wont_Drown`, `World::drown_stranded`).
 
 ### 3.5 Heroes as entities (was `roster`)
 
 **Built (tasks 219, 326 to 328).** The sketch of a per-wizard `Roster` of `HeroRecord`s is gone: the
-game has one hero entity of each type (`hero/game.rs`), created by `kind::roll` when the game is
+game has one hero entity of each type (`hero/world.rs`), created by `kind::roll` when the game is
 made. It holds `Hero` (the abilities and spells that were rolled, the name), `Experience` and a
 `HeroState`: `Free` (offered, summoned or hired by anyone), `Serving` (it has the unit components
 and an `Owner`), `Dead` (Resurrection brings it back) or `Gone` (Disintegrate, Banish and the like).
@@ -241,7 +241,7 @@ The hero type is the index into `Rules::hero_templates`; `kind::pick` takes a `S
 life and death books) and a `Class`; `Fate` is `Slain` / `Released` / `Gone`. Dead, free and gone are
 separate states instead of the original's level coding (2.4). The old roster functions became:
 `roll` (`kind::roll`), `candidates` and `pick` (`kind::pick`), `hire_cost`, `on_hired`
-(`Game::spawn_hero`), `on_dead` (`Game::remove_unit`), `dead` (`Units::raisable_heroes`).
+(`World::spawn_hero`), `on_dead` (`World::remove_unit`), `dead` (`Units::raisable_heroes`).
 
 ### 3.6 `hero` (the unit component and the abilities)
 
@@ -281,7 +281,7 @@ system because they share the schedule, fame and the pop-up (task 143).
 
 **Built (task 220)** in `player/offer.rs`, with these differences from the first sketch (an `OfferView`
 trait): there is none (the chances, prices and the computer's answers are plain functions, tested without a game, and
-`Game` rolls the offers); `Offer::Mercenaries` carries the unit's id and a 0-based level; an offer
+`World` rolls the offers); `Offer::Mercenaries` carries the unit's id and a 0-based level; an offer
 waits in `Player::offers` (saved) until `AcceptOffer { player, index, name }` or `RejectOffer`, and
 lapses at the next turn change. `determine_offers` runs last in `process_turn`. Every wizard
 meets the merchant; the computer wizards answer in `f4x-ai/src/offer.rs` (by what the item is worth to them, task 504). The console has `offers`,
@@ -294,11 +294,11 @@ meets the merchant; the computer wizards answer in `f4x-ai/src/offer.rs` (by wha
 **Built (task 48)** as one hook for each of the four overland spells in `spell/hero.rs` (the effect host lends out the game's generator, so the pick draws from the one the hook is given) and `Kind::Recall` in `battle/spell.rs`; the `Heroes<'a>` handle was not needed. Sketch:
 
 New effect primitives (`rules/exec.rs`): `SummonHero(class)`, `Incarnate`, `Resurrect`, `RecallHero`,
-`CraftItem(Craft)`. Each calls the hero and item functions (`Game::spawn_hero`, `pick_hero`, `give_item`). Cracks Call, Banish,
+`CraftItem(Craft)`. Each calls the hero and item functions (`World::spawn_hero`, `pick_hero`, `give_item`). Cracks Call, Banish,
 Disintegrate, Dispel Evil, Holy Word and Unsummon already exist as spells: they gain "the hero's
 items are destroyed" and, for Disintegrate and the like, "gone for good" in the removal code.
 
-## 4. What changed in `Game` (all built)
+## 4. What changed in `World` (all built)
 
 - **Components and state.** `Hero`, `HeroState` and `Experience` on the hero entities, `Item` and
   `HeldBy` on the item entities (the player entity has no roster or armory; the item being crafted
@@ -309,10 +309,10 @@ items are destroyed" and, for Disintegrate and the like, "gone for good" in the 
 - **Turn.** `determine_offers` runs last in `process_turn`; the Noble gold, Sage research and
   Legendary fame add to the existing `Income` and `Treasury` inputs (`wizard/magic_income.rs`,
   `player/finance.rs`).
-- **Removal.** Every place that takes a unit out of the game goes through `Game::remove_unit(unit,
+- **Removal.** Every place that takes a unit out of the game goes through `World::remove_unit(unit,
   Fate)`, which turns a hero's body into `Free`, `Dead` or `Gone` and sends its items to the winner,
   the armory or oblivion.
-- **Save.** `game/save.rs` stores the hero and item entities with their serials.
+- **Save.** `world/save.rs` stores the hero and item entities with their serials.
 - **Player view and AI.** `PlayerView` shows a wizard its own heroes and items. `f4x-ai` accepts hero
   offers by `AI_Accept_Hero`, equips by item fit (`f4x-ai/src/offer.rs`) and casts the heroes' spells.
 - **Console and client.** Console commands mirror the game's commands; the client has the army list,
@@ -323,7 +323,7 @@ items are destroyed" and, for Disintegrate and the like, "gone for good" in the 
 - **`BattleUnit`** gets: `hero: Option<HeroBattle>` (name, level, casting skill, innate spells,
   item charges `Option<(SpellId, u8)>`), `item_attack: AttackTraits` for melee and ranged,
   `melee_to_hit` and `ranged_to_hit` (item to-hit goes to the matching attack only), and the
-  mana from `(skill + 1) * x * 5 / 2 + item spell skill`. `battle_unit_from` (battle/game.rs) calls
+  mana from `(skill + 1) * x * 5 / 2 + item spell skill`. `battle_unit_from` (battle/world.rs) calls
   `hero::modifiers` through `unit_stat`, so most of this is the stat engine finding the new sources;
   the code there only adds the pieces that are not stats (charges, traits, mana).
 - **Battlefield step.** `FieldBonus` (battle/field.rs) already holds the per-side battlefield spells;

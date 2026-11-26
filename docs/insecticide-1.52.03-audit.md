@@ -87,7 +87,7 @@ Verdicts for the rows of the three tables above, by reading the code; rows not n
 
 | Rows | Verdict |
 |---|---|
-| 810 Random events after loading a game | **Not present.** The draw is `Determine_Event` on the game's own `turn` and `events` state (`world_event/game.rs`), both saved; nothing is reset by a load. |
+| 810 Random events after loading a game | **Not present.** The draw is `Determine_Event` on the game's own `turn` and `events` state (`world_event/world.rs`), both saved; nothing is reset by a load. |
 | 811 Node aura in combat | **Not present.** `start_battle` sets the node aura once (`node_realms_at`). |
 | 818 Razing and terrain changes restore movement costs | **Not present.** The cost of a step is derived from the terrain, road and city at the square when asked; nothing is cached. |
 | 801, 806 Arcane Power as a random hero ability | **Not present.** `hero/kind.rs`: a pick that does not apply is drawn again, one pick raises one tier (none to normal to super), and the test is "has a magic ranged attack", not a hero's name. |

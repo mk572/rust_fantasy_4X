@@ -145,13 +145,13 @@ impl Ctx<'_> {
         if self.overriding() {
             return true;
         }
-        let Some(map) = self.game.map() else {
+        let Some(map) = self.world.map() else {
             return false;
         };
         if p.x >= map.width() || p.y >= map.height() {
             return false;
         }
-        self.game
+        self.world
             .economy()
             .visibility(self.session.player, p.plane)
             .get((p.y * map.width() + p.x) as usize)
@@ -160,7 +160,7 @@ impl Ctx<'_> {
     }
 
     fn explored(&self, p: Position) -> bool {
-        self.overriding() || self.game.is_explored(self.session.player, p)
+        self.overriding() || self.world.is_explored(self.session.player, p)
     }
 }
 
@@ -168,28 +168,28 @@ fn status(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     let me = ctx.session.player;
     ctx.say(format!(
         "turn {}, playing {}, mode {}",
-        ctx.game.turn,
-        describe::player(ctx.game, me),
+        ctx.world.turn,
+        describe::player(ctx.world, me),
         ctx.session.mode.name()
     ));
-    let game = &*ctx.game;
+    let world = &*ctx.world;
     let mut lines = Vec::new();
     if let (Some(player), Some(tax)) = (
-        game.player(me),
-        game.player_component::<f4x_core::player::Tax>(me),
+        world.player(me),
+        world.player_component::<f4x_core::player::Tax>(me),
     ) {
         let wallet = player.treasury();
-        let t = game.budget(me);
+        let t = world.budget(me);
         lines.push(format!(
             "gold {} (net {:+}), mana {}, fame {}, tax rate {}",
             wallet.gold,
             t.net_gold(),
             wallet.mana,
-            game.fame(me),
+            world.fame(me),
             tax.0
         ));
-        if let Some(m) = game.wizard(me) {
-            let split = game.income(me).split;
+        if let Some(m) = world.wizard(me) {
+            let split = world.income(me).split;
             lines.push(format!(
                 "power split mana {}% research {}% skill {}% (yielding {} mana, {} research, {} skill)",
                 m.power_split().mana, m.power_split().research, m.power_split().skill, split.mana, split.research, split.skill
@@ -199,7 +199,7 @@ fn status(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
                 .map(|s| {
                     format!(
                         "{} ({} to go)",
-                        describe::spell(game, s),
+                        describe::spell(world, s),
                         m.research_remaining()
                     )
                 })
@@ -208,7 +208,7 @@ fn status(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
             if let Some(c) = m.casting() {
                 lines.push(format!(
                     "casting {} ({} mana to go)",
-                    describe::spell(game, c.spell),
+                    describe::spell(world, c.spell),
                     c.remaining
                 ));
             }
@@ -217,18 +217,18 @@ fn status(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     for l in lines {
         ctx.say(l);
     }
-    if ctx.game.in_battle() {
+    if ctx.world.in_battle() {
         ctx.say("a battle is being fought (see `battle`)");
     }
-    if let Some(over) = ctx.game.game_over {
+    if let Some(over) = ctx.world.game_over {
         ctx.say(format!(
             "GAME OVER: {} won by {:?} on turn {}",
-            describe::player(ctx.game, over.winner),
+            describe::player(ctx.world, over.winner),
             over.kind,
             over.turn
         ));
     }
-    let n = ctx.game.override_log().len();
+    let n = ctx.world.override_log().len();
     if n > 0 {
         ctx.say(format!("override commands used in this game: {n}"));
     }
@@ -237,14 +237,14 @@ fn status(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
 
 fn players(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     let rows: Vec<String> = ctx
-        .game
+        .world
         .player_ids()
         .into_iter()
-        .filter(|id| ctx.game.is_wizard(*id))
+        .filter(|id| ctx.world.is_wizard(*id))
         .map(|id| {
-            let state = if ctx.game.player(id).is_some_and(|p| p.is_defeated()) {
+            let state = if ctx.world.player(id).is_some_and(|p| p.is_defeated()) {
                 "defeated"
-            } else if ctx.game.wizard(id).is_some_and(|w| w.is_banished()) {
+            } else if ctx.world.wizard(id).is_some_and(|w| w.is_banished()) {
                 "banished"
             } else {
                 "active"
@@ -257,7 +257,7 @@ fn players(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
             format!(
                 "{} {}{me}: {state}",
                 id.0,
-                ctx.game.player(id).map_or_else(String::new, |p| p.name())
+                ctx.world.player(id).map_or_else(String::new, |p| p.name())
             )
         })
         .collect();
@@ -270,9 +270,9 @@ fn players(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
 /// The temporary effects on a unit or city, one line each.
 fn say_temp_effects(ctx: &mut Ctx, e: hecs::Entity) {
     use f4x_core::spell::temp_effect::TempKind;
-    let name = |a: f4x_def::rules::Ability| ctx.game.content().rules.abilities.get(a).id.clone();
+    let name = |a: f4x_def::rules::Ability| ctx.world.content().rules.abilities.get(a).id.clone();
     let lines: Vec<String> = ctx
-        .game
+        .world
         .units()
         .temp_effects(e)
         .into_iter()
@@ -291,33 +291,33 @@ fn say_temp_effects(ctx: &mut Ctx, e: hecs::Entity) {
 }
 
 fn unit_line(ctx: &Ctx, u: hecs::Entity) -> String {
-    let (hits, max) = ctx.game.units().unit_hits(u);
-    let owner = ctx.game.units().unit_owner(u).map_or(0, |o| o.0);
+    let (hits, max) = ctx.world.units().unit_hits(u);
+    let owner = ctx.world.units().unit_owner(u).map_or(0, |o| o.0);
     format!(
         "{} owner {owner} hits {hits}/{max} moves {}/{}",
-        describe::unit(ctx.game, u),
-        ctx.game.units().unit_moves_left(u),
-        ctx.game.units().unit_max_moves(u)
+        describe::unit(ctx.world, u),
+        ctx.world.units().unit_moves_left(u),
+        ctx.world.units().unit_max_moves(u)
     )
 }
 
 fn units(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let me = ctx.session.player;
     let mut list = match a.get(0) {
-        None | Some("mine") => ctx.game.units().player_units(me),
-        Some("all") => ctx.game.units().all_units(),
-        Some(p) => ctx.game.units().units_at(parse_pos(p, Plane::Arcanus)?),
+        None | Some("mine") => ctx.world.units().player_units(me),
+        Some("all") => ctx.world.units().all_units(),
+        Some(p) => ctx.world.units().units_at(parse_pos(p, Plane::Arcanus)?),
     };
-    ctx.game.units().sort_by_serial(&mut list);
+    ctx.world.units().sort_by_serial(&mut list);
     let mut shown = 0;
     for u in list {
-        let visible = ctx.game.units().unit_owner(u) == Some(me)
+        let visible = ctx.world.units().unit_owner(u) == Some(me)
             || (ctx
-                .game
+                .world
                 .units()
                 .unit_position(u)
                 .is_some_and(|p| ctx.sees(p))
-                && ctx.game.economy().unit_visible_to(u, me))
+                && ctx.world.economy().unit_visible_to(u, me))
             || ctx.overriding();
         if visible {
             let line = unit_line(ctx, u);
@@ -332,15 +332,15 @@ fn units(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 }
 
 fn unit(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
-    let u = unit_by_serial(ctx.game, a.int(0, "unit number")? as u64)?;
+    let u = unit_by_serial(ctx.world, a.int(0, "unit number")? as u64)?;
     let me = ctx.session.player;
     let at = ctx
-        .game
+        .world
         .units()
         .unit_position(u)
         .ok_or(ConsoleError::NoSuch("unit".into()))?;
-    if ctx.game.units().unit_owner(u) != Some(me)
-        && !(ctx.sees(at) && ctx.game.economy().unit_visible_to(u, me))
+    if ctx.world.units().unit_owner(u) != Some(me)
+        && !(ctx.sees(at) && ctx.world.economy().unit_visible_to(u, me))
         && !ctx.overriding()
     {
         return Err(ConsoleError::NoSuch(format!(
@@ -357,14 +357,14 @@ fn unit(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         ("resistance", Stat::Resistance),
     ]
     .iter()
-    .map(|(n, s)| format!("{n} {}", ctx.game.units().unit_stat(u, *s)))
+    .map(|(n, s)| format!("{n} {}", ctx.world.units().unit_stat(u, *s)))
     .collect();
     ctx.say(format!(
         "{}, level {}",
         stats.join(", "),
-        ctx.game.units().unit_level(u)
+        ctx.world.units().unit_level(u)
     ));
-    let weapons = match ctx.game.units().unit_weapon_quality(u) {
+    let weapons = match ctx.world.units().unit_weapon_quality(u) {
         1 => Some("magic"),
         2 => Some("mithril"),
         3 => Some("adamantium"),
@@ -374,15 +374,15 @@ fn unit(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         ctx.say(format!("weapons: {weapons}"));
     }
     say_temp_effects(ctx, u);
-    let abilities = ctx.game.units().unit_abilities(u);
+    let abilities = ctx.world.units().unit_abilities(u);
     if !abilities.is_empty() {
         let names: Vec<&str> = abilities
             .iter()
-            .map(|&a| ctx.game.content().rules.abilities.get(a).id.as_str())
+            .map(|&a| ctx.world.content().rules.abilities.get(a).id.as_str())
             .collect();
         ctx.say(format!("abilities: {}", names.join(", ")));
     }
-    if ctx.game.units().unit_is_undead(u) {
+    if ctx.world.units().unit_is_undead(u) {
         ctx.say("undead: a Death creature, not healed".to_string());
     }
     Ok(())
@@ -392,14 +392,14 @@ fn cities(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let all = a.get(0) == Some("all");
     let me = ctx.session.player;
     let mut rows = Vec::new();
-    for (e, c, p) in ctx.game.economy().cities() {
+    for (e, c, p) in ctx.world.economy().cities() {
         if c.owner == me || (all && ctx.sees(p)) || ctx.overriding() && all {
-            let pop = ctx.game.economy().citizens(e);
+            let pop = ctx.world.economy().citizens(e);
             rows.push((
-                ctx.game.units().serial_of(e),
+                ctx.world.units().serial_of(e),
                 format!(
                     "{} owner {} at {} size {pop}",
-                    describe::city_name(ctx.game, e),
+                    describe::city_name(ctx.world, e),
                     c.owner.0,
                     describe::pos(p)
                 ),
@@ -417,10 +417,10 @@ fn cities(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 }
 
 fn city(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
-    let c = city_by_serial(ctx.game, a.int(0, "city number")? as u64)?;
-    let owner = ctx.game.economy().city_owner(c);
+    let c = city_by_serial(ctx.world, a.int(0, "city number")? as u64)?;
+    let owner = ctx.world.economy().city_owner(c);
     let at = ctx
-        .game
+        .world
         .economy()
         .cities()
         .into_iter()
@@ -435,14 +435,14 @@ fn city(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     }
     ctx.say(format!(
         "{} owner {} at {}",
-        describe::city_name(ctx.game, c),
+        describe::city_name(ctx.world, c),
         owner.map_or(0, |o| o.0),
         describe::pos(at)
     ));
     if owner != Some(ctx.session.player) && !ctx.overriding() {
         return Ok(()); // a rival's city: only what shows from outside
     }
-    if let Some(eco) = ctx.game.economy().city_economy(c) {
+    if let Some(eco) = ctx.world.economy().city_economy(c) {
         ctx.say(format!(
             "size {} (max {}), farmers {}, workers {}, rebels {}",
             eco.figures, eco.max_size, eco.farmers, eco.workers, eco.rebels
@@ -454,10 +454,10 @@ fn city(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     }
     say_temp_effects(ctx, c);
     let built: Vec<String> = ctx
-        .game
+        .world
         .city_buildings(c)
         .into_iter()
-        .map(|id| ctx.game.content().rules.buildings.get(id).id.clone())
+        .map(|id| ctx.world.content().rules.buildings.get(id).id.clone())
         .collect();
     ctx.say(format!(
         "buildings: {}",
@@ -467,24 +467,24 @@ fn city(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             built.join(", ")
         }
     ));
-    let prod = ctx.game.economy().city_production(c);
+    let prod = ctx.world.economy().city_production(c);
     match prod.item {
         Some(item) => {
-            let left = ctx.game.economy().production_remaining(c);
+            let left = ctx.world.economy().production_remaining(c);
             let buy = ctx
-                .game
+                .world
                 .economy()
                 .buy_cost(c)
                 .map_or(String::new(), |g| format!(", buy for {g} gold"));
             ctx.say(format!(
                 "producing {} ({left} to go{buy})",
-                describe::item(ctx.game, item)
+                describe::item(ctx.world, item)
             ));
         }
         None => ctx.say("producing nothing"),
     }
-    let mut garrison = ctx.game.economy().garrison(at);
-    ctx.game.units().sort_by_serial(&mut garrison);
+    let mut garrison = ctx.world.economy().garrison(at);
+    ctx.world.units().sort_by_serial(&mut garrison);
     for u in garrison {
         let line = unit_line(ctx, u);
         ctx.say(format!("  {line}"));
@@ -494,11 +494,11 @@ fn city(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 
 fn options(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     use f4x_core::city::production::ProductionItem;
-    let c = city_by_serial(ctx.game, a.int(0, "city number")? as u64)?;
-    if ctx.game.economy().city_owner(c) != Some(ctx.session.player) && !ctx.overriding() {
+    let c = city_by_serial(ctx.world, a.int(0, "city number")? as u64)?;
+    if ctx.world.economy().city_owner(c) != Some(ctx.session.player) && !ctx.overriding() {
         return Err(ConsoleError::NotAllowed("not your city".into()));
     }
-    let rules = &ctx.game.content().rules;
+    let rules = &ctx.world.content().rules;
     let mut items: Vec<ProductionItem> = rules
         .buildings
         .iter()
@@ -506,21 +506,21 @@ fn options(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         .chain(rules.units.iter().map(|(id, _)| ProductionItem::Unit(id)))
         .chain([ProductionItem::TradeGoods, ProductionItem::Housing])
         .collect();
-    items.retain(|&i| ctx.game.economy().can_build(c, i).is_ok());
+    items.retain(|&i| ctx.world.economy().can_build(c, i).is_ok());
     for i in items {
         let (name, id) = match i {
             ProductionItem::Building(b) => {
-                let d = ctx.game.content().rules.buildings.get(b);
+                let d = ctx.world.content().rules.buildings.get(b);
                 (d.id.clone(), d.id.clone())
             }
             ProductionItem::Unit(u) => {
-                let d = ctx.game.content().rules.units.get(u);
+                let d = ctx.world.content().rules.units.get(u);
                 (d.id.clone(), d.id.clone())
             }
             ProductionItem::TradeGoods => ("Trade Goods".into(), "trade".into()),
             ProductionItem::Housing => ("Housing".into(), "housing".into()),
         };
-        let cost = ctx.game.economy().item_cost(c, i);
+        let cost = ctx.world.economy().item_cost(c, i);
         ctx.say(format!("{id:<24} {name} ({cost})"));
     }
     Ok(())
@@ -532,14 +532,14 @@ fn tile(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         ctx.say(format!("{} is unexplored", describe::pos(p)));
         return Ok(());
     }
-    let map = ctx.game.map().ok_or(ConsoleError::NoSuch("map".into()))?;
+    let map = ctx.world.map().ok_or(ConsoleError::NoSuch("map".into()))?;
     let grid = map.plane(p.plane);
     let t = grid
         .get(p.x as i32, p.y as i32)
-        .and_then(|t| ctx.game.content().terrains.get(t))
+        .and_then(|t| ctx.world.content().terrains.get(t))
         .map_or("outside the map".to_string(), |d| d.id.clone());
     let mut line = format!("{}: {t}", describe::pos(p));
-    if let Some(f) = ctx.game.economy().feature_at(p) {
+    if let Some(f) = ctx.world.economy().feature_at(p) {
         line.push_str(&format!(", {}", f.id));
     }
     for (flag, name) in [
@@ -552,15 +552,15 @@ fn tile(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         }
     }
     ctx.say(line);
-    if let Some(c) = ctx.game.economy().city_at(p) {
-        let line = describe::city_name(ctx.game, c);
+    if let Some(c) = ctx.world.economy().city_at(p) {
+        let line = describe::city_name(ctx.world, c);
         ctx.say(format!("  {line}"));
     }
     if ctx.sees(p) {
-        let mut here = ctx.game.units().units_at(p);
-        ctx.game.units().sort_by_serial(&mut here);
+        let mut here = ctx.world.units().units_at(p);
+        ctx.world.units().sort_by_serial(&mut here);
         for u in here {
-            if ctx.game.economy().unit_visible_to(u, ctx.session.player) || ctx.overriding() {
+            if ctx.world.economy().unit_visible_to(u, ctx.session.player) || ctx.overriding() {
                 let line = unit_line(ctx, u);
                 ctx.say(format!("  {line}"));
             }
@@ -573,7 +573,7 @@ fn map(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let me = ctx.session.player;
     let (centre, radius) = {
         let mut centre = ctx
-            .game
+            .world
             .economy()
             .cities()
             .into_iter()
@@ -596,7 +596,7 @@ fn map(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         }
         (centre, radius.clamp(1, 20) as i32)
     };
-    let map = ctx.game.map().ok_or(ConsoleError::NoSuch("map".into()))?;
+    let map = ctx.world.map().ok_or(ConsoleError::NoSuch("map".into()))?;
     let grid = map.plane(centre.plane);
     let mut rows = Vec::new();
     for dy in -radius..=radius {
@@ -632,23 +632,23 @@ fn map_char(ctx: &Ctx, p: Position) -> char {
     }
     if ctx.sees(p) {
         let mine = ctx
-            .game
+            .world
             .units()
             .units_at(p)
             .into_iter()
-            .any(|u| ctx.game.units().unit_owner(u) == Some(ctx.session.player));
+            .any(|u| ctx.world.units().unit_owner(u) == Some(ctx.session.player));
         if mine {
             return '*';
         }
-        if !ctx.game.units().units_at(p).is_empty() {
+        if !ctx.world.units().units_at(p).is_empty() {
             return 'u';
         }
     }
-    if ctx.game.economy().city_at(p).is_some() {
+    if ctx.world.economy().city_at(p).is_some() {
         return 'C';
     }
     use f4x_core::map::terrain::TerrainClass as C;
-    match ctx.game.economy().terrain_class_at(p) {
+    match ctx.world.economy().terrain_class_at(p) {
         Some(C::Ocean) => '~',
         Some(C::Hills) | Some(C::Mountains) => '^',
         Some(_) => '.',
@@ -658,12 +658,12 @@ fn map_char(ctx: &Ctx, p: Position) -> char {
 
 fn spells(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     let me = ctx.session.player;
-    let game = &*ctx.game;
+    let world = &*ctx.world;
     let (known, researchable) = {
-        let m = game
+        let m = world
             .wizard(me)
             .ok_or_else(|| ConsoleError::NoSuch("wizard".into()))?;
-        let rules = &game.content().rules;
+        let rules = &world.content().rules;
         let line = |ids: &mut dyn Iterator<Item = &f4x_def::rules::SpellId>,
                     cost_research: bool| {
             ids.map(|&s| {
@@ -699,14 +699,14 @@ fn join(v: &[String]) -> String {
 
 fn battle(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     let b = ctx
-        .game
+        .world
         .battle()
         .ok_or_else(|| ConsoleError::NoSuch("battle in progress".into()))?;
     let lines: Vec<String> = std::iter::once(format!(
         "turn {}, {:?} to play ({}){}",
         b.turn,
         b.active,
-        describe::player(ctx.game, b.player_of(b.active)),
+        describe::player(ctx.world, b.player_of(b.active)),
         b.winner
             .map_or(String::new(), |w| format!(", won by {w:?}"))
     ))
@@ -740,7 +740,7 @@ fn battle(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
 fn blegal(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     use f4x_battle::battle::{BattleCommand as C, SpellAim};
     let b = ctx
-        .game
+        .world
         .battle()
         .ok_or_else(|| ConsoleError::NoSuch("battle in progress".into()))?;
     if b.player_of(b.active) != ctx.session.player && !ctx.overriding() {
@@ -792,8 +792,8 @@ fn blegal(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         ));
     }
     if only.is_none() {
-        let rules = &ctx.game.content().rules;
-        for lc in ctx.game.legal_battle_casts() {
+        let rules = &ctx.world.content().rules;
+        for lc in ctx.world.legal_battle_casts() {
             let aims: Vec<String> = lc
                 .aims
                 .iter()
@@ -816,8 +816,8 @@ fn blegal(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         }
     }
     {
-        let rules = &ctx.game.content().rules;
-        for (unit, lc) in ctx.game.legal_unit_casts() {
+        let rules = &ctx.world.content().rules;
+        for (unit, lc) in ctx.world.legal_unit_casts() {
             if only.is_some_and(|o| o != unit) {
                 continue;
             }
@@ -853,7 +853,7 @@ fn uspells(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     use f4x_def::rules::defs::SpellTarget;
     let unit = a.int(0, "battle unit number")?.max(0) as usize;
     let b = ctx
-        .game
+        .world
         .battle()
         .ok_or_else(|| ConsoleError::NoSuch("battle in progress".into()))?;
     let u = b
@@ -864,8 +864,8 @@ fn uspells(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         u.unit_id.map_or(-1, |i| i32::from(i.num())),
         u.mana
     )];
-    let rules = &ctx.game.content().rules;
-    for s in ctx.game.battle_unit_spells(unit) {
+    let rules = &ctx.world.content().rules;
+    for s in ctx.world.battle_unit_spells(unit) {
         let d = rules.spells.get(s.spell);
         let aim = match s.target {
             SpellTarget::OwnUnit => "own unit",
@@ -875,7 +875,7 @@ fn uspells(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             _ => "no target",
         };
         let from = match s.source {
-            SpellSource::Item(item) => match ctx.game.items().held_by(item) {
+            SpellSource::Item(item) => match ctx.world.items().held_by(item) {
                 Some(f4x_core::item::entity::HeldBy::Hero(_, slot)) => {
                     format!("item charge (slot {})", slot + 1)
                 }
@@ -904,9 +904,9 @@ fn uspells(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 fn bspells(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     use f4x_def::rules::defs::SpellTarget;
     let me = ctx.session.player;
-    let rules = &ctx.game.content().rules;
+    let rules = &ctx.world.content().rules;
     let lines: Vec<String> = ctx
-        .game
+        .world
         .battle_spells(me)
         .into_iter()
         .map(|s| {
@@ -1004,7 +1004,7 @@ fn score(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         Some(p) => crate::args::parse_player(p)?,
         None => ctx.session.player,
     };
-    let s = ctx.game.score(who);
+    let s = ctx.world.score(who);
     ctx.say(format!(
         "spells {}, townsfolk {}, wizards defeated {}, fame {}, time {}, mastery {}; scale {}%; total {}",
         s.spells,
@@ -1022,11 +1022,11 @@ fn score(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 fn offers(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     let me = ctx.session.player;
     let mut lines: Vec<String> = ctx
-        .game
+        .world
         .offers(me)
         .iter()
         .enumerate()
-        .map(|(i, o)| format!("{}: {}", i + 1, describe::offer(ctx.game, o)))
+        .map(|(i, o)| format!("{}: {}", i + 1, describe::offer(ctx.world, o)))
         .collect();
     if lines.is_empty() {
         lines.push("no offers".into());
@@ -1039,12 +1039,12 @@ fn offers(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
 
 fn dead(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     let mut lines: Vec<String> = ctx
-        .game
+        .world
         .units()
         .raisable_heroes()
         .into_iter()
         .map(|kind| {
-            let name = ctx.game.units().hero_type_name(kind).unwrap_or_default();
+            let name = ctx.world.units().hero_type_name(kind).unwrap_or_default();
             format!("{kind} {name}")
         })
         .collect();
@@ -1061,31 +1061,31 @@ fn items(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     use f4x_core::item::armory::ItemWorld;
     let me = ctx.session.player;
     let mut lines = Vec::new();
-    for hero in ctx.game.units().hero_units(me) {
-        let name = ctx.game.units().hero_name(hero).unwrap_or_default();
-        let serial = ctx.game.units().serial_of(hero).0;
+    for hero in ctx.world.units().hero_units(me) {
+        let name = ctx.world.units().hero_name(hero).unwrap_or_default();
+        let serial = ctx.world.units().serial_of(hero).0;
         lines.push(format!("hero {serial} {name}"));
         let kinds = ctx
-            .game
+            .world
             .items()
             .hero_slots(me, hero)
             .unwrap_or([f4x_def::rules::SlotKind::Misc; 3]);
         for (slot, kind) in kinds.iter().enumerate() {
-            let held = match ctx.game.items().hero_item(hero, slot) {
-                Some(item) => describe::magic_item(ctx.game, &item),
+            let held = match ctx.world.items().hero_item(hero, slot) {
+                Some(item) => describe::magic_item(ctx.world, &item),
                 None => "empty".to_string(),
             };
             lines.push(format!("  hero:{serial}:{} ({kind:?}) {held}", slot + 1));
         }
     }
-    let armory = ctx.game.items().armory(me);
+    let armory = ctx.world.items().armory(me);
     lines.push("vault".into());
     for (i, item) in armory.vault.iter().enumerate() {
         if let Some(item) = item {
             lines.push(format!(
                 "  vault:{} {}",
                 i + 1,
-                describe::magic_item(ctx.game, item)
+                describe::magic_item(ctx.world, item)
             ));
         }
     }
@@ -1094,7 +1094,7 @@ fn items(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
         lines.push(format!(
             "  award:{} {}",
             i + 1,
-            describe::magic_item(ctx.game, item)
+            describe::magic_item(ctx.world, item)
         ));
     }
     for line in lines {

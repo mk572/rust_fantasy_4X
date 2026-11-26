@@ -1,7 +1,7 @@
-use f4x_core::game::Game;
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::{Grid, Plane};
 use f4x_core::player::PlayerId;
+use f4x_core::world::World;
 use f4x_def::feature::FeatureKind;
 use macroquad::prelude::*;
 
@@ -9,8 +9,9 @@ use crate::art::{terrain_type as tt, Art, TILE_W};
 use crate::terrain_pick as pick;
 
 /// Which banner a player's things are drawn in.
-pub fn banner_of(game: &Game, owner: PlayerId) -> u8 {
-    game.wizard(owner)
+pub fn banner_of(world: &World, owner: PlayerId) -> u8 {
+    world
+        .wizard(owner)
         .map_or(f4x_core::player::NEUTRAL_BANNER, |w| w.banner())
 }
 
@@ -36,8 +37,8 @@ pub(crate) fn draw_unexplored_edge(art: &mut Art, corners: u8, sx: f32, sy: f32,
 }
 
 /// Whether a neighbouring square counts as water for a river that runs into it.
-fn is_water(game: &Game, grid: &Grid, x: i32, y: i32) -> bool {
-    pick::class_at(grid, game.content(), x, y) == Some(TerrainClass::Ocean)
+fn is_water(world: &World, grid: &Grid, x: i32, y: i32) -> bool {
+    pick::class_at(grid, world.content(), x, y) == Some(TerrainClass::Ocean)
 }
 
 /// The eight road directions in the order of `mapback.lbx` 46 to 53: clockwise from north.
@@ -57,7 +58,7 @@ const ROAD_DIRS: &[(i32, i32)] = &[
 /// round the magic nodes.
 #[allow(clippy::too_many_arguments)]
 pub fn draw_square(
-    game: &Game,
+    world: &World,
     art: &mut Art,
     plane: Plane,
     wx: u32,
@@ -67,11 +68,11 @@ pub fn draw_square(
     t: Vec2,
     anim: usize,
 ) {
-    let Some(map) = game.map() else {
+    let Some(map) = world.map() else {
         return;
     };
     let grid = map.plane(plane);
-    let content = &game.content();
+    let content = &world.content();
     let k = t.x / TILE_W;
     let (x, yi) = (wx as i32, y as i32);
     let plane_offset = if plane == Plane::Myrror {
@@ -80,9 +81,9 @@ pub fn draw_square(
         0
     };
     let here = f4x_core::map::Position { plane, x: wx, y };
-    let feature = game.economy().feature_at(here);
+    let feature = world.economy().feature_at(here);
     // The ground: a node's own piece, or the type the neighbours call for.
-    let ground = if game.economy().volcano_at(here).is_some() {
+    let ground = if world.economy().volcano_at(here).is_some() {
         Some(pick::VOLCANO)
     } else {
         pick::ground_type(grid, content, x, yi, plane.index(), &|table, mask| {
@@ -99,7 +100,7 @@ pub fn draw_square(
     // A river over any ground: it leaves by the sides that have river or sea.
     if grid.has_river(x, yi) {
         let side = |dx: i32, dy: i32| {
-            grid.has_river(x + dx, yi + dy) || is_water(game, grid, x + dx, yi + dy)
+            grid.has_river(x + dx, yi + dy) || is_water(world, grid, x + dx, yi + dy)
         };
         let ty = pick::river_type(
             side(0, -1),
@@ -132,9 +133,9 @@ pub fn draw_square(
                     draw_pic(tex, sx, sy, k);
                 }
             }
-            FeatureKind::Tower => match game.economy().tower_owner(here) {
+            FeatureKind::Tower => match world.economy().tower_owner(here) {
                 Some(owner) => {
-                    let banner = banner_of(game, owner);
+                    let banner = banner_of(world, owner);
                     if let Some(tex) = art.banner_picture("tower_owned", banner, 0) {
                         draw_pic(tex, sx, sy, k);
                     }
@@ -158,7 +159,7 @@ pub fn draw_square(
                     x: grid.wrap_x(x + dx),
                     y: (yi + dy).max(0) as u32,
                 };
-                game.economy().city_at(p).is_some()
+                world.economy().city_at(p).is_some()
             }
         };
         let mut any = false;
@@ -183,9 +184,9 @@ pub fn draw_square(
         }
     }
     // The aura of a node somebody owns, in the owner's banner, shimmering.
-    if let Some(node) = game.economy().node_covering(here) {
+    if let Some(node) = world.economy().node_covering(here) {
         if let Some(owner) = node.owner {
-            let banner = banner_of(game, owner);
+            let banner = banner_of(world, owner);
             let slot = node.aura.iter().position(|&a| a == (wx, y)).unwrap_or(0);
             if let Some(tex) = art.banner_picture("node_aura", banner, (anim + slot) % 6) {
                 draw_pic(tex, sx, sy, k);
@@ -284,15 +285,15 @@ pub fn city_frame(figures: u32) -> usize {
 
 /// Draw a city on the map: walled or open, by size, in its owner's banner. The picture is
 /// 32 by 30 and reaches six pixels past the square on the top and left.
-pub fn draw_city(game: &Game, art: &mut Art, city: hecs::Entity, sx: f32, sy: f32, t: Vec2) {
+pub fn draw_city(world: &World, art: &mut Art, city: hecs::Entity, sx: f32, sy: f32, t: Vec2) {
     let k = t.x / TILE_W;
-    let owner = game
+    let owner = world
         .economy()
         .city_owner(city)
         .unwrap_or(f4x_core::player::MONSTERS);
-    let banner = banner_of(game, owner);
-    let figures = game.city_population(city).figures;
-    let walled = game
+    let banner = banner_of(world, owner);
+    let figures = world.city_population(city).figures;
+    let walled = world
         .city_buildings(city)
         .iter()
         .any(|&id| id.num() == 35 /* city_walls */);

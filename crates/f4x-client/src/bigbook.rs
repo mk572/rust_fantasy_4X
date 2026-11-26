@@ -10,7 +10,7 @@ use crate::page::Page;
 use crate::page_turn::{Book, BookTurn};
 use crate::text::Args;
 use crate::ui;
-use f4x_core::game::Command;
+use f4x_core::world::Command;
 use f4x_def::rules::SpellId;
 use f4x_extract::spell_art::Role;
 use macroquad::prelude::*;
@@ -53,7 +53,10 @@ pub(crate) fn describe_spell(help: &f4x_def::help::Help, topic: Option<u16>) -> 
 impl App {
     /// The paragraph that tells what a spell does.
     fn spell_text(&self, spell: SpellId) -> String {
-        describe_spell(&self.help, self.game.content().rules.spells.get(spell).help)
+        describe_spell(
+            &self.help,
+            self.world.content().rules.spells.get(spell).help,
+        )
     }
 
     /// Open the Apprentice's library: every spell the books allow, known or not, and the two
@@ -67,7 +70,7 @@ impl App {
     /// The library laid out (every spell known or researchable, then the research pages),
     /// open at the research pages. `None` without a wizard.
     pub(crate) fn library_book(&mut self) -> Option<BigBookUi> {
-        let m = self.game.wizard(HUMAN)?;
+        let m = self.world.wizard(HUMAN)?;
         let all: Vec<SpellId> = m
             .known()
             .iter()
@@ -89,7 +92,7 @@ impl App {
     /// The two pages that list the spells on offer for research.
     fn research_pages(&self) -> Vec<BookPage> {
         let offer = self
-            .game
+            .world
             .wizard(HUMAN)
             .map(|m| m.candidates().clone())
             .unwrap_or_default();
@@ -121,22 +124,22 @@ impl App {
     /// At the start of a turn with nothing being researched and spells on offer (and the game past
     /// its first turn), ask what to research.
     pub(crate) fn maybe_ask_for_research(&mut self) {
-        if !matches!(self.screen, Screen::Map) || self.game.in_battle() || self.game.turn <= 1 {
+        if !matches!(self.screen, Screen::Map) || self.world.in_battle() || self.world.turn <= 1 {
             return;
         }
         let idle = self
-            .game
+            .world
             .wizard(HUMAN)
             .is_some_and(|m| m.researching().is_none() && !m.candidates().is_empty());
         // A spell the player asked to learn next goes first, if it is on offer now.
         if let Some(spell) = self.queued_research.filter(|_| idle) {
             self.queued_research = None;
             if self
-                .game
+                .world
                 .wizard(HUMAN)
                 .is_some_and(|m| m.candidates().contains(&spell))
             {
-                let events = self.game.apply(Command::SetResearch {
+                let events = self.world.apply(Command::SetResearch {
                     player: HUMAN,
                     spell,
                 });
@@ -144,9 +147,9 @@ impl App {
                 return;
             }
         }
-        let alive = self.game.has_player(HUMAN)
-            && !self.game.player(HUMAN).is_some_and(|p| p.is_defeated());
-        if idle && alive && self.game.game_over.is_none() {
+        let alive = self.world.has_player(HUMAN)
+            && !self.world.player(HUMAN).is_some_and(|p| p.is_defeated());
+        if idle && alive && self.world.game_over.is_none() {
             self.open_research_choice();
         }
     }
@@ -163,8 +166,8 @@ impl App {
         research_page: bool,
         ink_override: Option<Color>,
     ) {
-        let def = self.game.content().rules.spells.get(spell).clone();
-        let magic = self.game.wizard(HUMAN);
+        let def = self.world.content().rules.spells.get(spell).clone();
+        let magic = self.world.wizard(HUMAN);
         let known = magic.is_some_and(|m| m.knows(spell));
         let current = magic.is_some_and(|m| m.researching() == Some(spell));
         let research_left = magic.map_or(0, |m| m.research_remaining());
@@ -182,10 +185,10 @@ impl App {
         let shown = self.names.spell(def.num).to_string();
         self.draw_styled(view, &Style::nearest(4, color), &shown, x, y);
         let line = if research_page {
-            let bonus = self.game.wizard(HUMAN).map_or(0, |m| {
+            let bonus = self.world.wizard(HUMAN).map_or(0, |m| {
                 m.research_bonus(
-                    &self.game.content().rules,
-                    self.game.content().rules.spells.get(spell),
+                    &self.world.content().rules,
+                    self.world.content().rules.spells.get(spell),
                 )
             });
             let cost = if current {
@@ -193,7 +196,7 @@ impl App {
             } else {
                 def.research_cost as i32 * 100 / (100 + bonus)
             };
-            let income = self.cache.income(&self.game, HUMAN).research.max(0);
+            let income = self.cache.income(&self.world, HUMAN).research.max(0);
             let turns = if income == 0 {
                 999
             } else {
@@ -204,16 +207,16 @@ impl App {
                 &Args::new().count("cost", cost).count("turns", turns),
             )
         } else {
-            let cost = self.game.casting_cost(HUMAN, spell, false);
+            let cost = self.world.casting_cost(HUMAN, spell, false);
             let limit = self
-                .game
+                .world
                 .wizard(HUMAN)
-                .map_or(0, |m| m.casting_skill(&self.game.content().rules))
+                .map_or(0, |m| m.casting_skill(&self.world.content().rules))
                 .min(
-                    self.game
+                    self.world
                         .player(HUMAN)
                         .map_or(0, |p| p.treasury().mana.floor())
-                        + self.cache.income(&self.game, HUMAN).split.mana.floor(),
+                        + self.cache.income(&self.world, HUMAN).split.mana.floor(),
                 );
             let turns = if limit <= 0 {
                 999
@@ -560,19 +563,19 @@ impl BigBookUi {
                 );
                 if ui::hit(lay.rect((x, y, 110.0, 33.0)), true, input).hovered() {
                     let Some(spell) = app
-                        .game
+                        .world
                         .wizard(HUMAN)
                         .and_then(|m| m.candidates().get(slot).copied())
                     else {
                         continue;
                     };
-                    let events = app.game.apply(Command::SetResearch {
+                    let events = app.world.apply(Command::SetResearch {
                         player: HUMAN,
                         spell,
                     });
                     let ok = !events
                         .iter()
-                        .any(|e| matches!(e, f4x_core::game::Event::Rejected(_)));
+                        .any(|e| matches!(e, f4x_core::world::Event::Rejected(_)));
                     app.note(events);
                     if ok {
                         app.screen = Screen::Map;

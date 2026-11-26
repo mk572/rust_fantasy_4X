@@ -18,7 +18,7 @@ pub fn shipped_dir() -> PathBuf {
 
 /// The game's own content folder, loaded by the real loader (checks, names and messages
 /// included), once per test process. Every test in the workspace gets its content here; a test
-/// that needs its own copy (a `Game` owns its content) clones it.
+/// that needs its own copy (a `World` owns its content) clones it.
 pub fn shipped() -> &'static crate::content::Content {
     static SHIPPED: std::sync::OnceLock<crate::content::Content> = std::sync::OnceLock::new();
     SHIPPED.get_or_init(|| {

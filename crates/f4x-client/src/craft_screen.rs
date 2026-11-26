@@ -12,10 +12,10 @@ use crate::input::Input;
 use crate::page::Page;
 use crate::text::Args;
 use crate::ui;
-use f4x_core::game::{Command, Event};
 use f4x_core::item::crafting::{
     available_powers, check, cost, made_name, spell_charges, Craft, ItemDesign,
 };
+use f4x_core::world::{Command, Event};
 use f4x_def::rules::ItemPowerId;
 use f4x_def::rules::SpellId;
 use f4x_def::rules::{CastContext, ItemKind, ItemPowerDef, ItemRules, Rules};
@@ -219,8 +219,8 @@ impl App {
 
     /// The ids of the powers the wizard may put on an item of `kind`.
     fn craft_allowed(&self, craft: Craft, kind: ItemKind) -> Vec<ItemPowerId> {
-        let rules = &self.game.content().rules;
-        self.game
+        let rules = &self.world.content().rules;
+        self.world
             .wizard(HUMAN)
             .map(|m| {
                 available_powers(kind, craft, &m, rules)
@@ -233,8 +233,8 @@ impl App {
 
     /// The spells that can be put in an item: those the wizard knows and can cast in battle.
     fn charge_spells(&self) -> Vec<(SpellId, String)> {
-        let rules = &self.game.content().rules;
-        let Some(m) = self.game.wizard(HUMAN) else {
+        let rules = &self.world.content().rules;
+        let Some(m) = self.world.wizard(HUMAN) else {
             return Vec::new();
         };
         m.known()
@@ -247,10 +247,10 @@ impl App {
 
     /// What the cast costs the wizard: the item's value less the reduction for the spell.
     fn craft_price(&self, ui: &CraftUi) -> i32 {
-        let rules = &self.game.content().rules;
+        let rules = &self.world.content().rules;
         let value = cost(&ui.design, rules) as i32;
         let reduction = self
-            .game
+            .world
             .wizard(HUMAN)
             .map(|m| m.cost_reduction(rules, rules.spells.get(ui.craft.spell())))
             .unwrap_or(0);
@@ -263,7 +263,7 @@ impl App {
             return ui.design.name.clone();
         }
         self.names.made_name(
-            &made_name(&ui.design, &self.game.content().rules),
+            &made_name(&ui.design, &self.world.content().rules),
             &self.texts,
         )
     }
@@ -276,7 +276,7 @@ impl App {
             let mut bare = ui.design.clone();
             bare.name.clear();
             self.names
-                .made_name(&made_name(&bare, &self.game.content().rules), &self.texts)
+                .made_name(&made_name(&bare, &self.world.content().rules), &self.texts)
         };
         if ui.design.name == default || ui.design.name.trim().is_empty() {
             ui.design.name.clear();
@@ -285,9 +285,9 @@ impl App {
 
     /// OK with a design: ask the core to start casting. A refusal stays on the screen.
     fn finish_craft(&mut self, ui: &mut CraftUi) {
-        let rules = self.game.content().rules.clone();
+        let rules = self.world.content().rules.clone();
         let wizard_ok = self
-            .game
+            .world
             .wizard(HUMAN)
             .map(|m| check(&ui.design, ui.craft, &m, &rules));
         if let Some(Err(e)) = wizard_ok {
@@ -295,7 +295,7 @@ impl App {
             return;
         }
         self.leave_name(ui);
-        let events = self.game.apply(Command::CraftItem {
+        let events = self.world.apply(Command::CraftItem {
             player: HUMAN,
             craft: ui.craft,
             design: ui.design.clone(),
@@ -395,7 +395,7 @@ impl App {
                 bx + 204.0 - 140.0 * col as f32,
                 by + row * 10.0 + 1.0,
             );
-            for n in 0..self.game.content().rules.config.item.max_charges {
+            for n in 0..self.world.content().rules.config.item.max_charges {
                 let (x, y) = (
                     bx + 158.0 + 23.0 * n as f32 - 140.0 * col as f32,
                     by + 11.0 + row * 10.0 + 10.0 * col as f32,
@@ -439,7 +439,7 @@ impl Page for CraftUi {
                 ui.set_kind(
                     kind,
                     &app.craft_allowed(ui.craft, kind),
-                    &app.game.content().rules,
+                    &app.world.content().rules,
                 );
                 ui.message = None;
             }
@@ -492,7 +492,7 @@ impl Page for CraftUi {
         );
 
         // The powers.
-        let rules = app.game.content().rules.clone();
+        let rules = app.world.content().rules.clone();
         let on_offer: Vec<&ItemPowerDef> = rules
             .item_powers
             .defs()

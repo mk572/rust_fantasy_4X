@@ -6,10 +6,10 @@
 //! two never head for the same patch. When nothing reachable has unexplored ground near it the
 //! scouts rejoin the army.
 
-use f4x_core::game::serial::Serial;
-use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::view::PlayerView;
+use f4x_core::world::serial::Serial;
+use f4x_core::world::{Command, Event, World};
 use f4x_def::half_int::HalfInt;
 use f4x_def::rules::Stat;
 
@@ -70,14 +70,14 @@ fn blind_across(view: &PlayerView, tower: Position) -> bool {
 }
 
 /// Make sure the wizard has enough scouts and send them out.
-pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+pub fn scout(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     let me = ai.player;
-    planar_scout(ai, game, events);
+    planar_scout(ai, world, events);
     if ai.frontier_closed {
         return;
     }
     let (scouts, cities, building) = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         let alive: Vec<Serial> = view.my_units().iter().map(|&u| view.serial_of(u)).collect();
         ai.roles.prune(&alive);
         let mut scouts: Vec<hecs::Entity> = view
@@ -93,15 +93,15 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         )
     };
     if scouts.len() < wanted(cities, building) {
-        if let Some(unit) = recruit(ai, game, None) {
-            let serial = PlayerView::new(game, me).serial_of(unit);
+        if let Some(unit) = recruit(ai, world, None) {
+            let serial = PlayerView::new(world, me).serial_of(unit);
             let _ = ai
                 .roles
-                .claim(serial, crate::roles::Role::Scout, game.turn, None);
+                .claim(serial, crate::roles::Role::Scout, world.turn, None);
         }
     }
     let scouts: Vec<hecs::Entity> = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         let mut list: Vec<hecs::Entity> = view
             .my_units()
             .into_iter()
@@ -111,7 +111,7 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         list
     };
     let ship_out = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         scouts.iter().any(|&u| is_ship(&view, u))
     };
     // A rider whose ship no longer scouts (sunk, or given another task) waits for nothing: it is
@@ -120,7 +120,7 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         scouts
     } else {
         ai.roles.release_role(crate::roles::Role::SeaParty);
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         scouts
             .into_iter()
             .filter(|&u| ai.roles.is_scouting(view.serial_of(u)))
@@ -129,7 +129,7 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let mut found_any = scouts.is_empty();
     for unit in scouts {
         let (serial, pos, idle) = {
-            let view = PlayerView::new(game, me);
+            let view = PlayerView::new(world, me);
             let Some(pos) = view.unit_position(unit) else {
                 continue;
             };
@@ -151,13 +151,13 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 ai.roles.set_target(serial, crate::roles::Role::Scout, None);
             }
             ai.roles.clear_track(serial);
-            ai.order(game, Command::ClearOrders { units: vec![unit] }, events);
+            ai.order(world, Command::ClearOrders { units: vec![unit] }, events);
         } else if !idle {
             found_any = true;
             continue;
         }
-        let is_sea_scout = is_ship(&PlayerView::new(game, me), unit);
-        if is_sea_scout && put_ashore(ai, game, pos, events) {
+        let is_sea_scout = is_ship(&PlayerView::new(world, me), unit);
+        if is_sea_scout && put_ashore(ai, world, pos, events) {
             found_any = true;
             continue;
         }
@@ -170,7 +170,7 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             .chain(ai.bad_scout_targets.iter().copied())
             .collect();
         let target = {
-            let view = PlayerView::new(game, me);
+            let view = PlayerView::new(world, me);
             best_target_with(&view, unit, pos, &claimed, &ai.war_plan.recon)
         };
         match target {
@@ -180,9 +180,9 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     .set_target(serial, crate::roles::Role::Scout, Some(to));
                 let mut units = vec![unit];
                 if is_sea_scout {
-                    units.extend(board(ai, game, unit, pos));
+                    units.extend(board(ai, world, unit, pos));
                 }
-                ai.order(game, Command::GoTo { units, to }, events);
+                ai.order(world, Command::GoTo { units, to }, events);
             }
             None => {
                 // Nothing left to explore that this unit can reach: its scouting is over and it
@@ -214,9 +214,9 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 /// land nobody holds. The party sails with the ship (the order names them) and is left alone by
 /// the rest of the scouting meanwhile. Returns the fighters taken aboard now, with the ones
 /// already aboard.
-fn board(ai: &mut Ai, game: &Game, ship: hecs::Entity, at: Position) -> Vec<hecs::Entity> {
-    let game_turn = game.turn;
-    let view = PlayerView::new(game, ai.player);
+fn board(ai: &mut Ai, world: &World, ship: hecs::Entity, at: Position) -> Vec<hecs::Entity> {
+    let game_turn = world.turn;
+    let view = PlayerView::new(world, ai.player);
     let mut party: Vec<hecs::Entity> = view
         .my_units()
         .into_iter()
@@ -289,11 +289,11 @@ fn land_unclaimed(view: &PlayerView, start: Position) -> bool {
 
 /// A sea scout beside land nobody holds puts one of its party ashore to explore it. Returns
 /// whether it did.
-fn put_ashore(ai: &mut Ai, game: &mut Game, ship_at: Position, events: &mut Vec<Event>) -> bool {
+fn put_ashore(ai: &mut Ai, world: &mut World, ship_at: Position, events: &mut Vec<Event>) -> bool {
     use f4x_core::map::terrain::TerrainClass;
     let me = ai.player;
     let (rider, shore) = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         let Some(rider) = view.my_units().into_iter().find(|&u| {
             ai.roles.is(view.serial_of(u), crate::roles::Role::SeaParty)
                 && view.unit_position(u) == Some(ship_at)
@@ -317,10 +317,10 @@ fn put_ashore(ai: &mut Ai, game: &mut Game, ship_at: Position, events: &mut Vec<
     let Some(shore) = shore else {
         return false;
     };
-    let serial = PlayerView::new(game, me).serial_of(rider);
+    let serial = PlayerView::new(world, me).serial_of(rider);
     if !ai
         .send(
-            game,
+            world,
             Command::GoTo {
                 units: vec![rider],
                 to: shore,
@@ -335,16 +335,16 @@ fn put_ashore(ai: &mut Ai, game: &mut Game, ship_at: Position, events: &mut Vec<
     ai.roles.release(serial, crate::roles::Role::SeaParty);
     let _ = ai
         .roles
-        .claim(serial, crate::roles::Role::Scout, game.turn, None);
+        .claim(serial, crate::roles::Role::Scout, world.turn, None);
     true
 }
 
 /// A scout walks to a tower nobody guards any more and changes plane there, when the ground
 /// across it is unexplored; the search for the rest of the world then goes on over there.
-fn planar_scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+fn planar_scout(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     let me = ai.player;
     let (tower, unit) = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         let alive: Vec<Serial> = view.my_units().iter().map(|&u| view.serial_of(u)).collect();
         ai.roles.prune(&alive);
         let tower = view
@@ -373,7 +373,7 @@ fn planar_scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     .find(|&u| view.serial_of(u) == serial);
                 drop(view);
                 if let Some(unit) = unit {
-                    ai.order(game, Command::ClearOrders { units: vec![unit] }, events);
+                    ai.order(world, Command::ClearOrders { units: vec![unit] }, events);
                 }
             }
             return;
@@ -388,14 +388,14 @@ fn planar_scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let unit = match unit {
         Some(u) => u,
         None => {
-            let Some(u) = recruit(ai, game, Some(tower)) else {
+            let Some(u) = recruit(ai, world, Some(tower)) else {
                 return;
             };
-            let serial = PlayerView::new(game, me).serial_of(u);
+            let serial = PlayerView::new(world, me).serial_of(u);
             let _ = ai.roles.claim(
                 serial,
                 crate::roles::Role::PlanarScout,
-                game.turn,
+                world.turn,
                 Some(tower),
             );
             ai.planar_tower = Some(tower);
@@ -403,7 +403,7 @@ fn planar_scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         }
     };
     let (at, idle, shifts) = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         (
             view.unit_position(unit),
             !view.unit_has_order(unit),
@@ -413,15 +413,15 @@ fn planar_scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     if at == Some(tower) {
         if shifts
             && ai
-                .send(game, Command::ShiftPlane { units: vec![unit] }, events)
+                .send(world, Command::ShiftPlane { units: vec![unit] }, events)
                 .is_ok()
         {
             // Across, the scout is an ordinary one again.
-            let serial = PlayerView::new(game, me).serial_of(unit);
+            let serial = PlayerView::new(world, me).serial_of(unit);
             ai.roles.release(serial, crate::roles::Role::PlanarScout);
             let _ = ai
                 .roles
-                .claim(serial, crate::roles::Role::Scout, game.turn, None);
+                .claim(serial, crate::roles::Role::Scout, world.turn, None);
             ai.frontier_closed = false;
             ai.bad_scout_targets.clear();
         }
@@ -429,13 +429,13 @@ fn planar_scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         // A unit that has since ended up where it cannot walk to the tower (another plane, an
         // island) is let go, so that another is recruited; ordered each turn, the walk would
         // be refused each turn.
-        if !PlayerView::new(game, me).can_reach(&[unit], tower) {
-            let serial = PlayerView::new(game, me).serial_of(unit);
+        if !PlayerView::new(world, me).can_reach(&[unit], tower) {
+            let serial = PlayerView::new(world, me).serial_of(unit);
             ai.roles.release(serial, crate::roles::Role::PlanarScout);
             return;
         }
         ai.order(
-            game,
+            world,
             Command::GoTo {
                 units: vec![unit],
                 to: tower,
@@ -447,8 +447,8 @@ fn planar_scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 
 /// Take the unit that can walk furthest in a turn among those a city can spare, from the
 /// fighters that are not settlers.
-fn recruit(ai: &Ai, game: &Game, reach: Option<Position>) -> Option<hecs::Entity> {
-    let view = PlayerView::new(game, ai.player);
+fn recruit(ai: &Ai, world: &World, reach: Option<Position>) -> Option<hecs::Entity> {
+    let view = PlayerView::new(world, ai.player);
     let mut best: Option<(i32, std::cmp::Reverse<Serial>, hecs::Entity)> = None;
     let mut reached = crate::view::ReachCache::default();
     for u in view.my_units() {
@@ -583,10 +583,10 @@ mod tests {
     #[test]
     fn of_the_two_starting_units_one_scouts_from_the_first_turn() -> TestResult {
         use crate::roles::Role;
-        let mut g = crate::testworld::fresh_game()?;
+        let mut w = crate::testworld::fresh_game()?;
         let mut ai = Ai::new(crate::testworld::P0);
-        ai.play_turn(&mut g);
-        let view = PlayerView::new(&g, crate::testworld::P0);
+        ai.play_turn(&mut w);
+        let view = PlayerView::new(&w, crate::testworld::P0);
         let roles: Vec<Option<Role>> = view
             .my_units()
             .iter()
@@ -600,9 +600,9 @@ mod tests {
 
     #[test]
     fn unexplored_ground_is_counted_within_the_look_and_vanishes_when_seen() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
         let far = at(4, 4);
-        let view = PlayerView::new(&g, P0);
+        let view = PlayerView::new(&w, P0);
         assert_eq!(
             unexplored_near(&view, far, HalfInt::from_raw(5)),
             25,
@@ -610,16 +610,16 @@ mod tests {
         );
         // The city's own surroundings are known.
         assert_eq!(unexplored_near(&view, city(), HalfInt::from_raw(1)), 0);
-        g.reveal_map(P0);
-        let view = PlayerView::new(&g, P0);
+        w.reveal_map(P0);
+        let view = PlayerView::new(&w, P0);
         assert_eq!(unexplored_near(&view, far, HalfInt::from_raw(5)), 0);
     }
 
     #[test]
     fn the_best_target_is_new_ground_the_unit_can_walk_to() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let walker = spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 1)[0];
-        let view = PlayerView::new(&g, P0);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let walker = spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 1)[0];
+        let view = PlayerView::new(&w, P0);
         let target =
             best_target(&view, walker, city(), &[]).ok_or("there is something to explore")?;
         assert_ne!(target, city());
@@ -632,9 +632,9 @@ mod tests {
 
     #[test]
     fn a_target_near_another_scouts_is_left_to_it() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let walker = spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 1)[0];
-        let view = PlayerView::new(&g, P0);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let walker = spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 1)[0];
+        let view = PlayerView::new(&w, P0);
         let first = best_target(&view, walker, city(), &[]).ok_or("a first target")?;
         let second = best_target(&view, walker, city(), &[first]).ok_or("a second target")?;
         let apart = distance(&view, first, second).ok_or("the targets are on one plane")?;
@@ -644,41 +644,41 @@ mod tests {
 
     #[test]
     fn nothing_is_a_target_once_the_whole_map_is_explored() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let walker = spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 1)[0];
-        g.reveal_map(P0);
-        let view = PlayerView::new(&g, P0);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let walker = spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 1)[0];
+        w.reveal_map(P0);
+        let view = PlayerView::new(&w, P0);
         assert_eq!(best_target(&view, walker, city(), &[]), None);
     }
 
     #[test]
     fn the_fastest_spare_fighter_becomes_the_scout() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 2);
-        let rider = spawn(&mut g, P0, city(), 107 /* high_men_cavalry */, 1)[0];
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 2);
+        let rider = spawn(&mut w, P0, city(), 107 /* high_men_cavalry */, 1)[0];
         let ai = Ai::new(P0);
-        assert_eq!(recruit(&ai, &g, None), Some(rider));
+        assert_eq!(recruit(&ai, &w, None), Some(rider));
     }
 
     #[test]
     fn a_city_keeps_its_last_fighter() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 1);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 1);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &g);
-        assert_eq!(recruit(&ai, &g, None), None);
+        crate::roles::register(&mut ai, &w);
+        assert_eq!(recruit(&ai, &w, None), None);
         // A lone fighter outside any city is free to go.
-        let outside = spawn(&mut g, P0, at(5, 5), 104 /* high_men_spearmen */, 1)[0];
-        crate::roles::register(&mut ai, &g);
-        assert_eq!(recruit(&ai, &g, None), Some(outside));
+        let outside = spawn(&mut w, P0, at(5, 5), 104 /* high_men_spearmen */, 1)[0];
+        crate::roles::register(&mut ai, &w);
+        assert_eq!(recruit(&ai, &w, None), Some(outside));
     }
 
     #[test]
     fn a_scout_is_recruited_and_sent_to_new_ground() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 2);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 2);
         let mut ai = Ai::new(P0);
-        scout(&mut ai, &mut g, &mut Vec::new());
+        scout(&mut ai, &mut w, &mut Vec::new());
         assert_eq!(ai.roles.scouting().len(), 1);
         assert_eq!(ai.scout_targets().len(), 1);
         assert!(!ai.frontier_closed);
@@ -686,33 +686,33 @@ mod tests {
 
     #[test]
     fn a_spirit_with_no_node_to_meld_with_is_a_scout() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let spirit = spawn(&mut g, P0, city(), 154 /* magic_spirit */, 1)[0];
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let spirit = spawn(&mut w, P0, city(), 154 /* magic_spirit */, 1)[0];
         let mut ai = Ai::new(P0);
-        scout(&mut ai, &mut g, &mut Vec::new());
-        let serial = PlayerView::new(&g, P0).serial_of(spirit);
+        scout(&mut ai, &mut w, &mut Vec::new());
+        let serial = PlayerView::new(&w, P0).serial_of(spirit);
         assert!(ai.roles.is(serial, crate::roles::Role::Scout));
         assert_eq!(ai.scout_targets().len(), 1);
     }
 
     #[test]
     fn with_no_spare_fighter_nobody_scouts_and_the_search_stays_open() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 1);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 1);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &g);
-        scout(&mut ai, &mut g, &mut Vec::new());
+        crate::roles::register(&mut ai, &w);
+        scout(&mut ai, &mut w, &mut Vec::new());
         assert!(ai.roles.scouting().is_empty());
         assert!(!ai.frontier_closed);
     }
 
     #[test]
     fn when_nothing_new_can_be_reached_scouting_by_land_is_over() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 2);
-        g.reveal_map(P0);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 2);
+        w.reveal_map(P0);
         let mut ai = Ai::new(P0);
-        scout(&mut ai, &mut g, &mut Vec::new());
+        scout(&mut ai, &mut w, &mut Vec::new());
         assert!(ai.frontier_closed);
         assert!(ai.roles.scouting().is_empty());
         assert!(ai.scout_targets().is_empty());
@@ -720,26 +720,26 @@ mod tests {
 
     #[test]
     fn a_ship_scout_that_finds_nothing_ends_the_search_by_sea_but_a_lost_ship_does_not() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.reveal_map(P0);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.reveal_map(P0);
         let ship = spawn(
-            &mut g,
+            &mut w,
             P0,
             at(COAST_CITY.0, COAST_CITY.1),
             36, /* galley */
             1,
         )[0];
-        let walker = spawn(&mut g, P0, at(5, 5), 104 /* high_men_spearmen */, 1)[0];
+        let walker = spawn(&mut w, P0, at(5, 5), 104 /* high_men_spearmen */, 1)[0];
         for (scout_unit, done) in [(ship, true), (walker, false)] {
             let mut ai = Ai::new(P0);
             ai.sea_scouting = true;
             let _ = ai.roles.claim(
-                PlayerView::new(&g, P0).serial_of(scout_unit),
+                PlayerView::new(&w, P0).serial_of(scout_unit),
                 crate::roles::Role::Scout,
                 1,
                 None,
             );
-            scout(&mut ai, &mut g, &mut Vec::new());
+            scout(&mut ai, &mut w, &mut Vec::new());
             assert!(ai.frontier_closed);
             assert!(!ai.sea_scouting);
             assert_eq!(ai.sea_done, done);
@@ -748,12 +748,12 @@ mod tests {
 
     #[test]
     fn the_search_by_sea_ends_when_the_ship_is_gone_though_land_scouts_go_on() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 2);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 2);
         let mut ai = Ai::new(P0);
         // The ship that was out is lost: no ship is among the scouts.
         ai.sea_scouting = true;
-        scout(&mut ai, &mut g, &mut Vec::new());
+        scout(&mut ai, &mut w, &mut Vec::new());
         assert!(
             !ai.roles.scouting().is_empty(),
             "a scout is recruited on land"
@@ -765,18 +765,18 @@ mod tests {
 
     #[test]
     fn a_sea_scout_in_port_takes_spare_fighters_aboard_and_leaves_the_city_one() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let ship = spawn(&mut g, P0, city(), 36 /* galley */, 1)[0];
-        spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 3);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let ship = spawn(&mut w, P0, city(), 36 /* galley */, 1)[0];
+        spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 3);
         let mut ai = Ai::new(P0);
         let _ = ai.roles.claim(
-            PlayerView::new(&g, P0).serial_of(ship),
+            PlayerView::new(&w, P0).serial_of(ship),
             crate::roles::Role::Scout,
             1,
             None,
         );
         ai.sea_scouting = true;
-        scout(&mut ai, &mut g, &mut Vec::new());
+        scout(&mut ai, &mut w, &mut Vec::new());
         assert_eq!(ai.roles.count(crate::roles::Role::SeaParty), PARTY);
         assert!(ai
             .roles
@@ -787,13 +787,13 @@ mod tests {
 
     #[test]
     fn a_sea_scout_puts_a_fighter_ashore_on_land_nobody_holds() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
         // Off the east island's west shore, which the wizard has just seen.
         let sea = at(27, 9);
-        let boat = spawn(&mut g, P0, sea, 36 /* galley */, 1)[0];
-        let walker = spawn(&mut g, P0, sea, 104 /* high_men_spearmen */, 1)[0];
-        g.explore(P0, sea, HalfInt::from_raw(3));
-        let view = PlayerView::new(&g, P0);
+        let boat = spawn(&mut w, P0, sea, 36 /* galley */, 1)[0];
+        let walker = spawn(&mut w, P0, sea, 104 /* high_men_spearmen */, 1)[0];
+        w.explore(P0, sea, HalfInt::from_raw(3));
+        let view = PlayerView::new(&w, P0);
         let mut ai = Ai::new(P0);
         let _ = ai
             .roles
@@ -805,28 +805,28 @@ mod tests {
             None,
         );
         ai.sea_scouting = true;
-        scout(&mut ai, &mut g, &mut Vec::new());
+        scout(&mut ai, &mut w, &mut Vec::new());
         assert!(
             !ai.roles.any(crate::roles::Role::SeaParty),
             "the rider went ashore"
         );
-        let landed = g.units().unit_position(walker);
+        let landed = w.units().unit_position(walker);
         assert!(landed.is_some_and(|p| p.x == 28), "{landed:?}");
     }
 
     #[test]
     fn a_rider_whose_ship_no_longer_scouts_is_set_free() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
         let sea = at(27, 9);
-        let boat = spawn(&mut g, P0, sea, 36 /* galley */, 1)[0];
-        let walker = spawn(&mut g, P0, sea, 104 /* high_men_spearmen */, 1)[0];
-        let view = PlayerView::new(&g, P0);
+        let boat = spawn(&mut w, P0, sea, 36 /* galley */, 1)[0];
+        let walker = spawn(&mut w, P0, sea, 104 /* high_men_spearmen */, 1)[0];
+        let view = PlayerView::new(&w, P0);
         let (ship, rider) = (view.serial_of(boat), view.serial_of(walker));
         let mut ai = Ai::new(P0);
         // The ship has no role; the rider still waits to be put ashore.
         let _ = ai.roles.claim(rider, crate::roles::Role::SeaParty, 1, None);
         assert!(!ai.roles.is_scouting(ship));
-        scout(&mut ai, &mut g, &mut Vec::new());
+        scout(&mut ai, &mut w, &mut Vec::new());
         assert!(
             !ai.roles.is(rider, crate::roles::Role::SeaParty),
             "no ship scouts, so nobody waits for one"
@@ -835,12 +835,12 @@ mod tests {
 
     #[test]
     fn a_sea_scout_does_not_land_on_its_own_island() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
         let sea = at(11, 8);
-        let boat = spawn(&mut g, P0, sea, 36 /* galley */, 1)[0];
-        let walker = spawn(&mut g, P0, sea, 104 /* high_men_spearmen */, 1)[0];
-        g.explore(P0, sea, HalfInt::from_raw(3));
-        let view = PlayerView::new(&g, P0);
+        let boat = spawn(&mut w, P0, sea, 36 /* galley */, 1)[0];
+        let walker = spawn(&mut w, P0, sea, 104 /* high_men_spearmen */, 1)[0];
+        w.explore(P0, sea, HalfInt::from_raw(3));
+        let view = PlayerView::new(&w, P0);
         let mut ai = Ai::new(P0);
         let _ = ai
             .roles
@@ -852,40 +852,40 @@ mod tests {
             None,
         );
         ai.sea_scouting = true;
-        scout(&mut ai, &mut g, &mut Vec::new());
+        scout(&mut ai, &mut w, &mut Vec::new());
         assert_eq!(ai.roles.count(crate::roles::Role::SeaParty), 1);
     }
 
     #[test]
     fn a_scout_walks_to_a_tower_nobody_guards_and_changes_plane_there() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
         let tower = at(8, 6);
-        spawn_tower(&mut g, tower, false)?;
-        g.explore(P0, tower, HalfInt::from_raw(3));
-        spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 2);
+        spawn_tower(&mut w, tower, false)?;
+        w.explore(P0, tower, HalfInt::from_raw(3));
+        spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 2);
         let mut ai = Ai::new(P0);
-        scout(&mut ai, &mut g, &mut Vec::new());
+        scout(&mut ai, &mut w, &mut Vec::new());
         let serial = ai.roles.planar().ok_or("a scout is sent to the tower")?;
-        let unit = PlayerView::new(&g, P0)
+        let unit = PlayerView::new(&w, P0)
             .my_units()
             .into_iter()
-            .find(|&u| PlayerView::new(&g, P0).serial_of(u) == serial)
+            .find(|&u| PlayerView::new(&w, P0).serial_of(u) == serial)
             .ok_or("the scout lives")?;
-        assert!(PlayerView::new(&g, P0).unit_has_order(unit));
+        assert!(PlayerView::new(&w, P0).unit_has_order(unit));
         // Standing on the tower, it goes across, and the search is open again over there.
         ai.frontier_closed = true;
-        let spare = spawn(&mut g, P0, tower, 104 /* high_men_spearmen */, 1)[0];
+        let spare = spawn(&mut w, P0, tower, 104 /* high_men_spearmen */, 1)[0];
         // The one on its way is replaced by the one standing on the tower.
         ai.roles.release_role(crate::roles::Role::PlanarScout);
         let _ = ai.roles.claim(
-            PlayerView::new(&g, P0).serial_of(spare),
+            PlayerView::new(&w, P0).serial_of(spare),
             crate::roles::Role::PlanarScout,
             1,
             None,
         );
-        scout(&mut ai, &mut g, &mut Vec::new());
+        scout(&mut ai, &mut w, &mut Vec::new());
         assert_eq!(
-            g.units().unit_position(spare).map(|p| p.plane),
+            w.units().unit_position(spare).map(|p| p.plane),
             Some(Plane::Myrror)
         );
         assert!(!ai.frontier_closed);
@@ -896,65 +896,65 @@ mod tests {
     #[test]
     fn a_tower_with_an_enemy_unit_on_it_is_no_way_across_and_a_scout_bound_for_it_is_let_go(
     ) -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
         let tower = at(8, 6);
-        spawn_tower(&mut g, tower, false)?;
-        g.explore(P0, tower, HalfInt::from_raw(3));
-        spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 2);
+        spawn_tower(&mut w, tower, false)?;
+        w.explore(P0, tower, HalfInt::from_raw(3));
+        spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 2);
         let mut ai = Ai::new(P0);
-        scout(&mut ai, &mut g, &mut Vec::new());
+        scout(&mut ai, &mut w, &mut Vec::new());
         assert!(ai.roles.planar().is_some(), "the open tower is chosen");
         // An enemy unit moves onto the tower while the scout is on its way.
         spawn(
-            &mut g,
+            &mut w,
             crate::testworld::P1,
             tower,
             104, /* high_men_spearmen */
             1,
         );
         assert!(
-            PlayerView::new(&g, P0).hostile_at(tower).is_some(),
+            PlayerView::new(&w, P0).hostile_at(tower).is_some(),
             "the unit on the tower is hostile to the scout"
         );
-        scout(&mut ai, &mut g, &mut Vec::new());
+        scout(&mut ai, &mut w, &mut Vec::new());
         assert_eq!(ai.roles.planar(), None);
         assert_eq!(ai.planar_tower, None);
         assert!(ai.roles.planar().is_none());
         // And it is not chosen again while the enemy stands there.
-        scout(&mut ai, &mut g, &mut Vec::new());
+        scout(&mut ai, &mut w, &mut Vec::new());
         assert_eq!(ai.roles.planar(), None);
         Ok(())
     }
 
     #[test]
     fn a_guarded_tower_is_not_a_way_across() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        spawn_tower(&mut g, at(8, 6), true)?;
-        g.explore(P0, at(8, 6), HalfInt::from_raw(3));
-        spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 2);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        spawn_tower(&mut w, at(8, 6), true)?;
+        w.explore(P0, at(8, 6), HalfInt::from_raw(3));
+        spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 2);
         let mut ai = Ai::new(P0);
-        scout(&mut ai, &mut g, &mut Vec::new());
+        scout(&mut ai, &mut w, &mut Vec::new());
         assert_eq!(ai.roles.planar(), None);
         Ok(())
     }
 
     #[test]
     fn a_closed_frontier_is_left_alone() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 2);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 2);
         let mut ai = Ai::new(P0);
         ai.frontier_closed = true;
-        scout(&mut ai, &mut g, &mut Vec::new());
+        scout(&mut ai, &mut w, &mut Vec::new());
         assert!(ai.roles.scouting().is_empty());
     }
 
     #[test]
     fn a_scout_that_stands_still_on_its_order_gives_the_target_up_and_chooses_another() -> TestResult
     {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 2);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 2);
         let mut ai = Ai::new(P0);
-        scout(&mut ai, &mut g, &mut Vec::new());
+        scout(&mut ai, &mut w, &mut Vec::new());
         let (serial, first) = *ai
             .roles
             .targeted(crate::roles::Role::Scout)
@@ -962,7 +962,7 @@ mod tests {
             .ok_or("the scout has a target")?;
         // No turn passes, so the scout has no moves left: each look finds it where it was.
         for _ in 0..=STUCK_TURNS {
-            scout(&mut ai, &mut g, &mut Vec::new());
+            scout(&mut ai, &mut w, &mut Vec::new());
         }
         assert!(
             ai.bad_scout_targets.contains(&first),
@@ -978,25 +978,25 @@ mod tests {
 
     #[test]
     fn a_plane_hardly_seen_is_worth_a_crossing_after_the_build_up_and_not_before() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        spawn_tower(&mut g, at(4, 4), false)?;
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        spawn_tower(&mut w, at(4, 4), false)?;
         let tower = at(4, 4);
         // Early on the wizard builds up instead.
-        assert!(!blind_across(&PlayerView::new(&g, P0), tower));
+        assert!(!blind_across(&PlayerView::new(&w, P0), tower));
         // Late, with the far plane unseen and no unit there, it is worth looking.
-        g.turn = 400;
-        assert!(blind_across(&PlayerView::new(&g, P0), tower));
+        w.turn = 400;
+        assert!(blind_across(&PlayerView::new(&w, P0), tower));
         // Once the far plane is seen, or a unit of the wizard stands on it, it is not.
         let far = Position {
             plane: f4x_core::map::Plane::Myrror,
             ..tower
         };
-        let scout = spawn(&mut g, P0, far, 113 /* high_men_paladins */, 1);
-        assert!(!blind_across(&PlayerView::new(&g, P0), tower));
-        g.cheat_remove_unit(scout[0]);
-        assert!(blind_across(&PlayerView::new(&g, P0), tower));
-        g.reveal_map(P0);
-        assert!(!blind_across(&PlayerView::new(&g, P0), tower));
+        let scout = spawn(&mut w, P0, far, 113 /* high_men_paladins */, 1);
+        assert!(!blind_across(&PlayerView::new(&w, P0), tower));
+        w.cheat_remove_unit(scout[0]);
+        assert!(blind_across(&PlayerView::new(&w, P0), tower));
+        w.reveal_map(P0);
+        assert!(!blind_across(&PlayerView::new(&w, P0), tower));
         Ok(())
     }
 }

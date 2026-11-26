@@ -10,7 +10,7 @@ use crate::font_ramp;
 use crate::input::Input;
 use crate::ui;
 use f4x_core::city::production::ProductionItem;
-use f4x_core::game::Command;
+use f4x_core::world::Command;
 use macroquad::prelude::*;
 
 use crate::city_screen::CityPage;
@@ -65,7 +65,7 @@ impl App {
     /// Open the production screen over `page`'s city with its current production picked.
     pub(crate) fn open_production(&mut self, page: &mut CityPage) {
         page.prod = ProductionUi {
-            selected: self.game.economy().city_production(page.city).item,
+            selected: self.world.economy().city_production(page.city).item,
             fresh: true,
             ..Default::default()
         };
@@ -94,7 +94,7 @@ impl App {
         clear_background(Color::new(0.03, 0.09, 0.09, 1.0));
         let (buildings, units) = self.production_columns(city);
         let fresh = std::mem::take(&mut page.prod.fresh);
-        let full = self.game.units().units_at(self.city_position(city)).len() >= GARRISON_LIMIT;
+        let full = self.world.units().units_at(self.city_position(city)).len() >= GARRISON_LIMIT;
         let selected = page
             .prod
             .selected
@@ -183,7 +183,7 @@ impl App {
 
     fn start_production(&mut self, city: hecs::Entity, item: Option<ProductionItem>) {
         if let Some(item) = item {
-            let events = self.game.apply(Command::SetProduction { city, item });
+            let events = self.world.apply(Command::SetProduction { city, item });
             self.note(events);
         }
         self.choosing = false;
@@ -200,10 +200,10 @@ impl App {
     ) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let (px, py) = (PANEL_X, 0.0);
-        let cost = self.game.economy().item_cost(city, item);
+        let cost = self.world.economy().item_cost(city, item);
         match item {
             ProductionItem::Unit(id) => {
-                let def = self.game.content().rules.units.get(id).clone();
+                let def = self.world.content().rules.units.get(id).clone();
                 let sheet = self.offer_sheet(&def, None, HUMAN.0);
                 self.draw_production_sheet(lay, &sheet, (px, py), sheet_panel, input);
                 let mut price = cost.to_string();
@@ -229,7 +229,7 @@ impl App {
         let (px, py) = (PANEL_X, 0.0);
         self.draw_pic(lay, "unitview", 0, 0, px, py);
         // The picture, centred in 44 by 36 pixels.
-        let rules = &self.game.content().rules;
+        let rules = &self.world.content().rules;
         let entry = match item {
             ProductionItem::Building(id) => {
                 if id.num() == 35
@@ -243,7 +243,7 @@ impl App {
             ProductionItem::TradeGoods => Some(41),
             _ => Some(
                 42 + self
-                    .game
+                    .world
                     .city_race(city)
                     .map_or(0, |r| rules.races.get(r).house_type as usize)
                     .min(2),
@@ -275,7 +275,7 @@ impl App {
         } else {
             self.draw_styled(view, &Style::unit_view(4), &name, name_x, py + 11.0);
         }
-        let rules = &self.game.content().rules;
+        let rules = &self.world.content().rules;
         let (upkeep, id) = match item {
             ProductionItem::Building(b) => (rules.buildings.get(b).upkeep_gold, Some(b)),
             _ => (0, None),
@@ -337,7 +337,7 @@ impl App {
         let description = match item {
             ProductionItem::Building(b) => self
                 .help
-                .topic_of(self.game.content().rules.buildings.get(b).help)
+                .topic_of(self.world.content().rules.buildings.get(b).help)
                 .map(|t| t.text.clone()),
             ProductionItem::TradeGoods => Some(self.text("city.converts_to_gold")),
             _ => Some(self.text("city.increases_growth")),
@@ -365,9 +365,9 @@ impl App {
         let Some(building) = building else {
             return Vec::new();
         };
-        let rules = &self.game.content().rules;
-        let race = self.game.city_race(city);
-        let built = self.game.city_buildings(city);
+        let rules = &self.world.content().rules;
+        let race = self.world.city_race(city);
+        let built = self.world.city_buildings(city);
         rules
             .buildings
             .iter()
@@ -390,13 +390,13 @@ mod tests {
     fn a_building_lists_what_it_opens_until_that_is_built() -> TestResult {
         let mut app = App::for_test();
         let city = app
-            .game
+            .world
             .economy()
             .cities()
             .first()
             .map(|c| c.0)
             .ok_or("the new game has no city")?;
-        let rules = &app.game.content().rules;
+        let rules = &app.world.content().rules;
         let barracks = f4x_def::rules::BuildingId::new(3) /* barracks */;
         let armory = f4x_def::rules::BuildingId::new(4) /* armory */;
         let armory_name = app
@@ -407,7 +407,7 @@ mod tests {
         assert!(app
             .production_allows(city, Some(barracks))
             .contains(&armory_name));
-        app.game.scenario_set_building(city, armory, true);
+        app.world.scenario_set_building(city, armory, true);
         assert!(!app
             .production_allows(city, Some(barracks))
             .contains(&armory_name));

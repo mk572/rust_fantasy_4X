@@ -35,7 +35,7 @@ pub struct GenParams {
     /// Strong and weak random encounter sites, on either plane.
     pub strong_sites: u32,
     pub weak_sites: u32,
-    /// The game's difficulty, 0 (intro) to 5 (impossible), as `Game::with_generated_map` records
+    /// The game's difficulty, 0 (intro) to 5 (impossible), as `World::with_generated_map` records
     /// it. The lairs read the two percents below, not this.
     pub difficulty: u8,
     /// Guards of lairs, towers and nodes as a percent of the budget (`world.lair_guard_percent`).
@@ -776,10 +776,10 @@ mod tests {
     #[test]
     fn every_size_of_the_range_generates_a_valid_map() -> TestResult {
         let c = shipped();
-        for (w, h) in [(45, 30), (75, 50), (90, 60)] {
-            let p = GenParams::sized(w, h);
+        for (width, h) in [(45, 30), (75, 50), (90, 60)] {
+            let p = GenParams::sized(width, h);
             let g = generate(5, &p, c)?;
-            assert_eq!((g.map.width(), g.map.height()), (w, h));
+            assert_eq!((g.map.width(), g.map.height()), (width, h));
             let towers = g
                 .placements
                 .iter()
@@ -791,11 +791,11 @@ mod tests {
                 .count();
             assert!(
                 towers <= usize::from(p.tower_count),
-                "{w}x{h}: {towers} towers"
+                "{width}x{h}: {towers} towers"
             );
             assert!(
                 towers + 3 >= usize::from(p.tower_count),
-                "{w}x{h}: {towers} towers"
+                "{width}x{h}: {towers} towers"
             );
         }
         Ok(())

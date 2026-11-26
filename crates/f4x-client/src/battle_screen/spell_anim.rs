@@ -22,7 +22,7 @@ impl App {
         caster: Result<Side, usize>,
     ) -> Option<Anim> {
         let (id, realm, summons, name, is_field) = {
-            let def = self.game.content().rules.spells.get(spell);
+            let def = self.world.content().rules.spells.get(spell);
             let summons = def
                 .effects
                 .iter()
@@ -30,7 +30,7 @@ impl App {
             (
                 def.id.clone(),
                 // The realm's art folder is named by its alias.
-                self.game.content().rules.realms.get(def.realm).id.clone(),
+                self.world.content().rules.realms.get(def.realm).id.clone(),
                 summons,
                 self.names.spell_term(def.num),
                 f4x_battle::battlemagic::field::Field::of(def).is_some(),

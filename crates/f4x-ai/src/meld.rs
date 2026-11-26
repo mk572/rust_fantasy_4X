@@ -8,9 +8,9 @@
 
 use crate::roles::Role;
 use crate::Ai;
-use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
+use f4x_core::world::{Command, Event, World};
 use f4x_def::rules::Ability;
 
 /// Turns a spirit may stand still on its way before the node is given up.
@@ -58,11 +58,11 @@ pub(crate) fn spirit_wanted(ai: &Ai, view: &PlayerView) -> bool {
 }
 
 /// One turn of the spirits.
-pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     let me = ai.player;
-    let turn = game.turn;
+    let turn = world.turn;
     let spirits: Vec<hecs::Entity> = {
-        let view = PlayerView::new(game, me);
+        let view = PlayerView::new(world, me);
         let mut spirits: Vec<hecs::Entity> = view
             .my_units()
             .into_iter()
@@ -73,7 +73,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     };
     for spirit in spirits {
         let (serial, here, ordered, nodes) = {
-            let view = PlayerView::new(game, me);
+            let view = PlayerView::new(world, me);
             (
                 view.serial_of(spirit),
                 view.unit_position(spirit),
@@ -92,7 +92,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         // On an open node: meld.
         if nodes.contains(&here) {
             let _ = ai.send(
-                game,
+                world,
                 Command::Meld {
                     units: vec![spirit],
                 },
@@ -109,16 +109,16 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let mut skip = None;
         if let (Some(t), true) = (target, stuck >= PATIENCE) {
             ai.note_failure(
-                game,
+                world,
                 format!("spirit at {here:?} stood still on its way to {t:?}"),
                 format!(
                     "Stuck{}{}",
                     crate::DETAIL_SEPARATOR,
-                    game.why_no_path(&[spirit], t)
+                    world.why_no_path(&[spirit], t)
                 ),
             );
             ai.order(
-                game,
+                world,
                 Command::ClearOrders {
                     units: vec![spirit],
                 },
@@ -133,7 +133,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let taken = ai.roles.targets(Role::Meld);
         // The nodes it can walk to, nearest first; the first one the walk planner takes an order for.
         let candidates: Vec<Position> = {
-            let view = PlayerView::new(game, me);
+            let view = PlayerView::new(world, me);
             let mut list: Vec<Position> = nodes
                 .iter()
                 .copied()
@@ -146,7 +146,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         };
         let chosen = candidates
             .into_iter()
-            .find(|&node| crate::escort::walk(ai, game, spirit, node, events));
+            .find(|&node| crate::escort::walk(ai, world, spirit, node, events));
         match chosen {
             Some(node) => {
                 let _ = ai.roles.claim(serial, Role::Meld, turn, Some(node));
@@ -167,13 +167,13 @@ mod tests {
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
     /// A node of power 5 on `pos`, with no guards.
-    fn node(g: &mut Game, pos: Position) -> Result<(), Box<dyn std::error::Error>> {
-        let feature = g
+    fn node(w: &mut World, pos: Position) -> Result<(), Box<dyn std::error::Error>> {
+        let feature = w
             .content()
             .features
             .id_numbered(20 /* sorcery_node */)
             .ok_or("a node feature")?;
-        g.spawn_feature(Placement {
+        w.spawn_feature(Placement {
             at: pos,
             feature,
             node: Some(f4x_core::feature::node::Node {
@@ -188,35 +188,35 @@ mod tests {
         Ok(())
     }
 
-    fn world() -> Result<(Game, hecs::Entity), Box<dyn std::error::Error>> {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.explore(P0, at(7, 6), f4x_def::half_int::HalfInt::from_int(5));
-        node(&mut g, at(6, 6))?;
+    fn world() -> Result<(World, hecs::Entity), Box<dyn std::error::Error>> {
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.explore(P0, at(7, 6), f4x_def::half_int::HalfInt::from_int(5));
+        node(&mut w, at(6, 6))?;
         let spirit = spawn(
-            &mut g,
+            &mut w,
             P0,
             at(COAST_CITY.0, COAST_CITY.1),
             154, /* magic_spirit */
             1,
         )[0];
-        g.balance_farmers(P0);
-        Ok((g, spirit))
+        w.balance_farmers(P0);
+        Ok((w, spirit))
     }
 
     #[test]
     fn a_spirit_walks_to_the_open_node_and_melds_with_it() -> TestResult {
-        let (mut g, spirit) = world()?;
+        let (mut w, spirit) = world()?;
         let mut ai = Ai::new(P0);
-        run(&mut ai, &mut g, &mut Vec::new());
-        let serial = PlayerView::new(&g, P0).serial_of(spirit);
+        run(&mut ai, &mut w, &mut Vec::new());
+        let serial = PlayerView::new(&w, P0).serial_of(spirit);
         assert_eq!(ai.roles.role_of(serial), Some(Role::Meld));
         assert_eq!(ai.roles.target_of(serial, Role::Meld), Some(at(6, 6)));
-        assert!(PlayerView::new(&g, P0).unit_has_order(spirit));
+        assert!(PlayerView::new(&w, P0).unit_has_order(spirit));
         // Once on the node it melds and is used up (the spirit is put there: the test wizard has
         // no mana to keep it through a turn).
-        g.cheat_move_unit(spirit, at(6, 6));
-        run(&mut ai, &mut g, &mut Vec::new());
-        let node = g.economy().node_at(at(6, 6)).ok_or("the node")?;
+        w.cheat_move_unit(spirit, at(6, 6));
+        run(&mut ai, &mut w, &mut Vec::new());
+        let node = w.economy().node_at(at(6, 6)).ok_or("the node")?;
         assert_eq!(node.owner, Some(P0), "the node is the wizard's");
         assert!(!ai.roles.any(Role::Meld));
         Ok(())
@@ -225,26 +225,26 @@ mod tests {
     #[test]
     fn a_spirit_that_stands_still_takes_another_node_and_holds_nothing_against_the_first(
     ) -> TestResult {
-        let (mut g, spirit) = world()?;
-        node(&mut g, at(5, 6))?;
+        let (mut w, spirit) = world()?;
+        node(&mut w, at(5, 6))?;
         let mut ai = Ai::new(P0);
         ai.record_refusals(true);
-        run(&mut ai, &mut g, &mut Vec::new());
-        let serial = PlayerView::new(&g, P0).serial_of(spirit);
+        run(&mut ai, &mut w, &mut Vec::new());
+        let serial = PlayerView::new(&w, P0).serial_of(spirit);
         let first = ai
             .roles
             .target_of(serial, Role::Meld)
             .ok_or("it has a node")?;
         // The turns pass and the spirit does not move.
         for _ in 0..=PATIENCE {
-            run(&mut ai, &mut g, &mut Vec::new());
+            run(&mut ai, &mut w, &mut Vec::new());
         }
         let now = ai
             .roles
             .target_of(serial, Role::Meld)
             .ok_or("it has a node again")?;
         assert_ne!(now, first, "another node");
-        let view = PlayerView::new(&g, P0);
+        let view = PlayerView::new(&w, P0);
         assert!(
             open_nodes(&ai, &view).contains(&first),
             "the first stays open"
@@ -256,11 +256,11 @@ mod tests {
 
     #[test]
     fn a_wizard_with_no_open_node_leaves_the_spirit_alone() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let spirit = spawn(&mut g, P0, at(COAST_CITY.0, COAST_CITY.1), 154, 1)[0];
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let spirit = spawn(&mut w, P0, at(COAST_CITY.0, COAST_CITY.1), 154, 1)[0];
         let mut ai = Ai::new(P0);
-        run(&mut ai, &mut g, &mut Vec::new());
-        let serial = PlayerView::new(&g, P0).serial_of(spirit);
+        run(&mut ai, &mut w, &mut Vec::new());
+        let serial = PlayerView::new(&w, P0).serial_of(spirit);
         assert!(!ai.roles.has_role(serial));
         Ok(())
     }

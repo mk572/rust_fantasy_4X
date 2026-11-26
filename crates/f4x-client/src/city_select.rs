@@ -86,10 +86,11 @@ impl App {
         }
         let mut named: Vec<(String, hecs::Entity)> = cities
             .into_iter()
-            .map(|c| (self.game.city_name(c).unwrap_or_default(), c))
+            .map(|c| (self.world.city_name(c).unwrap_or_default(), c))
             .collect();
-        named
-            .sort_by_cached_key(|(name, c)| (name.to_lowercase(), self.game.units().serial_of(*c)));
+        named.sort_by_cached_key(|(name, c)| {
+            (name.to_lowercase(), self.world.units().serial_of(*c))
+        });
         self.selection.clear();
         self.targeting = None;
         self.city_select = Some(CitySelect {
@@ -106,7 +107,7 @@ impl App {
     /// For the screenshot check: open the picker with every city of the game on the list.
     pub fn open_test_city_select(&mut self) {
         let cities: Vec<hecs::Entity> = self
-            .game
+            .world
             .economy()
             .cities()
             .into_iter()
@@ -119,7 +120,7 @@ impl App {
 
     /// Where a city stands.
     fn city_square(&self, city: hecs::Entity) -> Option<f4x_core::map::Position> {
-        self.game
+        self.world
             .economy()
             .cities()
             .into_iter()
@@ -130,7 +131,7 @@ impl App {
     /// A click on the map at `pos` while the picker is open: a city in the list is selected and the list
     /// scrolled to it.
     pub(crate) fn city_select_click(&mut self, pos: f4x_core::map::Position) {
-        let city = self.game.economy().city_at(pos);
+        let city = self.world.economy().city_at(pos);
         let Some(sel) = self.city_select.as_mut() else {
             return;
         };
@@ -149,11 +150,11 @@ impl App {
         if self.city_select.is_none() {
             return false;
         }
-        if let Some(city) = self.game.economy().city_at(pos) {
-            if self.game.economy().city_owner(city) == Some(HUMAN) {
+        if let Some(city) = self.world.economy().city_at(pos) {
+            if self.world.economy().city_owner(city) == Some(HUMAN) {
                 self.selection.clear();
                 self.open_city_or_outpost(city);
-            } else if self.game.is_explored(HUMAN, pos) {
+            } else if self.world.is_explored(HUMAN, pos) {
                 self.open_enemy_city(city);
             }
         }
@@ -311,7 +312,7 @@ mod tests {
 
     fn opened(app: &mut App) -> (Vec<hecs::Entity>, Answers) {
         let cities: Vec<hecs::Entity> = app
-            .game
+            .world
             .economy()
             .cities_of(HUMAN)
             .into_iter()

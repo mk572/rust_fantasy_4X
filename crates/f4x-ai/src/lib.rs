@@ -1,5 +1,5 @@
 //! AI players: they look at the game the way a player does and answer with `Command`s sent
-//! through `Game::apply`. Nothing here reaches into the game's internals.
+//! through `World::apply`. Nothing here reaches into the game's internals.
 //!
 //! One [`Ai`] plays one wizard. [`Ai::play_turn`] does that wizard's whole turn (research,
 //! spells, city production, settlers, the army) and leaves the turn's boundaries to `f4x-master`,
@@ -68,11 +68,11 @@ mod wizardry;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-use f4x_core::game::serial::Serial;
-use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
+use f4x_core::world::serial::Serial;
+use f4x_core::world::{Command, Event, World};
 
 /// A command the game refused, with where in the AI it was sent from (for finding out why the AI
 /// sends orders the game will not take).
@@ -108,12 +108,12 @@ pub fn last_order() -> Option<String> {
 }
 
 /// What stopped a standing order on its step: the square it could not enter and what is there.
-fn step_detail(game: &Game, event: &Event) -> Option<String> {
+fn step_detail(world: &World, event: &Event) -> Option<String> {
     let Event::OrderFailed { units, to, .. } = event else {
         return None;
     };
     let (x, y) = (to.x, to.y);
-    Some(match game.blocker_at(units, *to) {
+    Some(match world.blocker_at(units, *to) {
         Some(why) => format!("step ({x}, {y}): {why}"),
         None => format!("step ({x}, {y}): free now"),
     })
@@ -128,18 +128,18 @@ enum Aim {
 }
 
 /// One side of a battle for the log: how many units, whose, and where they stand.
-fn side_detail(game: &Game, units: &[hecs::Entity]) -> String {
+fn side_detail(world: &World, units: &[hecs::Entity]) -> String {
     if units.is_empty() {
         return "no units".to_string();
     }
     let mut owners: Vec<u32> = Vec::new();
     let mut squares: Vec<String> = Vec::new();
     for &u in units {
-        let owner = game.units().unit_owner(u).map_or(u32::MAX, |p| p.0.into());
+        let owner = world.units().unit_owner(u).map_or(u32::MAX, |p| p.0.into());
         if !owners.contains(&owner) {
             owners.push(owner);
         }
-        let square = game
+        let square = world
             .units()
             .unit_position(u)
             .map_or("nowhere".to_string(), |p| {
@@ -159,12 +159,12 @@ fn side_detail(game: &Game, units: &[hecs::Entity]) -> String {
 /// The facts of a refused order: why a go-to found no way, what blocks the square of a refused
 /// move, which units had no moves left, or how the sides of a refused battle stood.
 fn rejection_detail(
-    game: &Game,
-    why: &f4x_core::game::Rejection,
+    world: &World,
+    why: &f4x_core::world::Rejection,
     aim: Option<&Aim>,
 ) -> Option<String> {
-    use f4x_core::game::Rejection;
     use f4x_core::unit::movement::MoveError;
+    use f4x_core::world::Rejection;
     let walk = match aim {
         Some(Aim::Walk(units, to)) => Some((units, to)),
         _ => None,
@@ -176,17 +176,18 @@ fn rejection_detail(
             };
             Some(format!(
                 "attackers: {}; defenders: {}",
-                side_detail(game, attackers),
-                side_detail(game, defenders)
+                side_detail(world, attackers),
+                side_detail(world, defenders)
             ))
         }
         Rejection::Move(MoveError::NoMovesLeft) => {
             let (units, to) = walk?;
             let spent: Vec<String> = units
                 .iter()
-                .filter(|&&u| game.units().unit_moves_left(u) == 0)
+                .filter(|&&u| world.units().unit_moves_left(u) == 0)
                 .map(|&u| {
-                    game.units()
+                    world
+                        .units()
                         .unit_def(u)
                         .map_or("?".to_string(), |d| d.num.to_string())
                 })
@@ -207,7 +208,8 @@ fn rejection_detail(
             let kinds: Vec<String> = units
                 .iter()
                 .map(|&u| {
-                    game.units()
+                    world
+                        .units()
                         .unit_def(u)
                         .map_or("?".to_string(), |d| d.num.to_string())
                 })
@@ -221,7 +223,7 @@ fn rejection_detail(
         }
         Rejection::Move(MoveError::Impassable | MoveError::StackFull | MoveError::NoRoom) => {
             let (units, to) = walk?;
-            let why = game.blocker_at(units, *to)?;
+            let why = world.blocker_at(units, *to)?;
             Some(format!("to ({}, {}): {why}", to.x, to.y))
         }
         _ => None,
@@ -277,7 +279,7 @@ pub struct Ai {
     /// Own cities the engineers found no road to build at, and how many cities there were then
     /// (`road.rs`).
     #[serde(default)]
-    road_checked: Vec<f4x_core::game::serial::Serial>,
+    road_checked: Vec<f4x_core::world::serial::Serial>,
     #[serde(default)]
     road_cities: usize,
     /// Own cities with a stack of a wizard at war near and too few defenders, this turn.
@@ -363,20 +365,20 @@ impl Ai {
     }
 
     /// Put the plans of every AI in `ais` into `game`, to be saved with it.
-    pub fn remember(game: &mut Game, ais: &[Ai]) {
+    pub fn remember(world: &mut World, ais: &[Ai]) {
         let plans = ais
             .iter()
             .filter_map(|ai| Some((ai.player, ai.to_text().ok()?)))
             .collect();
-        game.set_plans(plans);
+        world.set_plans(plans);
     }
 
     /// Give each AI in `ais` the plans `game` carries for its player. An AI the game has no plans
     /// for, or plans that cannot be read, starts afresh. Who defends in person (a setting of the
     /// seats, not a plan) is kept.
-    pub fn recall(game: &Game, ais: &mut [Ai]) {
+    pub fn recall(world: &World, ais: &mut [Ai]) {
         for ai in ais {
-            let saved = game
+            let saved = world
                 .plans()
                 .iter()
                 .find(|(player, _)| *player == ai.player)
@@ -418,7 +420,7 @@ impl Ai {
 
     /// The diplomacy system and, for B, the main enemy and what it has seen of the others, for the soak's
     /// detail lines.
-    pub fn diplomacy_note(&self, game: &Game) -> String {
+    pub fn diplomacy_note(&self, world: &World) -> String {
         let m = self.memory.get();
         let enemy = m.enemy.map_or("-".to_string(), |(p, since)| {
             format!("p{} since {since}", p.0)
@@ -433,26 +435,26 @@ impl Ai {
                     a.razed,
                     a.wars,
                     a.broken,
-                    m.ruthlessness(a.who, game.turn, diplo_b::Knobs::current().ruth_half)
+                    m.ruthlessness(a.who, world.turn, diplo_b::Knobs::current().ruth_half)
                 )
             })
             .collect();
         let weary: Vec<String> = m
             .dealings
             .iter()
-            .filter(|d| game.treaty(self.player, d.with) == f4x_core::diplomacy::Treaty::War)
+            .filter(|d| world.treaty(self.player, d.with) == f4x_core::diplomacy::Treaty::War)
             .map(|d| format!("p{} {}", d.with.0, d.weary))
             .collect();
         // How it regards each wizard it has met (task 784): the friendship (its feeling and the lasting
         // regard), the fear and the strategic value, the three numbers its proposals and answers go by.
-        let scene = statecraft::Scene::new(game, self.player);
-        let regard: Vec<String> = game
+        let scene = statecraft::Scene::new(world, self.player);
+        let regard: Vec<String> = world
             .wizards()
             .into_iter()
-            .filter(|&w| w != self.player && game.have_met(self.player, w))
+            .filter(|&w| w != self.player && world.have_met(self.player, w))
             .map(|w| {
-                let o = m.opinion(game, self.player, w);
-                let r = diplo_b::regard(game, self.player, w, &scene, &m);
+                let o = m.opinion(world, self.player, w);
+                let r = diplo_b::regard(world, self.player, w, &scene, &m);
                 format!(
                     "p{} friendship {} (feeling {}, regard {}) fear {} strategic {}",
                     w.0, r.friendship, o.friendship, o.hidden, r.fear, r.strategic
@@ -469,8 +471,8 @@ impl Ai {
 
     /// Tell the wizard what has happened (the events of a turn): the battles it fought and the
     /// cities it won or lost go into its memory. What a human would be told of, and no more.
-    pub fn notice(&mut self, game: &Game, events: &[Event]) {
-        self.memory.put().notice(self.player, game, events);
+    pub fn notice(&mut self, world: &World, events: &[Event]) {
+        self.memory.put().notice(self.player, world, events);
     }
 
     pub fn new(player: PlayerId) -> Self {
@@ -591,91 +593,91 @@ impl Ai {
     /// What this wizard has to say to the human at the start of the human's turn: offers,
     /// warnings of war and requests (`diplomacy::approach_human`). The client calls it for each
     /// rival after the turn has changed, so the proposals wait for the human's answer in that turn.
-    pub fn approach_human(&mut self, game: &mut Game) -> Vec<Event> {
+    pub fn approach_human(&mut self, world: &mut World) -> Vec<Event> {
         let mut events = Vec::new();
-        diplo_b_talk::approach_human(self, game, &mut events);
+        diplo_b_talk::approach_human(self, world, &mut events);
         events
     }
 
     /// Play this wizard's turn; returns the events the AI's own commands caused.
-    pub fn play_turn(&mut self, game: &mut Game) -> Vec<Event> {
+    pub fn play_turn(&mut self, world: &mut World) -> Vec<Event> {
         // Every change in the game during the turn is a command this wizard sends, so what it
-        // sees is counted once and patched (`Game::keep_for_turn`).
-        game.keep_for_turn(self.player);
-        let events = self.play_kept(game);
-        game.drop_kept();
+        // sees is counted once and patched (`World::keep_for_turn`).
+        world.keep_for_turn(self.player);
+        let events = self.play_kept(world);
+        world.drop_kept();
         events
     }
 
-    fn play_kept(&mut self, game: &mut Game) -> Vec<Event> {
+    fn play_kept(&mut self, world: &mut World) -> Vec<Event> {
         let mut events = Vec::new();
         {
-            let view = PlayerView::new(game, self.player);
+            let view = PlayerView::new(world, self.player);
             // A player plays when it has a wizard or is the neutral player of a race (task 522).
-            let plays = view.wizard().is_some() || game.race_of_player(self.player).is_some();
+            let plays = view.wizard().is_some() || world.race_of_player(self.player).is_some();
             if view.game_over() || !plays || view.is_defeated() {
                 return events;
             }
         }
         // Units built or hired since the last turn await orders from the first moment.
-        roles::register(self, game);
-        let dropped = self.drop_stale_plans(game.turn);
+        roles::register(self, world);
+        let dropped = self.drop_stale_plans(world.turn);
         if dropped.sea {
-            naval::release_scouts(self, game, &mut events);
+            naval::release_scouts(self, world, &mut events);
         }
         if !dropped.release.is_empty() {
             let units: Vec<hecs::Entity> = {
-                let view = PlayerView::new(game, self.player);
+                let view = PlayerView::new(world, self.player);
                 view.my_units()
                     .into_iter()
                     .filter(|&u| dropped.release.contains(&view.serial_of(u)))
                     .collect()
             };
             if !units.is_empty() {
-                self.order(game, Command::ClearOrders { units }, &mut events);
+                self.order(world, Command::ClearOrders { units }, &mut events);
             }
         }
-        self.memory.put().look(game, self.player);
-        diplomacy::answer(self, game, &mut events);
-        diplo_b_talk::negotiate(self, game, &mut events);
-        statecraft::run(self, game, &mut events);
-        offer::answer(self, game, &mut events);
-        offer::equip(self, game, &mut events);
-        game.balance_farmers(self.player);
-        economy::taxes(self, game, &mut events);
-        alchemy::run(self, game, &mut events);
-        race::run(self, game, &mut events);
+        self.memory.put().look(world, self.player);
+        diplomacy::answer(self, world, &mut events);
+        diplo_b_talk::negotiate(self, world, &mut events);
+        statecraft::run(self, world, &mut events);
+        offer::answer(self, world, &mut events);
+        offer::equip(self, world, &mut events);
+        world.balance_farmers(self.player);
+        economy::taxes(self, world, &mut events);
+        alchemy::run(self, world, &mut events);
+        race::run(self, world, &mut events);
         self.tower_blocked = site::blocked_planes(
-            &PlayerView::new(game, self.player),
+            &PlayerView::new(world, self.player),
             &self.unreachable,
             self.naval.map(|p| p.target),
         );
-        wizardry::run(self, game, &mut events);
+        wizardry::run(self, world, &mut events);
         // While another wizard keeps Time Stop going, none of this wizard's units can act
         // (`AIMOVE.c`, `AIDUDES.c`): its armies, settlers and ships wait.
-        if !game
+        if !world
             .time_stopper()
             .is_some_and(|keeper| keeper != self.player)
         {
-            dispatch::run(self, game, &mut events);
+            dispatch::run(self, world, &mut events);
         }
-        raze::run(self, game, &mut events);
-        economy::cities(self, game, &mut events);
-        road::build_engineer(self, game, &mut events);
-        shortfall::run(self, game, &mut events);
+        raze::run(self, world, &mut events);
+        economy::cities(self, world, &mut events);
+        road::build_engineer(self, world, &mut events);
+        shortfall::run(self, world, &mut events);
         events
     }
 
     /// Keep a failure that is no refused command (a party that cannot be sent anywhere) in the
     /// refused-order log, with the line that asks.
     #[track_caller]
-    pub(crate) fn note_failure(&self, game: &Game, what: String, reason: String) {
+    pub(crate) fn note_failure(&self, world: &World, what: String, reason: String) {
         if !self.record_refusals {
             return;
         }
         let at = std::panic::Location::caller();
         self.refusals.borrow_mut().push(Refusal {
-            turn: game.turn,
+            turn: world.turn,
             player: self.player,
             source: format!("{}:{}", at.file(), at.line()),
             command: what,
@@ -686,27 +688,27 @@ impl Ai {
     /// Whether `count` more units fit on the square (the limit of a square, `StackFull`): the check
     /// to make before an order to walk there, so that a full square is not asked again and again. A
     /// tower is one square on both planes: the units on its other side count too (`army_at`).
-    pub(crate) fn room_at(game: &Game, to: Position, count: usize) -> bool {
-        game.economy().army_at(to).len() + count <= game.max_tile()
+    pub(crate) fn room_at(world: &World, to: Position, count: usize) -> bool {
+        world.economy().army_at(to).len() + count <= world.max_tile()
     }
 
     /// Send a command and keep its events.
     #[track_caller]
     fn send(
         &self,
-        game: &mut Game,
+        world: &mut World,
         command: Command,
         events: &mut Vec<Event>,
     ) -> Result<(), SendError> {
-        self.submit(game, command, events, true)
+        self.submit(world, command, events, true)
     }
 
     /// Send a command whose refusal changes nothing in the plan: the refusal is in the refused-order
     /// log (as for [`Ai::send`]), and the next turn's plan starts from where the units really
     /// are. For a command whose success the caller needs to know, use `send`.
     #[track_caller]
-    fn order(&self, game: &mut Game, command: Command, events: &mut Vec<Event>) {
-        let _ = self.submit(game, command, events, true);
+    fn order(&self, world: &mut World, command: Command, events: &mut Vec<Event>) {
+        let _ = self.submit(world, command, events, true);
     }
 
     /// Send a command that the game may refuse as the AI expects (it cannot know, say, that a site
@@ -714,22 +716,22 @@ impl Ai {
     #[track_caller]
     fn probe(
         &self,
-        game: &mut Game,
+        world: &mut World,
         command: Command,
         events: &mut Vec<Event>,
     ) -> Result<(), SendError> {
-        self.submit(game, command, events, false)
+        self.submit(world, command, events, false)
     }
 
     #[track_caller]
     fn submit(
         &self,
-        game: &mut Game,
+        world: &mut World,
         command: Command,
         events: &mut Vec<Event>,
         keep_refusal: bool,
     ) -> Result<(), SendError> {
-        if game.game_over.is_some() {
+        if world.game_over.is_some() {
             // The other wizard's turn ended the game: nothing more can be ordered.
             return Err(SendError::GameOver);
         }
@@ -753,7 +755,7 @@ impl Ai {
         };
         let walk_command = matches!(command, Command::GoTo { .. } | Command::MoveStack { .. })
             .then(|| command.clone());
-        let out = game.apply(command);
+        let out = world.apply(command);
         // A refusal first; else an order that was taken and stopped on its first step.
         let refused = out
             .iter()
@@ -775,31 +777,31 @@ impl Ai {
                 if let Event::OrderFailed { why, player, .. } = e {
                     if *player == self.player {
                         self.refusals.borrow_mut().push(Refusal {
-                            turn: game.turn,
+                            turn: world.turn,
                             player: self.player,
                             source: format!("{}:{}", at.file(), at.line()),
                             command: command.clone(),
                             reason: with_detail(
                                 format!("OrderFailed {why:?}"),
-                                step_detail(game, e),
+                                step_detail(world, e),
                             ),
                         });
                     }
                 }
                 if let Event::Rejected(reason) = e {
                     self.refusals.borrow_mut().push(Refusal {
-                        turn: game.turn,
+                        turn: world.turn,
                         player: self.player,
                         source: format!("{}:{}", at.file(), at.line()),
                         command: command.clone(),
                         reason: with_detail(
                             match reason {
-                                f4x_core::game::Rejection::NoPath(n) => {
+                                f4x_core::world::Rejection::NoPath(n) => {
                                     format!("NoPath({})", n.name())
                                 }
                                 other => format!("{other:?}"),
                             },
-                            rejection_detail(game, reason, target.as_ref()),
+                            rejection_detail(world, reason, target.as_ref()),
                         ),
                     });
                 }
@@ -820,14 +822,14 @@ impl Ai {
     /// have moved their units: the units that could move did, and a square they left has room for
     /// those that waited. Unblocked first, then the blocked, as long as one more gets through, so a
     /// column of big stacks walking one way clears from its head.
-    pub(crate) fn retry_blocked(&self, game: &mut Game, events: &mut Vec<Event>) {
+    pub(crate) fn retry_blocked(&self, world: &mut World, events: &mut Vec<Event>) {
         let mut waiting = std::mem::take(&mut *self.blocked.borrow_mut());
         self.retrying.set(true);
         while !waiting.is_empty() {
             let mut still = Vec::new();
             let mut sent = false;
             for command in waiting {
-                match self.submit(game, command.clone(), events, false) {
+                match self.submit(world, command.clone(), events, false) {
                     Err(why) if why.is_no_room() => still.push(command),
                     Ok(()) => sent = true,
                     // Refused for another reason (the units have no moves left, say): over.
@@ -851,7 +853,7 @@ impl Ai {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SendError {
     GameOver,
-    Rejected(f4x_core::game::Rejection),
+    Rejected(f4x_core::world::Rejection),
     Stopped(f4x_core::unit::movement::MoveError),
 }
 
@@ -859,8 +861,8 @@ impl SendError {
     /// The square the units were sent to has no room for them (a full stack, no room on the
     /// ship): sending more there this turn only adds refusals.
     pub(crate) fn is_no_room(self) -> bool {
-        use f4x_core::game::Rejection;
         use f4x_core::unit::movement::MoveError;
+        use f4x_core::world::Rejection;
         matches!(
             self,
             Self::Stopped(MoveError::StackFull | MoveError::NoRoom)
@@ -874,27 +876,32 @@ impl SendError {
 ///
 /// The wizard answers with what it remembers: `diplomats` is the game's table of memories (`memory.rs`);
 /// a wizard that is not in it answers with an empty memory.
-pub fn answer_proposals(game: &mut Game, player: PlayerId, diplomats: &Diplomats) -> Vec<Event> {
+pub fn answer_proposals(world: &mut World, player: PlayerId, diplomats: &Diplomats) -> Vec<Event> {
     let mut events = Vec::new();
-    diplomacy::answer(&Ai::answering(player, diplomats), game, &mut events);
+    diplomacy::answer(&Ai::answering(player, diplomats), world, &mut events);
     events
 }
 
 /// Two AI wizards answer each other's proposals and counters until nothing is pending between
 /// them (a negotiation has at most `max_rounds` messages). `from` made the proposal to `to`.
-pub fn settle(game: &mut Game, from: PlayerId, to: PlayerId, diplomats: &Diplomats) -> Vec<Event> {
+pub fn settle(
+    world: &mut World,
+    from: PlayerId,
+    to: PlayerId,
+    diplomats: &Diplomats,
+) -> Vec<Event> {
     let mut events = Vec::new();
-    for _ in 0..=game.content().rules.config.diplomacy.max_rounds {
+    for _ in 0..=world.content().rules.config.diplomacy.max_rounds {
         let mut answered = false;
         for who in [to, from] {
-            let waiting = game.human() != Some(who)
-                && game
+            let waiting = world.human() != Some(who)
+                && world
                     .diplomacy
                     .proposals()
                     .iter()
                     .any(|p| p.to == who && (p.from == from || p.from == to));
             if waiting {
-                events.extend(answer_proposals(game, who, diplomats));
+                events.extend(answer_proposals(world, who, diplomats));
                 answered = true;
             }
         }
@@ -927,10 +934,10 @@ mod memory_tests {
     const FOE: PlayerId = crate::testworld::P1;
 
     fn lost_a_battle(ai: &mut Ai, turn: u32) {
-        let mut g = crate::testworld::game(crate::testworld::COAST_CITY, 8 /* high_men */);
-        g.turn = turn;
+        let mut w = crate::testworld::game(crate::testworld::COAST_CITY, 8 /* high_men */);
+        w.turn = turn;
         ai.notice(
-            &g,
+            &w,
             &[Event::BattleEnded {
                 winner: FOE,
                 loser: ME,
@@ -968,9 +975,9 @@ mod memory_tests {
         // A game is loaded: a new AI for the wizard recalls the plans; the table keeps its handle.
         let mut fresh = vec![Ai::new(ME)];
         fresh[0].join(&table);
-        let mut g = crate::testworld::game(crate::testworld::COAST_CITY, 8 /* high_men */);
-        g.set_plans(vec![(ME, text)]);
-        Ai::recall(&g, &mut fresh);
+        let mut w = crate::testworld::game(crate::testworld::COAST_CITY, 8 /* high_men */);
+        w.set_plans(vec![(ME, text)]);
+        Ai::recall(&w, &mut fresh);
         assert_eq!(battles_lost(&fresh[0].memory.get()), Some(1));
         assert_eq!(battles_lost(&table.of(ME)), Some(1));
         Ok(())
@@ -995,16 +1002,16 @@ mod send_tests {
 
     #[test]
     fn a_command_that_goes_through_is_ok_and_a_refused_one_says_which_rule() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let units = spawn(&mut g, P0, at(5, 8), 113 /* high_men_paladins */, 1);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let units = spawn(&mut w, P0, at(5, 8), 113 /* high_men_paladins */, 1);
         let mut events = Vec::new();
         let go = Command::GoTo {
             units: units.clone(),
             to: at(5, 9),
         };
-        assert_eq!(Ai::new(P0).send(&mut g, go.clone(), &mut events), Ok(()));
+        assert_eq!(Ai::new(P0).send(&mut w, go.clone(), &mut events), Ok(()));
         // Another wizard's units are not ours to order.
-        let refused = Ai::new(P1).send(&mut g, go, &mut events);
+        let refused = Ai::new(P1).send(&mut w, go, &mut events);
         assert!(
             matches!(refused, Err(SendError::Rejected(_))),
             "{refused:?}"
@@ -1013,14 +1020,14 @@ mod send_tests {
 
     #[test]
     fn an_order_that_stops_on_its_first_step_is_an_error_with_the_reason() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let units = spawn(&mut g, P0, at(5, 8), 113 /* high_men_paladins */, 1);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let units = spawn(&mut w, P0, at(5, 8), 113 /* high_men_paladins */, 1);
         // The square next to it is full of its own units.
-        let limit = g.max_tile();
-        spawn(&mut g, P0, at(5, 9), 113, limit);
+        let limit = w.max_tile();
+        spawn(&mut w, P0, at(5, 9), 113, limit);
         let mut events = Vec::new();
         let sent = Ai::new(P0).send(
-            &mut g,
+            &mut w,
             Command::GoTo {
                 units,
                 to: at(5, 9),
@@ -1033,15 +1040,15 @@ mod send_tests {
 
     #[test]
     fn an_order_stopped_by_a_full_square_goes_again_once_the_stack_on_it_has_moved_on() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let rear = spawn(&mut g, P0, at(5, 8), 113 /* high_men_paladins */, 1);
-        let limit = g.max_tile();
-        let head = spawn(&mut g, P0, at(5, 9), 113, limit);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let rear = spawn(&mut w, P0, at(5, 8), 113 /* high_men_paladins */, 1);
+        let limit = w.max_tile();
+        let head = spawn(&mut w, P0, at(5, 9), 113, limit);
         let ai = Ai::new(P0);
         let mut events = Vec::new();
         // The rear stack is sent first and finds the square full; the head stack then moves on.
         let first = ai.send(
-            &mut g,
+            &mut w,
             Command::GoTo {
                 units: rear.clone(),
                 to: at(5, 9),
@@ -1049,37 +1056,37 @@ mod send_tests {
             &mut events,
         );
         assert_eq!(first, Err(SendError::Stopped(MoveError::StackFull)));
-        assert_eq!(g.units().unit_position(rear[0]), Some(at(5, 8)));
+        assert_eq!(w.units().unit_position(rear[0]), Some(at(5, 8)));
         ai.order(
-            &mut g,
+            &mut w,
             Command::GoTo {
                 units: head.clone(),
                 to: at(5, 10),
             },
             &mut events,
         );
-        assert_eq!(g.units().unit_position(head[0]), Some(at(5, 10)));
-        ai.retry_blocked(&mut g, &mut events);
-        assert_eq!(g.units().unit_position(rear[0]), Some(at(5, 9)));
+        assert_eq!(w.units().unit_position(head[0]), Some(at(5, 10)));
+        ai.retry_blocked(&mut w, &mut events);
+        assert_eq!(w.units().unit_position(rear[0]), Some(at(5, 9)));
         // What went through is not kept to be sent again.
-        let before = g.units().unit_position(rear[0]);
-        ai.retry_blocked(&mut g, &mut events);
-        assert_eq!(g.units().unit_position(rear[0]), before);
+        let before = w.units().unit_position(rear[0]);
+        ai.retry_blocked(&mut w, &mut events);
+        assert_eq!(w.units().unit_position(rear[0]), before);
     }
 
     #[test]
     fn a_move_with_no_moves_left_names_the_units_that_have_none() -> TestResult {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let units = spawn(&mut g, P0, at(5, 8), 113 /* high_men_paladins */, 1);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let units = spawn(&mut w, P0, at(5, 8), 113 /* high_men_paladins */, 1);
         let mut ai = Ai::new(P0);
         ai.record_refusals(true);
         let mut events = Vec::new();
         // Walk until the moves are spent, then ask for one more step.
         let mut y = 8;
-        while g.units().unit_moves_left(units[0]) != 0 {
+        while w.units().unit_moves_left(units[0]) != 0 {
             y += 1;
             ai.order(
-                &mut g,
+                &mut w,
                 Command::MoveStack {
                     units: units.clone(),
                     to: at(5, y),
@@ -1090,7 +1097,7 @@ mod send_tests {
         }
         ai.take_refusals();
         let sent = ai.send(
-            &mut g,
+            &mut w,
             Command::MoveStack {
                 units,
                 to: at(5, y + 1),
@@ -1099,7 +1106,7 @@ mod send_tests {
         );
         assert_eq!(
             sent,
-            Err(SendError::Rejected(f4x_core::game::Rejection::Move(
+            Err(SendError::Rejected(f4x_core::world::Rejection::Move(
                 MoveError::NoMovesLeft
             )))
         );
@@ -1115,14 +1122,14 @@ mod send_tests {
 
     #[test]
     fn a_battle_with_bad_sides_says_who_stood_where() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let ours = spawn(&mut g, P0, at(5, 8), 113 /* high_men_paladins */, 2);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let ours = spawn(&mut w, P0, at(5, 8), 113 /* high_men_paladins */, 2);
         let mut ai = Ai::new(P0);
         ai.record_refusals(true);
         let mut events = Vec::new();
         // The defenders are nobody at all.
         let _ = ai.send(
-            &mut g,
+            &mut w,
             Command::AutoResolve {
                 attackers: ours,
                 defenders: Vec::new(),
@@ -1142,11 +1149,11 @@ mod send_tests {
 
     #[test]
     fn a_march_with_no_room_says_how_full_the_squares_beside_the_site_are() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let party = spawn(&mut g, P0, at(5, 8), 113 /* high_men_paladins */, 2);
-        let limit = g.max_tile();
-        spawn(&mut g, P0, at(5, 10), 113, limit);
-        let said = crate::assault::march_detail(&Ai::new(P0), &g, &party, at(5, 11));
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let party = spawn(&mut w, P0, at(5, 8), 113 /* high_men_paladins */, 2);
+        let limit = w.max_tile();
+        spawn(&mut w, P0, at(5, 10), 113, limit);
+        let said = crate::assault::march_detail(&Ai::new(P0), &w, &party, at(5, 11));
         assert!(
             said.contains(&format!("(5, 10) holds {limit}")) && said.starts_with("party of 2"),
             "{said}"
@@ -1156,16 +1163,16 @@ mod send_tests {
     #[test]
     fn a_refused_order_logs_the_facts_of_the_failure() -> TestResult {
         use crate::testworld::ENEMY_CITY;
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        let units = spawn(&mut g, P0, at(5, 8), 113 /* high_men_paladins */, 1);
-        let limit = g.max_tile();
-        spawn(&mut g, P0, at(5, 9), 113, limit);
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let units = spawn(&mut w, P0, at(5, 8), 113 /* high_men_paladins */, 1);
+        let limit = w.max_tile();
+        spawn(&mut w, P0, at(5, 9), 113, limit);
         let mut ai = Ai::new(P0);
         ai.record_refusals(true);
         let mut events = Vec::new();
         // A full square on the way: the order is taken and stops at its step.
         let _ = ai.send(
-            &mut g,
+            &mut w,
             Command::GoTo {
                 units: units.clone(),
                 to: at(5, 9),
@@ -1174,7 +1181,7 @@ mod send_tests {
         );
         // The other island: no walk, and the log says where the walk stopped.
         let _ = ai.send(
-            &mut g,
+            &mut w,
             Command::GoTo {
                 units,
                 to: at(ENEMY_CITY.0, ENEMY_CITY.1),
@@ -1202,7 +1209,7 @@ mod send_tests {
 
     #[test]
     fn only_a_full_square_or_ship_counts_as_no_room() {
-        use f4x_core::game::Rejection;
+        use f4x_core::world::Rejection;
         assert!(SendError::Stopped(MoveError::StackFull).is_no_room());
         assert!(SendError::Stopped(MoveError::NoRoom).is_no_room());
         assert!(SendError::Rejected(Rejection::Move(MoveError::StackFull)).is_no_room());
@@ -1212,15 +1219,15 @@ mod send_tests {
 
     #[test]
     fn nothing_can_be_sent_once_the_game_is_over() {
-        let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.game_over = Some(f4x_core::game::endgame::GameOver {
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.game_over = Some(f4x_core::world::endgame::GameOver {
             winner: P0,
-            kind: f4x_core::game::endgame::EndKind::SpellOfMastery,
+            kind: f4x_core::world::endgame::EndKind::SpellOfMastery,
             turn: 1,
         });
         let mut events = Vec::new();
         assert_eq!(
-            Ai::new(P0).send(&mut g, Command::EndTurn, &mut events),
+            Ai::new(P0).send(&mut w, Command::EndTurn, &mut events),
             Err(SendError::GameOver)
         );
     }

@@ -94,26 +94,26 @@ impl App {
         if let Some(spell) = goods.spell {
             let name = self
                 .names
-                .spell_term(self.game.content().rules.spells.get(spell).num);
+                .spell_term(self.world.content().rules.spells.get(spell).num);
             parts.push(self.text_with("diplomacy.goods_spell", &Args::new().term("name", name)));
         }
         if let Some(serial) = goods.item {
             let found = self
-                .game
+                .world
                 .items()
                 .held(|_| true)
                 .into_iter()
-                .find(|(e, _)| self.game.units().serial_of(*e) == serial);
+                .find(|(e, _)| self.world.units().serial_of(*e) == serial);
             if let Some((_, item)) = found {
                 let name = self.names.item_term(&item, &self.texts);
                 parts.push(self.text_with("diplomacy.goods_item", &Args::new().term("name", name)));
             }
         }
         if let Some(serial) = goods.unit {
-            if let Some(unit) = self.game.units().entity_of_serial(serial) {
-                if let Some(def) = self.game.units().unit_def(unit) {
+            if let Some(unit) = self.world.units().entity_of_serial(serial) {
+                if let Some(def) = self.world.units().unit_def(unit) {
                     let name = self.names.unit_term(def.num);
-                    let level = self.game.units().unit_level(unit) as i32;
+                    let level = self.world.units().unit_level(unit) as i32;
                     parts.push(self.text_with(
                         "diplomacy.goods_unit",
                         &Args::new().term("name", name).count("level", level + 1),
@@ -122,9 +122,9 @@ impl App {
             }
         }
         if let Some(serial) = goods.hero {
-            if let Some(hero) = self.game.units().entity_of_serial(serial) {
-                let name = self.game.units().hero_name(hero).unwrap_or_default();
-                let level = self.game.units().unit_level(hero) as i32;
+            if let Some(hero) = self.world.units().entity_of_serial(serial) {
+                let name = self.world.units().hero_name(hero).unwrap_or_default();
+                let level = self.world.units().unit_level(hero) as i32;
                 parts.push(self.text_with(
                     "diplomacy.goods_hero",
                     &Args::new().text("name", name).count("level", level + 1),
@@ -145,10 +145,10 @@ impl App {
         to: PlayerId,
         cat: Cat,
     ) -> Vec<(String, Goods)> {
-        let rules = &self.game.content().rules;
+        let rules = &self.world.content().rules;
         let mut out: Vec<(i32, String, Goods)> = Vec::new();
         let mut put = |goods: Goods, label: String| {
-            let worth = trade::worth(&self.game, to, goods);
+            let worth = trade::worth(&self.world, to, goods);
             let label = self.text_with(
                 "diplomacy.pick_label",
                 &Args::new().text("name", &label).count("worth", worth),
@@ -158,7 +158,8 @@ impl App {
         match cat {
             Cat::Gold => {}
             Cat::Spell => {
-                if let (Some(mine), Some(theirs)) = (self.game.wizard(owner), self.game.wizard(to))
+                if let (Some(mine), Some(theirs)) =
+                    (self.world.wizard(owner), self.world.wizard(to))
                 {
                     for (id, def) in rules.spells.iter() {
                         if mine.knows(id) && !theirs.knows(id) && theirs.books_allow(def) {
@@ -168,25 +169,25 @@ impl App {
                 }
             }
             Cat::Item => {
-                for (entity, item) in self.game.items().held(|h| {
+                for (entity, item) in self.world.items().held(|h| {
                     matches!(h,
                         f4x_core::item::entity::HeldBy::Vault(p, _)
                         | f4x_core::item::entity::HeldBy::Award(p) if p == owner)
                 }) {
                     put(
-                        Goods::item(self.game.units().serial_of(entity)),
+                        Goods::item(self.world.units().serial_of(entity)),
                         self.names.item_name(&item, &self.texts),
                     );
                 }
             }
             Cat::Unit => {
-                for unit in self.game.units().player_units(owner) {
-                    let serial = self.game.units().serial_of(unit);
-                    if trade::giveable_unit(&self.game, owner, serial).is_none() {
+                for unit in self.world.units().player_units(owner) {
+                    let serial = self.world.units().serial_of(unit);
+                    if trade::giveable_unit(&self.world, owner, serial).is_none() {
                         continue;
                     }
-                    if let Some(def) = self.game.units().unit_def(unit) {
-                        let level = self.game.units().unit_level(unit) + 1;
+                    if let Some(def) = self.world.units().unit_def(unit) {
+                        let level = self.world.units().unit_level(unit) + 1;
                         put(
                             Goods::unit(serial),
                             format!("{} {level}", self.names.unit(def.num)),
@@ -195,18 +196,18 @@ impl App {
                 }
             }
             Cat::Hero => {
-                for hero in self.game.units().hero_units(owner) {
-                    let serial = self.game.units().serial_of(hero);
-                    if trade::giveable_hero(&self.game, owner, serial).is_none() {
+                for hero in self.world.units().hero_units(owner) {
+                    let serial = self.world.units().serial_of(hero);
+                    if trade::giveable_hero(&self.world, owner, serial).is_none() {
                         continue;
                     }
-                    let name = self.game.units().hero_name(hero).unwrap_or_default();
-                    let level = self.game.units().unit_level(hero) + 1;
+                    let name = self.world.units().hero_name(hero).unwrap_or_default();
+                    let level = self.world.units().unit_level(hero) + 1;
                     put(Goods::hero(serial), format!("{name} {level}"));
                 }
             }
         }
-        out.retain(|(_, _, g)| trade::can_hand_over(&self.game, owner, to, *g));
+        out.retain(|(_, _, g)| trade::can_hand_over(&self.world, owner, to, *g));
         out.sort_by_key(|(worth, label, _)| (std::cmp::Reverse(*worth), label.clone()));
         out.into_iter()
             .take(SHOWN)

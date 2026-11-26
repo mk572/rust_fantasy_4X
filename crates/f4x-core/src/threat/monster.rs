@@ -11,17 +11,17 @@
 use crate::feature::def::FeatureKind;
 use crate::feature::entity::Placement;
 use crate::feature::lair::{candidates, Lair};
-use crate::game::{Event, Game};
 use crate::map::Position;
 use crate::player::MONSTERS;
 use crate::rules::{RealmId, UnitId};
 use crate::unit::Unit;
+use crate::world::{Event, World};
 use f4x_def::half_int::HalfInt;
 use f4x_def::settings::MONSTER_START_TURN;
 
 // The realms that keep their monsters at home (`spared_realms`), the extra damage a rampage counts and the cheapest monster a budget buys are `threat` of `rules.ron`.
 
-impl Game {
+impl World {
     /// The realm of the creatures that guard a site, `None` for a site without guards.
     fn guard_realm_of(&self, guards: &[(UnitId, u32)]) -> Option<RealmId> {
         let rules = &self.content.rules;
@@ -109,7 +109,7 @@ impl Game {
         }
         let evicted = self.evict_guards(zone.entity, zone.pos, exile_square);
         let guards = tally(&list);
-        if let Ok(mut lair) = self.world.get::<&mut Lair>(zone.entity) {
+        if let Ok(mut lair) = self.ecs.get::<&mut Lair>(zone.entity) {
             lair.guards = guards;
             lair.fought_by.clear();
         }
@@ -148,7 +148,7 @@ impl Game {
     /// Make the guards of a lair real units of the monsters on `to`. Returns how many.
     fn evict_guards(&mut self, lair: hecs::Entity, at: Position, to: Position) -> u32 {
         let guards = self
-            .world
+            .ecs
             .get::<&Lair>(lair)
             .map(|l| l.guards.clone())
             .unwrap_or_default();
@@ -186,7 +186,7 @@ impl Game {
         for &u in units {
             self.despawn_with_spells(u);
         }
-        if let Ok(mut lair) = self.world.get::<&mut Lair>(zone) {
+        if let Ok(mut lair) = self.ecs.get::<&mut Lair>(zone) {
             lair.intact = true;
             lair.guards = tally(&guards);
             lair.gold = 0;
@@ -244,17 +244,17 @@ impl Game {
         let Some(owner) = self.economy().city_owner(city) else {
             return Vec::new();
         };
-        let Some(pos) = self.world.get::<&Position>(city).ok().map(|p| *p) else {
+        let Some(pos) = self.ecs.get::<&Position>(city).ok().map(|p| *p) else {
             return Vec::new();
         };
         let name = self
-            .world
+            .ecs
             .get::<&crate::city::City>(city)
             .map(|c| c.name.clone())
             .unwrap_or_default();
         let citizens = self.economy().citizens(city);
         let built: Vec<_> = self
-            .world
+            .ecs
             .get::<&crate::city::economy::Buildings>(city)
             .map(|b| b.0.clone())
             .unwrap_or_default();
@@ -266,7 +266,7 @@ impl Game {
             &mut self.rng,
             |b| {
                 crate::city::conquest::destroy_building(
-                    &mut self.world,
+                    &mut self.ecs,
                     self.map.as_ref(),
                     &self.content,
                     city,
@@ -275,10 +275,7 @@ impl Game {
                 .is_ok()
             },
         );
-        if let Ok(mut pop) = self
-            .world
-            .get::<&mut crate::city::economy::Population>(city)
-        {
+        if let Ok(mut pop) = self.ecs.get::<&mut crate::city::economy::Population>(city) {
             pop.figures -= toll.citizens_lost;
         }
         let ruins = self.content.features.id_numbered(18) /* ruins */;
@@ -302,7 +299,7 @@ impl Game {
         let rules = &self.content.rules;
         let mut kinds: Vec<(UnitId, u32)> = Vec::new();
         for &m in monsters {
-            if let Some(kind) = self.world.get::<&Unit>(m).ok().map(|u| u.0) {
+            if let Some(kind) = self.ecs.get::<&Unit>(m).ok().map(|u| u.0) {
                 match kinds.iter_mut().find(|(id, _)| *id == kind) {
                     Some((_, n)) => *n += 1,
                     None => kinds.push((kind, 1)),

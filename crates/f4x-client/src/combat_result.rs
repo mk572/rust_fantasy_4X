@@ -9,9 +9,9 @@
 use crate::font::Style;
 use crate::input::Input;
 use crate::text::Args;
-use f4x_core::game::{Command, Event};
 use f4x_core::map::Position;
 use f4x_core::player::PlayerId;
+use f4x_core::world::{Command, Event};
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -92,7 +92,7 @@ impl App {
         self.battle_site = Some(BattleSite {
             attacker,
             defender,
-            city: self.game.economy().city_at(site).is_some(),
+            city: self.world.economy().city_at(site).is_some(),
         });
     }
 
@@ -138,7 +138,8 @@ impl App {
             )),
             _ => None,
         });
-        let human_took = looted.is_some_and(|l| self.game.economy().city_owner(l.0) == Some(HUMAN));
+        let human_took =
+            looted.is_some_and(|l| self.world.economy().city_owner(l.0) == Some(HUMAN));
         let human_lost_city = looted.is_some() && !human_took;
         let fled_side = events.iter().find_map(|e| match e {
             Event::Battle(f4x_battle::battle::BattleEvent::Fled { side }) => Some(*side),
@@ -207,7 +208,7 @@ impl App {
             };
         }
         if let Some((city, gold, killed, lost, fame_lost, fame_gained)) = looted {
-            let rules = &self.game.content().rules;
+            let rules = &self.world.content().rules;
             results.gold = gold;
             results.killed = killed;
             results.buildings = lost
@@ -215,10 +216,10 @@ impl App {
                 .map(|&b| self.names.building(rules.buildings.get(b).num).to_string())
                 .collect();
             results.city_name = self.city_name(city);
-            let taker = self.game.economy().city_owner(city);
+            let taker = self.world.economy().city_owner(city);
             if !human_took
                 && taker.is_some_and(|p| {
-                    p != f4x_core::player::MONSTERS && self.game.is_neutral_player(p)
+                    p != f4x_core::player::MONSTERS && self.world.is_neutral_player(p)
                 })
             {
                 results.aftermath = Aftermath::Raiders;
@@ -445,7 +446,7 @@ impl App {
                 Some(true) => {
                     r.asking = false;
                     if let Some(city) = r.city {
-                        let events = self.game.apply(Command::RazeCity {
+                        let events = self.world.apply(Command::RazeCity {
                             player: HUMAN,
                             city,
                         });
@@ -590,11 +591,11 @@ mod tests {
     }
 
     fn start_of(app: &App) -> Result<Position, &'static str> {
-        app.game
+        app.world
             .units()
             .player_units(HUMAN)
             .first()
-            .and_then(|&u| app.game.units().unit_position(u))
+            .and_then(|&u| app.world.units().unit_position(u))
             .ok_or("the human has no unit")
     }
 }

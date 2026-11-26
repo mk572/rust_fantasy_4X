@@ -4,10 +4,10 @@
 //! Tests: in battle/tests.rs (`the_winners_survivors_gain_experience_and_fame_for_four_kills` and the tests after it).
 
 use super::Battle;
-use crate::game::{Event, Game};
+use crate::world::{Event, World};
 pub use f4x_battle::battle::spoils::Spoils;
 
-impl Game {
+impl World {
     /// Give out what [`Battle::spoils`] worked out. `survivors` are the winner's units
     /// still on their feet.
     pub(super) fn give_spoils(

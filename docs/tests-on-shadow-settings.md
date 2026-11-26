@@ -183,7 +183,7 @@ number used as the input of a scenario (no shadow setting); read each row's asse
 | `the_hoard_can_hold_a_spell_book_a_retort_or_a_spell` | 175 | `assert!( matches!( g.content.rules.spells.get(spell).realm.num(), 3 / 5 ), );` |
 | `the_limits_of_six_retorts_and_thirteen_books_decide_between_a_book_and_a_retort` | 909 | `assert_eq!(magic.view().retorts().len(), 6);` |
 
-## `crates/f4x-core/src/game/access.rs`
+## `crates/f4x-core/src/world/access.rs`
 
 | Test | Line | First assert with a number |
 |---|---|---|
@@ -191,20 +191,20 @@ number used as the input of a scenario (no shadow setting); read each row's asse
 | `a_city_is_read_back_as_it_was_set_up` | 376 | `assert_eq!(g.city_population(city).figures, 4);` |
 | `buildings_are_put_in_a_city_and_taken_out_in_build_order` | 405 | `assert_eq!(built.len(), before.len() + 2, );` |
 
-## `crates/f4x-core/src/game/save/tests.rs`
+## `crates/f4x-core/src/world/save/tests.rs`
 
 | Test | Line | First assert with a number |
 |---|---|---|
 | `an_older_save_with_a_player_for_each_neutral_city_is_read_as_one_player_for_each_race` | 895 | `assert!(races.len() >= 2, );` |
 | `every_setting_survives_a_save` | 496 | `assert_eq!( back.content().settings.spell_library.arcane_candidate_cap, 4 );` |
 
-## `crates/f4x-core/src/game/view.rs`
+## `crates/f4x-core/src/world/view.rs`
 
 | Test | Line | First assert with a number |
 |---|---|---|
 | `the_game_answers_what_a_wizard_sees_and_has` | 268 | `assert_eq!( around, vec![Sighting { owner: P1, pos: at(11, 10) }] );` |
 
-## `crates/f4x-core/src/hero/game.rs`
+## `crates/f4x-core/src/hero/world.rs`
 
 | Test | Line | First assert with a number |
 |---|---|---|
@@ -362,7 +362,7 @@ number used as the input of a scenario (no shadow setting); read each row's asse
 |---|---|---|
 | `a_famous_wizard_starts_with_fame_and_every_wizard_with_a_library` | 56 | `assert_eq!(w.fame(), 10);` |
 
-## `crates/f4x-core/src/wizard/magic_game/tests.rs`
+## `crates/f4x-core/src/wizard/magic_world/tests.rs`
 
 | Test | Line | First assert with a number |
 |---|---|---|
@@ -395,7 +395,7 @@ number used as the input of a scenario (no shadow setting); read each row's asse
 | `ten_books_still_choose_nine_commons_and_nothing_else` | 580 | `assert_eq!( b.spell_choices_of(lib, realm_id(3 ), Rarity::Common), 9 );` |
 | `the_myrran_and_alchemy_options_change_what_the_retorts_cost_in_a_game` | 175 | `assert_ne!(myrran_cost, 2, );` |
 
-## `crates/f4x-core/src/world_event/game/tests.rs`
+## `crates/f4x-core/src/world_event/world/tests.rs`
 
 | Test | Line | First assert with a number |
 |---|---|---|

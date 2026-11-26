@@ -174,24 +174,24 @@ mod tests {
 
     #[test]
     fn a_new_wizard_with_one_city_is_building_up() -> Result<(), Box<dyn std::error::Error>> {
-        let g = fresh_game()?;
-        assert_eq!(phase(&PlayerView::new(&g, P1)), Phase::Build);
+        let w = fresh_game()?;
+        assert_eq!(phase(&PlayerView::new(&w, P1)), Phase::Build);
         Ok(())
     }
 
     #[test]
     fn a_new_wizard_with_room_to_settle_leans_wide() -> Result<(), Box<dyn std::error::Error>> {
-        let g = fresh_game()?;
-        let w = width(&PlayerView::new(&g, P1), true);
-        assert!(w > 0.5, "build phase and room: {w}");
-        assert!((0.0..=1.0).contains(&w));
+        let w = fresh_game()?;
+        let value = width(&PlayerView::new(&w, P1), true);
+        assert!(value > 0.5, "build phase and room: {value}");
+        assert!((0.0..=1.0).contains(&value));
         Ok(())
     }
 
     #[test]
     fn a_wizard_with_no_site_left_leans_less_wide() -> Result<(), Box<dyn std::error::Error>> {
-        let g = fresh_game()?;
-        let view = PlayerView::new(&g, P1);
+        let w = fresh_game()?;
+        let view = PlayerView::new(&w, P1);
         assert!(width(&view, false) < width(&view, true));
         Ok(())
     }
@@ -199,9 +199,9 @@ mod tests {
     #[test]
     fn a_wizard_about_to_win_with_the_spell_of_mastery_leans_tall(
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let mut g = fresh_game()?;
-        let before = width(&PlayerView::new(&g, P1), true);
-        let mastery = g
+        let mut w = fresh_game()?;
+        let before = width(&PlayerView::new(&w, P1), true);
+        let mastery = w
             .content()
             .rules
             .spells
@@ -209,26 +209,26 @@ mod tests {
             .find(|(_, d)| kind(d) == Kind::Mastery)
             .map(|(id, _)| id)
             .ok_or("a spell of mastery")?;
-        g.cheat_learn_spell(P1, mastery);
-        assert!(width(&PlayerView::new(&g, P1), true) < before);
+        w.cheat_learn_spell(P1, mastery);
+        assert!(width(&PlayerView::new(&w, P1), true) < before);
         Ok(())
     }
 
     #[test]
     fn a_late_turn_is_the_winning_phase() -> Result<(), Box<dyn std::error::Error>> {
-        let mut g = fresh_game()?;
-        g.turn = LATE_TURN;
-        assert_eq!(phase(&PlayerView::new(&g, P1)), Phase::Win);
-        g.turn = EARLY_TURN;
+        let mut w = fresh_game()?;
+        w.turn = LATE_TURN;
+        assert_eq!(phase(&PlayerView::new(&w, P1)), Phase::Win);
+        w.turn = EARLY_TURN;
         // Not enough cities, but the early turns are over: secure.
-        assert_eq!(phase(&PlayerView::new(&g, P1)), Phase::Secure);
+        assert_eq!(phase(&PlayerView::new(&w, P1)), Phase::Secure);
         Ok(())
     }
 
     #[test]
     fn the_spell_of_mastery_known_is_the_winning_phase() -> Result<(), Box<dyn std::error::Error>> {
-        let mut g = fresh_game()?;
-        let mastery = g
+        let mut w = fresh_game()?;
+        let mastery = w
             .content()
             .rules
             .spells
@@ -236,17 +236,17 @@ mod tests {
             .find(|(_, d)| kind(d) == Kind::Mastery)
             .map(|(id, _)| id)
             .ok_or("a spell of mastery")?;
-        g.cheat_learn_spell(P1, mastery);
-        assert_eq!(phase(&PlayerView::new(&g, P1)), Phase::Win);
+        w.cheat_learn_spell(P1, mastery);
+        assert_eq!(phase(&PlayerView::new(&w, P1)), Phase::Win);
         Ok(())
     }
 
     #[test]
     fn a_wizard_is_after_conquest_until_the_spell_of_mastery_is_under_way(
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let mut g = fresh_game()?;
-        assert_eq!(goal(&PlayerView::new(&g, P1)), Goal::Conquest);
-        let mastery = g
+        let mut w = fresh_game()?;
+        assert_eq!(goal(&PlayerView::new(&w, P1)), Goal::Conquest);
+        let mastery = w
             .content()
             .rules
             .spells
@@ -254,8 +254,8 @@ mod tests {
             .find(|(_, d)| kind(d) == Kind::Mastery)
             .map(|(id, _)| id)
             .ok_or("a spell of mastery")?;
-        g.cheat_learn_spell(P1, mastery);
-        assert_eq!(goal(&PlayerView::new(&g, P1)), Goal::Mastery);
+        w.cheat_learn_spell(P1, mastery);
+        assert_eq!(goal(&PlayerView::new(&w, P1)), Goal::Mastery);
         Ok(())
     }
 }

@@ -4,8 +4,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use f4x_core::game::{Command, Event, Game};
 use f4x_core::player::PlayerId;
+use f4x_core::world::{Command, Event, World};
 use f4x_master::{Controller, Master, Phase, Refused, Seat, Status, Stopped, Until};
 use f4x_newgame::setup::{new_game, NewGame};
 
@@ -36,21 +36,21 @@ impl Recorder {
 }
 
 impl Controller for Recorder {
-    fn play(&mut self, game: &mut Game, players: &[PlayerId], events: &mut Vec<Event>) -> Status {
+    fn play(&mut self, world: &mut World, players: &[PlayerId], events: &mut Vec<Event>) -> Status {
         if self.left > 0 {
             self.left -= 1;
             return Status::Waiting;
         }
         self.left = self.waits;
-        self.log.borrow_mut().push((game.turn, players[0]));
+        self.log.borrow_mut().push((world.turn, players[0]));
         if let Some(winner) = self.defeat_by {
-            events.extend(game.cheat_defeat_player(players[0], winner));
+            events.extend(world.cheat_defeat_player(players[0], winner));
         }
         Status::Done
     }
 }
 
-fn game(wizards: u8) -> Game {
+fn game(wizards: u8) -> World {
     new_game(
         f4x_def::testdir::shipped(),
         &NewGame {
@@ -61,21 +61,21 @@ fn game(wizards: u8) -> Game {
     .expect("a new game")
 }
 
-fn seats(g: &Game, log: &Log) -> Vec<Seat<'static>> {
-    g.player_ids()
+fn seats(w: &World, log: &Log) -> Vec<Seat<'static>> {
+    w.player_ids()
         .into_iter()
-        .filter(|&p| !g.is_neutral_player(p))
+        .filter(|&p| !w.is_neutral_player(p))
         .map(|p| Recorder::seat(log, p, 0))
         .collect()
 }
 
 #[test]
 fn each_round_every_seat_plays_once_in_order() {
-    let mut g = game(3);
+    let mut w = game(3);
     let log: Log = Log::default();
-    let mut m = Master::new(seats(&g, &log));
-    let start = g.turn;
-    m.run(&mut g, Until::Rounds(3));
+    let mut m = Master::new(seats(&w, &log));
+    let start = w.turn;
+    m.run(&mut w, Until::Rounds(3));
     let ids: Vec<PlayerId> = m.seats().iter().map(|s| s.players()[0]).collect();
     let played = log.borrow().clone();
     let expect: Vec<(u32, PlayerId)> = (0..3)
@@ -83,7 +83,7 @@ fn each_round_every_seat_plays_once_in_order() {
         .collect();
     assert_eq!(played, expect);
     assert_eq!(
-        g.turn,
+        w.turn,
         start + 3,
         "the round counter advances once per round"
     );
@@ -91,31 +91,31 @@ fn each_round_every_seat_plays_once_in_order() {
 
 #[test]
 fn a_waiting_controller_pauses_the_master_and_play_resumes() {
-    let mut g = game(2);
+    let mut w = game(2);
     let log: Log = Log::default();
-    let ids = g.player_ids();
+    let ids = w.player_ids();
     let human = Recorder::seat(&log, ids[0], 2);
     let ai = Recorder::seat(&log, ids[1], 0);
     let mut m = Master::new(vec![human, ai]);
     for _ in 0..2 {
-        let p = m.run(&mut g, Until::Waiting);
+        let p = m.run(&mut w, Until::Waiting);
         assert_eq!(p.stopped, Stopped::Waiting(0));
         assert!(log.borrow().is_empty(), "the human has not finished");
     }
-    let p = m.run(&mut g, Until::Rounds(1));
+    let p = m.run(&mut w, Until::Rounds(1));
     assert_eq!(p.stopped, Stopped::Ready, "the round ended");
     assert_eq!(log.borrow().len(), 2, "the human and then the AI played");
 }
 
 #[test]
 fn only_the_acting_player_may_command() {
-    let mut g = game(2);
+    let mut w = game(2);
     let log: Log = Log::default();
-    let ids = g.player_ids();
-    let mut m = Master::new(seats(&g, &log));
+    let ids = w.player_ids();
+    let mut m = Master::new(seats(&w, &log));
     assert_eq!(
         m.apply(
-            &mut g,
+            &mut w,
             ids[0],
             Command::SetTaxRate {
                 player: ids[0],
@@ -126,12 +126,12 @@ fn only_the_acting_player_may_command() {
     );
     // Step to the first seat's turn.
     while m.active_seat().is_none() {
-        m.step(&mut g);
+        m.step(&mut w);
     }
     assert_eq!(m.active_player(), Some(ids[0]));
     assert!(m
         .apply(
-            &mut g,
+            &mut w,
             ids[0],
             Command::SetTaxRate {
                 player: ids[0],
@@ -141,7 +141,7 @@ fn only_the_acting_player_may_command() {
         .is_ok());
     assert_eq!(
         m.apply(
-            &mut g,
+            &mut w,
             ids[1],
             Command::SetTaxRate {
                 player: ids[1],
@@ -155,7 +155,7 @@ fn only_the_acting_player_may_command() {
     );
     assert_eq!(
         m.apply(
-            &mut g,
+            &mut w,
             ids[0],
             Command::SetTaxRate {
                 player: ids[1],
@@ -168,17 +168,17 @@ fn only_the_acting_player_may_command() {
         })
     );
     assert_eq!(
-        m.apply(&mut g, ids[0], Command::EndTurn),
+        m.apply(&mut w, ids[0], Command::EndTurn),
         Err(Refused::UseLifecycle)
     );
 }
 
 #[test]
 fn a_defeated_player_gets_no_further_turn() {
-    let mut g = game(3);
+    let mut w = game(3);
     let log: Log = Log::default();
-    let ids: Vec<PlayerId> = seats(&g, &log).iter().map(|s| s.players()[0]).collect();
-    let mut seats = seats(&g, &log);
+    let ids: Vec<PlayerId> = seats(&w, &log).iter().map(|s| s.players()[0]).collect();
+    let mut seats = seats(&w, &log);
     // The second wizard is beaten on its first turn.
     seats[1] = Seat::new(
         vec![ids[1]],
@@ -190,8 +190,8 @@ fn a_defeated_player_gets_no_further_turn() {
         }),
     );
     let mut m = Master::new(seats);
-    let start = g.turn;
-    m.run(&mut g, Until::Rounds(3));
+    let start = w.turn;
+    m.run(&mut w, Until::Rounds(3));
     let by_second = log.borrow().iter().filter(|&&(_, p)| p == ids[1]).count();
     assert_eq!(by_second, 1, "it played only until it was beaten");
     assert!(log
@@ -208,33 +208,33 @@ fn a_game_resumes_from_a_saved_state_without_repeating_a_step() {
     a.run(&mut straight, Until::Rounds(3));
 
     let log2: Log = Log::default();
-    let mut g = game(2);
-    let mut b = Master::new(seats(&g, &log2));
-    b.run(&mut g, Until::Rounds(1));
+    let mut w = game(2);
+    let mut b = Master::new(seats(&w, &log2));
+    b.run(&mut w, Until::Rounds(1));
     // Stop in the middle of round two, as a save would.
     for _ in 0..3 {
-        b.step(&mut g);
+        b.step(&mut w);
     }
     let saved = b.state();
     assert!(matches!(
         saved.phase,
         Phase::TurnStart(_) | Phase::Acting(_) | Phase::TurnEnd(_)
     ));
-    let mut c = Master::resume(seats(&g, &log2), saved);
-    c.run(&mut g, Until::Rounds(2));
+    let mut c = Master::resume(seats(&w, &log2), saved);
+    c.run(&mut w, Until::Rounds(2));
     assert_eq!(
         *log.borrow(),
         *log2.borrow(),
         "the same turns, none twice or missed"
     );
-    assert_eq!(g.turn, straight.turn);
-    assert_eq!(g.next_u64(), straight.next_u64(), "the same random draws");
+    assert_eq!(w.turn, straight.turn);
+    assert_eq!(w.next_u64(), straight.next_u64(), "the same random draws");
 }
 
 /// A game written out as a save and read back.
-fn saved_and_loaded(g: &Game) -> Game {
-    let text = g.snapshot().to_text().expect("a save");
-    f4x_core::game::save::Snapshot::from_text(&text)
+fn saved_and_loaded(w: &World) -> World {
+    let text = w.snapshot().to_text().expect("a save");
+    f4x_core::world::save::Snapshot::from_text(&text)
         .and_then(|s| s.restore(f4x_def::testdir::shipped().clone()))
         .expect("the save loads")
 }
@@ -246,14 +246,14 @@ fn a_game_saved_at_the_start_of_a_round_plays_on_as_the_game_that_went_on() {
     Master::new(seats(&straight, &log)).run(&mut straight, Until::Rounds(4));
 
     let log2: Log = Log::default();
-    let mut g = game(3);
-    let mut m = Master::new(seats(&g, &log2)).checkpoints();
+    let mut w = game(3);
+    let mut m = Master::new(seats(&w, &log2)).checkpoints();
     // Round one is played; the master stops before round two begins, and the game is saved.
-    let progress = m.run(&mut g, Until::Rounds(3));
+    let progress = m.run(&mut w, Until::Rounds(3));
     assert_eq!(progress.stopped, Stopped::RoundStart);
     assert_eq!(m.state().phase, Phase::RoundStart);
-    let mut loaded = saved_and_loaded(&g);
-    assert_eq!(loaded.turn, g.turn, "the round has not begun yet");
+    let mut loaded = saved_and_loaded(&w);
+    assert_eq!(loaded.turn, w.turn, "the round has not begun yet");
 
     let mut resumed = Master::from_game(seats(&loaded, &log2), &loaded).expect("the flow fits");
     assert_eq!(resumed.state().phase, Phase::RoundStart);
@@ -274,19 +274,19 @@ fn a_game_saved_at_the_start_of_a_round_plays_on_as_the_game_that_went_on() {
 #[test]
 fn the_game_knows_where_it_is_in_its_round_while_a_seat_waits() {
     let log: Log = Log::default();
-    let mut g = game(2);
-    let ids: Vec<PlayerId> = g
+    let mut w = game(2);
+    let ids: Vec<PlayerId> = w
         .player_ids()
         .into_iter()
-        .filter(|&p| !g.is_neutral_player(p))
+        .filter(|&p| !w.is_neutral_player(p))
         .collect();
     let seats = vec![
         Recorder::seat(&log, ids[0], 1),
         Recorder::seat(&log, ids[1], 0),
     ];
     let mut m = Master::new(seats);
-    assert_eq!(m.run(&mut g, Until::Waiting).stopped, Stopped::Waiting(0));
-    let loaded = saved_and_loaded(&g);
+    assert_eq!(m.run(&mut w, Until::Waiting).stopped, Stopped::Waiting(0));
+    let loaded = saved_and_loaded(&w);
     let again = Master::from_game(
         vec![
             Recorder::seat(&log, ids[0], 1),
@@ -301,30 +301,30 @@ fn the_game_knows_where_it_is_in_its_round_while_a_seat_waits() {
 #[test]
 fn a_game_without_a_flow_is_resumed_on_the_first_seats_turn() {
     let log: Log = Log::default();
-    let g = game(2);
-    assert_eq!(g.flow(), None);
-    let m = Master::from_game(seats(&g, &log), &g).expect("no flow is fine");
+    let w = game(2);
+    assert_eq!(w.flow(), None);
+    let m = Master::from_game(seats(&w, &log), &w).expect("no flow is fine");
     assert_eq!(m.state().phase, Phase::Acting(0));
 }
 
 #[test]
 fn a_flow_for_another_table_is_refused() {
     let log: Log = Log::default();
-    let mut g = game(2);
-    g.set_flow(Some(
+    let mut w = game(2);
+    w.set_flow(Some(
         f4x_master::State {
             phase: Phase::Acting(7),
         }
         .to_text(),
     ));
-    let err = Master::from_game(seats(&g, &log), &g).err();
+    let err = Master::from_game(seats(&w, &log), &w).err();
     assert!(matches!(
         err,
         Some(f4x_master::FlowError::NoSuchSeat { seat: 7, .. })
     ));
-    g.set_flow(Some("garbage".into()));
+    w.set_flow(Some("garbage".into()));
     assert!(matches!(
-        Master::from_game(seats(&g, &log), &g).err(),
+        Master::from_game(seats(&w, &log), &w).err(),
         Some(f4x_master::FlowError::Unreadable(_))
     ));
 }
@@ -335,11 +335,11 @@ struct Listener {
 }
 
 impl Controller for Listener {
-    fn play(&mut self, _: &mut Game, _: &[PlayerId], _: &mut Vec<Event>) -> Status {
+    fn play(&mut self, _: &mut World, _: &[PlayerId], _: &mut Vec<Event>) -> Status {
         Status::Done
     }
 
-    fn notice(&mut self, _: &Game, events: &[Event]) {
+    fn notice(&mut self, _: &World, events: &[Event]) {
         *self.told.borrow_mut() += events.len();
     }
 }
@@ -347,24 +347,24 @@ impl Controller for Listener {
 #[test]
 fn every_seat_is_told_the_events_of_each_step_whoever_made_them() {
     let g0 = game(2);
-    let mut g = g0;
+    let mut w = g0;
     let told: Vec<Rc<RefCell<usize>>> = (0..2).map(|_| Rc::default()).collect();
-    let seats: Vec<Seat> = g
+    let seats: Vec<Seat> = w
         .player_ids()
         .into_iter()
-        .filter(|&p| !g.is_neutral_player(p))
+        .filter(|&p| !w.is_neutral_player(p))
         .zip(&told)
         .map(|(p, t)| Seat::new(vec![p], Box::new(Listener { told: t.clone() })))
         .collect();
     let mut master = Master::new(seats);
-    let made = master.run(&mut g, Until::Rounds(2)).events.len();
+    let made = master.run(&mut w, Until::Rounds(2)).events.len();
     assert!(made > 0, "two rounds make events");
     for t in &told {
         assert_eq!(*t.borrow(), made, "each seat hears all of them");
     }
     // A host that changes the game itself tells the seats what its commands did.
     master.tell(
-        &g,
+        &w,
         &[Event::BattleEnded {
             winner: PlayerId(0),
             loser: PlayerId(1),

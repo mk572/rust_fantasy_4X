@@ -15,8 +15,8 @@ use crate::wizard::entity::{CapitalRace, Wizard};
 use crate::wizard::sheet::WizardMut;
 use f4x_def::half_int::HalfInt;
 
-use crate::game::{Event, Game};
 use crate::rules::RaceId;
+use crate::world::{Event, World};
 
 /// Why a fortress operation was refused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -187,7 +187,7 @@ pub(crate) fn fortress_falls(wizard: &mut WizardMut) {
     wizard.put::<SummonAt>(None);
 }
 
-/// How a wizard fell, which decides what the winner takes ([`Game::take_spoils`]).
+/// How a wizard fell, which decides what the winner takes ([`World::take_spoils`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Fall {
     /// The fortress fell and the wizard may come back: fame, half the mana, spells.
@@ -231,7 +231,7 @@ impl Economy<'_> {
         if self.city_owner(city) != Some(player) {
             return Err(FortressError::NotYourCity);
         }
-        self.world
+        self.ecs
             .get::<&Position>(city)
             .map(|p| *p)
             .map_err(|_| FortressError::NotYourCity)
@@ -245,7 +245,7 @@ impl Economy<'_> {
     }
 }
 
-impl Game {
+impl World {
     /// Where summoned creatures, hired heroes and mercenaries appear: a wizard's summoning
     /// circle, else the fortress; a player without a wizard (a neutral race) has its seat, the
     /// biggest city.
@@ -287,7 +287,7 @@ impl Game {
                     std::cmp::Reverse(self.units().serial_of(e)),
                 )
             })
-            .and_then(|(e, ..)| self.world.get::<&Position>(e).ok().map(|p| *p))
+            .and_then(|(e, ..)| self.ecs.get::<&Position>(e).ok().map(|p| *p))
     }
 
     /// Found the wizard's first city and put the fortress and summoning circle in it.
@@ -352,7 +352,7 @@ impl Game {
         city: hecs::Entity,
     ) -> Result<Vec<Event>, FortressError> {
         let pos = self.economy().own_city_pos(player, city)?;
-        let race = self.world.get::<&CityRace>(city).ok().map(|r| r.0);
+        let race = self.ecs.get::<&CityRace>(city).ok().map(|r| r.0);
         match self.wizard_mut(player) {
             Some(mut w) => return_to(&mut w, pos)?,
             None => return Err(FortressError::WrongState),
@@ -373,7 +373,7 @@ impl Game {
             return Vec::new();
         }
         let was_fortress = self.economy().is_fortress_city(city);
-        let pos = self.world.get::<&Position>(city).map(|p| *p).ok();
+        let pos = self.ecs.get::<&Position>(city).map(|p| *p).ok();
         self.set_owner(city, winner);
         // Whoever takes a city ends the old owner's enchantments on it (`Change_City_Ownership`).
         for (spell, caster) in self.spells().city_enchantments(city) {
@@ -406,7 +406,7 @@ impl Game {
     /// Everything the winner takes from a wizard who falls, in one place (`Banish_Wizard` and
     /// `Resolve_Wizard_Conquest`): 5 fame (not again from a wizard who gives up after a
     /// banishment, which paid it), half the loser's mana, half their gold when they are
-    /// defeated, and up to two of their spells ([`Game::conquest_spells`]). The mana and the gold
+    /// defeated, and up to two of their spells ([`World::conquest_spells`]). The mana and the gold
     /// are only taken when the setting `defeat_loot` is on; off, they are lost with the wizard.
     fn take_spoils(&mut self, loser: PlayerId, winner: PlayerId, fall: Fall) -> Vec<Event> {
         if fall != Fall::Resigned {
@@ -563,11 +563,11 @@ impl Game {
     /// normal units garrisoned there stay with it, the heroes and conjured creatures are
     /// dismissed.
     pub(crate) fn make_city_neutral(&mut self, city: hecs::Entity, owner: PlayerId) {
-        let Some(pos) = self.world.get::<&Position>(city).ok().map(|p| *p) else {
+        let Some(pos) = self.ecs.get::<&Position>(city).ok().map(|p| *p) else {
             return;
         };
         let race = self
-            .world
+            .ecs
             .get::<&CityRace>(city)
             .map_or(crate::rules::RaceId::new(0), |r| r.0);
         let neutral = self.race_player(race);
@@ -609,7 +609,7 @@ impl Game {
     }
 
     /// A city that the rules have decided is gone (an outpost that is lost, a city taken with no
-    /// citizens, one a monster horde razes): [`Game::destroy_city`], and what to do when it says
+    /// citizens, one a monster horde razes): [`World::destroy_city`], and what to do when it says
     /// no. A wizard's fortress city survives with a citizen, so no event. A city that has no owner
     /// or no square cannot be destroyed by the book and is removed all the same, so that none is
     /// left standing as a ghost; the event is there when it had a square to name.
@@ -618,7 +618,7 @@ impl Game {
             Ok(events) => events,
             Err(FortressError::CannotDestroyFortress) => Vec::new(),
             Err(_) => {
-                let pos = self.world.get::<&Position>(city).map(|p| *p).ok();
+                let pos = self.ecs.get::<&Position>(city).map(|p| *p).ok();
                 self.despawn_with_spells(city);
                 pos.map(|pos| Event::CityDestroyed { pos })
                     .into_iter()
@@ -634,7 +634,7 @@ impl Game {
             .city_owner(city)
             .ok_or(FortressError::NotYourCity)?;
         if self.economy().is_fortress_city(city) {
-            if let Ok(mut pop) = self.world.get::<&mut Population>(city) {
+            if let Ok(mut pop) = self.ecs.get::<&mut Population>(city) {
                 pop.figures = pop.figures.max(1);
             }
             return Err(FortressError::CannotDestroyFortress);
@@ -642,7 +642,7 @@ impl Game {
         // A city with no square cannot be reported or taken off the map by its square: refused
         // here, so no event ever names a made-up square.
         let pos = self
-            .world
+            .ecs
             .get::<&Position>(city)
             .map(|p| *p)
             .map_err(|_| FortressError::NotYourCity)?;

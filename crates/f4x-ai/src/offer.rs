@@ -2,12 +2,12 @@
 //! merchant only calls on a human wizard). The rules are the original's `AI_Accept_Hero` and
 //! `AI_Accept_Mercenaries`, in `f4x_core::player::offer`.
 
-use f4x_core::game::{Command, Event, Game};
 use f4x_core::item::armory::ItemSpot;
 use f4x_core::item::Item;
 use f4x_core::player::offer::{ai_accepts_hero, ai_accepts_item, ai_accepts_mercenaries, Offer};
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
+use f4x_core::world::{Command, Event, World};
 use f4x_def::half_int::HalfInt;
 
 use crate::Ai;
@@ -18,8 +18,8 @@ const FAR_RESERVE: i32 = 120;
 /// What an item is worth to this hero, in gold: its value, half as much again when it suits the
 /// hero's trade (a caster likes spell skill and charges, a fighter attack and defence) and half
 /// when it does not.
-pub(crate) fn use_value(game: &Game, hero: hecs::Entity, item: &Item) -> i32 {
-    let caster = game.units().hero_mana(hero) > 0;
+pub(crate) fn use_value(world: &World, hero: hecs::Entity, item: &Item) -> i32 {
+    let caster = world.units().hero_mana(hero) > 0;
     let b = &item.bonus;
     let magic = b.spell_skill + b.spell_save + i32::from(item.charges.is_some());
     let melee = b.attack + b.to_hit + b.defense + b.resistance;
@@ -44,35 +44,36 @@ const KEEP_UNUSABLE: usize = 2;
 /// up for one worth at least [`BETTER_PCT`] percent of it (the old one goes back to the vault).
 /// Moving an item to a hero away from the fortress costs mana (the item screen's 20), which the
 /// wizard pays when it has [`FAR_RESERVE`] to spare.
-pub fn equip(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
+pub fn equip(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
     use f4x_core::item::armory::ItemWorld;
     let (heroes, fortress) = {
-        let view = PlayerView::new(game, ai.player);
+        let view = PlayerView::new(world, ai.player);
         (view.my_heroes(), view.fortress())
     };
     for hero in heroes {
         let mut far = false;
         let slots = {
-            let view = PlayerView::new(game, ai.player);
+            let view = PlayerView::new(world, ai.player);
             if view.unit_position(hero) != fortress {
                 far = true;
                 if view.treasury().mana.floor() < FAR_RESERVE {
                     continue;
                 }
             }
-            game.items()
+            world
+                .items()
                 .hero_slots(ai.player, hero)
                 .map_or_else(Vec::new, |s| s.into_iter().enumerate().collect::<Vec<_>>())
         };
         for (slot, kind) in slots {
             let from = {
-                let carried = game
+                let carried = world
                     .items()
                     .carried(hero)
                     .into_iter()
                     .find(|(s, _)| usize::from(*s) == slot)
-                    .map(|(_, item)| use_value(game, hero, &item));
-                let armory = game.items().armory(ai.player);
+                    .map(|(_, item)| use_value(world, hero, &item));
+                let armory = world.items().armory(ai.player);
                 let vault = armory
                     .vault
                     .iter()
@@ -87,14 +88,14 @@ pub fn equip(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 vault
                     .chain(awards)
                     .filter(|(_, item)| kind.fits(item.kind))
-                    .map(|(spot, item)| (spot, use_value(game, hero, item)))
+                    .map(|(spot, item)| (spot, use_value(world, hero, item)))
                     .max_by_key(|&(_, value)| value)
                     .filter(|&(_, value)| carried.is_none_or(|c| value * 100 >= c * BETTER_PCT))
                     .map(|(spot, _)| spot)
             };
             if let Some(from) = from {
                 ai.order(
-                    game,
+                    world,
                     Command::MoveItem {
                         player: ai.player,
                         from,
@@ -106,26 +107,26 @@ pub fn equip(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             }
         }
     }
-    scrap(ai, game, events);
+    scrap(ai, world, events);
 }
 
 /// Break up the items that no hero of the wizard could carry, the cheapest first, once more than
 /// [`KEEP_UNUSABLE`] of them lie in the armory (a hero hired later might use them, and a
 /// neighbour might buy them: `crate::trade`), for mana.
-fn scrap(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
+fn scrap(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
     use f4x_core::item::armory::{ItemWorld, Spot};
     loop {
         let doomed = {
-            let heroes = PlayerView::new(game, ai.player).my_heroes();
+            let heroes = PlayerView::new(world, ai.player).my_heroes();
             if heroes.is_empty() {
                 return;
             }
             let kinds: Vec<_> = heroes
                 .iter()
-                .filter_map(|&h| game.items().hero_slots(ai.player, h))
+                .filter_map(|&h| world.items().hero_slots(ai.player, h))
                 .flatten()
                 .collect();
-            let armory = game.items().armory(ai.player);
+            let armory = world.items().armory(ai.player);
             let vault = armory
                 .vault
                 .iter()
@@ -149,7 +150,7 @@ fn scrap(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         };
         if !ai
             .send(
-                game,
+                world,
                 Command::ScrapItem {
                     player: ai.player,
                     from: doomed,
@@ -166,10 +167,10 @@ fn scrap(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 /// Whether an item on offer is worth its price to the wizard: it can afford it (the price is at
 /// most half its gold), and the item is worth to it, with the heroes it has to carry it, at least
 /// [`WORTH_PCT`] percent of the price.
-fn item_wanted(game: &Game, player: PlayerId, item: &Item, price: i32, gold: HalfInt) -> bool {
-    let heroes = PlayerView::new(game, player).my_heroes().len();
+fn item_wanted(world: &World, player: PlayerId, item: &Item, price: i32, gold: HalfInt) -> bool {
+    let heroes = PlayerView::new(world, player).my_heroes().len();
     ai_accepts_item(price, gold, heroes)
-        && f4x_core::diplomacy::trade::item_worth(game, player, item) * MARKUP * 100
+        && f4x_core::diplomacy::trade::item_worth(world, player, item) * MARKUP * 100
             >= price * WORTH_PCT
 }
 
@@ -181,11 +182,11 @@ const MARKUP: i32 = 3;
 
 /// Answer every offer waiting: hire or decline. The last offer goes first, so that an answer
 /// does not move the ones still to be given.
-pub fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
-    let count = PlayerView::new(game, ai.player).offers().len();
+pub fn answer(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
+    let count = PlayerView::new(world, ai.player).offers().len();
     for index in (0..count).rev() {
         let (offer, gold, turn) = {
-            let view = PlayerView::new(game, ai.player);
+            let view = PlayerView::new(world, ai.player);
             let Some(offer) = view.offers().get(index).cloned() else {
                 continue;
             };
@@ -196,10 +197,10 @@ pub fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             // A summoned hero is already paid for in mana.
             Offer::Summoned { .. } => true,
             Offer::Mercenaries { price, .. } => {
-                ai_accepts_mercenaries(&game.content().rules.config.offer, turn, *price, gold)
+                ai_accepts_mercenaries(&world.content().rules.config.offer, turn, *price, gold)
             }
             Offer::Item { item, price } | Offer::Resale { item, price, .. } => {
-                item_wanted(game, ai.player, item, *price, gold)
+                item_wanted(world, ai.player, item, *price, gold)
             }
         };
         let command = if accept {
@@ -207,7 +208,7 @@ pub fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 player: ai.player,
                 index,
                 name: None,
-                at: crate::wizardry::best_circle(&PlayerView::new(game, ai.player)),
+                at: crate::wizardry::best_circle(&PlayerView::new(world, ai.player)),
             }
         } else {
             Command::RejectOffer {
@@ -217,9 +218,9 @@ pub fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         };
         // An offer it cannot take (no room for the hero at the summoning circle, say) is
         // declined, and does not wait to be refused again each turn.
-        if !ai.send(game, command, events).is_ok() && accept {
+        if !ai.send(world, command, events).is_ok() && accept {
             ai.order(
-                game,
+                world,
                 Command::RejectOffer {
                     player: ai.player,
                     index,
@@ -232,16 +233,16 @@ pub fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 
 /// The computer wizards answer the items resold to them now, one after the other
 /// round the cycle until the item is taken or nobody is left. Returns the events.
-pub fn answer_resales(game: &mut Game) -> Vec<Event> {
+pub fn answer_resales(world: &mut World) -> Vec<Event> {
     let mut events = Vec::new();
     // Every refusal passes the item on, so the cycle is as long as the number of wizards.
-    for _ in 0..game.player_ids().len() {
-        let waiting: Vec<_> = game
+    for _ in 0..world.player_ids().len() {
+        let waiting: Vec<_> = world
             .player_ids()
             .into_iter()
-            .filter(|&p| Some(p) != game.human())
+            .filter(|&p| Some(p) != world.human())
             .filter(|&p| {
-                PlayerView::new(game, p)
+                PlayerView::new(world, p)
                     .offers()
                     .iter()
                     .any(|o| matches!(o, Offer::Resale { .. }))
@@ -253,7 +254,7 @@ pub fn answer_resales(game: &mut Game) -> Vec<Event> {
         for player in waiting {
             let ai = Ai::new(player);
             let (index, price, item, gold) = {
-                let view = PlayerView::new(game, player);
+                let view = PlayerView::new(world, player);
                 let Some(index) = view
                     .offers()
                     .iter()
@@ -266,7 +267,7 @@ pub fn answer_resales(game: &mut Game) -> Vec<Event> {
                 };
                 (index, price, item, view.treasury().gold)
             };
-            let command = if item_wanted(game, player, &item, price, gold) {
+            let command = if item_wanted(world, player, &item, price, gold) {
                 Command::AcceptOffer {
                     player,
                     index,
@@ -276,7 +277,7 @@ pub fn answer_resales(game: &mut Game) -> Vec<Event> {
             } else {
                 Command::RejectOffer { player, index }
             };
-            ai.order(game, command, &mut events);
+            ai.order(world, command, &mut events);
         }
     }
     events
@@ -292,12 +293,12 @@ mod tests {
 
     const P1: PlayerId = PlayerId(1);
 
-    fn game() -> Result<Game, Box<dyn std::error::Error>> {
+    fn game() -> Result<World, Box<dyn std::error::Error>> {
         crate::testworld::fresh_game()
     }
 
-    fn set_gold(g: &mut Game, player: PlayerId, gold: i32) -> TestResult {
-        g.treasury_mut(player)
+    fn set_gold(w: &mut World, player: PlayerId, gold: i32) -> TestResult {
+        w.treasury_mut(player)
             .ok_or("the player has a treasury")?
             .gold = f4x_def::half_int::HalfInt::from_int(gold);
         Ok(())
@@ -305,10 +306,10 @@ mod tests {
 
     /// Force a hero offer. A hero is only offered to a wizard whose fame exceeds its cost's step
     /// over 100, and the pick can come up empty, so it tries again.
-    fn offer_hero(g: &mut Game) {
-        g.set_fame(P1, 100);
+    fn offer_hero(w: &mut World) {
+        w.set_fame(P1, 100);
         assert!(
-            (0..500).any(|_| g.cheat_offer(P1, OfferKind::Hero).is_some()),
+            (0..500).any(|_| w.cheat_offer(P1, OfferKind::Hero).is_some()),
             "no hero was ever offered"
         );
     }
@@ -316,37 +317,37 @@ mod tests {
     #[test]
     fn a_computer_wizard_hires_the_hero_it_can_pay_for_and_turns_down_one_it_cannot() -> TestResult
     {
-        let mut g = game()?;
+        let mut w = game()?;
         let ai = Ai::new(P1);
-        set_gold(&mut g, P1, 5000)?;
-        offer_hero(&mut g);
+        set_gold(&mut w, P1, 5000)?;
+        offer_hero(&mut w);
         let mut events = Vec::new();
-        answer(&ai, &mut g, &mut events);
+        answer(&ai, &mut w, &mut events);
         assert!(
             events.iter().any(|e| matches!(e, Event::HeroJoined { .. })),
             "{events:?}"
         );
-        assert!(g.offers(P1).is_empty());
+        assert!(w.offers(P1).is_empty());
         // With nothing to pay with, the offer is turned down, not left lying.
-        set_gold(&mut g, P1, 0)?;
-        offer_hero(&mut g);
+        set_gold(&mut w, P1, 0)?;
+        offer_hero(&mut w);
         let mut events = Vec::new();
-        answer(&ai, &mut g, &mut events);
+        answer(&ai, &mut w, &mut events);
         assert!(!events.iter().any(|e| matches!(e, Event::HeroJoined { .. })));
-        assert!(g.offers(P1).is_empty());
+        assert!(w.offers(P1).is_empty());
         Ok(())
     }
 
     #[test]
     fn mercenaries_wait_for_the_first_mercenary_turn() -> TestResult {
-        let mut g = game()?;
+        let mut w = game()?;
         let ai = Ai::new(P1);
-        set_gold(&mut g, P1, 100_000)?;
-        let first = g.content().rules.config.offer.ai_first_turn;
-        g.turn = first - 10;
+        set_gold(&mut w, P1, 100_000)?;
+        let first = w.content().rules.config.offer.ai_first_turn;
+        w.turn = first - 10;
         let mut got = 0;
         for _ in 0..50 {
-            if g.cheat_offer(P1, OfferKind::Mercenaries).is_some() {
+            if w.cheat_offer(P1, OfferKind::Mercenaries).is_some() {
                 got += 1;
             }
         }
@@ -355,15 +356,15 @@ mod tests {
             "the wizard needs a unit on a plane to be offered any"
         );
         let mut events = Vec::new();
-        answer(&ai, &mut g, &mut events);
+        answer(&ai, &mut w, &mut events);
         assert!(!events
             .iter()
             .any(|e| matches!(e, Event::MercenariesHired { .. })));
-        assert!(g.offers(P1).is_empty());
-        g.turn = first;
-        g.cheat_offer(P1, OfferKind::Mercenaries);
+        assert!(w.offers(P1).is_empty());
+        w.turn = first;
+        w.cheat_offer(P1, OfferKind::Mercenaries);
         let mut events = Vec::new();
-        answer(&ai, &mut g, &mut events);
+        answer(&ai, &mut w, &mut events);
         assert!(events
             .iter()
             .any(|e| matches!(e, Event::MercenariesHired { .. })));
@@ -373,31 +374,31 @@ mod tests {
     #[test]
     fn a_computer_wizard_buys_the_merchants_item_once_it_has_a_hero_and_puts_it_on_the_hero(
     ) -> TestResult {
-        let mut g = game()?;
+        let mut w = game()?;
         let ai = Ai::new(P1);
-        set_gold(&mut g, P1, 100_000)?;
+        set_gold(&mut w, P1, 100_000)?;
         // Without a hero to carry it, the item is turned down.
-        g.cheat_offer(P1, OfferKind::Item)
+        w.cheat_offer(P1, OfferKind::Item)
             .ok_or("an item is offered")?;
         let mut events = Vec::new();
-        answer(&ai, &mut g, &mut events);
-        assert!(g.offers(P1).is_empty());
-        assert!(g.items().armory(P1).items().next().is_none());
+        answer(&ai, &mut w, &mut events);
+        assert!(w.offers(P1).is_empty());
+        assert!(w.items().armory(P1).items().next().is_none());
         // With one, it is bought and the hero at the fortress takes what fits its slots.
-        offer_hero(&mut g);
-        answer(&ai, &mut g, &mut events);
-        let hero = *PlayerView::new(&g, P1)
+        offer_hero(&mut w);
+        answer(&ai, &mut w, &mut events);
+        let hero = *PlayerView::new(&w, P1)
             .my_heroes()
             .first()
             .ok_or("the wizard hired a hero")?;
         let mut equipped = false;
         for _ in 0..40 {
-            if g.cheat_offer(P1, OfferKind::Item).is_none() {
+            if w.cheat_offer(P1, OfferKind::Item).is_none() {
                 continue;
             }
-            answer(&ai, &mut g, &mut events);
-            equip(&ai, &mut g, &mut events);
-            if !g.items().carried(hero).is_empty() {
+            answer(&ai, &mut w, &mut events);
+            equip(&ai, &mut w, &mut events);
+            if !w.items().carried(hero).is_empty() {
                 equipped = true;
                 break;
             }
@@ -408,37 +409,37 @@ mod tests {
 
     #[test]
     fn a_hero_away_from_the_fortress_gets_the_item_when_the_mana_pays_the_move() -> TestResult {
-        let mut g = game()?;
+        let mut w = game()?;
         let ai = Ai::new(P1);
-        set_gold(&mut g, P1, 100_000)?;
-        let hero = g.hire_hero(P1, 1).map_err(|e| format!("{e:?}"))?;
-        let fortress = PlayerView::new(&g, P1).fortress().ok_or("a fortress")?;
+        set_gold(&mut w, P1, 100_000)?;
+        let hero = w.hire_hero(P1, 1).map_err(|e| format!("{e:?}"))?;
+        let fortress = PlayerView::new(&w, P1).fortress().ok_or("a fortress")?;
         let away = crate::testworld::at(fortress.x + 3, fortress.y);
-        g.cheat_move_unit(hero, away);
-        let item = sword(&g)?;
-        g.give_item(P1, item);
-        let mana = |g: &mut Game, m: i32| -> TestResult {
-            g.treasury_mut(P1).ok_or("a treasury")?.mana = f4x_def::half_int::HalfInt::from_int(m);
+        w.cheat_move_unit(hero, away);
+        let item = sword(&w)?;
+        w.give_item(P1, item);
+        let mana = |w: &mut World, m: i32| -> TestResult {
+            w.treasury_mut(P1).ok_or("a treasury")?.mana = f4x_def::half_int::HalfInt::from_int(m);
             Ok(())
         };
-        mana(&mut g, FAR_RESERVE - 1)?;
-        equip(&ai, &mut g, &mut Vec::new());
+        mana(&mut w, FAR_RESERVE - 1)?;
+        equip(&ai, &mut w, &mut Vec::new());
         assert!(
-            g.items().carried(hero).is_empty(),
+            w.items().carried(hero).is_empty(),
             "too little mana: it waits"
         );
-        mana(&mut g, FAR_RESERVE + 100)?;
-        equip(&ai, &mut g, &mut Vec::new());
+        mana(&mut w, FAR_RESERVE + 100)?;
+        equip(&ai, &mut w, &mut Vec::new());
         assert!(
-            !g.items().carried(hero).is_empty(),
+            !w.items().carried(hero).is_empty(),
             "the far hero takes the item"
         );
         Ok(())
     }
 
     /// A copy of a sword of the shipped content.
-    fn sword(g: &Game) -> Result<f4x_core::item::Item, &'static str> {
-        g.content()
+    fn sword(w: &World) -> Result<f4x_core::item::Item, &'static str> {
+        w.content()
             .rules
             .items
             .iter()
@@ -452,46 +453,46 @@ mod tests {
     fn a_computer_wizard_with_a_hero_and_the_gold_buys_a_resold_item_and_one_without_does_not(
     ) -> TestResult {
         use f4x_core::item::armory::Spot;
-        let mut g = game()?;
+        let mut w = game()?;
         let seller = PlayerId(0);
-        let sell = |g: &mut Game| -> Result<Vec<Event>, &'static str> {
-            let item = sword(g)?;
-            g.give_item(seller, item);
-            let mut events = g.apply(Command::SellItem {
+        let sell = |w: &mut World| -> Result<Vec<Event>, &'static str> {
+            let item = sword(w)?;
+            w.give_item(seller, item);
+            let mut events = w.apply(Command::SellItem {
                 player: seller,
                 from: Spot::Vault(0),
             });
-            events.extend(answer_resales(g));
+            events.extend(answer_resales(w));
             Ok(events)
         };
         // No hero to carry it: turned down, and the item is gone.
-        set_gold(&mut g, P1, 5000)?;
-        let events = sell(&mut g)?;
-        assert!(g.offers(P1).is_empty());
+        set_gold(&mut w, P1, 5000)?;
+        let events = sell(&mut w)?;
+        assert!(w.offers(P1).is_empty());
         assert!(!events.iter().any(|e| matches!(e, Event::ItemMade { .. })));
-        assert_eq!(g.items().armory(P1).vault.iter().flatten().count(), 0);
+        assert_eq!(w.items().armory(P1).vault.iter().flatten().count(), 0);
         // With a hero and gold it buys at the price the seller was paid.
-        offer_hero(&mut g);
+        offer_hero(&mut w);
         let mut hired = Vec::new();
-        answer(&Ai::new(P1), &mut g, &mut hired);
-        assert!(!g.units().hero_units(P1).is_empty(), "{hired:?}");
-        let gold = |g: &mut Game, player| g.treasury_mut(player).map(|t| t.gold);
-        let (buyer_before, seller_before) = (gold(&mut g, P1), gold(&mut g, seller));
-        let events = sell(&mut g)?;
+        answer(&Ai::new(P1), &mut w, &mut hired);
+        assert!(!w.units().hero_units(P1).is_empty(), "{hired:?}");
+        let gold = |w: &mut World, player| w.treasury_mut(player).map(|t| t.gold);
+        let (buyer_before, seller_before) = (gold(&mut w, P1), gold(&mut w, seller));
+        let events = sell(&mut w)?;
         assert!(
             events
                 .iter()
                 .any(|e| matches!(e, Event::ItemMade { player: P1, .. })),
             "{events:?}"
         );
-        let paid = gold(&mut g, seller).zip(seller_before).map(|(a, b)| a - b);
+        let paid = gold(&mut w, seller).zip(seller_before).map(|(a, b)| a - b);
         assert!(paid.is_some_and(|p| p > 0), "the seller was paid: {paid:?}");
         assert_eq!(
-            gold(&mut g, P1),
+            gold(&mut w, P1),
             buyer_before.zip(paid).map(|(g, p)| g - p),
             "the buyer pays what the seller was paid"
         );
-        assert_eq!(g.items().armory(P1).vault.iter().flatten().count(), 1);
+        assert_eq!(w.items().armory(P1).vault.iter().flatten().count(), 1);
         Ok(())
     }
 
@@ -510,26 +511,26 @@ mod tests {
     /// game's random stream, so the stream is moved on until the hero is the kind asked for.
     fn with_hero_of(
         kind: f4x_def::rules::HeroKind,
-    ) -> Result<(Game, Ai, hecs::Entity), Box<dyn std::error::Error>> {
+    ) -> Result<(World, Ai, hecs::Entity), Box<dyn std::error::Error>> {
         for burn in 0..200 {
-            let mut g = game()?;
+            let mut w = game()?;
             for _ in 0..burn {
-                g.roll(2);
+                w.roll(2);
             }
-            set_gold(&mut g, P1, 100_000)?;
-            offer_hero(&mut g);
+            set_gold(&mut w, P1, 100_000)?;
+            offer_hero(&mut w);
             let ai = Ai::new(P1);
-            answer(&ai, &mut g, &mut Vec::new());
-            let Some(&hero) = PlayerView::new(&g, P1).my_heroes().first() else {
+            answer(&ai, &mut w, &mut Vec::new());
+            let Some(&hero) = PlayerView::new(&w, P1).my_heroes().first() else {
                 continue;
             };
-            let of_kind = g
+            let of_kind = w
                 .units()
                 .unit_def(hero)
                 .and_then(|d| d.hero.as_ref())
                 .is_some_and(|h| h.kind == kind);
             if of_kind {
-                return Ok((g, ai, hero));
+                return Ok((w, ai, hero));
             }
         }
         Err("no hero of that kind was offered".into())
@@ -538,47 +539,47 @@ mod tests {
     #[test]
     fn a_hero_gives_up_an_item_for_one_that_suits_it_a_good_deal_better() -> TestResult {
         // A sword needs a warrior's slots; which hero is offered depends on the random stream.
-        let (mut g, ai, hero) = with_hero_of(f4x_def::rules::HeroKind::Warrior)?;
+        let (mut w, ai, hero) = with_hero_of(f4x_def::rules::HeroKind::Warrior)?;
         let (base, little, much) = (
             shipped_item(1 /* sword_of_mallana */),
             shipped_item(160 /* sword_of_cannae, as good */),
             shipped_item(163 /* the_revenge_of_orculs */),
         );
         let (base_cost, much_cost) = (base.cost, much.cost);
-        g.give_item(P1, base);
-        equip(&ai, &mut g, &mut Vec::new());
-        assert_eq!(g.items().carried(hero).len(), 1);
+        w.give_item(P1, base);
+        equip(&ai, &mut w, &mut Vec::new());
+        assert_eq!(w.items().carried(hero).len(), 1);
         // An equal sword is no reason to change.
-        g.give_item(P1, little);
-        equip(&ai, &mut g, &mut Vec::new());
-        assert_eq!(g.items().carried(hero)[0].1.cost, base_cost);
+        w.give_item(P1, little);
+        equip(&ai, &mut w, &mut Vec::new());
+        assert_eq!(w.items().carried(hero)[0].1.cost, base_cost);
         // A good deal better is, and the old one goes back to the vault.
-        g.give_item(P1, much);
-        equip(&ai, &mut g, &mut Vec::new());
-        assert_eq!(g.items().carried(hero)[0].1.cost, much_cost);
-        assert!(g.items().armory(P1).items().any(|i| i.cost == base_cost));
+        w.give_item(P1, much);
+        equip(&ai, &mut w, &mut Vec::new());
+        assert_eq!(w.items().carried(hero)[0].1.cost, much_cost);
+        assert!(w.items().armory(P1).items().any(|i| i.cost == base_cost));
         Ok(())
     }
 
     #[test]
     fn items_no_hero_can_carry_are_scrapped_for_mana_but_two_are_kept() -> TestResult {
-        let (mut g, ai, _) = with_hero_of(f4x_def::rules::HeroKind::Warrior)?;
+        let (mut w, ai, _) = with_hero_of(f4x_def::rules::HeroKind::Warrior)?;
         // The hired hero is a warrior: its slots take swords, armour and trinkets, not staves.
         let staves: Vec<_> = [40, 41, 128, 204].map(shipped_item).into();
         let mut costs: Vec<u32> = staves.iter().map(|i| i.cost).collect();
         costs.sort();
         for staff in staves {
-            g.give_item(P1, staff);
+            w.give_item(P1, staff);
         }
-        let mana = g.player(P1).ok_or("a player")?.treasury().mana;
-        equip(&ai, &mut g, &mut Vec::new());
-        let left: Vec<u32> = g.items().armory(P1).items().map(|i| i.cost).collect();
+        let mana = w.player(P1).ok_or("a player")?.treasury().mana;
+        equip(&ai, &mut w, &mut Vec::new());
+        let left: Vec<u32> = w.items().armory(P1).items().map(|i| i.cost).collect();
         assert_eq!(left.len(), 2, "{left:?}");
         assert!(
             left.iter().all(|&c| c >= costs[2]),
             "the cheapest go first: {left:?}"
         );
-        assert!(g.player(P1).ok_or("a player")?.treasury().mana > mana);
+        assert!(w.player(P1).ok_or("a player")?.treasury().mana > mana);
         Ok(())
     }
 }
