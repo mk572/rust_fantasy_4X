@@ -37,7 +37,7 @@ cast, settlers, army, city production (`lib.rs`). Each part:
 | Part | What it does now |
 |---|---|
 | `diplomacy.rs` | Answers proposals with its own rating (`diplomacy::rate`, the original's `Diplomacy_Test`); a fierce militarist or expansionist declares war on a weaker neighbour (`quarrel`); a wizard may declare war on a Spell of Mastery caster (`mastery_scare`). Never proposes anything. |
-| `raze` | After its attacks: razes a city just taken from a wizard by the original's `Raze_Check` score (temper, troops left, the cities each side holds within 14 squares), then a roll of 100; never a city of the independents. |
+| `raze` | After its attacks: razes a city just taken from a wizard when the points against keeping it pass a threshold, with no roll: the temper (a peaceful wizard never razes, a lawful one only a city of a wizard it fights), the racial unrest between its people and the city's, the worth of the land, the city's citizens and the cost of its buildings, how hard the city is to hold (own and enemy cities within 14 squares, walls) and the soldiers in or within 3 squares of it against the defence it wants. Weights: `AIK_RAZE_*`. Never a city of the independents. |
 | `economy::taxes` | The lowest tax rate that leaves a small surplus. |
 | `economy::research` | When idle, takes the first of the offered candidates (the core lists the fastest first). |
 | `economy::cast` | Starts the dearest summoning spell it can pay for with a third of the mana left over. Nothing else is cast, so most spells are dead weight. |

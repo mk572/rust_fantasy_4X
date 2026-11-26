@@ -360,7 +360,7 @@ No command takes a round.
 
 - The seed and the number of draws belong to the `Game` and are saved in its part of the file.
 - The `Game` passes `&mut GameRng` to each world operation that draws; the world keeps none. The places where the world takes its generator out and leaves a placeholder (`GameRng::lent`) go. The order of draws does not change. It is a step of its own: many signatures change.
-- The AI draws no random numbers from the game. Its one draw, whether to raze a captured city, goes first (task 824).
+- The AI draws no random numbers from the game (its one draw, whether to raze a captured city, is gone: task 824, 26 November 2026).
 
 ### 10.11 Players and seats (26 November 2026)
 

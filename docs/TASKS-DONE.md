@@ -657,6 +657,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 783 | AI | (done) The AI's own per-turn look: treaty growth, army too strong, too many cities, trespass, Aura of Majesty, AI-to-AI gravitation, drift and returning patience; no dice *Needs:* 780 |
 | 784 | Client | (done) The client and the console read the AI's friendliness for the human (diplomacy list and screen, wizard sheet, `talk`, `describe`); a parity test of the AI's opinion against the core's table *Needs:* 780, 782, 783 |
 | 786 | Movement | (done) Faster movement along rivers |
+| 824 | AI | (done) Decide whether to raze a captured city by whether the wizard wants to keep it, without a random roll |
 
 ## Descriptions
 
@@ -1147,3 +1148,5 @@ ships ever sail them. Make it a rule in data (a movement cost modifier per river
 be switched off, and show river-assisted paths in the path preview. Needs a decision on
 direction (up or down stream) before any asymmetric rule; the river layer currently has no flow
 direction.
+
+**824. (done) Raze by choice, not by chance.** Asked for by the user, 26 November 2026. Today `f4x-ai/src/raze.rs` scores a captured city (temper, fewer than three units in it, the cities each side holds within 14 squares) and razes it if a roll of 100 from the game's random stream is within the score. The roll goes: the AI razes or keeps a city according to whether it wants it, judged by the relations between the city's race and the wizard's, its strategic location, how well it can be defended, the wizard's personality and the troops available to garrison it. It sees only what a human would (`docs/design.md` section 8); its weights are AI settings, tested on the shipped content; update the `raze` row of `docs/ai-design.md`. No random number is drawn, which task 822 relies on. *Needs:* nothing. Done 26 November 2026: `raze.rs` adds up the points of each reason and razes above a threshold (weights `AIK_RAZE_*`); the land's neutral value is the median land worth of the cities of 40 new games. More citizens and costlier buildings speak for keeping the city. Not run: a soak for how often cities are razed.

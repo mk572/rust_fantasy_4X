@@ -26,6 +26,10 @@ Decided October 2026, `design.md` section 8.
   Still skipped: other code that treats the human and the AI differently, and the neutral cities'
   halved growth. Difficulty also scales lair guards, lair treasure, neutral city population and
   the final score, and sets how well the AI plays (task 148).
+- **The AI razes by choice, not by chance** (26 November 2026, task 824). The original scores a
+  captured city and razes it on a roll against the score (see ReMoM `Raze_Check`); our AI razes
+  it when what speaks against keeping it outweighs the rest, with no roll (`f4x-ai` `raze.rs`,
+  `ai-design.md`).
 - **No hard-coded AI decisions in the core.** What an AI decides lives in `f4x-ai` and reaches
   the core only as ordinary commands.
   The core asks nothing of the AI. It once asked **which unit steps off a full square** (17 November
@@ -103,7 +107,7 @@ Decided with task 41; code in `city/conquest.rs`, `battle/`.
 - **Raze is always the second step** (the original's R key on the results scroll): the city is
   taken, fame is gained, and razing then costs the further fame. The original also has an
   immediate path (the first prompt, and the AI's `Raze_Check`) that skips the conquest fame; ours
-  has the one path. The AI does not raze.
+  has the one path. The AI uses it too (section 1 for how it decides).
 - **Outposts are destroyed when taken,** as in the original (a city with no citizens).
 
 ## 4. The starting setup (task 32)

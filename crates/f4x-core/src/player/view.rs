@@ -533,6 +533,21 @@ impl<'a> PlayerView<'a> {
         self.world.economy().city_race(city)
     }
 
+    /// The player's own people: a wizard's capital race, an independent race player's race.
+    pub fn my_race(&self) -> Option<f4x_def::rules::RaceId> {
+        self.wizard()
+            .and_then(|w| w.capital_race())
+            .or_else(|| self.world.race_of_player(self.me))
+    }
+
+    /// What one of the player's own cities has built (nothing for another's: see `city_report`).
+    pub fn city_buildings(&self, city: hecs::Entity) -> Vec<crate::rules::BuildingId> {
+        if !self.is_my_city(city) {
+            return Vec::new();
+        }
+        self.world.city_buildings(city)
+    }
+
     /// Is the city the player's own? What a city makes, builds and costs is read of its own
     /// cities only; of another wizard's the player has the `city_report`.
     fn is_my_city(&self, city: hecs::Entity) -> bool {

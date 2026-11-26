@@ -312,6 +312,19 @@ pub fn scan(view: &PlayerView) -> Vec<Site> {
     kept
 }
 
+/// What the land at `at` is worth to a city that stands there: its squares and specials, without
+/// what other cities nearby add or take beyond sharing squares.
+pub(crate) fn land_worth(view: &PlayerView, at: Position) -> f32 {
+    let others: Vec<Position> = view
+        .my_cities()
+        .into_iter()
+        .map(|(_, p)| p)
+        .chain(view.known_cities().into_iter().map(|(_, _, p)| p))
+        .filter(|&p| p != at)
+        .collect();
+    score(view, at, Reach::Land, &[], &[], &others)
+}
+
 /// What a city at `at` would be worth.
 fn score(
     view: &PlayerView,
