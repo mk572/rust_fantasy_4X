@@ -357,7 +357,7 @@ impl App {
         let world = Self::new_game(seed, &options, &content, &names.bundle(), None, race, true)
             .map_err(|e| e.to_string())?;
         let mut app = Self {
-            game: crate::revised::Revised::new(Game::new(world)),
+            game: crate::revised::Revised::new(Self::played(world)),
             art,
             params,
             options,
@@ -437,6 +437,13 @@ impl App {
         };
         app.start_game();
         Ok(app)
+    }
+
+    /// A game of `world` with a person at it, who may take orders back.
+    fn played(world: World) -> Game {
+        let mut game = Game::new(world);
+        game.set_undo(true);
+        game
     }
 
     /// A new game from the options and the human wizard; `race` is an index into the races.
@@ -1284,10 +1291,9 @@ impl App {
         if let Some(r) = world.wizard(HUMAN).and_then(|w| w.capital_race()) {
             self.race = r.num() as usize;
         }
-        self.game = crate::revised::Revised::new(Game::new(world));
+        self.game = crate::revised::Revised::new(Self::played(world));
         self.game.world_mut().set_names(self.names.bundle());
         self.game.world_mut().ensure_human(HUMAN);
-        self.game.world_mut().set_undo(true);
         self.ais = self.rival_wizards();
         f4x_ai::Ai::recall(&self.game, &mut self.ais);
         self.reset_master();
@@ -1333,7 +1339,7 @@ impl App {
             .iter()
             .map(|&u| self.game.units().serial_of(u))
             .collect();
-        match self.game.world_mut().undo() {
+        match self.game.undo() {
             Ok(label) => {
                 self.selection = serials
                     .into_iter()
@@ -1409,9 +1415,9 @@ impl App {
         };
         // The rivals' commands are not taken back, and undo would snapshot the whole game for each.
         let undo = self.game.undo_enabled();
-        self.game.world_mut().set_undo(false);
+        self.game.set_undo(false);
         let progress = self.run_master();
-        self.game.world_mut().set_undo(undo);
+        self.game.set_undo(undo);
         events.extend(progress.events);
         if let f4x_master::Stopped::Waiting(seat) = progress.stopped {
             if seat != 0 {
@@ -1424,12 +1430,12 @@ impl App {
         if self.game.game_over.is_none() {
             // The rivals now say what they have to say to the human: offers, requests, war.
             let undo = self.game.undo_enabled();
-            self.game.world_mut().set_undo(false);
+            self.game.set_undo(false);
             for ai in &mut self.ais {
                 events.extend(ai.approach_human(&mut self.game));
             }
             events.extend(self.neutral_seat.approach_human(&mut self.game));
-            self.game.world_mut().set_undo(undo);
+            self.game.set_undo(undo);
         }
         // What the rivals did out of sight is not shown: only what touches the human.
         let events: Vec<Event> = events
@@ -1653,7 +1659,7 @@ impl App {
             self.prefs.get(crate::preferences::Pref::RandomEvents),
         ) {
             Ok(world) => {
-                self.game = crate::revised::Revised::new(Game::new(world));
+                self.game = crate::revised::Revised::new(Self::played(world));
                 // The next game gets another seed, unless `--seed` fixed it.
                 self.seed = if self.seed_fixed { seed } else { fresh_seed() };
                 self.game_over_seen = false;

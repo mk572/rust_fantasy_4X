@@ -292,8 +292,8 @@ fn load(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let (mut world, integrity) = f4x_core::world::save::load_game(&path, content)
         .map_err(|e| ConsoleError::Failed(e.to_string()))?;
     world.ensure_human(ctx.session.player);
-    world.set_undo(true);
     *ctx.game = Game::new(world);
+    ctx.game.set_undo(true);
     ctx.say(format!(
         "loaded {} (turn {})",
         path.display(),
@@ -311,10 +311,9 @@ fn replay_path(ctx: &Ctx, name: Option<&str>) -> Result<PathBuf, ConsoleError> {
 }
 
 fn record(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
-    let failed = |e: f4x_core::world::replay::ReplayError| ConsoleError::Refused(format!("{e:?}"));
     match a.get(0).unwrap_or("start") {
         "start" => {
-            ctx.game.world_mut().start_recording().map_err(failed)?;
+            ctx.game.start_recording();
             ctx.say("recording".to_string());
         }
         "status" => match ctx.game.replay_so_far() {
@@ -325,7 +324,6 @@ fn record(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             let path = replay_path(ctx, a.get(1))?;
             let replay = ctx
                 .game
-                .world_mut()
                 .stop_recording()
                 .ok_or_else(|| ConsoleError::Refused("not recording".into()))?;
             let text = replay
@@ -359,14 +357,14 @@ fn replay(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         None => usize::MAX,
     };
     let text = std::fs::read_to_string(&path).map_err(|e| ConsoleError::Failed(e.to_string()))?;
-    let replay = f4x_core::world::replay::Replay::from_text(&text)
+    let replay =
+        f4x_master::Replay::from_text(&text).map_err(|e| ConsoleError::Failed(format!("{e:?}")))?;
+    let (mut game, events) = replay
+        .play(ctx.game.shared_content(), count)
         .map_err(|e| ConsoleError::Failed(format!("{e:?}")))?;
-    let (mut world, events) = replay
-        .play(ctx.game.content().clone(), count)
-        .map_err(|e| ConsoleError::Failed(format!("{e:?}")))?;
-    world.ensure_human(ctx.session.player);
-    world.set_undo(true);
-    *ctx.game = Game::new(world);
+    game.world_mut().ensure_human(ctx.session.player);
+    game.set_undo(true);
+    *ctx.game = game;
     ctx.say(format!(
         "played {} commands from {} (turn {})",
         events.len(),
@@ -521,6 +519,8 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let content = ctx.game.content().clone();
     let world = new_game(&content, &spec).map_err(|e| ConsoleError::Failed(e.to_string()))?;
     *ctx.game = Game::new(world);
+    // Undo takes a snapshot of the whole game for every command: only a person needs it.
+    ctx.game.set_undo(!spec.all_ai);
     ctx.session.player = crate::setup::HUMAN;
     ctx.say(format!("new game, seed {}", spec.seed));
     if let Some(each) = spec.settings.basic.crowding() {

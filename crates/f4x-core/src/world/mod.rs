@@ -10,14 +10,13 @@ pub mod cheat;
 pub mod command;
 pub mod endgame;
 pub mod event;
-pub mod replay;
 pub mod rng;
 pub mod save;
 pub mod serial;
 pub mod setting;
+pub mod stable_ref;
 #[cfg(any(test, feature = "testutil"))]
 pub mod testutil;
-pub mod undo;
 pub mod view;
 
 use crate::{battle, city, diplomacy, map, player, threat, unit, wizard, world, world_event};
@@ -111,12 +110,9 @@ pub struct World {
     pub(crate) prefab_taken: Vec<crate::rules::ItemId>,
     /// Players of battles that play for some wizards (a learned one; see `battle::world`).
     pub(crate) battle_brains: Vec<(hecs::Entity, Box<dyn battle::world::BattleBrain>)>,
-    pub(crate) recording: Option<world::replay::Recording>,
     /// Set while a command the caster confirmed runs (`Command::Anyway`): a spell that would do
     /// nothing is cast anyway.
     pub(crate) confirmed: bool,
-    undo_on: bool,
-    undo_stack: Vec<world::undo::UndoEntry>,
 }
 
 /// Give `entity` a component. Hecs refuses only when the entity is gone, which for a caller that
@@ -213,10 +209,7 @@ impl World {
             override_log: Vec::new(),
             prefab_taken: Vec::new(),
             battle_brains: Vec::new(),
-            recording: None,
             confirmed: false,
-            undo_on: false,
-            undo_stack: Vec::new(),
         }
     }
 
@@ -533,6 +526,31 @@ impl World {
         let mut ids: Vec<_> = self.player_index.keys().copied().collect();
         ids.sort();
         ids
+    }
+
+    /// Run a command.
+    pub fn apply(&mut self, command: Command) -> Vec<Event> {
+        if self.game_over.is_some() {
+            return vec![Event::Rejected(Rejection::GameOver)];
+        }
+        self.execute(command)
+    }
+
+    /// How many random numbers have been drawn: a command that drew one cannot be taken back.
+    pub fn draws(&self) -> u64 {
+        self.rng.draws()
+    }
+
+    /// Everything the players have explored, summed: it only ever grows.
+    pub fn explored_total(&self) -> usize {
+        self.player_ids()
+            .into_iter()
+            .map(|id| {
+                map::Plane::all()
+                    .map(|plane| self.fog.explored_count(id, plane))
+                    .sum::<usize>()
+            })
+            .sum()
     }
 
     fn execute(&mut self, cmd: Command) -> Vec<Event> {

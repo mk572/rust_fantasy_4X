@@ -25,7 +25,7 @@ crates/f4x-core/     the simulation (reads f4x-def and f4x-battle): no I/O but s
 crates/f4x-newgame/  what runs once per game: map generator, placement of nodes, lairs and neutral cities, the wizards and their start (uses f4x-core's public API)
 crates/f4x-lang/     the words of the game: messages by key, names, name lists (`text.md`)
 crates/f4x-ai/       the AI players: they see what a player sees and answer with `Command`s (`ai-design.md`)
-crates/f4x-master/   the flow of a game: rounds and turns per player (`turn-structure.md`)
+crates/f4x-master/   the flow of a game: rounds and turns per player, undo and replays (`turn-structure.md`)
 crates/f4x-learn/    the learning environment of the AIs (`learning-ai.md`)
 crates/f4x-console/  the text console: every action as a line of text (`console.md`)
 crates/f4x-client/   rendering, input, UI (macroquad); `extract/` reads the original's art
@@ -38,6 +38,8 @@ docs/                design and reference documents
 Gitignored, local only: `assets-local/` (extracted art, screenshots), `content-local/` (the help text and the screen-to-topic map imported from the author's own copy of the original game, plus the preset wizards written from them), `reference/` (the original's files and the ReMoM clone).
 
 The crate rules (who may depend on whom) are in [`rust_coding_rules.md`](rust_coding_rules.md). `f4x-core` must never depend on the client or on a crate above it; that keeps it testable and fast to iterate.
+
+**One exception, for tests only** (26 November 2026, task 822): `f4x-core` has `f4x-master` as a dev-dependency, so a test under `crates/f4x-core/tests/` that needs what the game does (passing time, the history a refused command leaves) uses `f4x_master::Game`. The library and the unit tests in `src/` never do, and the tests of turn order, replays and undo live in `f4x-master`.
 
 **What stays in `f4x-core/src/battle` and why** (the file check of task 741, 21 November 2026). A rule of the fight, a type of it or a function of the battle alone is `f4x-battle`'s (or `f4x-def`'s when the rules of the content need it too): the battle, its spells (`Battle::apply_spell`, unit casts, the demon), the spoils, who comes back as undead, where the units stand and the settings that change a fight. What stays in core is whatever reads or writes the overland world, and it only gathers the facts and hands them over as arguments (`AimWorld`, `CastWorld`, small structs and flags): building a battle unit from an overland one, the choice of who fights, the field of a square (terrain, roads, city, walls), the wizard's casts and mana, the save and load that tie a battle to the world's entities, and the write-back of a finished battle (wounds, deaths, items, spoils, relations, fleeing, the winner moving in, raised undead, conquest). A function that stays is thin: if it has a rule in it that needs no world, the rule moves.
 
@@ -228,7 +230,7 @@ Every attack is made of a set of damage types (`f4x-def/src/rules/damage_type.rs
 ## 10. Cross-cutting
 - **Determinism:** seeded RNG (`rand_pcg`) behind `World::roll`; entity iteration in logic is sorted by creation number (`Serial`), never by `hecs` id; no floats in rules; integer maths with a fixed order in the stats engine.
 - **Save/load:** a save is a text snapshot (RON) of the whole game with content referenced by name, a version number and load-time checks; autosave runs each turn. Details in [`game-flow.md`](game-flow.md) section 8.
-- **Replays:** commands name entities, and entity ids change on a load, so the command log writes creation numbers (`Serial`) in their place (`world/replay.rs`).
+- **Replays:** commands name entities, and entity ids change on a load, so a command written down carries creation numbers (`Serial`) in their place (`f4x-core`, `world/stable_ref.rs`); the log and its playback are the game's (`f4x-master`, `game/replay.rs`).
 - **Testing and where tests live:** [`rust_coding_rules.md`](rust_coding_rules.md) (tests run on the shipped rules and real spells; unit tests sit in the file they test; integration tests in a crate's `tests/it/`).
 - **Lint and format:** `cargo fmt`, `cargo clippy` clean.
 

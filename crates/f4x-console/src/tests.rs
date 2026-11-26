@@ -12,7 +12,9 @@ use crate::{commands, Access, Console, ConsoleError, Kind, Mode};
 
 /// A new game as `setup::new_game` makes its world.
 fn new_game(content: &Content, spec: &NewGame) -> Result<Game, f4x_newgame::error::NewGameError> {
-    crate::setup::new_game(content, spec).map(Game::new)
+    let mut game = Game::new(crate::setup::new_game(content, spec)?);
+    game.set_undo(!spec.all_ai);
+    Ok(game)
 }
 
 /// The shipped content, read once per test run.

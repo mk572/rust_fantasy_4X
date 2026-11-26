@@ -53,8 +53,7 @@ World                                  (world/mod.rs; the owner and the orchestr
 ├── next_serial                        the counter behind `Serial` (section 5)
 ├── events, item_awards                random events going on; items that fell to wizards from slain heroes
 ├── override_log                       the console's override (cheat) commands that changed the game, saved; a game with entries is `cheated` and does not enter the Hall of Fame
-├── battle_brains                      the learned players of battles
-└── undo_stack                         snapshots for undoing a command (world/undo.rs)
+└── battle_brains                      the learned players of battles
 ```
 
 In the code `World` is the game's world (the map and everything on it), `ecs` is its entity store and `hecs::World` is always written in full.
@@ -360,8 +359,9 @@ it has no city and no unit, as the table says.
 ### 3.10 What stays outside the world
 
 The map layers and the fog (dense grids), the content registries, `Diplomacy` (pairs of players, keyed
-by `PlayerId`), the world events table, the RNG, the undo stack, and the battle in progress (a
+by `PlayerId`), the world events table, the RNG, and the battle in progress (a
 `Battle` with its own world for its spell instances). Battle units are not entities in `World::ecs`.
+The undo history and the replay log are not the world's: they belong to the game (`f4x-master`).
 
 ### 3.11 How the code reads and writes the new entities
 

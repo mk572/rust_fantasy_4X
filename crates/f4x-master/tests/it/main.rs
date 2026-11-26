@@ -1,5 +1,10 @@
 //! The master on real games: the order of the seats, human controllers that wait, command
-//! validation, defeated seats and resuming from a saved state.
+//! validation, defeated seats and resuming from a saved state. Replays and undo are in the files
+//! of their names.
+
+mod replay;
+mod support;
+mod undo;
 
 use std::cell::RefCell;
 use std::rc::Rc;

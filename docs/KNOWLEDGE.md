@@ -21,6 +21,13 @@ Non-obvious findings, one rule up front in bold. General lessons (shell, tools) 
 - **A bare integer beside a `HalfInt` compiles and means whole units** (`PartialEq<i32>`). After
   converting an amount counted in halves, halve every literal compared with it and run the tests; the
   compiler only catches the other direction.
+- **A helper that takes `&mut World` goes round the game when it is handed a `Game`.** With
+  `testutil`, `Game` derefs to its world, so `busy_round(&mut game)` written over a `World` applies its
+  commands without recording them or keeping them for undo, and nothing fails to compile. A test of
+  history takes `&mut Game` (`f4x-master/tests/it/support.rs`).
+- **A restored world lacks what the caller handed in**, not only caches: the name lists (`set_names`)
+  and the battle players are not in a snapshot. Undo restores a snapshot, so it hands the names over;
+  the old undo did not (found in task 822).
 
 ## The model
 

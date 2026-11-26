@@ -65,6 +65,9 @@ pub fn battle_policy(world: &crate::world::World) -> Option<crate::battle::Battl
     Some(BattleCommand::EndTurn)
 }
 
+/// The saved fresh games of [`fresh`]: (computer wizards, seed).
+pub const FRESH_WORLDS: [(u8, u64); 4] = [(2, 7), (3, 3), (3, 7), (3, 11)];
+
 /// Where the saved fresh games of [`fresh`] are (`crates/f4x-core/tests/saves`).
 pub fn saves_dir() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/saves")

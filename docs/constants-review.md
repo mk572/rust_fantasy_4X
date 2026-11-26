@@ -17,7 +17,7 @@ number is deleted (the hash replaces it). The moves are the tasks named in the l
 | `f4x-battle/map.rs`, `map/layout.rs` | grid size (`GRID_W`, `GRID_H`, `W`, `H`), terrain codes, deck codes, step tables, `STRUCTURE`, city box, gate, `SAIL_COST` | the shape of the battlefield and the encoding of its map, not a tunable rule |
 | `path_grid.rs`, `unit/pathing/*`, `map/fog.rs` | `NONE`, `AROUND`, fog bit masks and corner tables | engine encoding |
 | `hook.rs`, `battle/field.rs`, `spell/*` (`*_EFFECT`, `RECALL`, `GATE`, ...), `item/crafting.rs` `CRAFT_ITEM` | names of hooks and effect kinds | the keys that tie a `.ron` row to the code that handles it |
-| `world/save.rs`, `world/undo.rs`, `world/replay.rs`, `unit/kept.rs`, `unit/crowding.rs`, `finance.rs`, `vision.rs` | save versions, undo depth, thread-local caches, `OnceLock` switches | engine internals |
+| `world/save.rs`, `f4x-master`: `game/undo.rs`, `game/replay.rs`, `unit/kept.rs`, `unit/crowding.rs`, `finance.rs`, `vision.rs` | save versions, undo depth, thread-local caches, `OnceLock` switches | engine internals |
 | `player/mod.rs` `MONSTERS`, `race_player.rs` `FIRST_RACE_PLAYER`, `world/cheat.rs`, `settings.rs` `HUMAN`/`RIVAL` | special player ids | identifiers, not rules |
 | `city/mod.rs` `NAME_LEN`, `player/mod.rs` `PORTRAITS`, `BANNER_CHOICES`, `NEUTRAL_BANNER` | limits of the interface and of the art | follow the art that ships |
 | `f4x-def/settings.rs` `MAP_*`, `MAX_TILE_LIMIT`, `MAX_STACK`, `PICKS`, `MAX_OPPONENTS`, `LEVELS`, `*_RANGE`, `DEFAULT_*`, `LAND_*`, `*_PER_*`, `COMMON`..`VERY_RARE` (the new-game defaults), `REFERENCE_AREA` | the defaults and bounds of the settings the player chooses in the new-game dialog; they are the setting, in its home | already settings |

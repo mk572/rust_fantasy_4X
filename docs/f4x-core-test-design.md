@@ -102,6 +102,9 @@ Guard:
   nothing is reported.
 - **Undo**: after each undoable command, `undo` gives the snapshot from before it; a command that draws, explores or
   starts a battle clears the history.
+
+Replays and undo belong to the game (task 822), so their tests are `crates/f4x-master/tests/it/{replay,undo}.rs`;
+class 1 here sends its commands through a `Game`, to check what a refused command leaves in both.
 - **Attacks on the files**: truncated, edited, wrong version, wrong game version, wrong layout, unknown content id,
   wrong content fingerprint, settings out of range, a wizard with no player: each gives a typed `LoadError` and never
   a panic.

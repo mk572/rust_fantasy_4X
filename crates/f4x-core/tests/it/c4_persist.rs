@@ -2,7 +2,7 @@
 
 use crate::support::{busy_round, content, shape, text, worlds};
 use f4x_core::world::save::{Integrity, LoadError, Snapshot};
-use f4x_core::world::{Command, World};
+use f4x_core::world::World;
 
 fn restored(w: &World) -> World {
     Snapshot::from_text(&text(w))
@@ -229,148 +229,6 @@ fn a_damaged_save_never_panics_and_never_loads_into_a_broken_world() {
     );
 }
 
-#[test]
-fn a_recorded_game_plays_again_to_the_same_game() {
-    use f4x_core::world::replay::Replay;
-    for (name, mut w) in worlds() {
-        w.start_recording().expect("recording starts");
-        for _ in 0..10 {
-            busy_round(&mut w, 6);
-        }
-        let replay = w.replay_so_far().expect("a recording");
-        // Written and read again, as a file would carry it.
-        let replay = Replay::from_text(&replay.to_text().expect("writes")).expect("reads");
-        let (played, _) = replay.play(content(), usize::MAX).expect("plays");
-        assert_eq!(text(&played), text(&w), "{name}");
-    }
-}
-
-/// Put everyone on the farms, so that balancing them changes something.
-fn all_farm(w: &mut World) {
-    for (city, ..) in w.economy().cities() {
-        w.apply(Command::SetFarmers {
-            city,
-            farmers: u32::MAX,
-        });
-    }
-}
-
-#[test]
-fn balancing_the_farmers_is_replayed_and_can_be_taken_back() {
-    for (name, mut w) in worlds() {
-        all_farm(&mut w);
-        let player = w.player_ids()[0];
-        w.start_recording().expect("recording starts");
-        w.set_undo(true);
-        let before = text(&w);
-        w.apply(Command::BalanceFarmers { player });
-        let balanced = text(&w);
-        assert_ne!(balanced, before, "{name}: nothing was balanced");
-        let replay = w.replay_so_far().expect("a record");
-        let (again, _) = replay.play(content(), usize::MAX).expect("plays");
-        assert_eq!(text(&again), balanced, "{name}");
-        w.undo().expect("takes it back");
-        assert_eq!(text(&w), before, "{name}");
-    }
-}
-
-#[test]
-fn a_replay_stopped_part_way_is_the_game_as_it_was_then() {
-    for (name, mut w) in worlds() {
-        w.start_recording().expect("recording starts");
-        let mut states = vec![(0, text(&w))];
-        for _ in 0..6 {
-            busy_round(&mut w, 4);
-            let done = w.replay_so_far().expect("a recording").commands.len();
-            states.push((done, text(&w)));
-        }
-        let replay = w.stop_recording().expect("a recording");
-        for (count, state) in states {
-            let (part, _) = replay.play(content(), count).expect("plays");
-            assert_eq!(text(&part), state, "{name}, after {count} commands");
-        }
-        assert!(!w.is_recording());
-    }
-}
-
-#[test]
-fn a_replay_that_is_no_replay_or_names_nothing_is_refused() {
-    use f4x_core::world::replay::{Replay, ReplayError};
-    assert!(matches!(
-        Replay::from_text("nonsense"),
-        Err(ReplayError::Load(_))
-    ));
-    let (_, mut w) = worlds().remove(0);
-    w.start_recording().expect("starts");
-    busy_round(&mut w, 3);
-    let mut replay = w.stop_recording().expect("recorded");
-    replay.commands.insert(
-        0,
-        "MoveStack(units: [999999], to: (x: 0, y: 0, plane: Arcanus))".into(),
-    );
-    assert!(matches!(
-        replay.play(content(), usize::MAX),
-        Err(ReplayError::Unresolved(0))
-    ));
-    let (_, g2) = worlds().remove(0);
-    assert!(matches!(g2.replay_so_far(), Err(ReplayError::NotRecording)));
-}
-
-/// A command that changes the game, draws no random number and explores nothing: the tax rate of a wizard.
-fn a_change_that_can_be_taken_back(w: &mut World) -> Option<String> {
-    use f4x_core::world::{Command, Event};
-    let player = w
-        .player_ids()
-        .into_iter()
-        .find(|&p| !w.is_neutral_player(p) && w.wizard(p).is_some())?;
-    let before = text(w);
-    for rate in 0..=10u8 {
-        let out = w.apply(Command::SetTaxRate { player, rate });
-        if !out.iter().any(|e| matches!(e, Event::Rejected(_))) && text(w) != before {
-            return Some(before);
-        }
-    }
-    None
-}
-
-#[test]
-fn undo_gives_back_the_game_as_it_was() {
-    for (name, mut w) in worlds() {
-        w.set_undo(true);
-        let before = a_change_that_can_be_taken_back(&mut w).expect("a change");
-        assert!(w.can_undo(), "{name}: nothing to take back");
-        w.undo().expect("takes it back");
-        assert_eq!(text(&w), before, "{name}");
-        assert!(!w.can_undo() || w.undo_label().is_some());
-    }
-}
-
-#[test]
-fn what_cannot_be_taken_back_clears_the_history() {
-    use f4x_core::world::undo::UndoError;
-    for (name, mut w) in worlds() {
-        w.set_undo(true);
-        a_change_that_can_be_taken_back(&mut w).expect("a change");
-        assert!(w.can_undo(), "{name}");
-        busy_round(&mut w, 3); // ends the turn
-        assert!(
-            !w.can_undo(),
-            "{name}: the turn ended and the history stayed"
-        );
-        assert_eq!(w.undo(), Err(UndoError::NothingToUndo), "{name}");
-    }
-}
-
-#[test]
-fn a_game_with_undo_off_keeps_no_history() {
-    use f4x_core::world::undo::UndoError;
-    let (_, mut w) = worlds().remove(0);
-    assert!(!w.undo_enabled());
-    a_change_that_can_be_taken_back(&mut w).expect("a change");
-    assert!(!w.can_undo());
-    assert_eq!(w.undo(), Err(UndoError::NothingToUndo));
-}
-
 /// FNV-1a of the bytes, worked out here from its definition.
 fn fnv1a(text: &str) -> u64 {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
@@ -496,55 +354,6 @@ fn a_refusal_says_what_is_wrong_in_words() {
 }
 
 #[test]
-fn a_recording_runs_from_its_start_to_its_stop_and_takes_back_what_undo_takes_back() {
-    let (_, mut w) = worlds().remove(0);
-    assert!(!w.is_recording());
-    w.start_recording().expect("starts");
-    assert!(w.is_recording());
-    w.set_undo(true);
-    assert!(w.undo_enabled());
-    assert!(!w.can_undo());
-    let before = w.replay_so_far().expect("recording").commands.len();
-    a_change_that_can_be_taken_back(&mut w).expect("a change");
-    assert_eq!(w.undo_label(), Some("SetTaxRate"));
-    let during = w.replay_so_far().expect("recording").commands.len();
-    assert!(during > before, "the change was not recorded");
-    assert_eq!(w.undo().as_deref(), Ok("SetTaxRate"));
-    assert_eq!(
-        w.replay_so_far().expect("recording").commands.len(),
-        before,
-        "what was taken back is still in the recording"
-    );
-    w.set_undo(false);
-    assert!(!w.undo_enabled());
-    assert!(!w.can_undo());
-    let replay = w.stop_recording().expect("a recording");
-    assert_eq!(replay.commands.len(), before);
-    assert!(!w.is_recording());
-    assert!(w.stop_recording().is_none());
-}
-
-#[test]
-fn the_units_a_recorded_command_names_are_told_apart() {
-    let (_, mut w) = worlds().remove(0);
-    w.start_recording().expect("starts");
-    busy_round(&mut w, 6);
-    let replay = w.stop_recording().expect("a recording");
-    let moves: std::collections::BTreeSet<&str> = replay
-        .commands
-        .iter()
-        .filter(|c| c.starts_with("MoveStack"))
-        .map(|c| c.as_str())
-        .collect();
-    assert!(moves.len() >= 3, "{moves:?}");
-    let units: std::collections::BTreeSet<&str> = moves
-        .iter()
-        .filter_map(|c| c.split("units:[").nth(1)?.split(']').next())
-        .collect();
-    assert!(units.len() >= 3, "the moves name too few units: {units:?}");
-}
-
-#[test]
 fn a_save_of_a_version_with_one_player_for_each_city_is_brought_to_one_for_each_race() {
     use f4x_def::half_int::HalfInt;
     let base = Snapshot::from_text(&saved()).expect("reads");
@@ -609,30 +418,6 @@ fn a_save_of_a_version_with_one_player_for_each_city_is_brought_to_one_for_each_
         w.economy().city_owner(city),
         Some(f4x_core::player::PlayerId(own))
     );
-}
-
-#[test]
-fn a_replay_of_a_game_version_this_game_cannot_read_is_refused() {
-    use f4x_core::world::replay::{Replay, ReplayError};
-    use f4x_core::world::save::GAME_VERSION;
-    let (_, mut w) = worlds().remove(0);
-    w.start_recording().expect("starts");
-    busy_round(&mut w, 2);
-    let text = w
-        .stop_recording()
-        .expect("recorded")
-        .to_text()
-        .expect("writes");
-    assert!(Replay::from_text(&text).is_ok());
-    let from = format!("game_version: \"{GAME_VERSION}\"");
-    assert!(text.contains(&from), "the replay does not say its version");
-    for version in ["9999.0.0", "0.0.0", "banana"] {
-        let edited = text.replacen(&from, &format!("game_version: \"{version}\""), 1);
-        assert!(
-            matches!(Replay::from_text(&edited), Err(ReplayError::Load(_))),
-            "{version}"
-        );
-    }
 }
 
 #[test]

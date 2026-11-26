@@ -23,11 +23,11 @@ use f4x_def::rules::realm::Realm;
 /// Something an effect can act on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum Target {
-    Unit(#[serde(with = "crate::world::replay::stable_ref::one")] hecs::Entity),
-    City(#[serde(with = "crate::world::replay::stable_ref::one")] hecs::Entity),
+    Unit(#[serde(with = "crate::world::stable_ref::one")] hecs::Entity),
+    City(#[serde(with = "crate::world::stable_ref::one")] hecs::Entity),
     /// A city and a realm: what a Spell Ward is aimed at.
     CityRealm(
-        #[serde(with = "crate::world::replay::stable_ref::one")] hecs::Entity,
+        #[serde(with = "crate::world::stable_ref::one")] hecs::Entity,
         crate::rules::RealmId,
     ),
     Tile(Position),
@@ -37,14 +37,14 @@ pub enum Target {
     /// One of the caster's units and the summoning circle Word of Recall sends it to, when the wizard
     /// has several (`multiple_summoning_circles`).
     UnitAt(
-        #[serde(with = "crate::world::replay::stable_ref::one")] hecs::Entity,
+        #[serde(with = "crate::world::stable_ref::one")] hecs::Entity,
         Position,
     ),
     /// A dead hero and the summoning circle it comes back to, when the wizard has several
     /// (`multiple_summoning_circles`).
     HeroAt(usize, Position),
     /// A spell instance: an enemy wizard's global enchantment (`docs/ecs-structure.md` 3.4).
-    Spell(#[serde(with = "crate::world::replay::stable_ref::one")] hecs::Entity),
+    Spell(#[serde(with = "crate::world::stable_ref::one")] hecs::Entity),
 }
 
 /// Who is acting, and on what, when an effect rule runs.

@@ -21,6 +21,8 @@
 
 mod game;
 
+pub use game::replay::{self, Replay, ReplayError};
+pub use game::undo::{self, UndoError};
 pub use game::Game;
 
 use f4x_core::player::PlayerId;

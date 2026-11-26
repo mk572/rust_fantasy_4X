@@ -40,6 +40,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let dir = content_dir.unwrap_or_else(|| f4x_def::SHIPPED_CONTENT.into());
     let content = f4x_def::load::load_content_layers(&[&dir, Path::new(f4x_def::SHIPPED_CONTENT)])
         .map_err(|e| e.to_string())?;
+    let new = load.is_none();
     let mut game = Game::new(match load {
         Some(path) => {
             let (mut w, _) =
@@ -55,6 +56,8 @@ pub fn run(args: &[String]) -> Result<(), String> {
             },
         )?,
     });
+    // A new game has a person at the console, who may take orders back.
+    game.set_undo(new);
     let mut console = Console::new(HUMAN, access);
     let input: Box<dyn BufRead> = match &script {
         Some(path) => Box::new(std::io::BufReader::new(

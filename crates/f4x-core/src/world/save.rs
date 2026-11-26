@@ -890,13 +890,9 @@ impl World {
             net_gold_memo: _,
             tile_watch: _,
             budget_parts: _,
-            // What belongs to the session, not the game: learned battle players, the recording, the
-            // undo history and the switch for it, the confirmation of one command, and the items of the
-            // last command that the client has yet to tell about.
+            // What belongs to the session, not the game: learned battle players, the confirmation of
+            // one command, and the items of the last command that the client has yet to tell about.
             battle_brains: _,
-            recording: _,
-            undo_on: _,
-            undo_stack: _,
             confirmed: _,
             item_awards: _,
         } = self;
@@ -1173,12 +1169,6 @@ mod header {
         #[serde(default)]
         pub game_version: String,
     }
-
-    #[derive(Deserialize)]
-    pub struct Replay {
-        pub version: u32,
-        pub start: Snapshot,
-    }
 }
 
 /// Whether a save is as the game wrote it.
@@ -1201,7 +1191,7 @@ fn checksum(text: &str) -> u64 {
 
 /// Refuse a save or replay of another save layout, or of a game version outside
 /// `OLDEST_COMPATIBLE_VERSION..=GAME_VERSION`.
-fn check_versions(version: u32, game_version: &str) -> Result<(), LoadError> {
+pub fn check_versions(version: u32, game_version: &str) -> Result<(), LoadError> {
     if version != SAVE_VERSION {
         return Err(LoadError::Version {
             found: version,
@@ -1233,11 +1223,6 @@ fn check_versions(version: u32, game_version: &str) -> Result<(), LoadError> {
 pub(crate) fn check_snapshot_text(text: &str) -> Result<(), LoadError> {
     let h: header::Snapshot = ron::from_str(text).map_err(|e| LoadError::Parse(e.to_string()))?;
     check_versions(h.version, &h.game_version)
-}
-
-pub(crate) fn check_replay_text(text: &str) -> Result<(), LoadError> {
-    let h: header::Replay = ron::from_str(text).map_err(|e| LoadError::Parse(e.to_string()))?;
-    check_versions(h.version, &h.start.game_version)
 }
 
 impl Snapshot {

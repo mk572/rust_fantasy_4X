@@ -155,7 +155,7 @@ Callers is a text count and an upper bound.
 | std | f4x-core | `crates/f4x-core/src/world/access.rs:136` | `World::component` | `ok` | 7 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
 | std | f4x-core | `crates/f4x-core/src/world/access.rs:142` | `World::entity_exists` | `contains` | 4 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
 | std | f4x-core | `crates/f4x-core/src/world/access.rs:31` | `World::map` | `as_ref` | 2519 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
-| std | f4x-core | `crates/f4x-core/src/world/replay.rs:141` | `World::is_recording` | `is_some` | 4 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
+| std | f4x-master | `crates/f4x-master/src/game/replay.rs` | `Game::is_recording` | `is_some` | 4 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
 | std | f4x-core | `crates/f4x-core/src/item/crafting.rs:143` | `is_plain` | `is_some` | 1 | Keep | agreed; a game concept |
 | std | f4x-core | `crates/f4x-core/src/item/mod.rs:123` | `Item::has_power` | `contains` | 4 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
 | std | f4x-core | `crates/f4x-core/src/item/mod.rs:200` | `HeroItems::iter` | `flatten` | 2771 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
@@ -403,10 +403,10 @@ Callers is a text count and an upper bound.
 | task | f4x-core | `crates/f4x-core/src/world/access.rs:87` | `World::city_farmers` | `map_or` | 3 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/world/cheat.rs:200` | `World::cheat_defeat_player` | `defeat` | 1 | Keep | cheat or test hook |
 | task | f4x-core | `crates/f4x-core/src/world/endgame.rs:219` | `World::win_by_mastery` | `finish` | 3 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-core | `crates/f4x-core/src/world/replay.rs:88` | `deserialize` | `entity_of` | 3 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
+| task | f4x-core | `crates/f4x-core/src/world/stable_ref.rs` | `deserialize` | `entity_of` | 3 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/world/serial.rs:26` | `World::serial_of` | `map_or` | 323 | Done | changed by task 660: duplicate in Game and UnitView: see Findings 3 |
 | task | f4x-core | `crates/f4x-core/src/world/serial.rs:31` | `World::sort_by_serial` | `sort_by_key` | 41 | Done | changed by task 660: duplicate in Game and UnitView: see Findings 3 |
-| task | f4x-core | `crates/f4x-core/src/world/undo.rs:64` | `World::undo_label` | `map` | 1 | Keep | hides a private representation (component, map or cache) |
+| task | f4x-master | `crates/f4x-master/src/game/undo.rs` | `Game::undo_label` | `map` | 1 | Keep | hides a private representation (component, map or cache) |
 | task | f4x-core | `crates/f4x-core/src/hero/world.rs:111` | `UnitView<'_>::hero_name` | `map` | 10 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/hero/world.rs:123` | `UnitView<'_>::hero_kind` | `map` | 9 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/hero/world.rs:205` | `World::make_hero_with` | `spawn` | 2 | Keep | binds a fixed argument (default, screen, key or constant) to a general function; the name says which; not clear-cut |

@@ -409,8 +409,6 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<World, NewGameError
     crate::temperament::assign_temperaments(&mut world);
     // The heroes' abilities are rolled last, so the map and the wizards' start stay as they were.
     init_heroes(&mut world);
-    // Undo takes a snapshot of the whole game for every command: only a person needs it.
-    world.set_undo(!spec.all_ai);
     Ok(world)
 }
 

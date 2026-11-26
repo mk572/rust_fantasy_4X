@@ -7,6 +7,7 @@
 
 use crate::support::{commands, text, worlds};
 use f4x_core::world::Event;
+use f4x_master::Game;
 
 /// Try every command of the sweep on each world, warmed up with `warm` rounds of play first, and check
 /// each refusal. Returns how many commands were tried and how many were refused.
@@ -37,9 +38,10 @@ fn sweep(every: usize, warm: usize) -> (usize, usize) {
                 w.give_item(p, item.clone());
             }
         }
-        // Recording and undo are on, so that a refused command is also checked for what it leaves
-        // there: nothing in the replay, nothing to undo.
-        w.start_recording().expect("recording starts");
+        // The commands go through a game with recording and undo on, so that a refused command is
+        // also checked for what it leaves there: nothing in the replay, nothing to undo.
+        let mut w = Game::new(w);
+        w.start_recording();
         w.set_undo(true);
         // The game goes on changing as commands are accepted (a unit is dismissed, a city founded), so
         // later commands name things that are gone: a stale handle is one more kind of bad input.

@@ -7,7 +7,7 @@ use f4x_core::world::World;
 use f4x_def::rules::ItemKind;
 
 /// The saved fresh games: (computer wizards, seed). The files are `tests/saves/fresh_w*_s*.save`.
-pub const WORLDS: [(u8, u64); 4] = [(2, 7), (3, 3), (3, 7), (3, 11)];
+pub use f4x_core::world::testutil::FRESH_WORLDS as WORLDS;
 
 /// Every fresh game of the matrix, with its name for a failure message.
 pub fn worlds() -> Vec<(String, World)> {

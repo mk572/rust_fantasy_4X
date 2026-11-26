@@ -27,6 +27,11 @@ impl World {
         &self.content
     }
 
+    /// The content, to build another world on without copying it.
+    pub fn shared_content(&self) -> std::sync::Arc<Content> {
+        self.content.clone()
+    }
+
     /// The map, once there is one.
     pub fn map(&self) -> Option<&Map> {
         self.map.as_ref()

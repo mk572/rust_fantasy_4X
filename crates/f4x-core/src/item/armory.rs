@@ -56,7 +56,7 @@ pub enum ItemSpot {
     Award(usize),
     /// A slot (0 to 2) of a hero unit.
     Hero(
-        #[serde(with = "crate::world::replay::stable_ref::one")] hecs::Entity,
+        #[serde(with = "crate::world::stable_ref::one")] hecs::Entity,
         usize,
     ),
 }

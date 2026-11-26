@@ -141,7 +141,6 @@ fn end(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
 fn undo(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     let label = ctx
         .game
-        .world_mut()
         .undo()
         .map_err(|e| ConsoleError::Refused(format!("{e:?}")))?;
     ctx.say(format!("undone: {label}"));

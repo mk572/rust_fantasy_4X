@@ -480,7 +480,6 @@ pub fn game(
             new_game(content, &spec)?
         }
     });
-    game.world_mut().set_undo(false);
     // A game that was loaded has its own seed: the one asked for here is only the default range.
     let seed = game.seed();
     let tag = if label.is_empty() {
