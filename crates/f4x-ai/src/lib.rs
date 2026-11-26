@@ -73,6 +73,7 @@ use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
 use f4x_core::world::serial::Serial;
 use f4x_core::world::{Command, Event, World};
+use f4x_master::Game;
 
 /// A command the game refused, with where in the AI it was sent from (for finding out why the AI
 /// sends orders the game will not take).
@@ -365,12 +366,12 @@ impl Ai {
     }
 
     /// Put the plans of every AI in `ais` into `game`, to be saved with it.
-    pub fn remember(world: &mut World, ais: &[Ai]) {
+    pub fn remember(game: &mut Game, ais: &[Ai]) {
         let plans = ais
             .iter()
             .filter_map(|ai| Some((ai.player, ai.to_text().ok()?)))
             .collect();
-        world.set_plans(plans);
+        game.world_mut().set_plans(plans);
     }
 
     /// Give each AI in `ais` the plans `game` carries for its player. An AI the game has no plans
@@ -593,78 +594,78 @@ impl Ai {
     /// What this wizard has to say to the human at the start of the human's turn: offers,
     /// warnings of war and requests (`diplomacy::approach_human`). The client calls it for each
     /// rival after the turn has changed, so the proposals wait for the human's answer in that turn.
-    pub fn approach_human(&mut self, world: &mut World) -> Vec<Event> {
+    pub fn approach_human(&mut self, game: &mut Game) -> Vec<Event> {
         let mut events = Vec::new();
-        diplo_b_talk::approach_human(self, world, &mut events);
+        diplo_b_talk::approach_human(self, game, &mut events);
         events
     }
 
     /// Play this wizard's turn; returns the events the AI's own commands caused.
-    pub fn play_turn(&mut self, world: &mut World) -> Vec<Event> {
+    pub fn play_turn(&mut self, game: &mut Game) -> Vec<Event> {
         // Every change in the game during the turn is a command this wizard sends, so what it
         // sees is counted once and patched (`World::keep_for_turn`).
-        world.keep_for_turn(self.player);
-        let events = self.play_kept(world);
-        world.drop_kept();
+        game.keep_for_turn(self.player);
+        let events = self.play_kept(game);
+        game.drop_kept();
         events
     }
 
-    fn play_kept(&mut self, world: &mut World) -> Vec<Event> {
+    fn play_kept(&mut self, game: &mut Game) -> Vec<Event> {
         let mut events = Vec::new();
         {
-            let view = PlayerView::new(world, self.player);
+            let view = PlayerView::new(game, self.player);
             // A player plays when it has a wizard or is the neutral player of a race (task 522).
-            let plays = view.wizard().is_some() || world.race_of_player(self.player).is_some();
+            let plays = view.wizard().is_some() || game.race_of_player(self.player).is_some();
             if view.game_over() || !plays || view.is_defeated() {
                 return events;
             }
         }
         // Units built or hired since the last turn await orders from the first moment.
-        roles::register(self, world);
-        let dropped = self.drop_stale_plans(world.turn);
+        roles::register(self, game);
+        let dropped = self.drop_stale_plans(game.turn);
         if dropped.sea {
-            naval::release_scouts(self, world, &mut events);
+            naval::release_scouts(self, game, &mut events);
         }
         if !dropped.release.is_empty() {
             let units: Vec<hecs::Entity> = {
-                let view = PlayerView::new(world, self.player);
+                let view = PlayerView::new(game, self.player);
                 view.my_units()
                     .into_iter()
                     .filter(|&u| dropped.release.contains(&view.serial_of(u)))
                     .collect()
             };
             if !units.is_empty() {
-                self.order(world, Command::ClearOrders { units }, &mut events);
+                self.order(game, Command::ClearOrders { units }, &mut events);
             }
         }
-        self.memory.put().look(world, self.player);
-        diplomacy::answer(self, world, &mut events);
-        diplo_b_talk::negotiate(self, world, &mut events);
-        statecraft::run(self, world, &mut events);
-        offer::answer(self, world, &mut events);
-        offer::equip(self, world, &mut events);
-        world.balance_farmers(self.player);
-        economy::taxes(self, world, &mut events);
-        alchemy::run(self, world, &mut events);
-        race::run(self, world, &mut events);
+        self.memory.put().look(game, self.player);
+        diplomacy::answer(self, game, &mut events);
+        diplo_b_talk::negotiate(self, game, &mut events);
+        statecraft::run(self, game, &mut events);
+        offer::answer(self, game, &mut events);
+        offer::equip(self, game, &mut events);
+        game.balance_farmers(self.player);
+        economy::taxes(self, game, &mut events);
+        alchemy::run(self, game, &mut events);
+        race::run(self, game, &mut events);
         self.tower_blocked = site::blocked_planes(
-            &PlayerView::new(world, self.player),
+            &PlayerView::new(game, self.player),
             &self.unreachable,
             self.naval.map(|p| p.target),
         );
-        wizardry::run(self, world, &mut events);
+        wizardry::run(self, game, &mut events);
         // While another wizard keeps Time Stop going, none of this wizard's units can act
         // (`AIMOVE.c`, `AIDUDES.c`): its armies, settlers and ships wait.
-        if !world
+        if !game
             .time_stopper()
             .is_some_and(|keeper| keeper != self.player)
         {
-            dispatch::run(self, world, &mut events);
+            dispatch::run(self, game, &mut events);
         }
-        raze::run(self, world, &mut events);
-        economy::cities(self, world, &mut events);
-        road::build_engineer(self, world, &mut events);
-        shortfall::run(self, world, &mut events);
+        raze::run(self, game, &mut events);
+        economy::cities(self, game, &mut events);
+        road::build_engineer(self, game, &mut events);
+        shortfall::run(self, game, &mut events);
         events
     }
 
@@ -696,19 +697,19 @@ impl Ai {
     #[track_caller]
     fn send(
         &self,
-        world: &mut World,
+        game: &mut Game,
         command: Command,
         events: &mut Vec<Event>,
     ) -> Result<(), SendError> {
-        self.submit(world, command, events, true)
+        self.submit(game, command, events, true)
     }
 
     /// Send a command whose refusal changes nothing in the plan: the refusal is in the refused-order
     /// log (as for [`Ai::send`]), and the next turn's plan starts from where the units really
     /// are. For a command whose success the caller needs to know, use `send`.
     #[track_caller]
-    fn order(&self, world: &mut World, command: Command, events: &mut Vec<Event>) {
-        let _ = self.submit(world, command, events, true);
+    fn order(&self, game: &mut Game, command: Command, events: &mut Vec<Event>) {
+        let _ = self.submit(game, command, events, true);
     }
 
     /// Send a command that the game may refuse as the AI expects (it cannot know, say, that a site
@@ -716,22 +717,22 @@ impl Ai {
     #[track_caller]
     fn probe(
         &self,
-        world: &mut World,
+        game: &mut Game,
         command: Command,
         events: &mut Vec<Event>,
     ) -> Result<(), SendError> {
-        self.submit(world, command, events, false)
+        self.submit(game, command, events, false)
     }
 
     #[track_caller]
     fn submit(
         &self,
-        world: &mut World,
+        game: &mut Game,
         command: Command,
         events: &mut Vec<Event>,
         keep_refusal: bool,
     ) -> Result<(), SendError> {
-        if world.game_over.is_some() {
+        if game.game_over.is_some() {
             // The other wizard's turn ended the game: nothing more can be ordered.
             return Err(SendError::GameOver);
         }
@@ -755,7 +756,7 @@ impl Ai {
         };
         let walk_command = matches!(command, Command::GoTo { .. } | Command::MoveStack { .. })
             .then(|| command.clone());
-        let out = world.apply(command);
+        let out = game.apply(command);
         // A refusal first; else an order that was taken and stopped on its first step.
         let refused = out
             .iter()
@@ -777,20 +778,20 @@ impl Ai {
                 if let Event::OrderFailed { why, player, .. } = e {
                     if *player == self.player {
                         self.refusals.borrow_mut().push(Refusal {
-                            turn: world.turn,
+                            turn: game.turn,
                             player: self.player,
                             source: format!("{}:{}", at.file(), at.line()),
                             command: command.clone(),
                             reason: with_detail(
                                 format!("OrderFailed {why:?}"),
-                                step_detail(world, e),
+                                step_detail(game, e),
                             ),
                         });
                     }
                 }
                 if let Event::Rejected(reason) = e {
                     self.refusals.borrow_mut().push(Refusal {
-                        turn: world.turn,
+                        turn: game.turn,
                         player: self.player,
                         source: format!("{}:{}", at.file(), at.line()),
                         command: command.clone(),
@@ -801,7 +802,7 @@ impl Ai {
                                 }
                                 other => format!("{other:?}"),
                             },
-                            rejection_detail(world, reason, target.as_ref()),
+                            rejection_detail(game, reason, target.as_ref()),
                         ),
                     });
                 }
@@ -822,14 +823,14 @@ impl Ai {
     /// have moved their units: the units that could move did, and a square they left has room for
     /// those that waited. Unblocked first, then the blocked, as long as one more gets through, so a
     /// column of big stacks walking one way clears from its head.
-    pub(crate) fn retry_blocked(&self, world: &mut World, events: &mut Vec<Event>) {
+    pub(crate) fn retry_blocked(&self, game: &mut Game, events: &mut Vec<Event>) {
         let mut waiting = std::mem::take(&mut *self.blocked.borrow_mut());
         self.retrying.set(true);
         while !waiting.is_empty() {
             let mut still = Vec::new();
             let mut sent = false;
             for command in waiting {
-                match self.submit(world, command.clone(), events, false) {
+                match self.submit(game, command.clone(), events, false) {
                     Err(why) if why.is_no_room() => still.push(command),
                     Ok(()) => sent = true,
                     // Refused for another reason (the units have no moves left, say): over.
@@ -876,32 +877,27 @@ impl SendError {
 ///
 /// The wizard answers with what it remembers: `diplomats` is the game's table of memories (`memory.rs`);
 /// a wizard that is not in it answers with an empty memory.
-pub fn answer_proposals(world: &mut World, player: PlayerId, diplomats: &Diplomats) -> Vec<Event> {
+pub fn answer_proposals(game: &mut Game, player: PlayerId, diplomats: &Diplomats) -> Vec<Event> {
     let mut events = Vec::new();
-    diplomacy::answer(&Ai::answering(player, diplomats), world, &mut events);
+    diplomacy::answer(&Ai::answering(player, diplomats), game, &mut events);
     events
 }
 
 /// Two AI wizards answer each other's proposals and counters until nothing is pending between
 /// them (a negotiation has at most `max_rounds` messages). `from` made the proposal to `to`.
-pub fn settle(
-    world: &mut World,
-    from: PlayerId,
-    to: PlayerId,
-    diplomats: &Diplomats,
-) -> Vec<Event> {
+pub fn settle(game: &mut Game, from: PlayerId, to: PlayerId, diplomats: &Diplomats) -> Vec<Event> {
     let mut events = Vec::new();
-    for _ in 0..=world.content().rules.config.diplomacy.max_rounds {
+    for _ in 0..=game.content().rules.config.diplomacy.max_rounds {
         let mut answered = false;
         for who in [to, from] {
-            let waiting = world.human() != Some(who)
-                && world
+            let waiting = game.human() != Some(who)
+                && game
                     .diplomacy
                     .proposals()
                     .iter()
                     .any(|p| p.to == who && (p.from == from || p.from == to));
             if waiting {
-                events.extend(answer_proposals(world, who, diplomats));
+                events.extend(answer_proposals(game, who, diplomats));
                 answered = true;
             }
         }

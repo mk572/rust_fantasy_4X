@@ -50,13 +50,13 @@ impl App {
     /// Note each hero's level at a new turn, and queue a box for each that has gone up. The first
     /// look at a game only notes the levels.
     pub(crate) fn check_hero_levels(&mut self) {
-        if self.world.turn == self.levels_turn {
+        if self.game.turn == self.levels_turn {
             return;
         }
         let first = self.levels_turn == u32::MAX;
-        self.levels_turn = self.world.turn;
-        for hero in self.world.units().hero_units(HUMAN) {
-            let level = self.world.units().unit_xp_level(hero);
+        self.levels_turn = self.game.turn;
+        for hero in self.game.units().hero_units(HUMAN) {
+            let level = self.game.units().unit_xp_level(hero);
             let before = self.hero_levels.insert(hero, level);
             if !first && before.is_some_and(|b| level > b) {
                 self.modals.enqueue(LevelUp(hero));
@@ -67,12 +67,12 @@ impl App {
     /// For screenshots and checks: announce the first unit of the human's as if it had made a level.
     pub fn open_test_level_up(&mut self) {
         let unit = self
-            .world
+            .game
             .units()
             .hero_units(HUMAN)
             .first()
             .copied()
-            .or_else(|| self.world.units().player_units(HUMAN).first().copied());
+            .or_else(|| self.game.units().player_units(HUMAN).first().copied());
         if let Some(unit) = unit {
             self.modals.enqueue(LevelUp(unit));
         }
@@ -82,7 +82,7 @@ impl App {
     /// portrait's frame.
     fn draw_sprite_in_frame(&mut self, lay: &Layout, unit: hecs::Entity, at: (f32, f32)) {
         let Some((lbx, entry)) = self
-            .world
+            .game
             .units()
             .unit_def(unit)
             .and_then(|d| self.art.unit_entry(&d.id))
@@ -119,7 +119,7 @@ impl App {
         input: &Input,
     ) -> Option<LevelUp> {
         let sheet = self.overland_sheet(unit)?;
-        let level = self.world.units().unit_xp_level(unit);
+        let level = self.game.units().unit_xp_level(unit);
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let (bx, by) = BASE;
@@ -135,7 +135,7 @@ impl App {
         });
         self.draw_pic(&lay, "reload", 24, 0, bx, by + height);
         let portrait = self
-            .world
+            .game
             .units()
             .unit_def(unit)
             .and_then(|d| self.art.hero_portrait(&d.id));
@@ -216,31 +216,31 @@ mod tests {
     #[test]
     fn a_hero_that_gains_a_level_between_turns_is_announced_once() -> TestResult {
         let mut app = App::for_test();
-        app.world
+        app.game
             .treasury_mut(HUMAN)
             .ok_or("the human has no treasury")?
             .gold = f4x_def::half_int::HalfInt::from_int(100_000);
-        let kinds = app.world.content().rules.hero_templates.len();
+        let kinds = app.game.content().rules.hero_templates.len();
         let hero = (0..kinds)
-            .find_map(|kind| app.world.hire_hero(HUMAN, kind).ok())
+            .find_map(|kind| app.game.hire_hero(HUMAN, kind).ok())
             .ok_or("no hero can be hired")?;
         app.check_hero_levels();
         assert!(
             app.modals.is_empty(),
             "the first look only notes the levels"
         );
-        app.world.scenario_set_experience(hero, 100_000);
+        app.game.scenario_set_experience(hero, 100_000);
         app.check_hero_levels();
         assert!(
             app.modals.is_empty(),
             "the same turn is not looked at twice"
         );
-        app.world.turn += 1;
+        app.game.turn += 1;
         app.check_hero_levels();
         assert!(!app.modals.is_empty());
         let mut again = App::for_test();
         again.check_hero_levels();
-        again.world.turn += 1;
+        again.game.turn += 1;
         again.check_hero_levels();
         assert!(
             again.modals.is_empty(),

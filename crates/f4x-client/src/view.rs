@@ -24,6 +24,7 @@ use crate::modal::{keep, Modal};
 use crate::options_screen::OptionsState;
 use crate::preferences::Pref;
 use crate::ui::GOLD;
+use f4x_master::Game;
 
 pub(crate) const HUMAN: PlayerId = PlayerId(0);
 
@@ -91,7 +92,7 @@ pub enum Screen {
 }
 
 pub struct App {
-    pub(crate) world: crate::revised::Revised<World>,
+    pub(crate) game: crate::revised::Revised<Game>,
     pub(crate) art: Art,
     params: GenParams,
     /// The new-game options chosen before the wizard is made.
@@ -304,7 +305,7 @@ impl App {
     /// The name of a retort.
     pub(crate) fn retort_name(&self, retort: f4x_core::wizard::magic::Retort) -> String {
         self.names
-            .retort(self.world.content().rules.retorts.get(retort).num)
+            .retort(self.game.content().rules.retorts.get(retort).num)
             .to_string()
     }
 
@@ -314,12 +315,12 @@ impl App {
         retort: f4x_core::wizard::magic::Retort,
     ) -> f4x_lang::text::Term {
         self.names
-            .retort_term(self.world.content().rules.retorts.get(retort).num)
+            .retort_term(self.game.content().rules.retorts.get(retort).num)
     }
 
     /// The name of the spell with this id (`suppress_magic`); the id itself if the rules lack it.
     pub(crate) fn spell_term_of(&self, id: &str) -> f4x_lang::text::Term {
-        let spells = &self.world.content().rules.spells;
+        let spells = &self.game.content().rules.spells;
         spells.defs().iter().find(|d| d.id == id).map_or_else(
             || f4x_lang::text::Term::plain(id),
             |d| self.names.spell_term(d.num),
@@ -356,7 +357,7 @@ impl App {
         let world = Self::new_game(seed, &options, &content, &names.bundle(), None, race, true)
             .map_err(|e| e.to_string())?;
         let mut app = Self {
-            world: crate::revised::Revised::new(world),
+            game: crate::revised::Revised::new(Game::new(world)),
             art,
             params,
             options,
@@ -477,7 +478,7 @@ impl App {
         self.ais = self.rival_wizards();
         self.reset_master();
         let fortress = self
-            .world
+            .game
             .economy()
             .cities()
             .into_iter()
@@ -492,14 +493,14 @@ impl App {
     /// person.
     /// How friendly the wizard `with` feels about the human: what the screens show as the relation.
     pub(crate) fn feeling(&self, with: PlayerId) -> i32 {
-        self.diplomats.feeling(&self.world, with, HUMAN)
+        self.diplomats.feeling(&self.game, with, HUMAN)
     }
 
     fn rival_wizards(&self) -> Vec<f4x_ai::Ai> {
-        self.world
+        self.game
             .player_ids()
             .into_iter()
-            .filter(|id| *id != HUMAN && !self.world.is_neutral_player(*id))
+            .filter(|id| *id != HUMAN && !self.game.is_neutral_player(*id))
             .map(|id| {
                 let mut ai = f4x_ai::Ai::new(id);
                 ai.join(&self.diplomats);
@@ -521,7 +522,7 @@ impl App {
     /// The banner colour of a player (by number; 255 is the neutral player).
     pub(crate) fn banner_color(&self, owner: u8) -> Color {
         let banner = self
-            .world
+            .game
             .wizard(PlayerId(owner))
             .map_or(f4x_core::player::NEUTRAL_BANNER, |w| w.banner());
         self.art.banner_color(banner)
@@ -529,15 +530,15 @@ impl App {
 
     /// The banner number of a player (by number; 255 is the neutral player).
     pub(crate) fn banner_index(&self, owner: u8) -> u8 {
-        self.world
+        self.game
             .wizard(PlayerId(owner))
             .map_or(f4x_core::player::NEUTRAL_BANNER, |w| w.banner())
     }
 
     fn next_city_name(&self) -> String {
-        let race = &self.world.content().rules.races.defs()[self.race];
-        let used = self.world.economy().cities().len();
-        self.world.names().city(race.num, &race.id, used)
+        let race = &self.game.content().rules.races.defs()[self.race];
+        let used = self.game.economy().cities().len();
+        self.game.names().city(race.num, &race.id, used)
     }
 
     /// Turn events into log lines; returns whether a city was founded.
@@ -545,9 +546,9 @@ impl App {
         // The rivals hear what the human's commands did (a battle, a city taken), as they hear what
         // the other wizards' turns did through the master.
         for ai in &mut self.ais {
-            ai.notice(&self.world, &events);
+            ai.notice(&self.game, &events);
         }
-        f4x_master::Controller::notice(&mut self.neutral_seat, &self.world, &events);
+        f4x_master::Controller::notice(&mut self.neutral_seat, &self.game, &events);
         self.note_shown(events)
     }
 
@@ -559,7 +560,7 @@ impl App {
             self.start_slide(&event);
             if let Event::SpellCast { player, spell } = &event {
                 if *player == HUMAN || self.prefs.get(crate::preferences::Pref::EnemySpells) {
-                    let id = &self.world.content().rules.spells.get(*spell).id;
+                    let id = &self.game.content().rules.spells.get(*spell).id;
                     let key = self
                         .audio
                         .table
@@ -595,7 +596,7 @@ impl App {
                     self.queue_conquest_scene(*player, Some(*by), true)
                 }
                 Event::WizardDefeated { player } => {
-                    let by = self.world.player(*player).and_then(|p| p.defeated_by());
+                    let by = self.game.player(*player).and_then(|p| p.defeated_by());
                     self.queue_conquest_scene(*player, by, false);
                 }
                 _ => {}
@@ -691,7 +692,7 @@ impl App {
                 } => {
                     let building = building.map(|b| {
                         self.names
-                            .building_term(self.world.content().rules.buildings.get(b).num)
+                            .building_term(self.game.content().rules.buildings.get(b).num)
                     });
                     let args = Args::new()
                         .text("city", self.city_name(city))
@@ -729,7 +730,7 @@ impl App {
                 } => {
                     if attackers
                         .first()
-                        .is_some_and(|&u| self.world.units().unit_owner(u) == Some(HUMAN))
+                        .is_some_and(|&u| self.game.units().unit_owner(u) == Some(HUMAN))
                     {
                         // Asked first: fight, leave it to the computer, or call it off.
                         self.modals.open(crate::attack_prompt::AttackAsk::new(
@@ -745,7 +746,7 @@ impl App {
                 Event::SiteEncounter { units, to, .. } => {
                     if units
                         .first()
-                        .is_some_and(|&u| self.world.units().unit_owner(u) == Some(HUMAN))
+                        .is_some_and(|&u| self.game.units().unit_owner(u) == Some(HUMAN))
                     {
                         self.site_encounter(units, to);
                     }
@@ -770,7 +771,7 @@ impl App {
                     buildings_lost,
                     ..
                 } => {
-                    let mine = self.world.economy().city_owner(city) == Some(HUMAN);
+                    let mine = self.game.economy().city_owner(city) == Some(HUMAN);
                     let args = Args::new()
                         .text("city", self.city_name(city))
                         .count("gold", gold)
@@ -800,12 +801,12 @@ impl App {
                 // The raiders and the monsters are news where the human has been.
                 Event::RaidersRaised { city, count, .. } => {
                     let seen = self
-                        .world
+                        .game
                         .economy()
                         .cities()
                         .into_iter()
                         .find(|(e, ..)| *e == city)
-                        .is_some_and(|(.., p)| self.world.is_explored(HUMAN, p));
+                        .is_some_and(|(.., p)| self.game.is_explored(HUMAN, p));
                     seen.then(|| {
                         let args = Args::new()
                             .text("city", self.city_name(city))
@@ -815,7 +816,7 @@ impl App {
                 }
                 Event::SeaRaidLanded { at, count, .. } => {
                     // News where the human has been.
-                    self.world
+                    self.game
                         .is_explored(HUMAN, at)
                         .then(|| self.text_with("log.sea_raid", &Args::new().count("n", count)))
                 }
@@ -824,8 +825,8 @@ impl App {
                     site,
                     count,
                     evicted,
-                } => self.world.is_explored(HUMAN, pos).then(|| {
-                    let name = self.world.content().features.get(site).map_or_else(
+                } => self.game.is_explored(HUMAN, pos).then(|| {
+                    let name = self.game.content().features.get(site).map_or_else(
                         || f4x_lang::text::Term::plain(site.0.to_string()),
                         |def| self.names.feature_term(def.num),
                     );
@@ -920,7 +921,7 @@ impl App {
                     counter,
                 } => {
                     let counter_spell = self.spell_term_of(
-                        match self.world.content().rules.spells.get(counter).id.as_str() {
+                        match self.game.content().rules.spells.get(counter).id.as_str() {
                             "life_force" => "life_force",
                             "tranquility" => "tranquility",
                             _ => "suppress_magic",
@@ -964,12 +965,12 @@ impl App {
                     unit,
                     cause: f4x_core::world::LossCause::Crowded,
                 } if player == HUMAN => {
-                    let units = &self.world.content().rules.units;
+                    let units = &self.game.content().rules.units;
                     let args = Args::new().term("unit", self.names.unit_term(units.get(unit).num));
                     Some(self.text_with("log.unit_crowded_out", &args))
                 }
                 Event::UnitTransformed { from, to, .. } => {
-                    let units = &self.world.content().rules.units;
+                    let units = &self.game.content().rules.units;
                     let args = Args::new()
                         .term("from", self.names.unit_term(units.get(from).num))
                         .term("to", self.names.unit_term(units.get(to).num));
@@ -993,9 +994,9 @@ impl App {
                 }
                 Event::StasisEnded { unit } => {
                     // The box of a dispelled lasting spell, for a unit of the human's (message 20).
-                    let stasis = self.world.content().rules.spells.id_numbered(68) /* stasis */;
+                    let stasis = self.game.content().rules.spells.id_numbered(68) /* stasis */;
                     if let Some(spell) = stasis {
-                        if self.world.units().unit_owner(unit) == Some(HUMAN) {
+                        if self.game.units().unit_owner(unit) == Some(HUMAN) {
                             self.announce_dispelled(
                                 spell,
                                 f4x_core::world::DispelSite::Unit,
@@ -1014,7 +1015,7 @@ impl App {
                     population_lost,
                 } => {
                     if let Some(victim) = victim {
-                        if self.world.content().rules.spells.get(spell).id == "natures_wrath" {
+                        if self.game.content().rules.spells.get(spell).id == "natures_wrath" {
                             self.announce_wrath(victim);
                         }
                     }
@@ -1077,13 +1078,13 @@ impl App {
                 }
                 Event::HeroJoined { player, kind, .. } => {
                     self.announce_hero_summon(player, kind);
-                    let hero = self.world.units().hero_entity(kind);
-                    let args = match hero.and_then(|h| self.world.units().hero_name(h)) {
+                    let hero = self.game.units().hero_entity(kind);
+                    let args = match hero.and_then(|h| self.game.units().hero_name(h)) {
                         Some(name) => Args::new().named(
                             "hero",
                             name,
                             hero.map_or_else(Default::default, |h| {
-                                self.world.units().hero_gender(h)
+                                self.game.units().hero_gender(h)
                             }),
                         ),
                         None => Args::new().text("hero", self.text("log.a_hero")),
@@ -1115,7 +1116,7 @@ impl App {
     /// `args` with the wizard's name, which carries the wizard's gender; a rival the game has no
     /// record of is "a rival".
     pub(crate) fn wizard_arg(&self, args: Args, name: &'static str, player: PlayerId) -> Args {
-        match (self.world.wizard(player), self.player_name(player)) {
+        match (self.game.wizard(player), self.player_name(player)) {
             (Some(w), _) => args.named(name, w.name(), w.gender()),
             (None, Some(neutral)) => args.text(name, neutral),
             (None, None) => args.text(name, self.text("log.a_rival")),
@@ -1127,7 +1128,7 @@ impl App {
         args.term(
             "spell",
             self.names
-                .spell_term(self.world.content().rules.spells.get(spell).num),
+                .spell_term(self.game.content().rules.spells.get(spell).num),
         )
     }
 
@@ -1166,16 +1167,14 @@ impl App {
 
     /// The alias the content gives a realm (what the art and the loot texts are named by).
     pub(crate) fn realm_alias(&self, realm: RealmId) -> String {
-        let realms = &self.world.content().rules.realms;
+        let realms = &self.game.content().rules.realms;
         realms
             .id_numbered(realm.num())
             .map_or_else(String::new, |id| realms.get(id).id.clone())
     }
 
     pub(crate) fn city_name(&self, city: hecs::Entity) -> String {
-        self.world
-            .city_name(city)
-            .unwrap_or_else(|| "?".to_string())
+        self.game.city_name(city).unwrap_or_else(|| "?".to_string())
     }
 
     /// The name of the gift of an event notice, if it has one.
@@ -1196,7 +1195,7 @@ impl App {
         item: f4x_core::city::production::ProductionItem,
     ) -> f4x_lang::text::Term {
         use f4x_core::city::production::ProductionItem::*;
-        let rules = &self.world.content().rules;
+        let rules = &self.game.content().rules;
         match item {
             Building(b) => self.names.building_term(rules.buildings.get(b).num),
             Unit(u) => self.names.unit_term(rules.units.get(u).num),
@@ -1211,7 +1210,7 @@ impl App {
     /// A city's screen, or an outpost's (a city with no figures yet).
     pub(crate) fn open_city_or_outpost(&mut self, city: hecs::Entity) {
         let outpost = self
-            .world
+            .game
             .economy()
             .city_economy(city)
             .is_some_and(|e| e.figures == 0);
@@ -1223,18 +1222,18 @@ impl App {
     }
 
     pub fn open_first_city(&mut self) {
-        if let Some((city, ..)) = self.world.economy().cities().first() {
+        if let Some((city, ..)) = self.game.economy().cities().first() {
             self.open_city_screen(*city);
         }
     }
 
     /// Write the game to `path`, reporting the outcome in the message log.
     pub fn save_to(&mut self, path: &Path) {
-        f4x_ai::Ai::remember(&mut self.world, &self.ais);
-        match f4x_core::world::save::save_game(path, &self.world) {
+        f4x_ai::Ai::remember(&mut self.game, &self.ais);
+        match f4x_core::world::save::save_game(path, &self.game) {
             Ok(()) => {
                 let args = Args::new()
-                    .count("turn", self.world.turn)
+                    .count("turn", self.game.turn)
                     .text("path", path.display().to_string());
                 self.log.push(self.text_with("log.saved", &args));
             }
@@ -1259,7 +1258,7 @@ impl App {
         check: f4x_core::world::save::ContentCheck,
     ) -> Result<(), String> {
         use f4x_core::world::save::{LoadError, SaveError};
-        let content = self.world.content().clone();
+        let content = self.game.content().clone();
         // A setting the save does not name is the player's default (`default_game.rs`).
         let loaded = f4x_def::settings::with_fallback(self.default_game.settings, || {
             f4x_core::world::save::load_game_with(path, content, check)
@@ -1285,12 +1284,12 @@ impl App {
         if let Some(r) = world.wizard(HUMAN).and_then(|w| w.capital_race()) {
             self.race = r.num() as usize;
         }
-        self.world = crate::revised::Revised::new(world);
-        self.world.set_names(self.names.bundle());
-        self.world.ensure_human(HUMAN);
-        self.world.set_undo(true);
+        self.game = crate::revised::Revised::new(Game::new(world));
+        self.game.world_mut().set_names(self.names.bundle());
+        self.game.world_mut().ensure_human(HUMAN);
+        self.game.world_mut().set_undo(true);
         self.ais = self.rival_wizards();
-        f4x_ai::Ai::recall(&self.world, &mut self.ais);
+        f4x_ai::Ai::recall(&self.game, &mut self.ais);
         self.reset_master();
         // A game saved in a battle comes back in it: the frame loop opens the battle screen.
         self.close_page(&Screen::Battle);
@@ -1301,7 +1300,7 @@ impl App {
         self.choosing = false;
         self.selection.clear();
         let home = self
-            .world
+            .game
             .economy()
             .cities()
             .into_iter()
@@ -1311,7 +1310,7 @@ impl App {
             self.center_on(pos);
         }
         let args = Args::new()
-            .count("turn", self.world.turn)
+            .count("turn", self.game.turn)
             .text("path", path.display().to_string());
         self.log.push(self.text_with("log.loaded", &args));
         if integrity != f4x_core::world::save::Integrity::Intact {
@@ -1332,13 +1331,13 @@ impl App {
         let serials: Vec<_> = self
             .selection
             .iter()
-            .map(|&u| self.world.units().serial_of(u))
+            .map(|&u| self.game.units().serial_of(u))
             .collect();
-        match self.world.undo() {
+        match self.game.world_mut().undo() {
             Ok(label) => {
                 self.selection = serials
                     .into_iter()
-                    .filter_map(|s| self.world.units().entity_of_serial(s))
+                    .filter_map(|s| self.game.units().entity_of_serial(s))
                     .collect();
                 self.targeting = None;
                 self.log
@@ -1361,7 +1360,7 @@ impl App {
             phase: Phase::Acting(0),
         };
         self.master_state = self
-            .world
+            .game
             .flow()
             .and_then(|text| State::from_text(text).ok())
             .filter(|state| match state.phase {
@@ -1384,9 +1383,9 @@ impl App {
         if self.turn_events.is_some() {
             return;
         }
-        let t = self.cache.budget(&self.world, HUMAN);
+        let t = self.cache.budget(&self.game, HUMAN);
         if t.food_surplus < t.food_upkeep {
-            self.world.balance_farmers(HUMAN);
+            self.game.balance_farmers(HUMAN);
         }
         self.seating.human_done = true;
         self.turn_events = Some(Vec::new());
@@ -1397,7 +1396,7 @@ impl App {
     /// fought, or the turn was just ended. Stops again at the next attack on the human, or at
     /// the human's next turn, when it reports what the rivals and the turn did.
     pub(crate) fn resume_turn(&mut self) {
-        if self.modals.has(crate::modal::kind::ATTACK) || self.world.in_battle() {
+        if self.modals.has(crate::modal::kind::ATTACK) || self.game.in_battle() {
             return;
         }
         if let Some(attack) = self.next_defence() {
@@ -1409,10 +1408,10 @@ impl App {
             return;
         };
         // The rivals' commands are not taken back, and undo would snapshot the whole game for each.
-        let undo = self.world.undo_enabled();
-        self.world.set_undo(false);
+        let undo = self.game.undo_enabled();
+        self.game.world_mut().set_undo(false);
         let progress = self.run_master();
-        self.world.set_undo(undo);
+        self.game.world_mut().set_undo(undo);
         events.extend(progress.events);
         if let f4x_master::Stopped::Waiting(seat) = progress.stopped {
             if seat != 0 {
@@ -1422,22 +1421,22 @@ impl App {
                 return;
             }
         }
-        if self.world.game_over.is_none() {
+        if self.game.game_over.is_none() {
             // The rivals now say what they have to say to the human: offers, requests, war.
-            let undo = self.world.undo_enabled();
-            self.world.set_undo(false);
+            let undo = self.game.undo_enabled();
+            self.game.world_mut().set_undo(false);
             for ai in &mut self.ais {
-                events.extend(ai.approach_human(&mut self.world));
+                events.extend(ai.approach_human(&mut self.game));
             }
-            events.extend(self.neutral_seat.approach_human(&mut self.world));
-            self.world.set_undo(undo);
+            events.extend(self.neutral_seat.approach_human(&mut self.game));
+            self.game.world_mut().set_undo(undo);
         }
         // What the rivals did out of sight is not shown: only what touches the human.
         let events: Vec<Event> = events
             .into_iter()
             .filter(|e| self.concerns_human(e))
             .collect();
-        let turn = self.world.turn;
+        let turn = self.game.turn;
         let news = self.collect_report(&events);
         self.last_news = news.clone();
         self.note_shown(events);
@@ -1481,7 +1480,7 @@ impl App {
             let mut master = Master::resume(seats, self.master_state).checkpoints();
             let mut events = Vec::new();
             let progress = loop {
-                let progress = master.run(&mut self.world, Until::Rounds(2));
+                let progress = master.run(&mut self.game, Until::Rounds(2));
                 events.extend(progress.events);
                 if progress.stopped != f4x_master::Stopped::RoundStart {
                     break f4x_master::Progress {
@@ -1489,7 +1488,7 @@ impl App {
                         stopped: progress.stopped,
                     };
                 }
-                if let Err(e) = f4x_core::world::save::save_game(Path::new(AUTOSAVE), &self.world) {
+                if let Err(e) = f4x_core::world::save::save_game(Path::new(AUTOSAVE), &self.game) {
                     autosave_failed = Some(e.to_string());
                 }
             };
@@ -1508,11 +1507,11 @@ impl App {
     /// The next attack on the human that is still real (a unit may have died to an earlier one).
     pub(crate) fn next_defence(&mut self) -> Option<crate::attack_prompt::PendingAttack> {
         while let Some(attack) = self.defences.pop_front() {
-            let alive = |u: &hecs::Entity| self.world.units().unit_owner(*u).is_some();
+            let alive = |u: &hecs::Entity| self.game.units().unit_owner(*u).is_some();
             let mine = attack
                 .defenders
                 .first()
-                .is_some_and(|&u| self.world.units().unit_owner(u) == Some(HUMAN));
+                .is_some_and(|&u| self.game.units().unit_owner(u) == Some(HUMAN));
             if mine && attack.attackers.iter().all(alive) && attack.defenders.iter().all(alive) {
                 return Some(attack);
             }
@@ -1525,13 +1524,11 @@ impl App {
     pub(crate) fn concerns_human(&self, event: &Event) -> bool {
         match event {
             Event::Rejected(_) | Event::Battle(_) | Event::BattleStarted { .. } => false,
-            Event::CityFounded { city, .. } => {
-                self.world.economy().city_owner(*city) == Some(HUMAN)
-            }
+            Event::CityFounded { city, .. } => self.game.economy().city_owner(*city) == Some(HUMAN),
             // What goes on in the affairs of a player never met is not news.
             _ => self
                 .own_affairs_of(event)
-                .is_none_or(|p| p == HUMAN || self.world.have_met(HUMAN, p)),
+                .is_none_or(|p| p == HUMAN || self.game.have_met(HUMAN, p)),
         }
     }
 
@@ -1539,7 +1536,7 @@ impl App {
     /// upkeep, its heroes, its fortress), if it is one of those; None for everything that can
     /// reach someone else (a spell on you, a battle, a capture, the world's events).
     fn own_affairs_of(&self, event: &Event) -> Option<PlayerId> {
-        let city_owner = |city: &hecs::Entity| self.world.economy().city_owner(*city);
+        let city_owner = |city: &hecs::Entity| self.game.economy().city_owner(*city);
         match event {
             Event::ProductionCompleted { city, .. }
             | Event::ProductionBlocked { city, .. }
@@ -1581,7 +1578,7 @@ impl App {
             // No one defends in person here: the computer fights the attacks on the human.
             while self.turn_events.is_some() {
                 while let Some(attack) = self.next_defence() {
-                    let events = self.world.apply(Command::AutoResolve {
+                    let events = self.game.apply(Command::AutoResolve {
                         mana_budget: None,
                         attackers: attack.attackers,
                         defenders: attack.defenders,
@@ -1600,8 +1597,8 @@ impl App {
     }
 
     pub fn select_first_stack(&mut self) {
-        if let Some(&u) = self.world.units().player_units(HUMAN).first() {
-            if let Some(at) = self.world.units().unit_position(u) {
+        if let Some(&u) = self.game.units().player_units(HUMAN).first() {
+            if let Some(at) = self.game.units().unit_position(u) {
                 self.select_at(at);
             }
         }
@@ -1629,7 +1626,7 @@ impl App {
         let t = self.tile_size();
         let x = ((screen.x - r.x) / t.x + self.cam.x).floor() as i32;
         let y = ((screen.y - r.y) / t.y + self.cam.y).floor() as i32;
-        let grid = self.world.map()?.plane(self.plane);
+        let grid = self.game.map()?.plane(self.plane);
         (y >= 0 && y < grid.height() as i32).then(|| Position {
             plane: self.plane,
             x: grid.wrap_x(x),
@@ -1645,7 +1642,7 @@ impl App {
     }
 
     pub(crate) fn new_map(&mut self, seed: u64) {
-        let content = self.world.content().clone();
+        let content = self.game.content().clone();
         match Self::new_game(
             seed,
             &self.options,
@@ -1656,7 +1653,7 @@ impl App {
             self.prefs.get(crate::preferences::Pref::RandomEvents),
         ) {
             Ok(world) => {
-                self.world = crate::revised::Revised::new(world);
+                self.game = crate::revised::Revised::new(Game::new(world));
                 // The next game gets another seed, unless `--seed` fixed it.
                 self.seed = if self.seed_fixed { seed } else { fresh_seed() };
                 self.game_over_seen = false;
@@ -1669,7 +1666,7 @@ impl App {
                 self.offer_capital_naming();
                 self.log
                     .push(self.text_with("log.new_map", &Args::new().count("seed", seed)));
-                if let Some(each) = self.world.settings().basic.crowding() {
+                if let Some(each) = self.game.settings().basic.crowding() {
                     self.log
                         .push(self.text_with("log.crowded", &Args::new().count("n", each)));
                 }
@@ -1689,7 +1686,7 @@ impl App {
 
     /// Explore every square on both planes (for screenshots and tests).
     pub fn reveal_all(&mut self) {
-        self.world.reveal_map(HUMAN);
+        self.game.world_mut().reveal_map(HUMAN);
     }
 
     /// Put the top-left of the map view on a tile.
@@ -1699,11 +1696,11 @@ impl App {
 
     /// For screenshots: warp every magic node, explore the map and show the first node.
     pub fn open_test_warped_nodes(&mut self) {
-        let nodes = self.world.economy().nodes();
+        let nodes = self.game.economy().nodes();
         for node in &nodes {
-            self.world.warp_node(node.pos);
+            self.game.world_mut().warp_node(node.pos);
         }
-        self.world.reveal_map(HUMAN);
+        self.game.world_mut().reveal_map(HUMAN);
         if let Some(node) = nodes.first() {
             self.set_camera(node.pos.x as f32 - 4.0, node.pos.y as f32 - 3.0);
         }
@@ -1721,7 +1718,7 @@ impl App {
             && self.turn_events.is_none()
             && !self.modals.blocks_turn()
             && self.defences.is_empty()
-            && !self.world.in_battle()
+            && !self.game.in_battle()
     }
 
     /// Handle input and draw one frame. Returns false when the player quits.
@@ -1731,8 +1728,8 @@ impl App {
             self.run_pending_turn();
         }
         self.selection
-            .retain(|&u| self.world.units().unit_position(u).is_some());
-        if self.world.in_battle() {
+            .retain(|&u| self.game.units().unit_position(u).is_some());
+        if self.game.in_battle() {
             if self.pages.get(&Screen::Battle).is_none() {
                 self.open_battle_screen();
             } else if !matches!(
@@ -1753,7 +1750,7 @@ impl App {
                 .pages
                 .get(&Screen::Battle)
                 .is_some_and(|p| p.animating());
-        if !self.world.in_battle() && !still_playing {
+        if !self.game.in_battle() && !still_playing {
             if let Some(results) = self.combat_results.take() {
                 self.modals.open(results);
             }
@@ -1770,7 +1767,7 @@ impl App {
             return true;
         }
         // A wizard just met greets the player on the next turn, on the diplomacy screen.
-        if matches!(self.screen, Screen::Map) && !self.world.in_battle() {
+        if matches!(self.screen, Screen::Map) && !self.game.in_battle() {
             if let Some(w) = self.greetings.pop_front() {
                 self.try_open_diplomacy(w);
                 return true;
@@ -1780,15 +1777,15 @@ impl App {
             self.resume_turn();
         }
         if matches!(self.screen, Screen::Map)
-            && !self.world.in_battle()
+            && !self.game.in_battle()
             && self.turn_events.is_none()
         {
             self.check_hero_levels();
         }
         self.maybe_ask_for_research();
-        if self.world.game_over.is_some()
+        if self.game.game_over.is_some()
             && !self.game_over_seen
-            && !self.world.in_battle()
+            && !self.game.in_battle()
             && !matches!(self.screen, Screen::GameOver | Screen::Console)
         {
             // The victory or the defeat is played before the score.
@@ -1912,7 +1909,7 @@ impl App {
         let open: Vec<(KeyCode, RealmId)> = KEYS
             .iter()
             .copied()
-            .filter(|&(_, r)| !self.world.economy().city_warded_against(city, r))
+            .filter(|&(_, r)| !self.game.economy().city_warded_against(city, r))
             .collect();
         let mut left = Some(Ward {
             spell,
@@ -1939,7 +1936,7 @@ impl App {
                         target: Some(target),
                     }
                 };
-                let events = self.world.apply(cmd);
+                let events = self.game.apply(cmd);
                 self.note(events);
             }
         }
@@ -1985,14 +1982,14 @@ impl App {
     /// up.
     fn no_target_frame(&mut self, no_target: NoTarget, input: &Input) -> Option<NoTarget> {
         let NoTarget(spell) = no_target;
-        let casting = self.world.wizard(HUMAN).and_then(|m| m.casting());
+        let casting = self.game.wizard(HUMAN).and_then(|m| m.casting());
         if casting.is_none_or(|c| c.spell != spell) {
             return None;
         }
         let lay = crate::frame::Layout::new();
         let name_term = self
             .names
-            .spell_term(self.world.content().rules.spells.get(spell).num);
+            .spell_term(self.game.content().rules.spells.get(spell).num);
         let text = self.text_with(
             "spell.no_target",
             &Args::new().term("spell", name_term.clone()),
@@ -2000,7 +1997,7 @@ impl App {
         match self.confirmation_box(&lay, &text, input) {
             Some(true) => None,
             Some(false) => {
-                let events = self.world.apply(Command::CancelCast { player: HUMAN });
+                let events = self.game.apply(Command::CancelCast { player: HUMAN });
                 self.note(events);
                 None
             }
@@ -2011,9 +2008,9 @@ impl App {
     /// How many turns the Spell of Return still needs at the human's casting skill.
     fn turns_to_return(&self, remaining: i32) -> i32 {
         let skill = self
-            .world
+            .game
             .wizard(HUMAN)
-            .map_or(1, |m| m.casting_skill(&self.world.content().rules))
+            .map_or(1, |m| m.casting_skill(&self.game.content().rules))
             .max(1);
         (remaining + skill - 1) / skill
     }
@@ -2021,7 +2018,7 @@ impl App {
     /// A banished human may not throw spells: say so, with the turns left until the return
     /// (`MagicScr.c`). Returns whether the human is banished.
     pub(crate) fn refuse_banished_spells(&mut self) -> bool {
-        let Some(wizard) = self.world.wizard(HUMAN).filter(|w| w.is_banished()) else {
+        let Some(wizard) = self.game.wizard(HUMAN).filter(|w| w.is_banished()) else {
             return false;
         };
         let remaining = wizard.casting().map_or(0, |c| c.remaining);
@@ -2034,7 +2031,7 @@ impl App {
     /// What the keys answer to the resign question; whether it stays open.
     pub(crate) fn resign_answer(&mut self, input: &Input) -> bool {
         if input.key_pressed(KeyCode::Y) {
-            let events = self.world.apply(Command::Resign { player: HUMAN });
+            let events = self.game.apply(Command::Resign { player: HUMAN });
             self.note(events);
             return false;
         }
@@ -2046,8 +2043,8 @@ impl App {
     /// The question after the human's fortress falls (`Banish_Wizard`): resign (Y) or cast the
     /// Spell of Return (N, Enter), shown over the map.
     fn resign_prompt_frame(&mut self, input: &Input) -> Option<Resign> {
-        let casting = self.world.wizard(HUMAN).and_then(|m| m.casting());
-        let casting = casting.filter(|_| self.world.casting_return(HUMAN))?;
+        let casting = self.game.wizard(HUMAN).and_then(|m| m.casting());
+        let casting = casting.filter(|_| self.game.casting_return(HUMAN))?;
         let left = self.resign_answer(input).then_some(Resign);
         let (w, h) = (screen_width(), screen_height());
         draw_rectangle(
@@ -2109,7 +2106,7 @@ impl App {
         .find(|(action, _)| self.hotkeys.pressed_moving(action, shift, input)) else {
             return;
         };
-        let Some(map) = self.world.map() else {
+        let Some(map) = self.game.map() else {
             return;
         };
         let (w, h) = (map.width() as i32, map.height() as i32);
@@ -2128,7 +2125,7 @@ impl App {
         let spent = self
             .selection
             .iter()
-            .all(|&u| self.world.units().unit_moves_left(u) == 0);
+            .all(|&u| self.game.units().unit_moves_left(u) == 0);
         if spent {
             self.select_next_idle(false);
         }
@@ -2136,11 +2133,11 @@ impl App {
 
     pub(crate) fn select_at(&mut self, pos: Position) {
         let mine: Vec<_> = self
-            .world
+            .game
             .units()
             .units_at(pos)
             .into_iter()
-            .filter(|&u| self.world.units().unit_owner(u) == Some(HUMAN))
+            .filter(|&u| self.game.units().unit_owner(u) == Some(HUMAN))
             .collect();
         self.stack_page = 0;
         self.selection = mine;
@@ -2148,11 +2145,11 @@ impl App {
 
     /// The human's units on a square, all of them (a square holds more than an army does).
     pub(crate) fn own_units_at(&self, pos: Position) -> Vec<hecs::Entity> {
-        self.world
+        self.game
             .economy()
             .army_at(pos)
             .into_iter()
-            .filter(|&u| self.world.units().unit_owner(u) == Some(HUMAN))
+            .filter(|&u| self.game.units().unit_owner(u) == Some(HUMAN))
             .collect()
     }
 
@@ -2173,7 +2170,7 @@ impl App {
     /// move it. Nothing selected is not in view.
     /// Whether a unit at `at` is also on `plane`: a stack in a tower is on both planes.
     pub(crate) fn in_tower_of_plane(&self, at: Position, plane: Plane) -> bool {
-        self.world
+        self.game
             .economy()
             .tower_mirror(at)
             .is_some_and(|m| m.plane == plane)
@@ -2188,7 +2185,7 @@ impl App {
     /// The square at the middle of the map in view.
     fn view_centre(&self) -> Position {
         let (cols, rows) = self.visible_tiles();
-        let plane = self.world.map().map(|m| m.plane(self.plane));
+        let plane = self.game.map().map(|m| m.plane(self.plane));
         let (w, h) = plane.map_or((1, 1), |p| (p.width() as i32, p.height() as i32));
         Position {
             plane: self.plane,
@@ -2211,7 +2208,7 @@ impl App {
             return false;
         }
         let cities: Vec<Position> = self
-            .world
+            .game
             .economy()
             .cities_of(HUMAN)
             .into_iter()
@@ -2227,11 +2224,11 @@ impl App {
                 continue;
             }
             let squares: Vec<Position> = if army {
-                self.world
+                self.game
                     .units()
                     .player_units(HUMAN)
                     .into_iter()
-                    .filter_map(|u| self.world.units().unit_position(u))
+                    .filter_map(|u| self.game.units().unit_position(u))
                     .filter(|at| !cities.contains(at))
                     .collect()
             } else {
@@ -2291,11 +2288,11 @@ impl App {
         let args = Args::new().count("slot", slot as u32 + 1);
         if save {
             let at = self.view_centre();
-            if self.world.save_location(HUMAN, slot as u8, at) {
+            if self.game.world_mut().save_location(HUMAN, slot as u8, at) {
                 self.log.push(self.text_with("log.location_saved", &args));
             }
         } else if let Some(&(_, at)) = self
-            .world
+            .game
             .locations(HUMAN)
             .iter()
             .find(|&&(s, _)| usize::from(s) == slot)
@@ -2310,7 +2307,7 @@ impl App {
     pub(crate) fn selection_position(&self) -> Option<Position> {
         self.selection
             .first()
-            .and_then(|&u| self.world.units().unit_position(u))
+            .and_then(|&u| self.game.units().unit_position(u))
     }
 
     fn overworld_input(&mut self, input: &Input) {
@@ -2423,7 +2420,7 @@ impl App {
         if self.hotkeys.pressed("plane_shift", input) {
             // The plane button: the selected units change plane if they can, else the view does.
             let shifted = !self.selection.is_empty() && {
-                let events = self.world.apply(Command::ShiftPlane {
+                let events = self.game.apply(Command::ShiftPlane {
                     units: self.selection.clone(),
                 });
                 let ok = !events
@@ -2442,14 +2439,14 @@ impl App {
         }
         self.stack_keys(input);
         if self.hotkeys.pressed("balance_farmers", input) {
-            self.world.balance_farmers(HUMAN);
+            self.game.balance_farmers(HUMAN);
             self.log.push(self.text("log.farmers_balanced"));
         }
         if self.hotkeys.pressed("wait", input) && !self.selection.is_empty() {
             self.select_next_idle(true);
         }
         if self.hotkeys.pressed("done", input) && !self.selection.is_empty() {
-            self.world.apply(Command::ClearOrders {
+            self.game.apply(Command::ClearOrders {
                 units: self.selection.clone(),
             });
         }
@@ -2471,7 +2468,7 @@ impl App {
             } else if input.mouse_pressed(MouseButton::Right) && self.road_plan.is_some() {
                 self.road_plan_cancel();
             } else if input.mouse_pressed(MouseButton::Right)
-                && self.world.is_explored(HUMAN, pos)
+                && self.game.is_explored(HUMAN, pos)
                 && self.foreign_stack_at(pos)
                 && self.open_unit_list(pos)
             {
@@ -2499,7 +2496,7 @@ impl App {
             .selection
             .iter()
             .copied()
-            .filter(|&u| self.world.units().unit_moves_left(u) > 0)
+            .filter(|&u| self.game.units().unit_moves_left(u) > 0)
             .collect();
         if able.is_empty() {
             self.selection.clone()
@@ -2513,8 +2510,8 @@ impl App {
     fn go_to(&mut self, pos: Position) {
         // A stack in a city with an Earth Gate that is sent to another city with one is
         // teleported there at once, for one move (`MainScr.c`, the Earth Gate branch).
-        if self.world.can_use_earth_gate(&self.selection, pos).is_ok() {
-            let events = self.world.apply(Command::EarthGate {
+        if self.game.can_use_earth_gate(&self.selection, pos).is_ok() {
+            let events = self.game.apply(Command::EarthGate {
                 units: self.selection.clone(),
                 to: pos,
             });
@@ -2551,27 +2548,27 @@ impl App {
             return;
         }
         let has_mine = self
-            .world
+            .game
             .units()
             .units_at(pos)
             .iter()
-            .any(|&u| self.world.units().unit_owner(u) == Some(HUMAN));
+            .any(|&u| self.game.units().unit_owner(u) == Some(HUMAN));
         if has_mine {
             self.select_at(pos);
         } else if !self.selection.is_empty() && self.prefs.get(Pref::LeftClickMoves) {
             self.go_to(pos);
-        } else if let Some(city) = self.world.economy().city_at(pos) {
+        } else if let Some(city) = self.game.economy().city_at(pos) {
             self.selection.clear();
-            if self.world.economy().city_owner(city) == Some(HUMAN) {
+            if self.game.economy().city_owner(city) == Some(HUMAN) {
                 self.open_city_or_outpost(city);
-            } else if self.world.is_explored(HUMAN, pos) {
+            } else if self.game.is_explored(HUMAN, pos) {
                 // The city of a neutral player met opens a talk with it (task 522); else, or when
                 // there is none to have, the city is looked at.
                 let neutral = self
-                    .world
+                    .game
                     .economy()
                     .city_owner(city)
-                    .filter(|&o| self.world.race_of_player(o).is_some());
+                    .filter(|&o| self.game.race_of_player(o).is_some());
                 if !neutral.is_some_and(|o| self.try_open_diplomacy(o)) {
                     self.open_enemy_city(city);
                 }
@@ -2585,20 +2582,20 @@ impl App {
     /// The human's units on a square, all of them (a square can hold more than a stack may walk
     /// in with: hired or summoned units are put there whatever it holds).
     fn own_stack_at(&self, pos: Position) -> Vec<hecs::Entity> {
-        self.world
+        self.game
             .economy()
             .army_at(pos)
             .into_iter()
-            .filter(|&u| self.world.units().unit_owner(u) == Some(HUMAN))
+            .filter(|&u| self.game.units().unit_owner(u) == Some(HUMAN))
             .collect()
     }
 
     fn foreign_stack_at(&self, pos: Position) -> bool {
-        self.world
+        self.game
             .economy()
             .army_at(pos)
             .iter()
-            .any(|&u| self.world.units().unit_owner(u) != Some(HUMAN))
+            .any(|&u| self.game.units().unit_owner(u) != Some(HUMAN))
     }
 
     pub(crate) fn special_button(&mut self) {
@@ -2606,13 +2603,13 @@ impl App {
         match self.special_action() {
             Special::Build => self.settle(),
             Special::Meld => {
-                let events = self.world.apply(Command::Meld {
+                let events = self.game.apply(Command::Meld {
                     units: self.selection.clone(),
                 });
                 self.note(events);
             }
             Special::Purify => {
-                let events = self.world.apply(Command::Purify {
+                let events = self.game.apply(Command::Purify {
                     units: self.selection.clone(),
                 });
                 self.note(events);
@@ -2629,7 +2626,7 @@ impl App {
             .iter()
             .copied()
             .filter(|&u| {
-                self.world
+                self.game
                     .units()
                     .unit_stat(u, f4x_def::rules::Stat::Construction)
                     > 0
@@ -2638,7 +2635,7 @@ impl App {
         let has_settlers = self
             .selection
             .iter()
-            .any(|&u| self.world.units().unit_is_settler(u));
+            .any(|&u| self.game.units().unit_is_settler(u));
         if !builders.is_empty() && !has_settlers {
             self.start_road_plan();
             return;
@@ -2647,13 +2644,13 @@ impl App {
             .selection
             .iter()
             .copied()
-            .find(|&u| self.world.units().unit_is_settler(u));
+            .find(|&u| self.game.units().unit_is_settler(u));
         let Some(unit) = settler else {
             self.log.push(self.text("log.select_settlers"));
             return;
         };
         let name = self.next_city_name();
-        let events = self.world.apply(Command::SettleOutpost { unit, name });
+        let events = self.game.apply(Command::SettleOutpost { unit, name });
         let founded = events.iter().find_map(|e| match e {
             Event::CityFounded { city, .. } => Some(*city),
             _ => None,
@@ -2665,7 +2662,7 @@ impl App {
     }
 
     pub(crate) fn draw_map(&mut self) {
-        let Some(map) = self.world.map() else {
+        let Some(map) = self.game.map() else {
             return;
         };
         let grid = map.plane(self.plane);
@@ -2678,8 +2675,8 @@ impl App {
             (self.cam.y - y0 as f32) * t.y,
         );
         let width = grid.width();
-        let visible = self.cache.visibility(&self.world, HUMAN, self.plane);
-        let cities = self.world.economy().cities();
+        let visible = self.cache.visibility(&self.game, HUMAN, self.plane);
+        let cities = self.game.economy().cities();
         let anim = (get_time() * 2.5) as usize;
 
         // Clip the map to its viewport.
@@ -2710,7 +2707,7 @@ impl App {
             for i in 0..=(cols.ceil() as i32) {
                 let wx = grid.wrap_x(x0 + i);
                 let (sx, sy) = (r.x + i as f32 * t.x - off.x, r.y + j as f32 * t.y - off.y);
-                let corners = self.world.explored_corners(
+                let corners = self.game.explored_corners(
                     HUMAN,
                     Position {
                         plane: self.plane,
@@ -2723,7 +2720,7 @@ impl App {
                     continue;
                 }
                 crate::map_draw::draw_square(
-                    &self.world,
+                    &self.game,
                     &mut self.art,
                     self.plane,
                     wx,
@@ -2746,7 +2743,7 @@ impl App {
         }
         for (entity, city, pos) in &cities {
             if pos.plane != self.plane
-                || !self.world.is_explored(
+                || !self.game.is_explored(
                     HUMAN,
                     Position {
                         plane: self.plane,
@@ -2758,7 +2755,7 @@ impl App {
                 continue;
             }
             let at = screen_of(pos.x, pos.y);
-            crate::map_draw::draw_city(&self.world, &mut self.art, *entity, at.x, at.y, t);
+            crate::map_draw::draw_city(&self.game, &mut self.art, *entity, at.x, at.y, t);
             let k = t.x / TILE_W;
             let name = city.name.clone();
             let (cx, cy) = ((at.x + t.x / 2.0) / k, (at.y + t.y) / k - 2.0);
@@ -2779,8 +2776,8 @@ impl App {
     ) {
         self.finish_slides();
         let mut stacks: HashMap<(u32, u32), Vec<hecs::Entity>> = HashMap::new();
-        for unit in self.world.units().all_units() {
-            let Some(at) = self.world.units().unit_position(unit) else {
+        for unit in self.game.units().all_units() {
+            let Some(at) = self.game.units().unit_position(unit) else {
                 continue;
             };
             if !(at.plane == self.plane || self.in_tower_of_plane(at, self.plane))
@@ -2788,10 +2785,10 @@ impl App {
             {
                 continue;
             }
-            let mine = self.world.units().unit_owner(unit) == Some(HUMAN);
+            let mine = self.game.units().unit_owner(unit) == Some(HUMAN);
             if !mine
                 && (!visible[(at.y * width + at.x) as usize]
-                    || !self.world.economy().unit_visible_to(unit, HUMAN))
+                    || !self.game.economy().unit_visible_to(unit, HUMAN))
             {
                 continue;
             }
@@ -2831,9 +2828,9 @@ impl App {
             .copied()
             .find(|u| self.selection.contains(u))
             .unwrap_or(units[0]);
-        let owner = self.world.units().unit_owner(top).map_or(u8::MAX, |o| o.0);
+        let owner = self.game.units().unit_owner(top).map_or(u8::MAX, |o| o.0);
         let art = self
-            .world
+            .game
             .units()
             .unit_def(top)
             .and_then(|d| self.art.unit_entry(&d.id));
@@ -2861,8 +2858,8 @@ impl App {
         // An enchanted unit glows in its realm's colours; one of yours on patrol is greyed.
         let glow = self.unit_glow_realm(top);
         let patrolling = owner == HUMAN.0
-            && self.world.units().unit_standby(top) == Some(f4x_core::unit::Standby::Patrol);
-        let tint = if self.world.unit_in_stasis(top) {
+            && self.game.units().unit_standby(top) == Some(f4x_core::unit::Standby::Patrol);
+        let tint = if self.game.unit_in_stasis(top) {
             // A unit held in stasis is drawn pale and bluish.
             Color::new(0.65, 0.8, 1.0, 0.75)
         } else if patrolling {
@@ -2943,7 +2940,7 @@ impl App {
         let turn = self.text_with(
             "ui.status_line",
             &Args::new()
-                .count("turn", self.world.turn)
+                .count("turn", self.game.turn)
                 .text("plane", plane),
         );
         self.overlay_line(view, &mut y, &turn, GOLD);
@@ -2986,8 +2983,8 @@ impl App {
         let Some(pos) = self.tile_at(input.mouse_position().into()) else {
             return Vec::new();
         };
-        let content = self.world.content();
-        let Some(map) = self.world.map() else {
+        let content = self.game.content();
+        let Some(map) = self.game.map() else {
             return Vec::new();
         };
         let grid = map.plane(self.plane);
@@ -2996,7 +2993,7 @@ impl App {
             x: pos.x,
             y: pos.y,
         };
-        if !self.world.is_explored(HUMAN, at) {
+        if !self.game.is_explored(HUMAN, at) {
             return vec![(self.text("ui.unexplored"), GRAY)];
         }
         let tile = Args::new().count("x", pos.x).count("y", pos.y);
@@ -3010,14 +3007,14 @@ impl App {
                 .count("cost", def.move_cost);
             lines.push((self.text_with("ui.terrain_move", &args), WHITE));
         }
-        if let Some(f) = self.world.economy().feature_at(pos) {
+        if let Some(f) = self.game.economy().feature_at(pos) {
             lines.push((
                 self.names.feature(f.num).to_string(),
                 Color::new(0.6, 0.9, 1.0, 1.0),
             ));
         }
         // What guards a site you have fought for once.
-        if let Some(guards) = self.world.economy().lair_guards_known_to(at, HUMAN) {
+        if let Some(guards) = self.game.economy().lair_guards_known_to(at, HUMAN) {
             for (id, n) in guards {
                 let u = content.rules.units.get(id);
                 let args = Args::new()
@@ -3026,20 +3023,20 @@ impl App {
                 lines.push((self.text_with("ui.lair_guard", &args), RED));
             }
         }
-        if let Some(city) = self.world.economy().city_at(pos) {
+        if let Some(city) = self.game.economy().city_at(pos) {
             let name = self.city_name(city);
-            let pop = self.world.city_population(city).figures;
+            let pop = self.game.city_population(city).figures;
             let args = Args::new().text("city", name).count("size", pop);
             lines.push((self.text_with("ui.city_size", &args), GOLD));
         }
         let foreign = self
-            .world
+            .game
             .units()
             .units_at(pos)
             .into_iter()
-            .filter(|&u| self.world.units().unit_owner(u) != Some(HUMAN));
+            .filter(|&u| self.game.units().unit_owner(u) != Some(HUMAN));
         for u in foreign.take(4) {
-            if let Some(def) = self.world.units().unit_def(u) {
+            if let Some(def) = self.game.units().unit_def(u) {
                 let args = Args::new().term("unit", self.names.unit_term(def.num));
                 lines.push((self.text_with("ui.foreign_unit", &args), RED));
             }
@@ -3066,29 +3063,29 @@ mod tests {
     fn the_game_revision_moves_for_every_change_and_for_nothing_else() {
         use f4x_core::world::Command;
         let mut app = App::for_test();
-        let r = app.world.revision();
+        let r = app.game.revision();
         // A read and a change of the view only: the revision stays.
-        let _ = app.world.economy().cities_of(HUMAN);
-        let _ = app.world.units().player_units(HUMAN);
+        let _ = app.game.economy().cities_of(HUMAN);
+        let _ = app.game.units().player_units(HUMAN);
         app.screen = Screen::Map;
         app.selection.clear();
         app.view_step_keys(&press(&[KeyCode::V]));
-        assert_eq!(app.world.revision(), r, "a read or a UI change");
+        assert_eq!(app.game.revision(), r, "a read or a UI change");
         // A command.
-        app.world.apply(Command::EndTurn);
-        let after_command = app.world.revision();
+        app.game.apply(Command::EndTurn);
+        let after_command = app.game.revision();
         assert_ne!(after_command, r, "a command");
         // A direct mutator.
-        app.world.set_undo(false);
-        let after_direct = app.world.revision();
+        app.game.set_undo(false);
+        let after_direct = app.game.revision();
         assert_ne!(after_direct, after_command, "a direct call");
         // A load replaces the game.
         let path = std::env::temp_dir().join(format!("f4x-revision-{}.save", std::process::id()));
         app.save_to(&path);
-        let saved = app.world.revision();
+        let saved = app.game.revision();
         app.load_from(&path).expect("the save loads");
         let _ = std::fs::remove_file(&path);
-        assert_ne!(app.world.revision(), saved, "a load");
+        assert_ne!(app.game.revision(), saved, "a load");
     }
 
     #[test]
@@ -3099,7 +3096,7 @@ mod tests {
         let path =
             std::env::temp_dir().join(format!("f4x-other-files-{}.save", std::process::id()));
         app.save_to(&path);
-        let fingerprint = app.world.content().fingerprint.clone();
+        let fingerprint = app.game.content().fingerprint.clone();
         assert!(
             !fingerprint.is_empty(),
             "the shipped content has a fingerprint"
@@ -3161,7 +3158,7 @@ mod tests {
     #[test]
     fn the_find_keys_step_the_view_through_the_cities_and_the_armies_outside_them() {
         let mut app = App::for_test();
-        let cities = app.world.economy().cities_of(HUMAN);
+        let cities = app.game.economy().cities_of(HUMAN);
         assert!(!cities.is_empty(), "the test game gives the human a city");
         let squares: Vec<Position> = cities.iter().map(|&(_, at)| at).collect();
         let city = crate::step_view::step(&squares, None, true).expect("a city");
@@ -3180,11 +3177,11 @@ mod tests {
         );
         // An army: a stack of the human's outside a city; none stands in one.
         let armies: Vec<Position> = app
-            .world
+            .game
             .units()
             .player_units(HUMAN)
             .into_iter()
-            .filter_map(|u| app.world.units().unit_position(u))
+            .filter_map(|u| app.game.units().unit_position(u))
             .filter(|at| !cities.iter().any(|&(_, c)| c == *at))
             .collect();
         app.view_step_keys(&press(&[KeyCode::F]));
@@ -3206,7 +3203,7 @@ mod tests {
             "the key waits for a digit"
         );
         assert!(app.location_keys(&press(&[KeyCode::Key3])));
-        assert_eq!(app.world.locations(HUMAN), vec![(2, centre)]);
+        assert_eq!(app.game.locations(HUMAN), vec![(2, centre)]);
         // Elsewhere, then back: the digit recalls the place; an empty place says so.
         app.center_on(Position {
             plane: Plane::Arcanus,
@@ -3223,7 +3220,7 @@ mod tests {
         app.location_keys(&press(&[KeyCode::K]));
         assert!(app.location_keys(&press(&[KeyCode::X])));
         assert!(app.location_pending.is_none());
-        assert_eq!(app.world.locations(HUMAN).len(), 1);
+        assert_eq!(app.game.locations(HUMAN).len(), 1);
     }
 
     #[test]
@@ -3256,7 +3253,7 @@ mod tests {
     fn a_player_without_a_wizard_has_the_neutral_banner() {
         let app = App::for_test();
         assert_eq!(app.banner_index(255), f4x_core::player::NEUTRAL_BANNER);
-        let human = app.world.wizard(HUMAN).map(|w| w.banner());
+        let human = app.game.wizard(HUMAN).map(|w| w.banner());
         assert_eq!(Some(app.banner_index(HUMAN.0)), human);
         assert_ne!(app.banner_color(HUMAN.0), app.banner_color(255));
     }
@@ -3280,9 +3277,9 @@ mod tests {
     #[test]
     fn the_first_cities_of_a_race_take_its_names_in_order() {
         let app = App::for_test();
-        let race = &app.world.content().rules.races.defs()[app.race];
-        let used = app.world.economy().cities().len();
-        let names = &app.world.names().cities[&race.num];
+        let race = &app.game.content().rules.races.defs()[app.race];
+        let used = app.game.economy().cities().len();
+        let names = &app.game.names().cities[&race.num];
         assert!(!names.is_empty());
         assert_eq!(app.next_city_name(), names[used % names.len()]);
     }

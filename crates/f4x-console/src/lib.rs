@@ -25,10 +25,11 @@ pub mod setup;
 pub mod talk;
 
 use f4x_core::player::PlayerId;
-use f4x_core::world::{Command, Event, World};
+use f4x_core::world::{Command, Event};
 use std::path::PathBuf;
 
 use args::Args;
+use f4x_master::Game;
 
 /// What a command does to the game.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -141,7 +142,7 @@ impl Reply {
 
 /// What a command handler may use.
 pub struct Ctx<'a> {
-    pub world: &'a mut World,
+    pub game: &'a mut Game,
     pub session: &'a mut Session,
     pub out: Vec<String>,
     pub events: Vec<Event>,
@@ -254,8 +255,8 @@ impl Console {
     }
 
     /// Run one line against `game`.
-    pub fn execute(&mut self, world: &mut World, line: &str) -> Reply {
-        let result = self.run(world, line);
+    pub fn execute(&mut self, game: &mut Game, line: &str) -> Reply {
+        let result = self.run(game, line);
         let (ok, lines, events, error) = match result {
             Ok((lines, events)) => (true, lines, events, None),
             Err((lines, events, e)) => (false, lines, events, Some(e)),
@@ -274,7 +275,7 @@ impl Console {
     #[allow(clippy::type_complexity)]
     fn run(
         &mut self,
-        world: &mut World,
+        game: &mut Game,
         line: &str,
     ) -> Result<(Vec<String>, Vec<Event>), (Vec<String>, Vec<Event>, ConsoleError)> {
         let fail = |e| (Vec::new(), Vec::new(), e);
@@ -286,7 +287,7 @@ impl Console {
             find(&name.to_lowercase()).ok_or_else(|| fail(ConsoleError::Unknown(name.clone())))?;
         self.permitted(def.kind).map_err(fail)?;
         let mut ctx = Ctx {
-            world,
+            game,
             session: &mut self.session,
             out: Vec::new(),
             events: Vec::new(),
@@ -300,7 +301,7 @@ impl Console {
         match result {
             Ok(()) => {
                 if def.kind == Kind::Override || bypassed {
-                    world.record_override(line.trim());
+                    game.world_mut().record_override(line.trim());
                 }
                 Ok((out, events))
             }
@@ -326,7 +327,7 @@ impl Ctx<'_> {
         let mut queue = vec![command];
         let mut refused = None;
         while let Some(cmd) = queue.pop() {
-            let events = self.world.apply(cmd);
+            let events = self.game.apply(cmd);
             for e in &events {
                 match e {
                     Event::Rejected(why) => {
@@ -338,7 +339,7 @@ impl Ctx<'_> {
                         ..
                     } if attackers
                         .first()
-                        .and_then(|&u| self.world.units().unit_owner(u))
+                        .and_then(|&u| self.game.units().unit_owner(u))
                         == Some(self.session.player) =>
                     {
                         queue.push(Command::BeginBattle {
@@ -347,9 +348,7 @@ impl Ctx<'_> {
                         });
                     }
                     Event::SiteEncounter { units, to, .. }
-                        if units
-                            .first()
-                            .and_then(|&u| self.world.units().unit_owner(u))
+                        if units.first().and_then(|&u| self.game.units().unit_owner(u))
                             == Some(self.session.player) =>
                     {
                         queue.push(Command::EnterSite {
@@ -359,7 +358,7 @@ impl Ctx<'_> {
                     }
                     _ => {}
                 }
-                let text = describe::event(self.world, e);
+                let text = describe::event(self.game, e);
                 self.out.push(text);
             }
             self.events.extend(events);

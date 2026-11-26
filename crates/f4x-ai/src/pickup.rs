@@ -25,6 +25,7 @@ use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::world::serial::Serial;
 use f4x_core::world::{Command, Event, World};
+use f4x_master::Game;
 
 /// Candidate boarding tiles that get a real path search, per group.
 const CANDIDATES: usize = 12;
@@ -291,30 +292,30 @@ fn plan_group(
 }
 
 /// One turn of the waiting units and the ships that fetch them.
-pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
-    tidy_unit_registry(ai, world);
+pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+    tidy_unit_registry(ai, game);
     if ai.roles.waiting_for_ship().is_empty() && voyages(ai).is_empty() {
         return;
     }
-    call_off_a_scout_ship(ai, world, events);
-    adopt_passengers(ai, world);
-    assign_ships(ai, world);
-    walk_to_shore(ai, world, events);
+    call_off_a_scout_ship(ai, game, events);
+    adopt_passengers(ai, game);
+    assign_ships(ai, game);
+    walk_to_shore(ai, game, events);
     for pickup in voyages(ai) {
-        advance(ai, world, &pickup, events);
+        advance(ai, game, &pickup, events);
     }
 }
 
 /// Carrying units comes before scouting: when units wait for a ship and every ship is scouting
 /// (none is free and none is already on its way to them), the first scouting ship with nobody
 /// aboard is called off and takes the job. The search by sea goes on when a ship is free again.
-fn call_off_a_scout_ship(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
+fn call_off_a_scout_ship(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     if ai.roles.waiting_for_ship().is_empty() || !voyages(ai).is_empty() {
         return;
     }
     let me = ai.player;
     let ship = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         let mut ships: Vec<hecs::Entity> = view
             .my_units()
             .into_iter()
@@ -335,9 +336,9 @@ fn call_off_a_scout_ship(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>
     let Some(ship) = ship else {
         return;
     };
-    let serial = PlayerView::new(world, me).serial_of(ship);
+    let serial = PlayerView::new(game, me).serial_of(ship);
     ai.roles.release(serial, Role::Scout);
-    ai.order(world, Command::ClearOrders { units: vec![ship] }, events);
+    ai.order(game, Command::ClearOrders { units: vec![ship] }, events);
 }
 
 /// Whether a walker at its square needs a ship to reach `to`: no way on land, the sea cuts it off.
@@ -453,11 +454,11 @@ pub(crate) fn tidy_unit_registry(ai: &mut Ai, world: &World) {
 }
 
 /// The units tied to a ship that stand elsewhere and have no order walk to their boarding tile.
-fn walk_to_shore(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
+fn walk_to_shore(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let mut sends: Vec<(Position, Position, Vec<hecs::Entity>)> = Vec::new();
     {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         for u in view.my_units() {
             let serial = view.serial_of(u);
             let Some(tile) = ai.roles.boarding_of(serial) else {
@@ -478,23 +479,23 @@ fn walk_to_shore(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     sends.sort_by_key(|(p, t, _)| (p.plane as u8, p.y, p.x, t.y, t.x));
     for (_, tile, units) in sends {
         // A boarding tile with no room for them is not asked: they wait where they are.
-        if !Ai::room_at(world, tile, units.len()) {
+        if !Ai::room_at(game, tile, units.len()) {
             continue;
         }
         // No way to the tile. Through full squares only: the traffic moves on, they wait. Else the
         // units were grouped by what one of them reaches and cannot walk there: they are let off
         // the plan, which is made again, and the log says why.
-        if world.find_path(&units, tile).is_none() {
-            let why = world.why_no_path(&units, tile);
+        if game.find_path(&units, tile).is_none() {
+            let why = game.why_no_path(&units, tile);
             if why == f4x_core::unit::pathing::failure::NoPath::OnlyThroughFullSquares {
                 continue;
             }
             let serials: Vec<_> = {
-                let view = PlayerView::new(world, me);
+                let view = PlayerView::new(game, me);
                 units.iter().map(|&u| view.serial_of(u)).collect()
             };
             ai.note_failure(
-                world,
+                game,
                 format!("units {serials:?} cannot walk to their boarding tile {tile:?}"),
                 format!("NoPath({}){}{why}", why.name(), crate::DETAIL_SEPARATOR),
             );
@@ -503,7 +504,7 @@ fn walk_to_shore(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
             }
             continue;
         }
-        let _ = ai.send(world, Command::GoTo { units, to: tile }, events);
+        let _ = ai.send(game, Command::GoTo { units, to: tile }, events);
     }
 }
 
@@ -524,11 +525,11 @@ fn is_aboard(view: &PlayerView, unit: hecs::Entity) -> bool {
 /// booked the units on another ship, far away, for hundreds of turns. The ship takes them where
 /// they want to go: a voyage whose units are all aboard already, with the shore beside the ship
 /// as its boarding tile.
-fn adopt_passengers(ai: &mut Ai, world: &mut World) {
+fn adopt_passengers(ai: &mut Ai, game: &mut Game) {
     let me = ai.player;
     let mut plans: Vec<(Serial, Position, Position, Vec<Serial>)> = Vec::new();
     {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         let waiting = ai.roles.waiting_for_ship();
         let mut ships: Vec<hecs::Entity> = view
             .my_units()
@@ -563,15 +564,15 @@ fn adopt_passengers(ai: &mut Ai, world: &mut World) {
     }
     for (ship, at, shore, serials) in plans {
         let capacity = {
-            let view = PlayerView::new(world, me);
+            let view = PlayerView::new(game, me);
             view.my_units()
                 .into_iter()
                 .find(|&u| view.serial_of(u) == ship)
-                .map_or(1, |u| world.economy().ship_room(u) as usize + serials.len())
+                .map_or(1, |u| game.economy().ship_room(u) as usize + serials.len())
         };
         if ai
             .roles
-            .plan_ship(ship, serials.len(), capacity, world.turn, at)
+            .plan_ship(ship, serials.len(), capacity, game.turn, at)
         {
             let party = ai.roles.new_party();
             let role = ai.roles.role_of(ship).unwrap_or(Role::TransportSpace);
@@ -584,11 +585,11 @@ fn adopt_passengers(ai: &mut Ai, world: &mut World) {
 }
 
 /// Each group of waiting units with no ship coming gets a boarding plan and a free ship.
-fn assign_ships(ai: &mut Ai, world: &mut World) {
+fn assign_ships(ai: &mut Ai, game: &mut Game) {
     let me = ai.player;
     let mut plans: Vec<(Plan, Position)> = Vec::new();
     {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         let mut free: Vec<(hecs::Entity, usize)> = view
             .my_units()
             .into_iter()
@@ -597,7 +598,7 @@ fn assign_ships(ai: &mut Ai, world: &mut World) {
                 let s = view.serial_of(u);
                 !ai.roles.has_role(s) && view.passengers_of(u).is_empty()
             })
-            .map(|u| (u, world.economy().ship_room(u) as usize))
+            .map(|u| (u, game.economy().ship_room(u) as usize))
             .collect();
         free.sort_by_key(|&(u, _)| view.serial_of(u));
         let waiting: Vec<(hecs::Entity, Position)> = view
@@ -670,7 +671,7 @@ fn assign_ships(ai: &mut Ai, world: &mut World) {
     }
     for (plan, _) in plans {
         let (ship, units) = {
-            let view = PlayerView::new(world, me);
+            let view = PlayerView::new(game, me);
             (
                 view.serial_of(plan.ship),
                 plan.units
@@ -679,8 +680,8 @@ fn assign_ships(ai: &mut Ai, world: &mut World) {
                     .collect::<Vec<_>>(),
             )
         };
-        let room = (world.economy().ship_room(plan.ship) as usize).max(1);
-        let turn = world.turn;
+        let room = (game.economy().ship_room(plan.ship) as usize).max(1);
+        let turn = game.turn;
         if ai.roles.plan_ship(ship, units.len(), room, turn, plan.sea) {
             let party = ai.roles.new_party();
             let role = ai.roles.role_of(ship).unwrap_or(Role::TransportSpace);
@@ -696,14 +697,14 @@ fn assign_ships(ai: &mut Ai, world: &mut World) {
 /// `dest`. Whether they were sent.
 fn step_ashore(
     ai: &Ai,
-    world: &mut World,
+    game: &mut Game,
     group: &[Serial],
     at: Position,
     dest: Position,
     events: &mut Vec<Event>,
 ) -> bool {
     let (units, shore) = {
-        let view = PlayerView::new(world, ai.player);
+        let view = PlayerView::new(game, ai.player);
         let units: Vec<hecs::Entity> = view
             .my_units()
             .into_iter()
@@ -723,16 +724,16 @@ fn step_ashore(
     let Some(shore) = shore.filter(|_| !units.is_empty()) else {
         return false;
     };
-    ai.send(world, Command::GoTo { units, to: shore }, events)
+    ai.send(game, Command::GoTo { units, to: shore }, events)
         .is_ok()
 }
 
 /// One step of a voyage: sail to the sea square, take the units aboard, sail to the destination,
 /// put them ashore.
-fn advance(ai: &mut Ai, world: &mut World, pickup: &Pickup, events: &mut Vec<Event>) {
+fn advance(ai: &mut Ai, game: &mut Game, pickup: &Pickup, events: &mut Vec<Event>) {
     let me = ai.player;
     let (ship, ship_pos, aboard, total, on_land, drop, idle, free) = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         let Some(ship) = view
             .my_units()
             .into_iter()
@@ -764,7 +765,7 @@ fn advance(ai: &mut Ai, world: &mut World, pickup: &Pickup, events: &mut Vec<Eve
             on_land,
             drop_for(&view, ship, pickup.dest),
             !view.unit_has_order(ship),
-            world.economy().ship_room(ship) as usize,
+            game.economy().ship_room(ship) as usize,
         )
     };
     let Some(ship_pos) = ship_pos else {
@@ -776,9 +777,9 @@ fn advance(ai: &mut Ai, world: &mut World, pickup: &Pickup, events: &mut Vec<Eve
             return;
         };
         if ship_pos == drop {
-            let in_port = PlayerView::new(world, me).city_at(ship_pos).is_some();
+            let in_port = PlayerView::new(game, me).city_at(ship_pos).is_some();
             // In a port the units are in their city; at sea they step ashore first.
-            if in_port || step_ashore(ai, world, &pickup.group, ship_pos, pickup.dest, events) {
+            if in_port || step_ashore(ai, game, &pickup.group, ship_pos, pickup.dest, events) {
                 for s in &pickup.group {
                     ai.roles.set_crossing(*s, None);
                     ai.roles.unboard(*s);
@@ -790,10 +791,10 @@ fn advance(ai: &mut Ai, world: &mut World, pickup: &Pickup, events: &mut Vec<Eve
             }
             return;
         }
-        if idle && Ai::room_at(world, drop, 1) {
+        if idle && Ai::room_at(game, drop, 1) {
             let sailed = ai
                 .send(
-                    world,
+                    game,
                     Command::GoTo {
                         units: vec![ship],
                         to: drop,
@@ -810,16 +811,16 @@ fn advance(ai: &mut Ai, world: &mut World, pickup: &Pickup, events: &mut Vec<Eve
     if ship_pos == pickup.sea {
         // The square holds the ship, what is aboard and whatever else stands there, up to the
         // limit of a square: no more units are sent than it has room for.
-        let room = world
+        let room = game
             .max_tile()
-            .saturating_sub(world.economy().army_at(pickup.sea).len());
+            .saturating_sub(game.economy().army_at(pickup.sea).len());
         let mut on_land = on_land;
         // The ship is full: a unit sent to it is refused ("target is water") every turn, so the
         // ship sails with what it has and the units left behind are let off the plan, which is
         // made again for them with another ship.
         if free == 0 && !aboard.is_empty() {
             let left: Vec<Serial> = {
-                let view = PlayerView::new(world, me);
+                let view = PlayerView::new(game, me);
                 on_land.iter().map(|&u| view.serial_of(u)).collect()
             };
             for s in left {
@@ -830,7 +831,7 @@ fn advance(ai: &mut Ai, world: &mut World, pickup: &Pickup, events: &mut Vec<Eve
         on_land.truncate(room.min(free));
         if !on_land.is_empty() {
             let _ = ai.send(
-                world,
+                game,
                 Command::GoTo {
                     units: on_land,
                     to: pickup.sea,
@@ -840,9 +841,9 @@ fn advance(ai: &mut Ai, world: &mut World, pickup: &Pickup, events: &mut Vec<Eve
         }
         return;
     }
-    if idle && Ai::room_at(world, pickup.sea, 1) {
+    if idle && Ai::room_at(game, pickup.sea, 1) {
         let _ = ai.send(
-            world,
+            game,
             Command::GoTo {
                 units: vec![ship],
                 to: pickup.sea,
@@ -857,6 +858,7 @@ mod tests {
     use super::*;
     use crate::testworld::{at, game, spawn, COAST_CITY, ENEMY_CITY, P0};
     use f4x_core::map::terrain::TerrainClass;
+    use f4x_master::Game;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -909,7 +911,7 @@ mod tests {
         found
     }
 
-    fn run_turns(ai: &mut Ai, w: &mut World, n: usize) {
+    fn run_turns(ai: &mut Ai, w: &mut Game, n: usize) {
         for _ in 0..n {
             run(ai, w, &mut Vec::new());
             w.apply(Command::EndTurn);
@@ -1390,7 +1392,7 @@ mod tests {
     }
 
     /// A unit booked on a galley, with its boarding tile and a target over the sea.
-    fn booked(w: &mut World, ai: &mut Ai, at_: Position, tile: Position) -> hecs::Entity {
+    fn booked(w: &mut Game, ai: &mut Ai, at_: Position, tile: Position) -> hecs::Entity {
         let soldier = spawn(w, P0, at_, 104 /* spearmen */, 1)[0];
         let ship = spawn(w, P0, port(), 36 /* galley */, 1)[0];
         let view = PlayerView::new(w, P0);

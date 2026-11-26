@@ -106,7 +106,7 @@ impl App {
             }
             return;
         };
-        let def = self.world.content().rules.spells.get(id);
+        let def = self.game.content().rules.spells.get(id);
         let name = self.names.spell(def.num).to_string();
         let text = self
             .help
@@ -137,7 +137,7 @@ impl CreateState {
     fn set_books(&mut self, app: &mut App, realm: RealmId, wanted: u8) {
         let current = i32::from(self.build.books_in(realm));
         let left = i32::from(self.picks_left(app));
-        let chosen = app.options.settings(&app.world.content().settings);
+        let chosen = app.options.settings(&app.game.content().settings);
         let most = i32::from(chosen.wizards.max_books_per_realm);
         let n = i32::from(wanted).min(current + left).clamp(0, most) as u8;
         if n == self.build.books_in(realm) {
@@ -165,13 +165,13 @@ impl CreateState {
             .retorts
             .iter()
             .copied()
-            .filter(|&r| !retort_available(&app.world.content().rules, r, &books))
+            .filter(|&r| !retort_available(&app.game.content().rules, r, &books))
             .collect();
         for r in lost {
             self.build.retorts.remove(&r);
             let args = Args::new().term("retort", app.retort_term(r)).text(
                 "needs",
-                prerequisite_text(&app.names, app.world.content(), &app.texts, r),
+                prerequisite_text(&app.names, app.game.content(), &app.texts, r),
             );
             self.warn = Some(app.text_with("picks.to_select", &args));
         }
@@ -182,8 +182,8 @@ impl CreateState {
     /// The game that exists while the wizard is made has the default settings, so the costs of
     /// the rules are corrected here, as `World::apply_content_settings` does for the real game.
     fn retort_cost(&self, app: &App, retort: Retort) -> u8 {
-        let rules = &app.world.content().rules;
-        let chosen = app.options.settings(&app.world.content().settings).rules;
+        let rules = &app.game.content().rules;
+        let chosen = app.options.settings(&app.game.content().settings).rules;
         if (chosen.adamant_alchemy && retort == Retort::new(0 /* alchemy */))
             || (chosen.two_pick_myrran && retort == Retort::new(9 /* myrran */))
         {
@@ -194,7 +194,7 @@ impl CreateState {
 
     /// Picks still to spend, with those costs.
     fn picks_left(&self, app: &App) -> i16 {
-        let rules = &app.world.content().rules;
+        let rules = &app.game.content().rules;
         let extra: i16 = self
             .build
             .retorts
@@ -213,12 +213,12 @@ impl CreateState {
         let cost = i32::from(self.retort_cost(app, retort));
         let message = if left <= 0 {
             Some(app.text("picks.all_made"))
-        } else if self.build.retorts.len() >= app.world.content().rules.config.wizard.max_retorts {
+        } else if self.build.retorts.len() >= app.game.content().rules.config.wizard.max_retorts {
             Some(app.text("picks.too_many_retorts"))
-        } else if !retort_available(&app.world.content().rules, retort, &self.build.books) {
+        } else if !retort_available(&app.game.content().rules, retort, &self.build.books) {
             let args = Args::new().term("retort", app.retort_term(retort)).text(
                 "needs",
-                prerequisite_text(&app.names, app.world.content(), &app.texts, retort),
+                prerequisite_text(&app.names, app.game.content(), &app.texts, retort),
             );
             Some(app.text_with("picks.to_select", &args))
         } else if cost > left {
@@ -278,13 +278,13 @@ impl CreateState {
 
         // The retorts: three columns of six.
         let mut clicked = None;
-        let all: Vec<Retort> = all_retorts(&app.world.content().rules).collect();
+        let all: Vec<Retort> = all_retorts(&app.game.content().rules).collect();
         for (i, &retort) in all.iter().enumerate() {
             let (col, row) = (i / 6, i % 6);
             let x = [171.0, 210.0, 260.0][col];
             let y = 5.0 + 7.0 * row as f32;
             let known = self.build.retorts.contains(&retort);
-            let rules = &app.world.content().rules;
+            let rules = &app.game.content().rules;
             let open = retort_available(rules, retort, &self.build.books)
                 && left >= i16::from(self.retort_cost(app, retort))
                 && self.build.retorts.len() < rules.config.wizard.max_retorts;
@@ -339,7 +339,7 @@ impl CreateState {
         let build = &self.build;
         let mut out = Vec::new();
         let common = build.spell_choices_of(
-            &app.world.content().settings.spell_library,
+            &app.game.content().settings.spell_library,
             realm,
             Rarity::Common,
         );
@@ -348,7 +348,7 @@ impl CreateState {
         }
         for rarity in [Rarity::Uncommon, Rarity::Rare] {
             let n =
-                build.spell_choices_of(&app.world.content().settings.spell_library, realm, rarity);
+                build.spell_choices_of(&app.game.content().settings.spell_library, realm, rarity);
             if n > 0 {
                 out.push((rarity, n));
             }
@@ -364,10 +364,10 @@ impl CreateState {
                 let sections = self.spell_sections(app, realm);
                 self.build
                     .spells
-                    .retain(|&s| app.world.content().rules.spells.get(s).realm != realm);
+                    .retain(|&s| app.game.content().rules.spells.get(s).realm != realm);
                 for (rarity, n) in sections {
                     let defaults =
-                        f4x_core::wizard::magic::default_spells(app.world.content(), realm, rarity);
+                        f4x_core::wizard::magic::default_spells(app.game.content(), realm, rarity);
                     self.build.spells.extend(defaults.into_iter().take(n));
                 }
                 self.step = Step::Spells(i);
@@ -392,14 +392,14 @@ impl CreateState {
             app.draw_pic(lay, "wizards", entry, 0, 24.0, 10.0);
         }
         let realm_name = app
-            .world
+            .game
             .content()
             .rules
             .realms
             .id_numbered(realm.num())
             .map_or_else(Default::default, |r| {
                 app.names
-                    .realm_term(app.world.content().rules.realms.get(r).num)
+                    .realm_term(app.game.content().rules.realms.get(r).num)
             });
         let ink = realm_colour(realm);
         let title = app.text_with(
@@ -444,9 +444,9 @@ impl CreateState {
                 26.0 + 51.0 * s as f32,
             );
             let pool = if rarity == Rarity::Common {
-                f4x_core::wizard::magic::default_spells(app.world.content(), realm, rarity)
+                f4x_core::wizard::magic::default_spells(app.game.content(), realm, rarity)
             } else {
-                f4x_core::wizard::magic::spells_of(app.world.content(), realm, rarity)
+                f4x_core::wizard::magic::spells_of(app.game.content(), realm, rarity)
             };
             let chosen = pool
                 .iter()
@@ -459,7 +459,7 @@ impl CreateState {
                 let y = top + 7.0 * row as f32 + 1.0;
                 let name = app
                     .names
-                    .spell(app.world.content().rules.spells.get(*id).num)
+                    .spell(app.game.content().rules.spells.get(*id).num)
                     .to_string();
                 let selected = self.build.spells.contains(id);
                 // `m_select_spells_*_colors`: 178 chosen, 50 not, the shadow 16 one pixel to the right.
@@ -568,7 +568,7 @@ mod tests {
         let (life, death) = (RealmId::new(3), RealmId::new(4));
         for ban in [true, false] {
             let mut app = crate::App::for_test();
-            let mut settings = app.options.settings(&app.world.content().settings);
+            let mut settings = app.options.settings(&app.game.content().settings);
             settings.rules.ban_life_and_death = ban;
             app.options.custom = Some(settings);
             let mut state = crate::create_screen::CreateState::empty();

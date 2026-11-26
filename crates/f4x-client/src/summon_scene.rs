@@ -140,7 +140,7 @@ impl App {
     /// Queue the scene of a cast that summons, when Summoning Events is on, the caster is the
     /// human or Enemy Spells is on.
     pub(crate) fn announce_summon(&mut self, player: PlayerId, spell: SpellId) {
-        let rules = &self.world.content().rules;
+        let rules = &self.game.content().rules;
         let what = summoned_by(rules.spells.get(spell));
         // Enchant Item and Create Artifact play for the human alone, whatever the settings
         // (`OverSpel.c`, the crafting case).
@@ -175,7 +175,7 @@ impl App {
         }
         self.hero_summon_due = None;
         let gender = self
-            .world
+            .game
             .content()
             .rules
             .hero_templates
@@ -193,7 +193,7 @@ impl App {
         started: Option<f64>,
         hero: Gender,
     ) -> Option<SummonScene> {
-        let rules = &self.world.content().rules;
+        let rules = &self.game.content().rules;
         let def = rules.spells.get(spell);
         let what = summoned_by(def)?;
         let palette = match &what {
@@ -218,7 +218,7 @@ impl App {
             Summoned::Champion => (hero_figure(hero), self.text("spell.champion_summoned")),
             Summoned::Item => (ITEM_FIGURE, self.text("spell.item_enchanted")),
         };
-        let slot = self.world.wizard(player).map_or(0, |w| w.portrait());
+        let slot = self.game.wizard(player).map_or(0, |w| w.portrait());
         Some(SummonScene {
             player,
             figure,
@@ -232,7 +232,7 @@ impl App {
 
     /// For screenshots: show the summoning of `id` (a spell) cast by player `by`, `seconds` in.
     pub fn open_test_summon(&mut self, id: u16, by: u8, seconds: f64) {
-        let Some(spell) = self.world.content().rules.spells.id_numbered(id) else {
+        let Some(spell) = self.game.content().rules.spells.id_numbered(id) else {
             eprintln!("unknown spell {id}");
             return;
         };
@@ -356,7 +356,7 @@ mod tests {
         // The `Summon` effect names the creature, the `summon_hero` hook the hero or the champion
         // (Torin and a resurrection have no scene), the `craft_item` hook the sword.
         let app = App::for_test();
-        let rules = &app.world.content().rules;
+        let rules = &app.game.content().rules;
         let (mut creatures, mut heroes, mut champions, mut items, mut none) = (0, 0, 0, 0, 0);
         for (_, def) in rules.spells.iter() {
             let summon = def.effects.iter().find_map(|e| match &e.effect {
@@ -413,7 +413,7 @@ mod tests {
     #[test]
     fn the_shipped_creatures_get_the_palette_of_their_realm() {
         let app = App::for_test();
-        let rules = &app.world.content().rules;
+        let rules = &app.game.content().rules;
         // Each creature summon, with the realm number of its unit and the palette it gets.
         let summons: Vec<(Option<u16>, usize)> = rules
             .spells
@@ -443,7 +443,7 @@ mod tests {
     #[test]
     fn the_fire_elemental_is_drawn_from_our_own_picture_and_nothing_else_is() {
         let app = App::for_test();
-        let rules = &app.world.content().rules;
+        let rules = &app.game.content().rules;
         let spell = rules.spells.by_num(90 /* fire_elemental */).expect("spell");
         let Some(Summoned::Creature(unit)) = summoned_by(spell) else {
             panic!("Fire Elemental summons a creature");

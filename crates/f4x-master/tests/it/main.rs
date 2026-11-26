@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 use f4x_core::player::PlayerId;
 use f4x_core::world::{Command, Event, World};
-use f4x_master::{Controller, Master, Phase, Refused, Seat, Status, Stopped, Until};
+use f4x_master::{Controller, Game, Master, Phase, Refused, Seat, Status, Stopped, Until};
 use f4x_newgame::setup::{new_game, NewGame};
 
 type Log = Rc<RefCell<Vec<(u32, PlayerId)>>>;
@@ -36,29 +36,31 @@ impl Recorder {
 }
 
 impl Controller for Recorder {
-    fn play(&mut self, world: &mut World, players: &[PlayerId], events: &mut Vec<Event>) -> Status {
+    fn play(&mut self, game: &mut Game, players: &[PlayerId], events: &mut Vec<Event>) -> Status {
         if self.left > 0 {
             self.left -= 1;
             return Status::Waiting;
         }
         self.left = self.waits;
-        self.log.borrow_mut().push((world.turn, players[0]));
+        self.log.borrow_mut().push((game.turn, players[0]));
         if let Some(winner) = self.defeat_by {
-            events.extend(world.cheat_defeat_player(players[0], winner));
+            events.extend(game.cheat_defeat_player(players[0], winner));
         }
         Status::Done
     }
 }
 
-fn game(wizards: u8) -> World {
-    new_game(
-        f4x_def::testdir::shipped(),
-        &NewGame {
-            all_ai: true,
-            ..NewGame::with_wizards(wizards)
-        },
+fn game(wizards: u8) -> Game {
+    Game::new(
+        new_game(
+            f4x_def::testdir::shipped(),
+            &NewGame {
+                all_ai: true,
+                ..NewGame::with_wizards(wizards)
+            },
+        )
+        .expect("a new game"),
     )
-    .expect("a new game")
 }
 
 fn seats(w: &World, log: &Log) -> Vec<Seat<'static>> {
@@ -232,11 +234,13 @@ fn a_game_resumes_from_a_saved_state_without_repeating_a_step() {
 }
 
 /// A game written out as a save and read back.
-fn saved_and_loaded(w: &World) -> World {
-    let text = w.snapshot().to_text().expect("a save");
-    f4x_core::world::save::Snapshot::from_text(&text)
-        .and_then(|s| s.restore(f4x_def::testdir::shipped().clone()))
-        .expect("the save loads")
+fn saved_and_loaded(w: &World) -> Game {
+    Game::new({
+        let text = w.snapshot().to_text().expect("a save");
+        f4x_core::world::save::Snapshot::from_text(&text)
+            .and_then(|s| s.restore(f4x_def::testdir::shipped().clone()))
+            .expect("the save loads")
+    })
 }
 
 #[test]
@@ -335,7 +339,7 @@ struct Listener {
 }
 
 impl Controller for Listener {
-    fn play(&mut self, _: &mut World, _: &[PlayerId], _: &mut Vec<Event>) -> Status {
+    fn play(&mut self, _: &mut Game, _: &[PlayerId], _: &mut Vec<Event>) -> Status {
         Status::Done
     }
 

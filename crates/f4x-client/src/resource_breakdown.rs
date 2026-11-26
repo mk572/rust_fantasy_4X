@@ -59,7 +59,7 @@ impl App {
     /// For screenshots: the window of the first city's `resource` (food, production, gold, power
     /// or research).
     pub fn open_test_breakdown(&mut self, resource: &str) {
-        let Some(city) = self.world.economy().cities().first().map(|c| c.0) else {
+        let Some(city) = self.game.economy().cities().first().map(|c| c.0) else {
             return;
         };
         let resource = match resource {
@@ -74,7 +74,7 @@ impl App {
 
     /// The name of a line.
     fn breakdown_label(&self, item: Item) -> String {
-        let rules = self.world.content().rules.clone();
+        let rules = self.game.content().rules.clone();
         match item {
             Item::Farmers => self.text("breakdown.farmers"),
             Item::Workers => self.text("breakdown.workers"),
@@ -138,7 +138,7 @@ impl App {
             || input.mouse_pressed(MouseButton::Left)
             || input.mouse_pressed(MouseButton::Right);
         let b = self
-            .world
+            .game
             .economy()
             .city_breakdown(window.city, window.resource)?;
         let rows = self.breakdown_rows(&b);
@@ -164,7 +164,7 @@ impl App {
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.55, 0.4, 0.2, 1.0));
             draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, Color::new(0.3, 0.2, 0.1, 1.0));
         }
-        let city = self.world.city_name(window.city).unwrap_or_default();
+        let city = self.game.city_name(window.city).unwrap_or_default();
         let title = self.text_with(
             "breakdown.title",
             &crate::text::Args::new()

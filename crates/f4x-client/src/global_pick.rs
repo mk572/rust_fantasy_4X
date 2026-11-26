@@ -155,8 +155,8 @@ pub(crate) fn keep_in_view(first: usize, item: usize, count: usize) -> usize {
 impl App {
     /// The enchantments of the rivals with their owners, in the order the game lists them.
     fn rival_enchantments(&self) -> Vec<(hecs::Entity, PlayerId)> {
-        let spells = self.world.spells();
-        self.world
+        let spells = self.game.spells();
+        self.game
             .rival_globals(HUMAN)
             .into_iter()
             .filter_map(|i| Some((i, spells.caster_player(i)?)))
@@ -166,7 +166,7 @@ impl App {
     /// Whether `spell` takes the enchantment over (Spell Binding) and not ends it.
     fn is_binding(&self, spell: SpellId) -> bool {
         f4x_core::spell::dispel::CounterEffect::SpellBinding
-            .is_in(self.world.content().rules.spells.get(spell))
+            .is_in(self.game.content().rules.spells.get(spell))
     }
 
     /// The panel in two pieces, the top and the bottom border, so that it is `rows` rows tall.
@@ -246,7 +246,7 @@ impl App {
         self.draw_global_panel(&lay, rows_in_view);
         let spell_name_term = self
             .names
-            .spell_term(self.world.content().rules.spells.get(pick.spell).num);
+            .spell_term(self.game.content().rules.spells.get(pick.spell).num);
         let key = if self.is_binding(pick.spell) {
             "spell.select_to_bind"
         } else {
@@ -300,7 +300,7 @@ impl App {
             let y = row_top(top, slot);
             let standing = rivals[g].1;
             let (portrait, banner) = self
-                .world
+                .game
                 .player(group.who)
                 .map_or((0, 0), |p| (p.portrait(), p.banner()));
             // A rival still met or with enchantments shows its own gem, the grey one when not, the
@@ -365,12 +365,12 @@ impl App {
                         y + HIGHLIGHT_AT.1 + SPELL_H * j as f32,
                     );
                 }
-                let spells = self.world.spells();
+                let spells = self.game.spells();
                 let name = spells
                     .def(group.spells[item])
                     .map(|id| {
                         self.names
-                            .spell(self.world.content().rules.spells.get(id).num)
+                            .spell(self.game.content().rules.spells.get(id).num)
                             .to_string()
                     })
                     .unwrap_or_default();
@@ -406,7 +406,7 @@ impl App {
                     target: Some(target),
                 }
             };
-            let events = self.world.apply(command);
+            let events = self.game.apply(command);
             self.note(events);
             return None;
         }
@@ -417,7 +417,7 @@ impl App {
     /// For screenshots: Disjunction against the rivals, each given a few global enchantments (the
     /// first four rows of the list get 1, 4, 2 and 0 so the arrows of a long list show).
     pub(crate) fn open_test_global_pick(&mut self) {
-        let rules = &self.world.content().rules;
+        let rules = &self.game.content().rules;
         let Some(spell) = rules.spells.id_numbered(210 /* disjunction */) else {
             return;
         };
@@ -426,15 +426,15 @@ impl App {
             .filter_map(|n| rules.spells.id_numbered(n))
             .collect();
         let rivals: Vec<PlayerId> = self
-            .world
+            .game
             .player_ids()
             .into_iter()
-            .filter(|&id| id != HUMAN && self.world.is_wizard(id))
+            .filter(|&id| id != HUMAN && self.game.is_wizard(id))
             .collect();
         for (&id, count) in rivals.iter().zip([1, 4, 2, 0]) {
-            self.world.make_contact(HUMAN, id);
+            self.game.world_mut().make_contact(HUMAN, id);
             for &g in globals.iter().take(count) {
-                self.world.scenario_add_global(id, g);
+                self.game.world_mut().scenario_add_global(id, g);
             }
         }
         self.open_global_pick(spell, false);
@@ -444,7 +444,7 @@ impl App {
     /// turns. Says so in the log when there is none.
     pub(crate) fn open_global_pick(&mut self, spell: SpellId, resolve: bool) {
         self.screen = Screen::Map;
-        if self.world.rival_globals(HUMAN).is_empty() {
+        if self.game.rival_globals(HUMAN).is_empty() {
             let key = if resolve {
                 "spell.no_globals_waits"
             } else {

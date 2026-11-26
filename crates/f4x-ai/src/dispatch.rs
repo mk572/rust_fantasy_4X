@@ -26,6 +26,7 @@
 
 use crate::Ai;
 use f4x_core::world::{Event, World};
+use f4x_master::Game;
 
 /// What waits for a job: the units of the pool, by kind (read by the jobs of task 646; for now
 /// only the tests count it).
@@ -106,7 +107,7 @@ fn mission_valid(
 /// refused for another reason (no moves left, say).
 fn resend(
     ai: &mut Ai,
-    world: &mut World,
+    game: &mut Game,
     lost: Vec<(hecs::Entity, crate::roles::Role, f4x_core::map::Position)>,
     events: &mut Vec<Event>,
 ) -> Vec<(hecs::Entity, crate::roles::Role)> {
@@ -118,14 +119,14 @@ fn resend(
     for (unit, role, target) in lost {
         // A unit with planar travel of its own (a shadow demon, or any unit with the spell or an
         // item) changes plane where it stands, with no tower, gate or spell to wait for.
-        shift_by_itself(ai, world, unit, target, events);
+        shift_by_itself(ai, game, unit, target, events);
         // `Err(true)`: no walk leads there; `Err(false)`: refused for another reason.
         let sent: Result<(), bool> = match role {
-            Role::Raid | Role::March => crate::assault::march(ai, world, &[unit], target, events)
+            Role::Raid | Role::March => crate::assault::march(ai, game, &[unit], target, events)
                 .map_err(|why| why == crate::assault::MarchError::Unreachable),
             _ => ai
                 .probe(
-                    world,
+                    game,
                     f4x_core::world::Command::GoTo {
                         units: vec![unit],
                         to: target,
@@ -146,7 +147,7 @@ fn resend(
             Err(no_walk) => no_walk,
         };
         let (serial, here) = {
-            let view = f4x_core::player::view::PlayerView::new(world, ai.player);
+            let view = f4x_core::player::view::PlayerView::new(game, ai.player);
             (view.serial_of(unit), view.unit_position(unit))
         };
         match here {
@@ -157,8 +158,7 @@ fn resend(
             // Only a walker waits for a ship; a flier or a swimmer crosses the water itself.
             Some(_)
                 if unreachable
-                    && f4x_core::player::view::PlayerView::new(world, ai.player)
-                        .is_walker(unit) =>
+                    && f4x_core::player::view::PlayerView::new(game, ai.player).is_walker(unit) =>
             {
                 ai.roles
                     .set_crossing(serial, Some(crate::roles::Crossing::Sea));
@@ -175,13 +175,13 @@ fn resend(
 /// while the game will not let it shift (Planar Seal, no moves left).
 fn shift_by_itself(
     ai: &mut Ai,
-    world: &mut World,
+    game: &mut Game,
     unit: hecs::Entity,
     target: f4x_core::map::Position,
     events: &mut Vec<Event>,
 ) {
     let shifts = {
-        let view = f4x_core::player::view::PlayerView::new(world, ai.player);
+        let view = f4x_core::player::view::PlayerView::new(game, ai.player);
         view.unit_position(unit)
             .is_some_and(|p| p.plane != target.plane)
             && view.unit_has_flag(unit, f4x_def::rules::unit_flag::UnitFlag::PlanarTravel)
@@ -189,7 +189,7 @@ fn shift_by_itself(
     };
     if shifts {
         let _ = ai.send(
-            world,
+            game,
             f4x_core::world::Command::ShiftPlane { units: vec![unit] },
             events,
         );
@@ -199,10 +199,10 @@ fn shift_by_itself(
 /// An escort that fell behind its charge (the stack was split by a fight, or the charge was
 /// ordered on by another job) goes to where the charge stands now. Run after the jobs that move
 /// the charges, so it follows their new square. An escort the game will not send keeps its role.
-pub fn repair_escorts(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
+pub fn repair_escorts(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     use crate::roles::Role;
     let lost: Vec<_> = {
-        let view = f4x_core::player::view::PlayerView::new(world, ai.player);
+        let view = f4x_core::player::view::PlayerView::new(game, ai.player);
         let find = |s| {
             view.my_units()
                 .into_iter()
@@ -220,7 +220,7 @@ pub fn repair_escorts(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
             })
             .collect()
     };
-    resend(ai, world, lost, events);
+    resend(ai, game, lost, events);
 }
 
 /// Before any new job is looked for: a unit sent on a mission that can no longer be fulfilled
@@ -228,13 +228,13 @@ pub fn repair_escorts(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
 /// walk is gone (it was moved by a strike, a battle, a refused step) but whose target stands in
 /// the registry is sent again; it is given up only when the game refuses. It loses its role and its order and awaits orders where it
 /// stands, so the jobs below see it in the pool. Returns how many were reset.
-pub fn revalidate(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) -> u32 {
+pub fn revalidate(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> u32 {
     use crate::roles::Role;
     let me = ai.player;
     let mut reset: Vec<(hecs::Entity, crate::roles::Role)> = Vec::new();
     let mut lost: Vec<(hecs::Entity, crate::roles::Role, f4x_core::map::Position)> = Vec::new();
     {
-        let view = f4x_core::player::view::PlayerView::new(world, me);
+        let view = f4x_core::player::view::PlayerView::new(game, me);
         for unit in view.my_units() {
             let serial = view.serial_of(unit);
             for role in [
@@ -288,10 +288,10 @@ pub fn revalidate(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) -> u3
             }
         }
     }
-    reset.extend(resend(ai, world, lost, events));
+    reset.extend(resend(ai, game, lost, events));
     let mut serials = Vec::new();
     {
-        let view = f4x_core::player::view::PlayerView::new(world, me);
+        let view = f4x_core::player::view::PlayerView::new(game, me);
         for &(unit, role) in &reset {
             let serial = view.serial_of(unit);
             ai.roles.release(serial, role);
@@ -301,7 +301,7 @@ pub fn revalidate(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) -> u3
     let count = serials.len() as u32;
     if !serials.is_empty() {
         ai.order(
-            world,
+            game,
             f4x_core::world::Command::ClearOrders { units: serials },
             events,
         );
@@ -335,52 +335,53 @@ fn free_soldiers(ai: &Ai, world: &World) -> Vec<hecs::Entity> {
 }
 
 /// One turn of the jobs, in the order of the checklist.
-pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
-    crate::roles::register(ai, world);
+pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+    crate::roles::register(ai, game);
     // The sweep of the ship ties (and the sanity check of the passengers), before any job moves
     // one of them.
-    crate::pickup::tidy_unit_registry(ai, world);
+    crate::pickup::tidy_unit_registry(ai, game);
     // Quick strikes come first: no unit has used a move or got an order yet.
-    crate::strike::run(ai, world, events);
+    crate::strike::run(ai, game, events);
     // First the units whose mission is over, so the jobs below see them waiting.
-    revalidate(ai, world, events);
-    crate::recover::run(ai, world, events);
-    crate::garrison::thin_out(ai, world, events);
+    revalidate(ai, game, events);
+    crate::recover::run(ai, game, events);
+    crate::garrison::thin_out(ai, game, events);
     // 0. a city in danger: the free soldiers deal with the enemy in its zone, before anything else
     {
-        let free = free_soldiers(ai, world);
-        crate::perimeter::run(ai, world, free, events);
+        let free = free_soldiers(ai, game);
+        crate::perimeter::run(ai, game, free, events);
     }
     // 0b. an own city that holds less than it wants: the nearest free soldiers go in
-    crate::reinforce::run(ai, world, events);
+    crate::reinforce::run(ai, game, events);
     // 0b. an own city that holds less than it wants: the nearest free soldiers go in
     // 1. settlers, engineers, spirits
-    crate::expand::settlers(ai, world, events);
-    crate::road::run(ai, world, events);
-    crate::meld::run(ai, world, events);
+    crate::expand::settlers(ai, game, events);
+    crate::road::run(ai, game, events);
+    crate::meld::run(ai, game, events);
     // 2. escorts
-    crate::escort::run(ai, world, events);
-    repair_escorts(ai, world, events);
+    crate::escort::run(ai, game, events);
+    repair_escorts(ai, game, events);
     // 3. scouts
-    crate::scout::scout(ai, world, events);
+    crate::scout::scout(ai, game, events);
     // 4. the war (task 646): the army takes the soldiers its target needs, none at peace
-    crate::war::run(ai, world, events);
+    crate::war::run(ai, game, events);
     // 5. raiding parties from the soldiers the war left over
-    crate::raid::run(ai, world, events);
+    crate::raid::run(ai, game, events);
     // The ships (task 647): the bridges first, since a free ship goes to the bridge before it
     // scouts (task 739)
-    crate::bridge::run(ai, world, events);
-    crate::naval::run(ai, world, events);
-    crate::pickup::run(ai, world, events);
+    crate::bridge::run(ai, game, events);
+    crate::naval::run(ai, game, events);
+    crate::pickup::run(ai, game, events);
     // The orders a full square stopped go again, now that the units that could move have moved.
-    ai.retry_blocked(world, events);
-    crate::roles::audit(ai, world, events);
+    ai.retry_blocked(game, events);
+    crate::roles::audit(ai, game, events);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::testworld::{at, game, spawn, COAST_CITY, ENEMY_CITY, P0, P1};
+    use f4x_master::Game;
 
     /// A city keeps the soldiers its defence needs; the rest, and a lone soldier in the field,
     /// are the pool.
@@ -426,7 +427,7 @@ mod tests {
     fn at_war_the_soldiers_gather_for_the_campaign_and_leave_the_lair_alone(
     ) -> Result<(), Box<dyn std::error::Error>> {
         use crate::roles::{MusterKind, Role};
-        let build = |war: bool| -> Result<(World, Ai), Box<dyn std::error::Error>> {
+        let build = |war: bool| -> Result<(Game, Ai), Box<dyn std::error::Error>> {
             let mut w = game(COAST_CITY, 8 /* high_men */);
             if war {
                 // A rival's town that P0 knows and is at war with.
@@ -459,7 +460,7 @@ mod tests {
             Ok((w, Ai::new(P0)))
         };
         // Whether a raid party was formed in any of the turns (a short one may be over by the end).
-        let turns = |w: &mut World, ai: &mut Ai, turns_run: usize| {
+        let turns = |w: &mut Game, ai: &mut Ai, turns_run: usize| {
             let mut raided = false;
             for _ in 0..turns_run {
                 w.balance_farmers(P0);

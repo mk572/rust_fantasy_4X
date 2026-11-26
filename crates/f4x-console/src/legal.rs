@@ -87,11 +87,11 @@ impl Ctx<'_> {
     /// Units from a list word, all of which must be the player's (override mode may act for
     /// anyone, and the line is then logged as an override).
     fn my_units(&mut self, a: &Args, i: usize) -> Result<Vec<hecs::Entity>, ConsoleError> {
-        let units = parse_units(self.world, a.need(i, "units")?)?;
+        let units = parse_units(self.game, a.need(i, "units")?)?;
         let me = self.session.player;
         if units
             .iter()
-            .any(|&u| self.world.units().unit_owner(u) != Some(me))
+            .any(|&u| self.game.units().unit_owner(u) != Some(me))
         {
             if !self.overriding() {
                 return Err(ConsoleError::NotAllowed("those are not your units".into()));
@@ -102,8 +102,8 @@ impl Ctx<'_> {
     }
 
     fn my_city(&mut self, a: &Args, i: usize) -> Result<hecs::Entity, ConsoleError> {
-        let c = city_by_serial(self.world, a.int(i, "city number")? as u64)?;
-        if self.world.economy().city_owner(c) != Some(self.session.player) {
+        let c = city_by_serial(self.game, a.int(i, "city number")? as u64)?;
+        if self.game.economy().city_owner(c) != Some(self.session.player) {
             if !self.overriding() {
                 return Err(ConsoleError::NotAllowed("that is not your city".into()));
             }
@@ -115,7 +115,7 @@ impl Ctx<'_> {
     fn plane_of(&self, units: &[hecs::Entity]) -> Plane {
         units
             .first()
-            .and_then(|&u| self.world.units().unit_position(u))
+            .and_then(|&u| self.game.units().unit_position(u))
             .map_or(Plane::Arcanus, |p| p.plane)
     }
 }
@@ -124,13 +124,13 @@ fn end(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     // The master runs the rest of the round: the other wizards pass (the console plays one
     // wizard), the independent cities are run by their AI, then the round ends and the next
     // begins.
-    if ctx.world.game_over.is_some() {
+    if ctx.game.game_over.is_some() {
         // The game refuses every command once it is over; say so the usual way.
         return ctx.apply(Command::EndTurn);
     }
-    let events = f4x_ai::play_round(ctx.world, &mut []);
+    let events = f4x_ai::play_round(ctx.game, &mut []);
     for e in &events {
-        let text = crate::describe::event(ctx.world, e);
+        let text = crate::describe::event(ctx.game, e);
         ctx.say(text);
     }
     ctx.events.extend(events);
@@ -139,7 +139,8 @@ fn end(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
 
 fn undo(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     let label = ctx
-        .world
+        .game
+        .world_mut()
         .undo()
         .map_err(|e| ConsoleError::Refused(format!("{e:?}")))?;
     ctx.say(format!("undone: {label}"));
@@ -157,7 +158,7 @@ fn auto(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let at = parse_pos(a.need(1, "target square")?, ctx.plane_of(&attackers))?;
     let me = ctx.session.player;
     let defenders = ctx
-        .world
+        .game
         .economy()
         .hostile_at(at, me)
         .filter(|d| !d.is_empty())
@@ -190,13 +191,13 @@ fn outpost(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let name = if a.len() > 1 {
         a.rest(1)
     } else {
-        let used = ctx.world.economy().cities().len();
-        ctx.world
+        let used = ctx.game.economy().cities().len();
+        ctx.game
             .units()
             .unit_def(unit)
             .and_then(|d| d.race.as_ref())
             .copied()
-            .map(|r| ctx.world.city_name_for(r, used))
+            .map(|r| ctx.game.city_name_for(r, used))
             .unwrap_or_else(|| format!("Outpost {}", used + 1))
     };
     ctx.apply(Command::SettleOutpost { unit, name })
@@ -240,7 +241,7 @@ fn enter(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 }
 
 fn production_item(ctx: &Ctx, text: &str) -> Result<ProductionItem, ConsoleError> {
-    let rules = &ctx.world.content().rules;
+    let rules = &ctx.game.content().rules;
     match text.to_lowercase().as_str() {
         "trade" | "tradegoods" | "trade_goods" => return Ok(ProductionItem::TradeGoods),
         "housing" => return Ok(ProductionItem::Housing),
@@ -278,7 +279,7 @@ fn farmers(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 fn sell(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let city = ctx.my_city(a, 0)?;
     let building = resolve(
-        &ctx.world.content().rules.buildings,
+        &ctx.game.content().rules.buildings,
         &a.rest(1),
         |d| &d.id,
         "building",
@@ -369,7 +370,7 @@ fn power(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 }
 
 fn spell_arg(ctx: &Ctx, text: &str) -> Result<f4x_def::rules::SpellId, ConsoleError> {
-    resolve(&ctx.world.content().rules.spells, text, |d| &d.id, "spell")
+    resolve(&ctx.game.content().rules.spells, text, |d| &d.id, "spell")
 }
 
 fn research(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
@@ -380,7 +381,7 @@ fn research(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 
 fn cast(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let target = match a.words.last().filter(|w| w.contains(':')) {
-        Some(t) => Some(parse_target(ctx.world, t)?),
+        Some(t) => Some(parse_target(ctx.game, t)?),
         None => None,
     };
     let name_words = a.len() - usize::from(target.is_some());
@@ -395,7 +396,7 @@ fn cast(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 }
 
 fn target(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
-    let target = parse_target(ctx.world, a.need(0, "target")?)?;
+    let target = parse_target(ctx.game, a.need(0, "target")?)?;
     let player = ctx.session.player;
     ctx.apply(Command::ResolveCast { player, target })
 }
@@ -412,7 +413,7 @@ fn resign(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
 
 fn turnoff(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let spell = crate::args::resolve(
-        &ctx.world.content().rules.spells,
+        &ctx.game.content().rules.spells,
         a.need(0, "spell")?,
         |d| &d.id,
         "spell",
@@ -453,7 +454,7 @@ fn battle_pos(text: &str) -> Result<(i32, i32), ConsoleError> {
 /// A battle order is only the console player's when that player's side is the one to play.
 fn battle_order(ctx: &mut Ctx, order: BattleCommand) -> Result<(), ConsoleError> {
     let b = ctx
-        .world
+        .game
         .battle()
         .ok_or_else(|| ConsoleError::NoSuch("battle in progress".into()))?;
     if b.player_of(b.active) != ctx.session.player {
@@ -647,8 +648,8 @@ fn reject(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 }
 
 fn equip(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
-    let from = crate::args::parse_item_spot(ctx.world, a.need(0, "from")?)?;
-    let to = crate::args::parse_item_spot(ctx.world, a.need(1, "to")?)?;
+    let from = crate::args::parse_item_spot(ctx.game, a.need(0, "from")?)?;
+    let to = crate::args::parse_item_spot(ctx.game, a.need(1, "to")?)?;
     let pay = a.get(2) == Some("pay");
     let player = ctx.session.player;
     ctx.apply(Command::MoveItem {
@@ -661,7 +662,7 @@ fn equip(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 
 fn scrap(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     use f4x_core::item::armory::{ItemSpot, Spot};
-    let from = match crate::args::parse_item_spot(ctx.world, a.need(0, "place")?)? {
+    let from = match crate::args::parse_item_spot(ctx.game, a.need(0, "place")?)? {
         ItemSpot::Vault(i) => Spot::Vault(i),
         ItemSpot::Award(i) => Spot::Award(i),
         ItemSpot::Hero(..) => {
@@ -676,7 +677,7 @@ fn scrap(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 
 fn sell_item(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     use f4x_core::item::armory::{ItemSpot, Spot};
-    let from = match crate::args::parse_item_spot(ctx.world, a.need(0, "place")?)? {
+    let from = match crate::args::parse_item_spot(ctx.game, a.need(0, "place")?)? {
         ItemSpot::Vault(i) => Spot::Vault(i),
         ItemSpot::Award(i) => Spot::Award(i),
         ItemSpot::Hero(..) => {
@@ -688,9 +689,9 @@ fn sell_item(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let player = ctx.session.player;
     ctx.apply(Command::SellItem { player, from })?;
     // The computer wizards answer at once, round the cycle.
-    let events = f4x_ai::answer_resales(ctx.world);
+    let events = f4x_ai::answer_resales(ctx.game);
     for e in &events {
-        let text = crate::describe::event(ctx.world, e);
+        let text = crate::describe::event(ctx.game, e);
         ctx.say(text);
     }
     ctx.events.extend(events);
@@ -702,7 +703,7 @@ fn resurrect(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let which = plain.join(" ");
     let circle = circle_option(&options)?;
     let kind = {
-        let units = ctx.world.units();
+        let units = ctx.game.units();
         let raisable = units.raisable_heroes();
         match which.parse::<usize>() {
             Ok(kind) => kind,
@@ -722,12 +723,12 @@ fn resurrect(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         None => f4x_core::rules::exec::Target::Hero(kind),
     };
     // A cast paid over turns takes its hero when it is done.
-    let paid = ctx.world.wizard(player).and_then(|w| w.casting_paid());
+    let paid = ctx.game.wizard(player).and_then(|w| w.casting_paid());
     match paid {
         Some(_) => ctx.apply(Command::ResolveCast { player, target }),
         None => {
-            let Some(spell) = f4x_core::spell::hero::HeroSummon::Resurrection
-                .spell_in(&ctx.world.content().rules)
+            let Some(spell) =
+                f4x_core::spell::hero::HeroSummon::Resurrection.spell_in(&ctx.game.content().rules)
             else {
                 return Err(ConsoleError::NoSuch("a Resurrection spell".into()));
             };
@@ -774,14 +775,7 @@ fn craft(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         "-" => Vec::new(),
         list => list
             .split(',')
-            .map(|p| {
-                resolve(
-                    &ctx.world.content().rules.item_powers,
-                    p,
-                    |d| &d.id,
-                    "power",
-                )
-            })
+            .map(|p| resolve(&ctx.game.content().rules.item_powers, p, |d| &d.id, "power"))
             .collect::<Result<Vec<_>, _>>()?,
     };
     let mut charges = None;

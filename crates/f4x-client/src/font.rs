@@ -290,7 +290,7 @@ impl App {
     /// (`Print_City_Enchantment_List`), grey-brown for no wizard.
     pub(crate) fn city_ench_ink(&self, owner: u8) -> Ink {
         if self
-            .world
+            .game
             .wizard(f4x_core::player::PlayerId(owner))
             .is_none()
         {

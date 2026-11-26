@@ -201,12 +201,12 @@ const PICTURE_CLEAR: (f32, f32) = (49.0, 45.0);
 impl App {
     /// The news of a site event, for the log and the boxes.
     pub(crate) fn site_encounter(&mut self, units: Vec<hecs::Entity>, to: Position) {
-        let Some(lair) = self.world.economy().lair_at(to) else {
+        let Some(lair) = self.game.economy().lair_at(to) else {
             return;
         };
         let site = site_type(lair.site.0);
         let first = lair.guards.first().map(|&(id, _)| {
-            let unit = self.world.content().rules.units.get(id);
+            let unit = self.game.content().rules.units.get(id);
             let figures = unit
                 .stats
                 .get(&f4x_def::rules::Stat::Figures)
@@ -238,7 +238,7 @@ impl App {
         }
         let spell = loot.spell.map(|s| {
             self.names
-                .spell_term(self.world.content().rules.spells.get(s).num)
+                .spell_term(self.game.content().rules.spells.get(s).num)
         });
         let retorts: Vec<Term> = loot.retorts.iter().map(|&r| self.retort_term(r)).collect();
         let books: Vec<Term> = loot
@@ -257,7 +257,7 @@ impl App {
     /// For the screenshot check: the box of kind `ask`, `found` or `treasure` for the first
     /// guarded site of the map (the treasure is a made-up one).
     pub fn open_test_site(&mut self, kind: &str) {
-        let Some(lair) = self.world.economy().lairs().into_iter().find(|l| {
+        let Some(lair) = self.game.economy().lairs().into_iter().find(|l| {
             l.intact && !l.guards.is_empty() && l.site.0 != 21
         } /* tower */) else {
             return;
@@ -270,7 +270,7 @@ impl App {
                 let first = lair.guards.first().map(|&(id, _)| {
                     (
                         self.names
-                            .unit_term(self.world.content().rules.units.get(id).num),
+                            .unit_term(self.game.content().rules.units.get(id).num),
                         1,
                     )
                 });
@@ -307,11 +307,11 @@ impl App {
     }
 
     pub(crate) fn item_pool_frame(&mut self, input: &Input) -> bool {
-        if self.world.in_battle()
+        if self.game.in_battle()
             || !matches!(self.screen, Screen::Map)
             || !self.item_pool_pending
             || self.modals.has(crate::modal::kind::EVENT)
-            || !self.world.offers(crate::view::HUMAN).is_empty()
+            || !self.game.offers(crate::view::HUMAN).is_empty()
         {
             return false;
         }
@@ -346,7 +346,7 @@ impl App {
             return Some(notice);
         };
         if let SiteNotice::Ask { units, to, .. } = notice {
-            if yes && units.len() > self.world.max_battle_side() {
+            if yes && units.len() > self.game.max_battle_side() {
                 // More than a battle side could go in: who does is asked first.
                 let pick = self.new_fighter_pick(&units, true, false);
                 self.modals.open(crate::fighter_pick::SitePick { pick, to });

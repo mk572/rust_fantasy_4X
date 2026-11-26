@@ -6,6 +6,7 @@
 use crate::{Ai, Attack, Diplomats};
 use f4x_core::player::PlayerId;
 use f4x_core::world::{Event, World};
+use f4x_master::Game;
 use f4x_master::{Controller, Master, Pass, Seat, Status, Until};
 use std::collections::{BTreeMap, HashMap};
 
@@ -13,8 +14,8 @@ use std::collections::{BTreeMap, HashMap};
 pub struct AiSeat<'a>(pub &'a mut Ai);
 
 impl Controller for AiSeat<'_> {
-    fn play(&mut self, world: &mut World, _: &[PlayerId], events: &mut Vec<Event>) -> Status {
-        events.extend(self.0.play_turn(world));
+    fn play(&mut self, game: &mut Game, _: &[PlayerId], events: &mut Vec<Event>) -> Status {
+        events.extend(self.0.play_turn(game));
         Status::Done
     }
 
@@ -92,15 +93,15 @@ impl NeutralSeat {
 
     /// What the neutral players have to say to the human at the start of the human's turn
     /// (`Ai::approach_human`): offers, warnings of war, requests.
-    pub fn approach_human(&mut self, world: &mut World) -> Vec<Event> {
+    pub fn approach_human(&mut self, game: &mut Game) -> Vec<Event> {
         let mut events = Vec::new();
         let ids: Vec<PlayerId> = self.ais.keys().copied().collect();
         for id in ids {
-            if world.race_of_player(id).is_none() {
+            if game.race_of_player(id).is_none() {
                 continue;
             }
             if let Some(ai) = self.ais.get_mut(&id) {
-                events.extend(ai.approach_human(world));
+                events.extend(ai.approach_human(game));
             }
         }
         events
@@ -121,27 +122,27 @@ impl NeutralSeat {
     }
 
     /// Play the turn of every race player in `players`, then the monsters'.
-    pub fn play_turn(&mut self, world: &mut World, players: &[PlayerId], events: &mut Vec<Event>) {
+    pub fn play_turn(&mut self, game: &mut Game, players: &[PlayerId], events: &mut Vec<Event>) {
         crate::battle::install();
-        self.ais.retain(|&id, _| world.race_of_player(id).is_some());
+        self.ais.retain(|&id, _| game.race_of_player(id).is_some());
         for &id in players {
-            if world.race_of_player(id).is_none() || !world.has_player(id) {
+            if game.race_of_player(id).is_none() || !game.has_player(id) {
                 continue;
             }
-            let ai = self.ai_of(world, id);
-            events.extend(ai.play_turn(world));
+            let ai = self.ai_of(game, id);
+            events.extend(ai.play_turn(game));
             let attacks = ai.take_attacks();
             self.attacks.extend(attacks);
         }
-        let (more, attacks) = crate::monster::roam(world, &self.defended_by);
+        let (more, attacks) = crate::monster::roam(game, &self.defended_by);
         events.extend(more);
         self.attacks.extend(attacks);
     }
 }
 
 impl Controller for NeutralSeat {
-    fn play(&mut self, world: &mut World, players: &[PlayerId], events: &mut Vec<Event>) -> Status {
-        self.play_turn(world, players, events);
+    fn play(&mut self, game: &mut Game, players: &[PlayerId], events: &mut Vec<Event>) -> Status {
+        self.play_turn(game, players, events);
         Status::Done
     }
 
@@ -159,7 +160,7 @@ impl Controller for NeutralSeat {
 /// Play the rest of the current round for these AIs and begin the next one. Every wizard has a
 /// seat in the order of their ids: the AI's own, or a seat that passes for a player without one
 /// (a human the caller does not drive); the neutral seat comes last. Returns all the events.
-pub fn play_round(world: &mut World, ais: &mut [Ai]) -> Vec<Event> {
+pub fn play_round(game: &mut Game, ais: &mut [Ai]) -> Vec<Event> {
     crate::battle::install();
     let diplomats = Diplomats::new();
     for ai in ais.iter_mut() {
@@ -167,10 +168,10 @@ pub fn play_round(world: &mut World, ais: &mut [Ai]) -> Vec<Event> {
     }
     let mut by_player: HashMap<PlayerId, &mut Ai> =
         ais.iter_mut().map(|ai| (ai.player, ai)).collect();
-    let mut seats: Vec<Seat> = world
+    let mut seats: Vec<Seat> = game
         .player_ids()
         .into_iter()
-        .filter(|&p| !world.is_neutral_player(p))
+        .filter(|&p| !game.is_neutral_player(p))
         .map(|p| match by_player.remove(&p) {
             Some(ai) => Seat::new(vec![p], Box::new(AiSeat(ai))),
             None => Seat::new(vec![p], Box::new(Pass)),
@@ -179,5 +180,5 @@ pub fn play_round(world: &mut World, ais: &mut [Ai]) -> Vec<Event> {
     let mut neutrals = NeutralSeat::default();
     neutrals.share(&diplomats);
     seats.push(Seat::neutrals(Box::new(neutrals)));
-    Master::new(seats).run(world, Until::Rounds(1)).events
+    Master::new(seats).run(game, Until::Rounds(1)).events
 }

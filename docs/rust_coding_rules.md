@@ -59,7 +59,7 @@ The game is built on four major components: rules engine, game engine, client an
 The crates depend on each other in one direction: `f4x-def` is at the bottom (the static definitions,
 no other game crate); `f4x-battle` depends on `f4x-def`; `f4x-core` on `f4x-battle` and `f4x-def`; `f4x-ai` on `f4x-def` and `f4x-core`. The line of the layers is client -> master -> core -> battle -> def, and nothing points up it;
 `f4x-newgame` (the map generator, the setup of a new game) sits above core and uses only its public API,
-so core never calls it; `f4x-console` depends on def, core, newgame and ai; `f4x-learn` on def, core and
+so core never calls it; `f4x-master` (the game and its turns) on core and battle; `f4x-console` depends on def, core, newgame, ai and master; `f4x-learn` on def, core and
 newgame; `f4x-client` and `f4x-tools` on all of these (`f4x-tools` also on `f4x-ai-ref`). A crate loads the data it holds: `f4x-def` loads the
 definitions (`f4x_def::load`). `f4x-core` reads and writes save files only (`world/save/file.rs`); it is deterministic otherwise.
 

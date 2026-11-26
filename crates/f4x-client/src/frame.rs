@@ -296,11 +296,11 @@ impl App {
         // figures right-aligned in white, the units after them; the narrow font when a figure
         // has five digits.
         let gold = self
-            .world
+            .game
             .player(HUMAN)
             .map_or(f4x_def::half_int::HalfInt::ZERO, |p| p.treasury().gold);
         let mana = self
-            .world
+            .game
             .player(HUMAN)
             .map_or(f4x_def::half_int::HalfInt::ZERO, |p| p.treasury().mana);
         let view = (lay.origin.x, lay.origin.y, s);
@@ -373,8 +373,8 @@ impl App {
         let s = lay.scale;
         let view = (lay.origin.x, lay.origin.y, s);
         // Resource panels with this turn's income in each.
-        let t = self.cache.budget(&self.world, HUMAN);
-        let income = self.cache.income(&self.world, HUMAN);
+        let t = self.cache.budget(&self.game, HUMAN);
+        let income = self.cache.income(&self.game, HUMAN);
         let net_mana = income.split.mana - income.mana_upkeep;
         let (px, py) = spot::PANELS;
         self.draw_pic(lay, "main", 34, 0, px, py);
@@ -403,7 +403,7 @@ impl App {
         }
 
         // While a wizard's Time Stop runs, a note says whose it is.
-        if let Some(stopper) = self.world.time_stopper() {
+        if let Some(stopper) = self.game.time_stopper() {
             let args = self.wizard_arg(Args::new(), "wizard", stopper);
             let note = self.text_with("ui.time_stop_note", &args);
             let (nx, ny) = spot::NEXT_TURN;
@@ -469,7 +469,7 @@ impl App {
         const ROWS: i32 = 30;
         let r = lay.rect(spot::MINIMAP);
         draw_rectangle(r.x, r.y, r.w, r.h, BLACK);
-        let Some(map) = self.world.map() else {
+        let Some(map) = self.game.map() else {
             return;
         };
         let (w, h) = (map.width() as i32, map.height() as i32);
@@ -480,7 +480,7 @@ impl App {
         );
         let (start_x, start_y) = (mid_x - COLS / 2, mid_y - ROWS / 2);
         let grid = map.plane(self.plane);
-        let content = self.world.content();
+        let content = self.game.content();
         let plane_offset = if self.plane == f4x_core::map::Plane::Myrror {
             crate::art::terrain_type::MYRROR_OFFSET
         } else {
@@ -510,11 +510,11 @@ impl App {
                     x: x as u32,
                     y: y as u32,
                 };
-                if !self.world.is_explored(HUMAN, at) {
+                if !self.game.is_explored(HUMAN, at) {
                     continue;
                 }
                 let art = &self.art;
-                let ground = if self.world.economy().volcano_at(at).is_some() {
+                let ground = if self.game.economy().volcano_at(at).is_some() {
                     Some(crate::terrain_pick::VOLCANO)
                 } else {
                     crate::terrain_pick::ground_type(
@@ -531,10 +531,10 @@ impl App {
                 }
             }
         }
-        for (_, city, at) in self.world.economy().cities() {
+        for (_, city, at) in self.game.economy().cities() {
             let (i, j) = ((at.x as i32 - start_x).rem_euclid(w), at.y as i32 - start_y);
             if at.plane == self.plane
-                && self.world.is_explored(HUMAN, at)
+                && self.game.is_explored(HUMAN, at)
                 && (0..COLS).contains(&i)
                 && (0..ROWS).contains(&j)
             {

@@ -906,6 +906,7 @@ mod tests {
     use f4x_core::player::view::PlayerView;
     use f4x_core::world::Command;
     use f4x_def::testdir::TestResult;
+    use f4x_master::Game;
 
     /// A battle of player 0's cavalry against `foes` more, in which player 0's wizard knows
     /// `spell`, has `mana` in the battle and `reserve` overland.
@@ -914,7 +915,7 @@ mod tests {
         foes: usize,
         mana: i32,
         reserve: i32,
-    ) -> Result<World, Box<dyn std::error::Error>> {
+    ) -> Result<Game, Box<dyn std::error::Error>> {
         spell_duel_hurt(spell, foes, mana, reserve, 0)
     }
 
@@ -925,7 +926,7 @@ mod tests {
         mana: i32,
         reserve: i32,
         hurt: u32,
-    ) -> Result<World, Box<dyn std::error::Error>> {
+    ) -> Result<Game, Box<dyn std::error::Error>> {
         let mut w = game(COAST_CITY, 7);
         let id = shipped()
             .rules
@@ -1086,7 +1087,7 @@ mod tests {
     fn strategic_setup(
         spells: &[u16],
         mana: i32,
-    ) -> Result<(World, Vec<hecs::Entity>, Vec<hecs::Entity>), Box<dyn std::error::Error>> {
+    ) -> Result<(Game, Vec<hecs::Entity>, Vec<hecs::Entity>), Box<dyn std::error::Error>> {
         crate::battle::install();
         let mut w = game(COAST_CITY, 7);
         w.init_wizard(
@@ -1116,7 +1117,7 @@ mod tests {
     }
 
     /// The mana player 0 has spent once the fight is over.
-    fn spent(w: &mut World, mana: i32) -> Result<i32, Box<dyn std::error::Error>> {
+    fn spent(w: &mut Game, mana: i32) -> Result<i32, Box<dyn std::error::Error>> {
         assert!(!w.in_battle());
         Ok(mana - w.treasury_mut(P0).ok_or("no treasury")?.mana.floor())
     }
@@ -1223,7 +1224,7 @@ mod tests {
     fn duel_with(
         spells: &[u16],
         foe: f4x_core::rules::UnitId,
-    ) -> Result<World, Box<dyn std::error::Error>> {
+    ) -> Result<Game, Box<dyn std::error::Error>> {
         duel_prepared(spells, foe, |_, _, _| {})
     }
 
@@ -1232,8 +1233,8 @@ mod tests {
     fn duel_prepared(
         spells: &[u16],
         foe: f4x_core::rules::UnitId,
-        prepare: impl FnOnce(&mut World, hecs::Entity, hecs::Entity),
-    ) -> Result<World, Box<dyn std::error::Error>> {
+        prepare: impl FnOnce(&mut Game, hecs::Entity, hecs::Entity),
+    ) -> Result<Game, Box<dyn std::error::Error>> {
         let mut w = game(COAST_CITY, 7);
         for &n in spells {
             let id = shipped()
@@ -1262,7 +1263,7 @@ mod tests {
 
     /// The most player 0's wizard finds `spell` worth in the duel `g`, over every aim there is
     /// (no aim, the square of each unit, each unit).
-    fn best_worth(w: &World, spell: u16) -> Result<f32, Box<dyn std::error::Error>> {
+    fn best_worth(w: &Game, spell: u16) -> Result<f32, Box<dyn std::error::Error>> {
         let battle = w.battle().ok_or("no battle")?;
         let enemy: Vec<&BattleUnit> = battle.active_units(Side::Defender).collect();
         let friends: Vec<&BattleUnit> = battle.active_units(Side::Attacker).collect();
@@ -1295,7 +1296,7 @@ mod tests {
     fn needs(
         spell: u16,
         foe: f4x_core::rules::UnitId,
-        prepare: impl FnOnce(&mut World, hecs::Entity, hecs::Entity),
+        prepare: impl FnOnce(&mut Game, hecs::Entity, hecs::Entity),
     ) -> TestResult {
         let plain = best_worth(&duel_with(&[], foe)?, spell)?;
         assert_eq!(
@@ -1544,7 +1545,7 @@ mod tests {
     }
 
     /// A hero that knows Healing, with a cavalry friend hurt by `hurt`, against one enemy cavalry.
-    fn healer_hero_battle(hurt: u32) -> Result<World, Box<dyn std::error::Error>> {
+    fn healer_hero_battle(hurt: u32) -> Result<Game, Box<dyn std::error::Error>> {
         use f4x_core::hero::{Hero, HeroAbilities};
         let rules = &shipped().rules;
         let healing = rules.spells.id_numbered(125).ok_or("no healing")?;

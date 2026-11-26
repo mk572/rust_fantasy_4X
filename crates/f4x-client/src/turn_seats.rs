@@ -8,6 +8,7 @@ use crate::attack_prompt::PendingAttack;
 use f4x_ai::{Ai, Attack};
 use f4x_core::player::PlayerId;
 use f4x_core::world::{Event, World};
+use f4x_master::Game;
 use f4x_master::{Controller, Status};
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -27,7 +28,7 @@ pub(crate) struct HumanSeat<'a> {
 }
 
 impl Controller for HumanSeat<'_> {
-    fn play(&mut self, _: &mut World, _: &[PlayerId], _: &mut Vec<Event>) -> Status {
+    fn play(&mut self, _: &mut Game, _: &[PlayerId], _: &mut Vec<Event>) -> Status {
         if std::mem::take(&mut self.seating.borrow_mut().human_done) {
             Status::Done
         } else {
@@ -64,9 +65,9 @@ pub(crate) struct RivalSeat<'a> {
 }
 
 impl Controller for RivalSeat<'_> {
-    fn play(&mut self, world: &mut World, _: &[PlayerId], events: &mut Vec<Event>) -> Status {
+    fn play(&mut self, game: &mut Game, _: &[PlayerId], events: &mut Vec<Event>) -> Status {
         if !self.seating.borrow().played {
-            events.extend(self.ai.play_turn(world));
+            events.extend(self.ai.play_turn(game));
             queue(self.defences, self.ai.take_attacks());
             self.seating.borrow_mut().played = true;
         }
@@ -95,9 +96,9 @@ pub(crate) struct NeutralSeat<'a> {
 }
 
 impl Controller for NeutralSeat<'_> {
-    fn play(&mut self, world: &mut World, players: &[PlayerId], events: &mut Vec<Event>) -> Status {
+    fn play(&mut self, game: &mut Game, players: &[PlayerId], events: &mut Vec<Event>) -> Status {
         if !self.seating.borrow().played {
-            self.inner.play(world, players, events);
+            self.inner.play(game, players, events);
             queue(self.defences, self.inner.take_attacks());
             self.seating.borrow_mut().played = true;
         }

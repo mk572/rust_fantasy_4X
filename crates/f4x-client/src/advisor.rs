@@ -94,7 +94,7 @@ impl App {
     /// The Info button: the list of advisors.
     pub(crate) fn open_advisor_menu(&mut self) {
         let vizier = self
-            .world
+            .game
             .player(HUMAN)
             .is_some_and(|p| p.has_grand_vizier());
         let rows = ADVISORS
@@ -144,9 +144,9 @@ impl App {
 
     /// The Tax Collector: each rate's gold per citizen and unrest, the current one starred.
     fn open_tax_collector(&mut self) {
-        let unrest = self.world.content().rules.config.tax_unrest_percent.clone();
+        let unrest = self.game.content().rules.config.tax_unrest_percent.clone();
         let current = self
-            .world
+            .game
             .player_component::<f4x_core::player::Tax>(HUMAN)
             .map_or(0, |t| usize::from(t.0));
         let rows = unrest
@@ -188,11 +188,11 @@ impl App {
     /// The Grand Vizier: switched off at once; switching on asks first.
     fn toggle_grand_vizier(&mut self) {
         let on = self
-            .world
+            .game
             .player(HUMAN)
             .is_some_and(|p| p.has_grand_vizier());
         if on {
-            self.world.apply(Command::SetGrandVizier {
+            self.game.apply(Command::SetGrandVizier {
                 player: HUMAN,
                 on: false,
             });
@@ -208,7 +208,7 @@ impl App {
         let text = self.text("advisor.vizier_question");
         match self.confirmation_box(&Layout::new(), &text, input) {
             Some(true) => {
-                self.world.apply(Command::SetGrandVizier {
+                self.game.apply(Command::SetGrandVizier {
                     player: HUMAN,
                     on: true,
                 });
@@ -373,7 +373,7 @@ impl App {
         match purpose {
             Purpose::Advisors => self.open_advisor(row),
             Purpose::Tax => {
-                self.world.apply(Command::SetTaxRate {
+                self.game.apply(Command::SetTaxRate {
                     player: HUMAN,
                     rate: row as u8,
                 });

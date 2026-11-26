@@ -1,0 +1,71 @@
+//! The game: a world and the flow that advances it (task 822, `docs/turn-structure.md` section 10).
+//!
+//! A [`Game`] reads like its [`World`] (it dereferences to it), but whoever holds one changes the
+//! world only by sending a command ([`Game::apply`]). Setting up a world, cheats and tests have a
+//! way of their own, [`Game::world_mut`].
+//!
+//! Tests: none, because it only passes on to the world.
+
+use f4x_battle::battle::BattleCommand;
+use f4x_core::player::PlayerId;
+use f4x_core::world::{Command, Event, World};
+
+/// A game being played.
+pub struct Game {
+    world: World,
+}
+
+impl Game {
+    /// A game of this world.
+    pub fn new(world: World) -> Self {
+        Self { world }
+    }
+
+    /// The world as it is.
+    pub fn world(&self) -> &World {
+        &self.world
+    }
+
+    /// The world to change by hand: for setting one up, for cheats and for tests. A player sends
+    /// commands ([`Game::apply`]) instead.
+    pub fn world_mut(&mut self) -> &mut World {
+        &mut self.world
+    }
+
+    /// The world, when the game around it is no longer needed.
+    pub fn into_world(self) -> World {
+        self.world
+    }
+
+    /// A player's command.
+    pub fn apply(&mut self, command: Command) -> Vec<Event> {
+        self.world.apply(command)
+    }
+
+    /// Put the player's citizens on the farms its food needs ([`World::balance_farmers`]).
+    pub fn balance_farmers(&mut self, player: PlayerId) {
+        self.world.balance_farmers(player);
+    }
+
+    /// The next command of the side to play in the battle being fought
+    /// ([`World::next_battle_command`]).
+    pub fn next_battle_command(&mut self) -> Option<BattleCommand> {
+        self.world.next_battle_command()
+    }
+}
+
+impl std::ops::Deref for Game {
+    type Target = World;
+
+    fn deref(&self) -> &World {
+        &self.world
+    }
+}
+
+/// Tests set a world up and change it through the game.
+#[cfg(feature = "testutil")]
+impl std::ops::DerefMut for Game {
+    fn deref_mut(&mut self) -> &mut World {
+        &mut self.world
+    }
+}

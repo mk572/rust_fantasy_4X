@@ -12,6 +12,7 @@ use f4x_core::player::finance::Budget;
 use f4x_core::player::PlayerId;
 use f4x_core::wizard::magic_income::Income;
 use f4x_core::world::World;
+use f4x_master::Game;
 
 /// A value made for a player at a revision of the game.
 #[derive(Clone, Copy)]
@@ -39,14 +40,10 @@ pub(crate) struct FrameCache {
 
 impl FrameCache {
     /// The player's budget, as `World::budget` says it for the revision.
-    pub(crate) fn budget(
-        &self,
-        world: &super::revised::Revised<World>,
-        player: PlayerId,
-    ) -> Budget {
+    pub(crate) fn budget(&self, game: &super::revised::Revised<Game>, player: PlayerId) -> Budget {
         self.get(
             &self.budget,
-            world,
+            game,
             player,
             |w| w.budget(player),
             |m| m.0 += 1,
@@ -54,14 +51,10 @@ impl FrameCache {
     }
 
     /// The player's income, as `World::income` says it for the revision.
-    pub(crate) fn income(
-        &self,
-        world: &super::revised::Revised<World>,
-        player: PlayerId,
-    ) -> Income {
+    pub(crate) fn income(&self, game: &super::revised::Revised<Game>, player: PlayerId) -> Income {
         self.get(
             &self.income,
-            world,
+            game,
             player,
             |w| w.income(player),
             |m| m.1 += 1,
@@ -72,19 +65,19 @@ impl FrameCache {
     /// major, `width * height` flags, shared by every reader of the frame.
     pub(crate) fn visibility(
         &self,
-        world: &super::revised::Revised<World>,
+        game: &super::revised::Revised<Game>,
         player: PlayerId,
         plane: Plane,
     ) -> Layer {
         let layer = plane as usize;
-        let revision = world.revision();
+        let revision = game.revision();
         let mut cache = self.vision.borrow_mut();
         if let Some(s) = &cache[layer] {
             if s.revision == revision && s.player == player {
                 return Rc::clone(&s.value);
             }
         }
-        let value = Rc::new(world.economy().visibility(player, plane));
+        let value = Rc::new(game.economy().visibility(player, plane));
         cache[layer] = Some(Stamped {
             revision,
             player,
@@ -98,18 +91,18 @@ impl FrameCache {
     fn get<T: Copy>(
         &self,
         cell: &Cell<Option<Stamped<T>>>,
-        world: &super::revised::Revised<World>,
+        game: &super::revised::Revised<Game>,
         player: PlayerId,
         make: impl Fn(&World) -> T,
         _count: impl Fn(&mut (u32, u32)),
     ) -> T {
-        let revision = world.revision();
+        let revision = game.revision();
         if let Some(s) = cell.get() {
             if s.revision == revision && s.player == player {
                 return s.value;
             }
         }
-        let value = make(world);
+        let value = make(game);
         cell.set(Some(Stamped {
             revision,
             player,
@@ -134,12 +127,12 @@ mod tests {
         use f4x_core::map::Plane;
         for plane in [Plane::Arcanus, Plane::Myrror] {
             assert_eq!(
-                *app.cache.visibility(&app.world, HUMAN, plane),
-                app.world.economy().visibility(HUMAN, plane)
+                *app.cache.visibility(&app.game, HUMAN, plane),
+                app.game.economy().visibility(HUMAN, plane)
             );
         }
-        assert_eq!(app.cache.budget(&app.world, HUMAN), app.world.budget(HUMAN));
-        assert_eq!(app.cache.income(&app.world, HUMAN), app.world.income(HUMAN));
+        assert_eq!(app.cache.budget(&app.game, HUMAN), app.game.budget(HUMAN));
+        assert_eq!(app.cache.income(&app.game, HUMAN), app.game.income(HUMAN));
     }
 
     #[test]
@@ -154,13 +147,13 @@ mod tests {
 
         // A command that changes the figures: the turn change pays and eats.
         for _ in 0..3 {
-            app.world.apply(Command::EndTurn);
+            app.game.apply(Command::EndTurn);
             same_as_fresh(&app);
         }
         assert_ne!(app.cache.made.get(), made, "a change makes them again");
         let seen = app.cache.vision_made.get();
         app.cache
-            .visibility(&app.world, HUMAN, f4x_core::map::Plane::Arcanus);
+            .visibility(&app.game, HUMAN, f4x_core::map::Plane::Arcanus);
         assert_eq!(
             app.cache.vision_made.get(),
             seen,
@@ -168,9 +161,9 @@ mod tests {
         );
 
         // A direct call the client makes: a new unit costs upkeep.
-        let (_, at) = app.world.economy().cities_of(HUMAN)[0];
+        let (_, at) = app.game.economy().cities_of(HUMAN)[0];
         let num = {
-            let units = app.world.units();
+            let units = app.game.units();
             let first = *units
                 .player_units(HUMAN)
                 .first()
@@ -178,17 +171,17 @@ mod tests {
             units.unit_def(first).expect("a unit has its rules").num
         };
         let kind = app
-            .world
+            .game
             .content()
             .rules
             .units
             .id_numbered(num)
             .expect("the rules have it");
-        let before = app.cache.budget(&app.world, HUMAN);
-        app.world.spawn_unit(HUMAN, at, kind);
+        let before = app.cache.budget(&app.game, HUMAN);
+        app.game.spawn_unit(HUMAN, at, kind);
         same_as_fresh(&app);
         assert_ne!(
-            app.cache.budget(&app.world, HUMAN),
+            app.cache.budget(&app.game, HUMAN),
             before,
             "the new unit's upkeep"
         );

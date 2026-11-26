@@ -655,6 +655,7 @@ mod tests {
     use crate::diplo_b_stance::tests::pair;
     use crate::testworld::{P0, P1};
     use f4x_core::world::Command;
+    use f4x_master::Game;
 
     fn mind(w: &World, friendship: i32) -> Memory {
         let mut m = Memory::default();
@@ -986,7 +987,7 @@ mod tests {
     }
 
     /// P0's feeling for P1 over `turns` looks, from `start` (a fresh turn each time).
-    fn looks(w: &mut World, m: &mut Memory, turns: u32) {
+    fn looks(w: &mut Game, m: &mut Memory, turns: u32) {
         for _ in 0..turns {
             w.turn += 1;
             m.look(w, P0);
@@ -1060,7 +1061,7 @@ mod tests {
             f4x_def::half_int::HalfInt::from_raw(3),
         );
         let mut m = mind(&w, 0);
-        let step = |w: &mut World, m: &mut Memory| {
+        let step = |w: &mut Game, m: &mut Memory| {
             w.turn += 1;
             m.look(w, P0);
             (m.opinion(w, P0, P1).trespass, m.friendship(w, P0, P1))

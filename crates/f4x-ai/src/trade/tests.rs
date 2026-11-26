@@ -4,12 +4,13 @@ use f4x_core::diplomacy::DiplomacyCommand;
 use f4x_core::rules::{RealmId, SpellId};
 use f4x_core::world::Command;
 use f4x_def::half_int::HalfInt;
+use f4x_master::Game;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 /// Two wizards with five books of life that have met. P0 knows the dearest life spell that a
 /// treasury of 1000 gold can buy and P1 no life spell at all; P1 has 1000 gold.
-fn world() -> Result<(World, SpellId), Box<dyn std::error::Error>> {
+fn world() -> Result<(Game, SpellId), Box<dyn std::error::Error>> {
     let mut w = game(COAST_CITY, 8 /* high_men */);
     let life = RealmId::new(3 /* life */);
     let dear = w
@@ -37,7 +38,7 @@ fn world() -> Result<(World, SpellId), Box<dyn std::error::Error>> {
 }
 
 /// Make the two allies (the proposal and its answer, as a human and a rival would).
-fn ally(w: &mut World) {
+fn ally(w: &mut Game) {
     w.apply(Command::Diplomacy(DiplomacyCommand::Propose {
         from: P0,
         to: P1,

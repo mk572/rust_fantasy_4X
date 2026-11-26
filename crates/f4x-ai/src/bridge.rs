@@ -19,7 +19,8 @@ use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::world::serial::Serial;
-use f4x_core::world::{Command, Event, World};
+use f4x_core::world::{Command, Event};
+use f4x_master::Game;
 use std::collections::{HashMap, HashSet, VecDeque};
 
 /// How many turns a bridge stays without anyone asking for it.
@@ -89,9 +90,9 @@ pub(crate) fn strait_between(
 
 /// One turn of the bridges: the ships on post, the units that wait for one, the ships still to
 /// be sent.
-pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
-    keep_posts(ai, world, events);
-    serve(ai, world, events);
+pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+    keep_posts(ai, game, events);
+    serve(ai, game, events);
 }
 
 /// A ship of the wizard as the post-keeping looks at it.
@@ -109,11 +110,11 @@ struct Ship {
 /// The bridge ships: sail to the square, park there, and go back to the fleet when nobody has
 /// asked for the bridge for a while; a ship that is a bridge for the game but holds no role of
 /// it (a role dropped, a saved game) is let off its post.
-fn keep_posts(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
+fn keep_posts(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    let turn = world.turn;
+    let turn = game.turn;
     let ships: Vec<Ship> = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         view.my_units()
             .into_iter()
             .filter(|&u| is_ship(&view, u))
@@ -124,7 +125,7 @@ fn keep_posts(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
                     serial: s,
                     at: view.unit_position(u),
                     post: ai.roles.target_of(s, Role::Bridge),
-                    parked: world.economy().is_bridge(u),
+                    parked: game.economy().is_bridge(u),
                     ordered: view.unit_has_order(u),
                 }
             })
@@ -143,7 +144,7 @@ fn keep_posts(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
         if !held {
             if parked {
                 ai.order(
-                    world,
+                    game,
                     Command::SetBridge {
                         unit: ship,
                         on: false,
@@ -162,7 +163,7 @@ fn keep_posts(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
             ai.roles.release_any(serial);
             if parked {
                 ai.order(
-                    world,
+                    game,
                     Command::SetBridge {
                         unit: ship,
                         on: false,
@@ -175,7 +176,7 @@ fn keep_posts(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
         if at == Some(post) {
             if !parked {
                 ai.order(
-                    world,
+                    game,
                     Command::SetBridge {
                         unit: ship,
                         on: true,
@@ -185,7 +186,7 @@ fn keep_posts(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
             }
         } else if !ordered {
             let _ = ai.send(
-                world,
+                game,
                 Command::GoTo {
                     units: vec![ship],
                     to: post,
@@ -200,11 +201,11 @@ fn keep_posts(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
 /// strait (or the one already there is asked for again) and the units wait for it as
 /// `Crossing::Bridge`. The units waiting for a bridge that now leads to their target are let
 /// walk (their tag is cleared); those whose strait is gone go back to waiting for a ferry.
-fn serve(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
+fn serve(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    let turn = world.turn;
+    let turn = game.turn;
     let units: HashMap<Serial, hecs::Entity> = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         view.my_units()
             .into_iter()
             .map(|u| (view.serial_of(u), u))
@@ -216,10 +217,10 @@ fn serve(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
             continue;
         };
         let (walks, strait) = {
-            let view = PlayerView::new(world, me);
+            let view = PlayerView::new(game, me);
             let from = view.unit_position(u);
             (
-                world.find_path(&[u], to).is_some(),
+                game.find_path(&[u], to).is_some(),
                 from.and_then(|f| strait_between(&view, f, to)),
             )
         };
@@ -237,14 +238,14 @@ fn serve(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
             continue;
         };
         let strait = {
-            let view = PlayerView::new(world, me);
+            let view = PlayerView::new(game, me);
             view.unit_position(u)
                 .and_then(|f| strait_between(&view, f, to))
         };
         let Some(strait) = strait else {
             continue;
         };
-        if posted_at(ai, strait) || send_a_ship(ai, world, strait, events) {
+        if posted_at(ai, strait) || send_a_ship(ai, game, strait, events) {
             renew(ai, strait, turn);
             ai.roles.set_crossing(s, Some(Crossing::Bridge));
         }
@@ -269,10 +270,10 @@ fn renew(ai: &mut Ai, square: Position, turn: u32) {
 }
 
 /// Send the free ship that is nearest to `square` there as its bridge. Whether one was sent.
-fn send_a_ship(ai: &mut Ai, world: &mut World, square: Position, events: &mut Vec<Event>) -> bool {
+fn send_a_ship(ai: &mut Ai, game: &mut Game, square: Position, events: &mut Vec<Event>) -> bool {
     let me = ai.player;
     let ship = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         let mut free: Vec<(u32, hecs::Entity)> = view
             .my_units()
             .into_iter()
@@ -290,11 +291,11 @@ fn send_a_ship(ai: &mut Ai, world: &mut World, square: Position, events: &mut Ve
     let Some(ship) = ship else {
         return false;
     };
-    if !Ai::room_at(world, square, 1) {
+    if !Ai::room_at(game, square, 1) {
         return false;
     }
-    let serial = PlayerView::new(world, me).serial_of(ship);
-    let turn = world.turn;
+    let serial = PlayerView::new(game, me).serial_of(ship);
+    let turn = game.turn;
     if ai
         .roles
         .claim(serial, Role::Bridge, turn, Some(square))
@@ -302,11 +303,11 @@ fn send_a_ship(ai: &mut Ai, world: &mut World, square: Position, events: &mut Ve
     {
         return false;
     }
-    let at = PlayerView::new(world, me).unit_position(ship);
+    let at = PlayerView::new(game, me).unit_position(ship);
     if at != Some(square)
         && ai
             .send(
-                world,
+                game,
                 Command::GoTo {
                     units: vec![ship],
                     to: square,
@@ -325,6 +326,7 @@ fn send_a_ship(ai: &mut Ai, world: &mut World, square: Position, events: &mut Ve
 mod tests {
     use super::*;
     use crate::testworld::{at, game_with_strait, spawn, COAST_CITY, P0};
+    use f4x_master::Game;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -333,7 +335,7 @@ mod tests {
 
     /// A wizard whose walker waits at the west for a target in the east, the way the dispatcher
     /// leaves it: tagged for the sea, with a free ship in the open sea in the north.
-    fn waiting() -> Result<(World, Ai, hecs::Entity, hecs::Entity), Box<dyn std::error::Error>> {
+    fn waiting() -> Result<(Game, Ai, hecs::Entity, hecs::Entity), Box<dyn std::error::Error>> {
         let mut w = game_with_strait(COAST_CITY, 8 /* high_men */);
         w.reveal_map(P0);
         let walker = spawn(&mut w, P0, at(9, 6), 104 /* spearmen */, 1)[0];
@@ -347,7 +349,7 @@ mod tests {
     }
 
     /// The ship steps to `post` along its own path (the test spawns it within its moves).
-    fn sail(w: &mut World, ship: hecs::Entity, post: Position) -> TestResult {
+    fn sail(w: &mut Game, ship: hecs::Entity, post: Position) -> TestResult {
         let _ = w.apply(Command::ClearOrders { units: vec![ship] });
         if PlayerView::new(w, P0).unit_position(ship) == Some(post) {
             return Ok(());

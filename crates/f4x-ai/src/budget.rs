@@ -122,6 +122,7 @@ pub(crate) fn for_attack(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use f4x_master::Game;
 
     #[test]
     fn an_even_fight_needs_everything_and_a_sure_win_little() {
@@ -155,10 +156,9 @@ mod tests {
     }
 
     use crate::testworld::{at, game, spawn, COAST_CITY, ENEMY_CITY, P0, P1};
-    use f4x_core::world::World;
 
     /// The limit P0 gets for `n` spearmen against `m` of P1 on `target`, with 500 mana.
-    fn limit(w: &mut World, from: Position, target: Position, n: usize, m: usize) -> Option<u32> {
+    fn limit(w: &mut Game, from: Position, target: Position, n: usize, m: usize) -> Option<u32> {
         w.treasury_mut(P0).expect("a treasury").mana = f4x_def::half_int::HalfInt::from_int(500);
         let ours = spawn(w, P0, from, 104 /* high_men_spearmen */, n);
         let theirs = spawn(w, P1, target, 104 /* high_men_spearmen */, m);

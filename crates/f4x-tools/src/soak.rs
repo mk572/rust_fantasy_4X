@@ -26,6 +26,7 @@ use crate::metrics::{
     casts_line, failure_lines, spell_table, unmet_line, Metrics, Standing, Tally,
 };
 use crate::report::{self, Played};
+use f4x_master::Game;
 
 pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE | --no-refused-log] [--snapshots-every N] [--out DIR] [--jobs N] [--from SAVE] [--map WxH] [--land PERCENT] [--magic 0..2] [--difficulty 0..4] [--rules 1.31|1.6|mk] [--mastery all|human|off] [--return all|human|off]";
 
@@ -427,7 +428,7 @@ pub fn game(
     refused_out: &RefusedLog,
 ) -> Result<GameResult, String> {
     let players = opts.players;
-    let mut world = match &opts.from {
+    let mut game = Game::new(match &opts.from {
         Some(path) => {
             let (world, integrity) = f4x_core::world::save::load_game(path, content.clone())
                 .map_err(|e| format!("{}: {e}", path.display()))?;
@@ -478,10 +479,10 @@ pub fn game(
             }
             new_game(content, &spec)?
         }
-    };
-    world.set_undo(false);
+    });
+    game.world_mut().set_undo(false);
     // A game that was loaded has its own seed: the one asked for here is only the default range.
-    let seed = world.seed();
+    let seed = game.seed();
     let tag = if label.is_empty() {
         format!("seed {seed}")
     } else {
@@ -491,7 +492,8 @@ pub fn game(
         #[cfg(feature = "learned")]
         for k in 0..players {
             let brain = f4x_learn::brain::LearnedBrain::load(content, path)?;
-            world.set_battle_brain(PlayerId(k), Some(Box::new(brain)));
+            game.world_mut()
+                .set_battle_brain(PlayerId(k), Some(Box::new(brain)));
         }
         #[cfg(not(feature = "learned"))]
         return Err(format!(
@@ -520,7 +522,7 @@ pub fn game(
     );
     for ai in &mut ais {
         // A game that was saved carries what its AIs had in mind.
-        ai.recall(&world);
+        ai.recall(&game);
         ai.record_refusals(
             refused_out
                 .lock()
@@ -542,14 +544,14 @@ pub fn game(
     };
     let started = Instant::now();
     let mut last_line = started;
-    let mut tally = Tally::new(&world);
+    let mut tally = Tally::new(&game);
     let mut stood = Stood::default();
     let mut log = Log {
         tag: tag.clone(),
         live: opts.every > 0 || opts.trace > 0 || opts.detail,
         lines: Vec::new(),
     };
-    for line in profile_lines(&world) {
+    for line in profile_lines(&game) {
         logln!(log, "{line}");
     }
     // Rounds that ended with a battle still open (nothing may be: every battle is fought out
@@ -560,12 +562,11 @@ pub fn game(
     // The time of each phase since the last `--every` line, in order: one per wizard, the
     // neutrals, the rest (turn changes, other players' turn ends).
     let mut phases = vec![std::time::Duration::ZERO; usize::from(players) + 2];
-    while world.turn <= opts.turns && world.game_over.is_none() {
-        if opts.grant_mastery == Some(world.turn) {
-            grant_mastery_to_all(&mut world);
+    while game.turn <= opts.turns && game.game_over.is_none() {
+        if opts.grant_mastery == Some(game.turn) {
+            grant_mastery_to_all(game.world_mut());
         }
-        let (turns, rest, times) =
-            contestant::play_round_timed(&mut world, &mut ais, &mut neutrals);
+        let (turns, rest, times) = contestant::play_round_timed(&mut game, &mut ais, &mut neutrals);
         for (player, d) in &times.players {
             if let Some(slot) = phases.get_mut(usize::from(player.0)) {
                 *slot += *d;
@@ -574,17 +575,17 @@ pub fn game(
         phases[usize::from(players)] += times.neutrals;
         phases[usize::from(players) + 1] += times.rest();
         for (player, events) in &turns {
-            tally.record(&world, Some(*player), events);
+            tally.record(&game, Some(*player), events);
         }
-        tally.record(&world, None, &rest);
-        tally.sample_mana(&world);
-        watch.observe(&world);
-        if world.in_battle() {
+        tally.record(&game, None, &rest);
+        tally.sample_mana(&game);
+        watch.observe(&game);
+        if game.in_battle() {
             open_rounds += 1;
-            first_open.get_or_insert(world.turn);
+            first_open.get_or_insert(game.turn);
         }
-        if world.turn <= opts.trace && opts.trace > 0 {
-            trace_turn(&world, &ais, &turns, &rest);
+        if game.turn <= opts.trace && opts.trace > 0 {
+            trace_turn(&game, &ais, &turns, &rest);
         }
         if let Some(out) = refused_out
             .lock()
@@ -597,23 +598,23 @@ pub fn game(
                 .chain(neutrals.take_refusals());
             {
                 for r in all {
-                    tally.note_refused_cast(&world, &r.command, &r.reason);
+                    tally.note_refused_cast(&game, &r.command, &r.reason);
                     let stood = stood.count(&r);
                     writeln!(out, "{}", refused_line(seed, &r, stood))
                         .map_err(|e| e.to_string())?;
                 }
             }
         }
-        if opts.every > 0 && world.turn % opts.every == 0 {
+        if opts.every > 0 && game.turn % opts.every == 0 {
             // The time since the last line shows where a game slows down.
             let now = Instant::now();
             let per_turn = now.duration_since(last_line).as_secs_f32() * 1000.0 / opts.every as f32;
             last_line = now;
             println!(
                 "{tag} turn {}: {} ({} entities) [{:.1}s, {per_turn:.0} ms a turn]",
-                world.turn,
-                status(&world),
-                world.entity_count(),
+                game.turn,
+                status(&game),
+                game.entity_count(),
                 started.elapsed().as_secs_f32(),
             );
             let ms = |d: &std::time::Duration| d.as_secs_f32() * 1000.0 / opts.every as f32;
@@ -632,13 +633,13 @@ pub fn game(
                 .iter_mut()
                 .for_each(|d| *d = std::time::Duration::ZERO);
             if opts.detail {
-                for line in detail_lines(&world, &ais) {
+                for line in detail_lines(&game, &ais) {
                     println!("    {line}");
                 }
             }
         }
         if let Some(n) = opts.snapshots_every.filter(|&n| n > 0) {
-            if world.turn % n == 0 {
+            if game.turn % n == 0 {
                 // The plans of the AIs go into the save, so it is a full game save.
                 let plans: Vec<_> = ais
                     .iter()
@@ -646,21 +647,21 @@ pub fn game(
                     .chain(neutrals.plans())
                     .collect();
                 if !plans.is_empty() {
-                    world.set_plans(plans);
+                    game.world_mut().set_plans(plans);
                 }
-                fingerprints.push((world.turn, save_snapshot(&world, snapshot_dir.as_deref())?));
+                fingerprints.push((game.turn, save_snapshot(&game, snapshot_dir.as_deref())?));
             }
         }
     }
     if opts.detail {
-        city_lines(&world);
+        city_lines(&game);
     }
-    let outcome = match world.game_over {
+    let outcome = match game.game_over {
         Some(o) => format!(
             "won by player {} ({:?}) on turn {}",
             o.winner.0, o.kind, o.turn
         ),
-        None => format!("no winner after {} turns", world.turn - 1),
+        None => format!("no winner after {} turns", game.turn - 1),
     };
     let open = match first_open {
         Some(turn) => {
@@ -672,7 +673,7 @@ pub fn game(
     let seconds = started.elapsed().as_secs_f32();
     logln!(log,
         "{outcome}; {}; {} battles, {} cities taken, {} wars declared, {} wizards met, {} diplomatic actions started, {} refused orders ({} by a treaty){open}; {seconds:.1}s",
-        status(&world),
+        status(&game),
         total.battles_won,
         total.cities_captured,
         total.wars_declared,
@@ -701,23 +702,23 @@ pub fn game(
             .collect::<Vec<_>>()
             .join(", ")
     );
-    for line in magic_lines(&world) {
+    for line in magic_lines(&game) {
         logln!(log, "{line}");
     }
-    for line in empire_lines(&world) {
+    for line in empire_lines(&game) {
         logln!(log, "{line}");
     }
-    if world.game_over.is_none() {
-        for line in scout_lines(&world) {
+    if game.game_over.is_none() {
+        for line in scout_lines(&game) {
             logln!(log, "{line}");
         }
-        for line in reach_lines(&world) {
+        for line in reach_lines(&game) {
             logln!(log, "{line}");
         }
     }
-    logln!(log, "defeats: {}", defeat_line(&world, &tally));
+    logln!(log, "defeats: {}", defeat_line(&game, &tally));
     logln!(log, "far captures: {}", far_capture_line(&tally));
-    for line in undefended_lines(&world, &tally) {
+    for line in undefended_lines(&game, &tally) {
         logln!(log, "{line}");
     }
     logln!(log, "wars: {}", war_line(&tally));
@@ -727,12 +728,12 @@ pub fn game(
             "attacks lost on a neutral city or lair: p{p} {count} at {place}"
         );
     }
-    for line in unit_lines(&world) {
+    for line in unit_lines(&game) {
         logln!(log, "{line}");
     }
     // Every counter of every wizard, one line each, for the report script (`scripts/soak_report.py`).
-    for p in world.player_ids() {
-        if world.wizard(p).is_none() {
+    for p in game.player_ids() {
+        if game.wizard(p).is_none() {
             continue;
         }
         logln!(
@@ -751,7 +752,7 @@ pub fn game(
     // The same for each race's neutral player, without what only a wizard has. The prefix keeps
     // them apart from the wizards for the report script.
     // (a race whose cities are all gone has no player any more, but its counts stay)
-    let races = world.content().rules.races.iter().count();
+    let races = game.content().rules.races.iter().count();
     for race in 0..races {
         let race = f4x_core::rules::RaceId::new(race as u16);
         let p = f4x_core::player::race_player::race_player_id(race);
@@ -762,7 +763,7 @@ pub fn game(
             log,
             "neutral stats p{} ({}): {}",
             p.0,
-            world.content().rules.races.get(race).id,
+            game.content().rules.races.get(race).id,
             tally
                 .of(p)
                 .neutral_rows()
@@ -775,10 +776,9 @@ pub fn game(
     logln!(
         log,
         "production rushed with gold (items, gold): {}",
-        world
-            .player_ids()
+        game.player_ids()
             .into_iter()
-            .filter(|&p| world.wizard(p).is_some())
+            .filter(|&p| game.wizard(p).is_some())
             .map(|p| {
                 let m = tally.of(p);
                 format!("p{} {} ({}g)", p.0, m.production_rushed, m.gold_rushed)
@@ -789,10 +789,9 @@ pub fn game(
     logln!(
         log,
         "research stalled turns: {}",
-        world
-            .player_ids()
+        game.player_ids()
             .into_iter()
-            .filter(|&p| world.wizard(p).is_some())
+            .filter(|&p| game.wizard(p).is_some())
             .map(|p| format!("p{} {}", p.0, tally.of(p).research_stalled))
             .collect::<Vec<_>>()
             .join(", ")
@@ -860,9 +859,9 @@ pub fn game(
         "wanted a spell it did not know (kind of spell, turns): {}",
         unmet_line(tally.unmet_wants())
     );
-    tally.note_known(&world);
-    logln!(log, "mana {}", mana_line(&world, &tally));
-    for line in neutral_lines(&world, &tally) {
+    tally.note_known(&game);
+    logln!(log, "mana {}", mana_line(&game, &tally));
+    for line in neutral_lines(&game, &tally) {
         logln!(log, "{line}");
     }
     logln!(log, "casts: {}", casts_line(tally.casts()));
@@ -882,7 +881,7 @@ pub fn game(
     logln!(
         log,
         "spell table (wizards that could research, learned, knew, cast; casts; per knower):\n{}",
-        spell_table(&world.content().rules, tally.spell_rows())
+        spell_table(&game.content().rules, tally.spell_rows())
     );
     logln!(
         log,
@@ -890,16 +889,16 @@ pub fn game(
         failure_lines(tally.cast_failures())
     );
     if opts.events {
-        logln!(log, "{}", watch.summary(world.turn.saturating_sub(1)));
+        logln!(log, "{}", watch.summary(game.turn.saturating_sub(1)));
     }
-    let standing = world
+    let standing = game
         .player_ids()
         .into_iter()
-        .filter(|&p| world.is_wizard(p))
-        .map(|p| (p, Standing::of(&world, p)))
+        .filter(|&p| game.is_wizard(p))
+        .map(|p| (p, Standing::of(&game, p)))
         .collect();
     Ok(GameResult {
-        over: world.game_over,
+        over: game.game_over,
         tally,
         standing,
         fingerprints,

@@ -123,7 +123,7 @@ impl App {
         city: hecs::Entity,
         picture_index: i16,
     ) {
-        let rules = &self.world.content().rules;
+        let rules = &self.game.content().rules;
         let Some(def) = usize::try_from(picture_index - 3)
             .ok()
             .and_then(|i| rules.buildings.defs().get(i))
@@ -134,7 +134,7 @@ impl App {
             return;
         };
         let name = self.names.building_term(def.num);
-        let eco = self.world.economy();
+        let eco = self.game.economy();
         let prompt = match eco.first_dependant(city, building) {
             _ if eco.sold_this_turn(city) => SellPrompt::Refused(self.text("sell.one_a_turn")),
             Some(other) => SellPrompt::Refused(self.text_with(
@@ -170,8 +170,8 @@ impl App {
         let crate::view::Screen::City(city) = self.screen else {
             return;
         };
-        let rules = &self.world.content().rules;
-        let first = self.world.city_buildings(city).into_iter().find_map(|b| {
+        let rules = &self.game.content().rules;
+        let first = self.game.city_buildings(city).into_iter().find_map(|b| {
             let name = &rules.buildings.get(b).id;
             rules.buildings.defs().iter().position(|d| &d.id == name)
         });
@@ -244,7 +244,7 @@ impl App {
             SellPrompt::Refused(_) => None,
         };
         if let Some(command) = command.filter(|_| yes) {
-            let events = self.world.apply(command);
+            let events = self.game.apply(command);
             self.note(events);
         }
         None
@@ -412,15 +412,15 @@ mod tests {
     /// The human's first city, and a building of it that nothing built needs.
     fn city_and_free_building(app: &App) -> Result<(hecs::Entity, BuildingId), &'static str> {
         let (city, _, _) = *app
-            .world
+            .game
             .economy()
             .cities()
             .iter()
             .find(|c| c.1.owner == HUMAN)
             .ok_or("the human has no city")?;
-        let eco = app.world.economy();
+        let eco = app.game.economy();
         let building = app
-            .world
+            .game
             .city_buildings(city)
             .into_iter()
             .find(|&b| eco.first_dependant(city, b).is_none() && eco.sale_price(city, b).is_ok())
@@ -430,7 +430,7 @@ mod tests {
 
     fn gold(app: &App) -> Result<i32, &'static str> {
         Ok(app
-            .world
+            .game
             .player(HUMAN)
             .ok_or("no human")?
             .treasury()
@@ -454,14 +454,14 @@ mod tests {
         let mut app = App::for_test();
         let (city, building) = city_and_free_building(&app)?;
         let price = app
-            .world
+            .game
             .economy()
             .sale_price(city, building)
             .map_err(|e| format!("{e:?}"))?;
         let before = gold(&app)?;
         let left = app.settle_sell(ask(&app, city, building), Some(true));
         assert!(left.is_none(), "an answered question closes");
-        assert!(!app.world.city_buildings(city).contains(&building));
+        assert!(!app.game.city_buildings(city).contains(&building));
         assert_eq!(gold(&app)?, before + price as i32);
         Ok(())
     }
@@ -478,7 +478,7 @@ mod tests {
             app.settle_sell(ask(&app, city, building), None).is_some(),
             "no answer keeps the question"
         );
-        assert!(app.world.city_buildings(city).contains(&building));
+        assert!(app.game.city_buildings(city).contains(&building));
         assert_eq!(gold(&app)?, before);
         Ok(())
     }
@@ -487,11 +487,11 @@ mod tests {
     fn a_notice_closes_when_answered_and_sends_nothing() -> TestResult {
         let mut app = App::for_test();
         let (city, _) = city_and_free_building(&app)?;
-        let before = app.world.city_buildings(city);
+        let before = app.game.city_buildings(city);
         let notice = SellPrompt::Refused("no".into());
         assert!(app.settle_sell(notice.clone(), None).is_some());
         assert!(app.settle_sell(notice, Some(false)).is_none());
-        assert_eq!(app.world.city_buildings(city), before);
+        assert_eq!(app.game.city_buildings(city), before);
         Ok(())
     }
 
@@ -500,7 +500,7 @@ mod tests {
         app: &mut App,
     ) -> Result<(hecs::Entity, BuildingId, BuildingId), &'static str> {
         let (city, _, _) = *app
-            .world
+            .game
             .economy()
             .cities()
             .iter()
@@ -508,14 +508,14 @@ mod tests {
             .ok_or("the human has no city")?;
         let smithy = BuildingId::new(8) /* smithy */;
         let market = BuildingId::new(26) /* marketplace */;
-        app.world.scenario_set_building(city, smithy, true);
-        app.world.scenario_set_building(city, market, true);
+        app.game.scenario_set_building(city, smithy, true);
+        app.game.scenario_set_building(city, market, true);
         Ok((city, smithy, market))
     }
 
     /// The index a click on the picture sends for this building.
     fn picture_index(app: &App, building: BuildingId) -> Result<i16, &'static str> {
-        let buildings = &app.world.content().rules.buildings;
+        let buildings = &app.game.content().rules.buildings;
         let at = buildings
             .defs()
             .iter()
@@ -564,7 +564,7 @@ mod tests {
         };
         let name = app
             .names
-            .building(app.world.content().rules.buildings.get(market).num);
+            .building(app.game.content().rules.buildings.get(market).num);
         assert!(text.contains(name), "{text:?} does not name {name}");
         Ok(())
     }

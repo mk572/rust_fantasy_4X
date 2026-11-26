@@ -20,10 +20,10 @@ impl App {
     ) -> bool {
         self.prefs.get(Pref::EnemySpells)
             && self
-                .world
+                .game
                 .has_global_effect(HUMAN, GlobalEffect::DetectMagic)
-            && at.is_none_or(|pos| self.world.is_explored(HUMAN, pos))
-            && (!contact || self.world.have_met(HUMAN, caster))
+            && at.is_none_or(|pos| self.game.is_explored(HUMAN, pos))
+            && (!contact || self.game.have_met(HUMAN, caster))
     }
 }
 
@@ -35,9 +35,7 @@ mod tests {
     fn a_rivals_spell_stays_unseen_without_detect_magic() {
         let app = App::for_test();
         assert!(app.prefs.get(Pref::EnemySpells));
-        assert!(!app
-            .world
-            .has_global_effect(HUMAN, GlobalEffect::DetectMagic));
+        assert!(!app.game.has_global_effect(HUMAN, GlobalEffect::DetectMagic));
         assert!(!app.rival_spell_seen(PlayerId(1), None, false));
         assert!(!app.rival_spell_seen(PlayerId(1), None, true));
     }

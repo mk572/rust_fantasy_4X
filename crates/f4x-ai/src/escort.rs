@@ -15,28 +15,29 @@ use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::world::serial::Serial;
 use f4x_core::world::{Command, Event, World};
+use f4x_master::Game;
 
 /// Send a settler to its site, with an escort when it leaves a city that has a soldier to spare:
 /// the two walk as one stack. Whether the order was accepted. (`expand.rs` calls this where it
 /// would send the settler alone.)
 pub fn walk(
     ai: &mut Ai,
-    world: &mut World,
+    game: &mut Game,
     settler: hecs::Entity,
     to: Position,
     events: &mut Vec<Event>,
 ) -> bool {
     let me = ai.player;
-    let turn = world.turn;
+    let turn = game.turn;
     let (charge, at) = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         (view.serial_of(settler), view.unit_position(settler))
     };
     let mut units = vec![settler];
     if let Some(at) = at {
         if ai.roles.escort_of(charge).is_none() {
-            if let Some(escort) = spare_soldier(ai, world, at) {
-                let serial = PlayerView::new(world, me).serial_of(escort);
+            if let Some(escort) = spare_soldier(ai, game, at) {
+                let serial = PlayerView::new(game, me).serial_of(escort);
                 if ai.roles.claim(serial, Role::Escort, turn, None).is_ok() {
                     let party = ai.roles.new_party();
                     ai.roles.group(&[serial], Role::Escort, party, Some(charge));
@@ -44,7 +45,7 @@ pub fn walk(
             }
         }
         // The escort goes along when it stands with its charge.
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         if let Some(escort) = ai.roles.escort_of(charge).and_then(|e| {
             view.my_units()
                 .into_iter()
@@ -55,8 +56,7 @@ pub fn walk(
     }
     // A charge that can cross what its escort cannot (a swimming settler, a walking soldier) goes
     // alone: a stack moves like its slowest member, and one that has no way is no escort.
-    if units.len() > 1 && !world.reaches_any(&units, &[to]) && world.reaches_any(&units[..1], &[to])
-    {
+    if units.len() > 1 && !game.reaches_any(&units, &[to]) && game.reaches_any(&units[..1], &[to]) {
         if let Some(escort) = ai.roles.escort_of(charge) {
             ai.roles.release_many(&[escort], Role::Escort);
         }
@@ -64,10 +64,10 @@ pub fn walk(
     }
     // With no escort at its side and an enemy near, the charge waits where it stands (the order
     // is asked again next turn, when a soldier may be spare).
-    if units.len() == 1 && at.is_some_and(|at| enemy_near(&PlayerView::new(world, me), at)) {
+    if units.len() == 1 && at.is_some_and(|at| enemy_near(&PlayerView::new(game, me), at)) {
         return true;
     }
-    ai.send(world, Command::GoTo { units, to }, events).is_ok()
+    ai.send(game, Command::GoTo { units, to }, events).is_ok()
 }
 
 /// Squares within which an enemy unit is a danger to a charge walking alone.
@@ -177,16 +177,11 @@ fn stragglers(ai: &Ai, world: &World) -> Vec<hecs::Entity> {
 /// Make sure a unit that works away from any city (an engineer on a road toward the enemy) has an
 /// escort standing with it: one is taken from the nearest own city that can spare a soldier and
 /// sent to it. Whether the escort is with its charge now.
-pub fn guard(
-    ai: &mut Ai,
-    world: &mut World,
-    charge: hecs::Entity,
-    events: &mut Vec<Event>,
-) -> bool {
+pub fn guard(ai: &mut Ai, game: &mut Game, charge: hecs::Entity, events: &mut Vec<Event>) -> bool {
     let me = ai.player;
-    let turn = world.turn;
+    let turn = game.turn;
     let (serial, at) = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         let Some(at) = view.unit_position(charge) else {
             return false;
         };
@@ -194,16 +189,16 @@ pub fn guard(
     };
     if ai.roles.escort_of(serial).is_none() {
         let spare = {
-            let view = PlayerView::new(world, me);
+            let view = PlayerView::new(game, me);
             let mut cities: Vec<Position> = view.my_cities().into_iter().map(|(_, p)| p).collect();
             cities.sort_by_key(|&p| (view.distance(p, at).unwrap_or(u32::MAX), p.y, p.x));
             cities.into_iter().find_map(|city| {
-                let soldier = spare_soldier(ai, world, city)?;
+                let soldier = spare_soldier(ai, game, city)?;
                 view.can_reach(&[soldier], at).then_some(soldier)
             })
         };
         if let Some(soldier) = spare {
-            let escort = PlayerView::new(world, me).serial_of(soldier);
+            let escort = PlayerView::new(game, me).serial_of(soldier);
             if ai.roles.claim(escort, Role::Escort, turn, None).is_ok() {
                 let party = ai.roles.new_party();
                 ai.roles.group(&[escort], Role::Escort, party, Some(serial));
@@ -214,7 +209,7 @@ pub fn guard(
         return false;
     };
     let (unit, there) = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         let unit = view
             .my_units()
             .into_iter()
@@ -225,9 +220,9 @@ pub fn guard(
         (Some(_), Some(p)) if p == at => true,
         (Some(u), _) => {
             // A square with no room for it is not asked: the escort waits till one leaves.
-            if !PlayerView::new(world, me).unit_has_order(u) && Ai::room_at(world, at, 1) {
+            if !PlayerView::new(game, me).unit_has_order(u) && Ai::room_at(game, at, 1) {
                 ai.order(
-                    world,
+                    game,
                     Command::GoTo {
                         units: vec![u],
                         to: at,
@@ -261,12 +256,12 @@ fn spare_soldier(ai: &Ai, world: &World, at: Position) -> Option<hecs::Entity> {
 /// One turn of the escorts after the settlers have moved: end the ones whose charge is gone, give
 /// a charge an escort, stop a charge with no escort when an enemy is near. (An escort that fell
 /// behind is sent after its charge by `dispatch::repair_escorts`.)
-pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
+pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     // A charge that no longer settles (founded its city, died, was taken over by a voyage) frees
     // its escort.
     {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         let live: Vec<Serial> = view
             .my_units()
             .into_iter()
@@ -286,7 +281,7 @@ pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     }
     // A settler or a spirit walking with no escort stops when an enemy comes near.
     {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         let stop: Vec<hecs::Entity> = view
             .my_units()
             .into_iter()
@@ -299,12 +294,12 @@ pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
             })
             .collect();
         if !stop.is_empty() {
-            ai.order(world, Command::ClearOrders { units: stop }, events);
+            ai.order(game, Command::ClearOrders { units: stop }, events);
         }
     }
     // A healer or a weak hero alone in the field is given a soldier.
-    for unit in stragglers(ai, world) {
-        guard(ai, world, unit, events);
+    for unit in stragglers(ai, game) {
+        guard(ai, game, unit, events);
     }
 }
 
@@ -312,10 +307,11 @@ pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
 mod tests {
     use super::*;
     use crate::testworld::{at, game, spawn, COAST_CITY, P0};
+    use f4x_master::Game;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-    fn world() -> (World, hecs::Entity, Vec<hecs::Entity>) {
+    fn world() -> (Game, hecs::Entity, Vec<hecs::Entity>) {
         let mut w = game(COAST_CITY, 8 /* high_men */);
         w.explore(P0, at(7, 6), f4x_def::half_int::HalfInt::from_int(4));
         let city = at(COAST_CITY.0, COAST_CITY.1);

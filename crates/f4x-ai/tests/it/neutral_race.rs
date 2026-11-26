@@ -3,8 +3,8 @@
 
 use f4x_ai::{Ai, AiSeat, NeutralSeat};
 use f4x_core::player::PlayerId;
-use f4x_core::world::{Command, Event, World};
-use f4x_master::{Controller, Master, Seat, Status, Until};
+use f4x_core::world::{Command, Event};
+use f4x_master::{Controller, Game, Master, Seat, Status, Until};
 use f4x_newgame::setup::{new_game, NewGame};
 use std::cell::RefCell;
 
@@ -12,8 +12,8 @@ use std::cell::RefCell;
 struct Shared<'a>(&'a RefCell<NeutralSeat>);
 
 impl Controller for Shared<'_> {
-    fn play(&mut self, world: &mut World, players: &[PlayerId], events: &mut Vec<Event>) -> Status {
-        self.0.borrow_mut().play(world, players, events)
+    fn play(&mut self, game: &mut Game, players: &[PlayerId], events: &mut Vec<Event>) -> Status {
+        self.0.borrow_mut().play(game, players, events)
     }
 
     fn plans(&self) -> Vec<(PlayerId, String)> {
@@ -21,21 +21,23 @@ impl Controller for Shared<'_> {
     }
 }
 
-fn world(seed: u64) -> World {
-    new_game(
-        f4x_def::testdir::shipped(),
-        &NewGame {
-            seed,
-            all_ai: true,
-            ..NewGame::default()
-        },
+fn world(seed: u64) -> Game {
+    Game::new(
+        new_game(
+            f4x_def::testdir::shipped(),
+            &NewGame {
+                seed,
+                all_ai: true,
+                ..NewGame::default()
+            },
+        )
+        .expect("a new game"),
     )
-    .expect("a new game")
 }
 
 /// Play `rounds` rounds with two wizard AIs and the shared neutral seat; the events of the
 /// neutral players' commands come back.
-fn play(w: &mut World, neutral: &RefCell<NeutralSeat>, rounds: u32) -> Vec<Event> {
+fn play(w: &mut Game, neutral: &RefCell<NeutralSeat>, rounds: u32) -> Vec<Event> {
     let mut ais = [Ai::new(PlayerId(0)), Ai::new(PlayerId(1))];
     let [a, b] = &mut ais[..] else { unreachable!() };
     let seats = vec![

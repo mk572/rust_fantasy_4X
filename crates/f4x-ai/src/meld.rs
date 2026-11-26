@@ -10,8 +10,9 @@ use crate::roles::Role;
 use crate::Ai;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
-use f4x_core::world::{Command, Event, World};
+use f4x_core::world::{Command, Event};
 use f4x_def::rules::Ability;
+use f4x_master::Game;
 
 /// Turns a spirit may stand still on its way before the node is given up.
 const PATIENCE: u32 = 4;
@@ -58,11 +59,11 @@ pub(crate) fn spirit_wanted(ai: &Ai, view: &PlayerView) -> bool {
 }
 
 /// One turn of the spirits.
-pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
+pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    let turn = world.turn;
+    let turn = game.turn;
     let spirits: Vec<hecs::Entity> = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         let mut spirits: Vec<hecs::Entity> = view
             .my_units()
             .into_iter()
@@ -73,7 +74,7 @@ pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     };
     for spirit in spirits {
         let (serial, here, ordered, nodes) = {
-            let view = PlayerView::new(world, me);
+            let view = PlayerView::new(game, me);
             (
                 view.serial_of(spirit),
                 view.unit_position(spirit),
@@ -92,7 +93,7 @@ pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
         // On an open node: meld.
         if nodes.contains(&here) {
             let _ = ai.send(
-                world,
+                game,
                 Command::Meld {
                     units: vec![spirit],
                 },
@@ -109,16 +110,16 @@ pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
         let mut skip = None;
         if let (Some(t), true) = (target, stuck >= PATIENCE) {
             ai.note_failure(
-                world,
+                game,
                 format!("spirit at {here:?} stood still on its way to {t:?}"),
                 format!(
                     "Stuck{}{}",
                     crate::DETAIL_SEPARATOR,
-                    world.why_no_path(&[spirit], t)
+                    game.why_no_path(&[spirit], t)
                 ),
             );
             ai.order(
-                world,
+                game,
                 Command::ClearOrders {
                     units: vec![spirit],
                 },
@@ -133,7 +134,7 @@ pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
         let taken = ai.roles.targets(Role::Meld);
         // The nodes it can walk to, nearest first; the first one the walk planner takes an order for.
         let candidates: Vec<Position> = {
-            let view = PlayerView::new(world, me);
+            let view = PlayerView::new(game, me);
             let mut list: Vec<Position> = nodes
                 .iter()
                 .copied()
@@ -146,7 +147,7 @@ pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
         };
         let chosen = candidates
             .into_iter()
-            .find(|&node| crate::escort::walk(ai, world, spirit, node, events));
+            .find(|&node| crate::escort::walk(ai, game, spirit, node, events));
         match chosen {
             Some(node) => {
                 let _ = ai.roles.claim(serial, Role::Meld, turn, Some(node));
@@ -163,11 +164,12 @@ mod tests {
     use super::*;
     use crate::testworld::{at, game, spawn, COAST_CITY, P0};
     use f4x_core::feature::entity::Placement;
+    use f4x_master::Game;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
     /// A node of power 5 on `pos`, with no guards.
-    fn node(w: &mut World, pos: Position) -> Result<(), Box<dyn std::error::Error>> {
+    fn node(w: &mut Game, pos: Position) -> Result<(), Box<dyn std::error::Error>> {
         let feature = w
             .content()
             .features
@@ -188,7 +190,7 @@ mod tests {
         Ok(())
     }
 
-    fn world() -> Result<(World, hecs::Entity), Box<dyn std::error::Error>> {
+    fn world() -> Result<(Game, hecs::Entity), Box<dyn std::error::Error>> {
         let mut w = game(COAST_CITY, 8 /* high_men */);
         w.explore(P0, at(7, 6), f4x_def::half_int::HalfInt::from_int(5));
         node(&mut w, at(6, 6))?;

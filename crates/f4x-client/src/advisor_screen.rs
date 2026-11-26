@@ -44,12 +44,10 @@ const MONTHS: &[&str] = &[
 impl App {
     /// The wizards the player knows of, and the player: the ones the two screens list.
     pub(crate) fn known_wizards(&self) -> Vec<f4x_core::player::PlayerId> {
-        self.world
+        self.game
             .player_ids()
             .into_iter()
-            .filter(|&id| {
-                self.world.is_wizard(id) && (id == HUMAN || self.world.have_met(HUMAN, id))
-            })
+            .filter(|&id| self.game.is_wizard(id) && (id == HUMAN || self.game.have_met(HUMAN, id)))
             .collect()
     }
 
@@ -89,7 +87,7 @@ impl Page for HistoryPage {
             160.0,
             10.0,
         );
-        let turn = app.world.turn as usize;
+        let turn = app.game.turn as usize;
         let date = app.text_with(
             "advisor.date",
             &Args::new()
@@ -119,7 +117,7 @@ impl Page for HistoryPage {
             .known_wizards()
             .iter()
             .map(|&id| {
-                app.world
+                app.game
                     .player(id)
                     .map_or_else(Vec::new, |p| p.history())
                     .len()
@@ -149,10 +147,10 @@ impl Page for HistoryPage {
         // Each wizard's power, a point a turn, from the left edge.
         let wizards = app.known_wizards();
         for (row, &id) in wizards.iter().enumerate() {
-            let Some((banner, history, name)) = app.world.wizard(id).map(|w| {
+            let Some((banner, history, name)) = app.game.wizard(id).map(|w| {
                 (
                     w.banner(),
-                    app.world.player(id).map_or_else(Vec::new, |p| p.history()),
+                    app.game.player(id).map_or_else(Vec::new, |p| p.history()),
                     w.name(),
                 )
             }) else {
@@ -204,13 +202,13 @@ impl Page for CartographerPage {
         }
         let plane = self.plane;
         let (ox, oy) = CART_AT;
-        let Some(map) = app.world.map() else {
+        let Some(map) = app.game.map() else {
             app.screen = Screen::Map;
             return;
         };
         let (w, h) = (map.width(), map.height());
         let grid = map.plane(plane);
-        let content = app.world.content();
+        let content = app.game.content();
         let px = |x: u32, y: u32| (ox + x as f32 * CART_SQUARE, oy + y as f32 * CART_SQUARE);
         let square = |x: f32, y: f32, size: f32, c: Color| {
             let r = lay.rect((x, y, size, size));
@@ -220,7 +218,7 @@ impl Page for CartographerPage {
         for y in 0..h {
             for x in 0..w {
                 let at = f4x_core::map::Position { plane, x, y };
-                if !app.world.is_explored(HUMAN, at) {
+                if !app.game.is_explored(HUMAN, at) {
                     continue;
                 }
                 let Some(class) = grid
@@ -232,10 +230,10 @@ impl Page for CartographerPage {
                 };
                 let (sx, sy) = px(x, y);
                 square(sx, sy, CART_SQUARE, crate::frame::mini_terrain_color(class));
-                let kind = app.world.economy().feature_kind_at(at);
+                let kind = app.game.economy().feature_kind_at(at);
                 let marked = match kind {
                     Some(FeatureKind::Node | FeatureKind::Tower) => true,
-                    Some(FeatureKind::Encounter) => app.world.economy().lair_at(at).is_some(),
+                    Some(FeatureKind::Encounter) => app.game.economy().lair_at(at).is_some(),
                     _ => false,
                 };
                 if marked {
@@ -244,11 +242,11 @@ impl Page for CartographerPage {
             }
         }
         // Units: the player's, and those of others where they can be seen.
-        let seen = app.cache.visibility(&app.world, HUMAN, plane);
-        for u in app.world.units().all_units() {
+        let seen = app.cache.visibility(&app.game, HUMAN, plane);
+        for u in app.game.units().all_units() {
             let (Some(at), Some(owner)) = (
-                app.world.units().unit_position(u),
-                app.world.units().unit_owner(u),
+                app.game.units().unit_position(u),
+                app.game.units().unit_owner(u),
             ) else {
                 continue;
             };
@@ -257,12 +255,12 @@ impl Page for CartographerPage {
                 .copied()
                 .unwrap_or(false);
             if at.plane != plane
-                || !(owner == HUMAN || (visible && !app.world.is_neutral_player(owner)))
+                || !(owner == HUMAN || (visible && !app.game.is_neutral_player(owner)))
             {
                 continue;
             }
             let banner = app
-                .world
+                .game
                 .wizard(owner)
                 .map_or(f4x_core::player::NEUTRAL_BANNER, |w| w.banner());
             let (sx, sy) = px(at.x, at.y);
@@ -271,13 +269,13 @@ impl Page for CartographerPage {
         // Cities: a banner-coloured block with a black shadow (the neutral players' banner is grey).
         let mut hovered = None;
         let mouse: Vec2 = input.mouse_position().into();
-        for (_, city, at) in app.world.economy().cities() {
-            if at.plane != plane || !app.world.is_explored(HUMAN, at) {
+        for (_, city, at) in app.game.economy().cities() {
+            if at.plane != plane || !app.game.is_explored(HUMAN, at) {
                 continue;
             }
             let (sx, sy) = px(at.x, at.y);
             let banner = app
-                .world
+                .game
                 .wizard(city.owner)
                 .map_or(f4x_core::player::NEUTRAL_BANNER, |w| w.banner());
             let colour = app.art.banner_color(banner);
@@ -315,7 +313,7 @@ impl Page for CartographerPage {
         // The legend: a flag and name for each wizard met, then the independents.
         let mut row = 0.0;
         for id in app.known_wizards() {
-            let Some((banner, name)) = app.world.wizard(id).map(|w| (w.banner(), w.name())) else {
+            let Some((banner, name)) = app.game.wizard(id).map(|w| (w.banner(), w.name())) else {
                 continue;
             };
             if banner < 5 {

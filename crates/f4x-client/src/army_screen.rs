@@ -51,7 +51,7 @@ impl App {
     /// The wizard's stacks: units on the same square, in rows of nine (a square with more units
     /// continues on the next row, and the list scrolls).
     fn army_stacks(&self) -> Vec<Vec<hecs::Entity>> {
-        let units = self.world.units();
+        let units = self.game.units();
         let placed: Vec<_> = units
             .player_units(HUMAN)
             .into_iter()
@@ -65,8 +65,8 @@ impl App {
 
     /// Gold, mana and food the army costs each turn, as text.
     fn army_upkeep(&self) -> [String; 3] {
-        let units = self.world.units();
-        let rules = &self.world.content().rules;
+        let units = self.game.units();
+        let rules = &self.game.content().rules;
         let mut out = [0; 2];
         let mut gold = f4x_def::half_int::HalfInt::ZERO;
         let food = units.food_of(&units.player_units(HUMAN));
@@ -94,7 +94,7 @@ impl App {
 
     /// Select the unit's stack and show it on the map.
     fn army_go_to(&mut self, unit: hecs::Entity) {
-        if let Some(at) = self.world.units().unit_position(unit) {
+        if let Some(at) = self.game.units().unit_position(unit) {
             self.select_at(at);
             self.center_on(at);
         }
@@ -103,14 +103,14 @@ impl App {
 
     /// The unit's name; a race's unit has its race in the name ("Dwarven Swordsmen").
     pub(crate) fn army_unit_term(&self, unit: hecs::Entity) -> f4x_lang::text::Term {
-        self.world
+        self.game
             .units()
             .unit_def(unit)
             .map_or_else(Default::default, |def| self.names.unit_term(def.num))
     }
 
     pub(crate) fn army_unit_name(&self, unit: hecs::Entity) -> String {
-        self.world
+        self.game
             .units()
             .unit_def(unit)
             .map_or_else(String::new, |def| self.names.unit(def.num).to_string())
@@ -118,7 +118,7 @@ impl App {
 
     /// One unit's square: its picture on its banner's colour, a damage bar under it.
     pub(crate) fn draw_army_unit(&mut self, lay: &Layout, unit: hecs::Entity, x: f32, y: f32) {
-        let owner = self.world.units().unit_owner(unit).map_or(0, |o| o.0);
+        let owner = self.game.units().unit_owner(unit).map_or(0, |o| o.0);
         let c = self.banner_color(owner);
         let frame = lay.rect((x + 1.0, y + 1.0, 18.0, 16.0));
         draw_rectangle(
@@ -129,14 +129,14 @@ impl App {
             Color::new(c.r * 0.5, c.g * 0.3, c.b * 0.3, 1.0),
         );
         let art = self
-            .world
+            .game
             .units()
             .unit_def(unit)
             .and_then(|d| self.art.unit_entry(&d.id));
         if let Some((lbx, entry)) = art {
             self.draw_pic(lay, &lbx, entry, 0, x + 2.0, y + 2.0);
         }
-        let (hp, max) = self.world.units().unit_hits(unit);
+        let (hp, max) = self.game.units().unit_hits(unit);
         if hp < max && max > 0 {
             let bar = lay.rect((x + 2.0, y + 15.0, 16.0 * hp as f32 / max as f32, 1.0));
             draw_rectangle(bar.x, bar.y, bar.w, bar.h, RED);
@@ -152,7 +152,7 @@ impl App {
     ) {
         let r = lay.rect(area);
         draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.0, 0.0, 0.05, 1.0));
-        let Some(map) = self.world.map() else {
+        let Some(map) = self.game.map() else {
             return;
         };
         let grid = map.plane(at.plane);
@@ -162,7 +162,7 @@ impl App {
         // sideways.
         let top = (at.y as i32 - h / 2).clamp(0, (gh - h).max(0));
         let left = at.x as i32 - w / 2;
-        let content = self.world.content();
+        let content = self.game.content();
         let px = lay.scale;
         for dy in 0..h.min(gh) {
             for dx in 0..w {
@@ -172,7 +172,7 @@ impl App {
                     x,
                     y,
                 };
-                if !self.world.is_explored(HUMAN, pos) {
+                if !self.game.is_explored(HUMAN, pos) {
                     continue;
                 }
                 let class = grid
@@ -233,7 +233,7 @@ impl Page for ArmyUi {
 
         // Title and upkeep.
         let owner = app
-            .world
+            .game
             .wizard(HUMAN)
             .map_or_else(String::new, |w| w.name());
         let title = app.text_with("army.title", &Args::new().text("owner", owner));
@@ -321,14 +321,14 @@ impl Page for ArmyUi {
             let name = app.army_unit_name(unit).to_uppercase();
             app.draw_styled(view, &Style::list_text(1).center(), &name, 188.0, 161.0);
             let names: Vec<String> = app
-                .world
+                .game
                 .units()
                 .unit_enchantments(unit)
                 .into_iter()
                 .take(4)
                 .map(|(s, _)| {
                     app.names
-                        .spell(app.world.content().rules.spells.get(s).num)
+                        .spell(app.game.content().rules.spells.get(s).num)
                         .to_string()
                 })
                 .collect();
@@ -342,7 +342,7 @@ impl Page for ArmyUi {
                     172.0 + step * i as f32,
                 );
             }
-            if let Some(at) = app.world.units().unit_position(unit) {
+            if let Some(at) = app.game.units().unit_position(unit) {
                 app.draw_reduced_map(&lay, at, MAP);
             }
         }

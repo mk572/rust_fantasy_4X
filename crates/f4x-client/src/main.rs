@@ -1124,7 +1124,7 @@ async fn main() {
     if let Some((x, y)) = options.survey_at {
         app.start_surveyor();
         app.survey_probe = if x == u32::MAX {
-            app.world.economy().cities().first().map(|c| c.2)
+            app.game.economy().cities().first().map(|c| c.2)
         } else {
             Some(f4x_core::map::Position {
                 plane: f4x_core::map::Plane::Arcanus,
@@ -1229,7 +1229,7 @@ async fn main() {
 /// The number of the spell with this alias, for the command-line flags that open a screen on one
 /// (a developer aid: the alias is typed by hand, the game itself refers to spells by number).
 fn spell_num(app: &App, alias: &str) -> Option<u16> {
-    let spells = &app.world.content().rules.spells;
+    let spells = &app.game.content().rules.spells;
     spells
         .iter()
         .find(|(_, d)| d.id == alias)
@@ -1238,7 +1238,7 @@ fn spell_num(app: &App, alias: &str) -> Option<u16> {
 
 /// [`spell_num`] for a building.
 fn building_num(app: &App, alias: &str) -> Option<u16> {
-    let buildings = &app.world.content().rules.buildings;
+    let buildings = &app.game.content().rules.buildings;
     buildings
         .iter()
         .find(|(_, d)| d.id == alias)

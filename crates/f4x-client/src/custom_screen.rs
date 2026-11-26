@@ -840,11 +840,11 @@ impl App {
         let work = self
             .options
             .custom
-            .unwrap_or_else(|| self.options.settings(&self.world.content().settings));
+            .unwrap_or_else(|| self.options.settings(&self.game.content().settings));
         let preset = self.options.preset;
         // A rule set other than Fully customized is what the rows are compared with.
-        let reference = (preset != Preset::Custom)
-            .then(|| preset.applied(work, &self.world.content().settings));
+        let reference =
+            (preset != Preset::Custom).then(|| preset.applied(work, &self.game.content().settings));
         self.open_page(
             Screen::Options,
             CustomPage {
@@ -863,8 +863,8 @@ impl App {
     /// them for every new game, Back drops the changes.
     pub fn open_default_game(&mut self) {
         let (work, preset) = (self.default_game.settings, self.default_game.preset);
-        let reference = (preset != Preset::Custom)
-            .then(|| preset.applied(work, &self.world.content().settings));
+        let reference =
+            (preset != Preset::Custom).then(|| preset.applied(work, &self.game.content().settings));
         self.open_page(
             Screen::GameSettings,
             CustomPage {
@@ -1041,7 +1041,7 @@ impl Page for CustomPage {
                 app.apply_default_game(rec);
                 app.open_settings();
             } else {
-                let settings = app.world.content().settings.clone();
+                let settings = app.game.content().settings.clone();
                 app.options.keep_custom(self.work, self.preset, &settings);
                 app.open_options();
             }
@@ -1237,7 +1237,7 @@ impl CustomPage {
             }
         }
         if let Some(i) = picked {
-            let def = app.world.content().settings.clone();
+            let def = app.game.content().settings.clone();
             match open {
                 Menu::Preset => self.choose(Preset::ALL[i], None, &def),
                 // The level's figures replace every rule, so a hand-made set is gone.

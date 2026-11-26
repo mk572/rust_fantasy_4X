@@ -9,25 +9,26 @@ use std::collections::HashMap;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::{PlayerId, MONSTERS};
-use f4x_core::world::{Command, Event, World};
+use f4x_core::world::{Command, Event};
 
 use crate::assault::{march, strike};
 use crate::military::expected_defence;
 use crate::scout::best_target;
 use crate::view::{distance, stack_strength};
 use crate::{Ai, Attack};
+use f4x_master::Game;
 
 /// Monsters attack a city when they are this much stronger than what they expect to meet.
 const EDGE: f32 = 1.0;
 
 /// Play the monsters' turn. A battle against a player in `defended_by` is returned, for the
 /// host to play out.
-pub fn roam(world: &mut World, defended_by: &[PlayerId]) -> (Vec<Event>, Vec<Attack>) {
+pub fn roam(game: &mut Game, defended_by: &[PlayerId]) -> (Vec<Event>, Vec<Attack>) {
     let mut ai = Ai::new(MONSTERS);
     ai.leave_defence_to(defended_by);
     let mut events = Vec::new();
     let stacks: Vec<(Position, Vec<hecs::Entity>)> = {
-        let view = PlayerView::new(world, MONSTERS);
+        let view = PlayerView::new(game, MONSTERS);
         let mut by_square: HashMap<Position, Vec<hecs::Entity>> = HashMap::new();
         for u in view.my_units() {
             if let Some(p) = view.unit_position(u) {
@@ -42,7 +43,7 @@ pub fn roam(world: &mut World, defended_by: &[PlayerId]) -> (Vec<Event>, Vec<Att
         list
     };
     for (pos, units) in stacks {
-        act(&mut ai, world, pos, units, &mut events);
+        act(&mut ai, game, pos, units, &mut events);
     }
     let attacks = ai.take_attacks();
     (events, attacks)
@@ -52,14 +53,14 @@ pub fn roam(world: &mut World, defended_by: &[PlayerId]) -> (Vec<Event>, Vec<Att
 /// nearest city or stand it knows, or look for new ground.
 fn act(
     ai: &mut Ai,
-    world: &mut World,
+    game: &mut Game,
     pos: Position,
     units: Vec<hecs::Entity>,
     events: &mut Vec<Event>,
 ) {
     // Units lost in an earlier fight this turn are gone.
     let units: Vec<hecs::Entity> = {
-        let view = PlayerView::new(world, MONSTERS);
+        let view = PlayerView::new(game, MONSTERS);
         units
             .into_iter()
             .filter(|&u| view.unit_position(u) == Some(pos) && view.unit_moves_left(u) > 0)
@@ -70,7 +71,7 @@ fn act(
     }
     // 1. A city next to us.
     let (neighbours, zones, mine, turn) = {
-        let view = PlayerView::new(world, MONSTERS);
+        let view = PlayerView::new(game, MONSTERS);
         (
             crate::military::neighbours(&view, pos),
             view.vacant_zones(),
@@ -80,7 +81,7 @@ fn act(
     };
     for &n in &neighbours {
         let defence = {
-            let view = PlayerView::new(world, MONSTERS);
+            let view = PlayerView::new(game, MONSTERS);
             match (view.city_at(n), view.hostile_at(n)) {
                 (Some(_), Some(defenders)) => {
                     Some((defenders, expected_defence(&view, &HashMap::new(), turn, n)))
@@ -92,7 +93,7 @@ fn act(
             Some((defenders, _)) if defenders.is_empty() => {
                 if ai
                     .send(
-                        world,
+                        game,
                         Command::MoveStack {
                             units: units.clone(),
                             to: n,
@@ -105,8 +106,8 @@ fn act(
                 }
             }
             Some((defenders, theirs)) if mine >= theirs * EDGE => {
-                let band = crate::view::party(&PlayerView::new(world, MONSTERS), &units);
-                strike(ai, world, band, defenders, events);
+                let band = crate::view::party(&PlayerView::new(game, MONSTERS), &units);
+                strike(ai, game, band, defenders, events);
                 return;
             }
             _ => {}
@@ -116,7 +117,7 @@ fn act(
     if let Some(&zone) = neighbours.iter().find(|n| zones.contains(n)) {
         if ai
             .send(
-                world,
+                game,
                 Command::MoveStack {
                     units: units.clone(),
                     to: zone,
@@ -130,7 +131,7 @@ fn act(
     }
     // 3. On the way already.
     {
-        let view = PlayerView::new(world, MONSTERS);
+        let view = PlayerView::new(game, MONSTERS);
         if units.iter().any(|&u| view.unit_has_order(u)) {
             return;
         }
@@ -141,7 +142,7 @@ fn act(
         City(Position),
     }
     let goal = {
-        let view = PlayerView::new(world, MONSTERS);
+        let view = PlayerView::new(game, MONSTERS);
         let mut best: Option<(u32, u8, Position, bool)> = None;
         for &z in &zones {
             if z == pos {
@@ -174,22 +175,22 @@ fn act(
     };
     match goal {
         Some(Goal::Zone(z)) => {
-            ai.order(world, Command::GoTo { units, to: z }, events);
+            ai.order(game, Command::GoTo { units, to: z }, events);
         }
         Some(Goal::City(c)) => {
             // A band that cannot get to the city stays where it is this turn; the reason is kept
             // in the refused-order log.
-            if let Err(why) = march(ai, world, &units, c, events) {
-                ai.note_failure(world, format!("march to {c:?}"), format!("{why:?}"));
+            if let Err(why) = march(ai, game, &units, c, events) {
+                ai.note_failure(game, format!("march to {c:?}"), format!("{why:?}"));
             }
         }
         None => {
             let target = {
-                let view = PlayerView::new(world, MONSTERS);
+                let view = PlayerView::new(game, MONSTERS);
                 best_target(&view, units[0], pos, &[])
             };
             if let Some(to) = target {
-                ai.order(world, Command::GoTo { units, to }, events);
+                ai.order(game, Command::GoTo { units, to }, events);
             }
         }
     }
@@ -202,17 +203,18 @@ mod tests {
     use f4x_core::feature::entity::Placement;
     use f4x_core::feature::lair::Lair;
     use f4x_def::half_int::HalfInt;
+    use f4x_master::Game;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-    fn end_turn(w: &mut World) {
+    fn end_turn(w: &mut Game) {
         // The wizard's soldiers eat: put the citizens on the farms, or they starve at the turn.
         w.balance_farmers(P0);
         w.apply(Command::EndTurn);
     }
 
     /// The monsters know the land round `p`, as they would after walking there.
-    fn know(w: &mut World, p: Position) {
+    fn know(w: &mut Game, p: Position) {
         w.explore(MONSTERS, p, HalfInt::from_int(4));
     }
 

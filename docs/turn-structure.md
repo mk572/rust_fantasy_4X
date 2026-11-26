@@ -227,7 +227,9 @@ This document defines the lifecycle and design constraints, not a demand to rewr
 
 ## 10. Splitting the game from the world (task 822)
 
-The **world** (`f4x-core`'s `World`, named `Game` until 26 November 2026) says what is in the world and what can be done in it. The **game** (a new `Game` in `f4x-master`, not yet built) owns a `World` and advances time.
+**Built so far:** `f4x_master::Game` owns the world; the master drives it, and the AI, the console, the client and the tools hold it. It reads like a world, and a command goes through `Game::apply`; setup and cheats use `Game::world_mut`. No state has moved to it yet.
+
+The **world** (`f4x-core`'s `World`, named `Game` until 26 November 2026) says what is in the world and what can be done in it. The **game** (`Game` in `f4x-master`) owns a `World` and advances time.
 
 **Decided (26 November 2026):** the game owns the round counter and hands it to the world operations that need it. The world keeps no copy. This replaces "the core keeps `World.turn`" in section 7.1.
 

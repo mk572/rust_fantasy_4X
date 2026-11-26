@@ -15,6 +15,7 @@ use f4x_def::rules::Stat;
 
 use crate::view::{distance, is_fighter, is_ship};
 use crate::Ai;
+use f4x_master::Game;
 
 /// How many squares of walking a square of new ground is worth.
 const WALK_COST: f32 = 0.35;
@@ -70,14 +71,14 @@ fn blind_across(view: &PlayerView, tower: Position) -> bool {
 }
 
 /// Make sure the wizard has enough scouts and send them out.
-pub fn scout(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
+pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    planar_scout(ai, world, events);
+    planar_scout(ai, game, events);
     if ai.frontier_closed {
         return;
     }
     let (scouts, cities, building) = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         let alive: Vec<Serial> = view.my_units().iter().map(|&u| view.serial_of(u)).collect();
         ai.roles.prune(&alive);
         let mut scouts: Vec<hecs::Entity> = view
@@ -93,15 +94,15 @@ pub fn scout(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
         )
     };
     if scouts.len() < wanted(cities, building) {
-        if let Some(unit) = recruit(ai, world, None) {
-            let serial = PlayerView::new(world, me).serial_of(unit);
+        if let Some(unit) = recruit(ai, game, None) {
+            let serial = PlayerView::new(game, me).serial_of(unit);
             let _ = ai
                 .roles
-                .claim(serial, crate::roles::Role::Scout, world.turn, None);
+                .claim(serial, crate::roles::Role::Scout, game.turn, None);
         }
     }
     let scouts: Vec<hecs::Entity> = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         let mut list: Vec<hecs::Entity> = view
             .my_units()
             .into_iter()
@@ -111,7 +112,7 @@ pub fn scout(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
         list
     };
     let ship_out = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         scouts.iter().any(|&u| is_ship(&view, u))
     };
     // A rider whose ship no longer scouts (sunk, or given another task) waits for nothing: it is
@@ -120,7 +121,7 @@ pub fn scout(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
         scouts
     } else {
         ai.roles.release_role(crate::roles::Role::SeaParty);
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         scouts
             .into_iter()
             .filter(|&u| ai.roles.is_scouting(view.serial_of(u)))
@@ -129,7 +130,7 @@ pub fn scout(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     let mut found_any = scouts.is_empty();
     for unit in scouts {
         let (serial, pos, idle) = {
-            let view = PlayerView::new(world, me);
+            let view = PlayerView::new(game, me);
             let Some(pos) = view.unit_position(unit) else {
                 continue;
             };
@@ -151,13 +152,13 @@ pub fn scout(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
                 ai.roles.set_target(serial, crate::roles::Role::Scout, None);
             }
             ai.roles.clear_track(serial);
-            ai.order(world, Command::ClearOrders { units: vec![unit] }, events);
+            ai.order(game, Command::ClearOrders { units: vec![unit] }, events);
         } else if !idle {
             found_any = true;
             continue;
         }
-        let is_sea_scout = is_ship(&PlayerView::new(world, me), unit);
-        if is_sea_scout && put_ashore(ai, world, pos, events) {
+        let is_sea_scout = is_ship(&PlayerView::new(game, me), unit);
+        if is_sea_scout && put_ashore(ai, game, pos, events) {
             found_any = true;
             continue;
         }
@@ -170,7 +171,7 @@ pub fn scout(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
             .chain(ai.bad_scout_targets.iter().copied())
             .collect();
         let target = {
-            let view = PlayerView::new(world, me);
+            let view = PlayerView::new(game, me);
             best_target_with(&view, unit, pos, &claimed, &ai.war_plan.recon)
         };
         match target {
@@ -180,9 +181,9 @@ pub fn scout(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
                     .set_target(serial, crate::roles::Role::Scout, Some(to));
                 let mut units = vec![unit];
                 if is_sea_scout {
-                    units.extend(board(ai, world, unit, pos));
+                    units.extend(board(ai, game, unit, pos));
                 }
-                ai.order(world, Command::GoTo { units, to }, events);
+                ai.order(game, Command::GoTo { units, to }, events);
             }
             None => {
                 // Nothing left to explore that this unit can reach: its scouting is over and it
@@ -289,11 +290,11 @@ fn land_unclaimed(view: &PlayerView, start: Position) -> bool {
 
 /// A sea scout beside land nobody holds puts one of its party ashore to explore it. Returns
 /// whether it did.
-fn put_ashore(ai: &mut Ai, world: &mut World, ship_at: Position, events: &mut Vec<Event>) -> bool {
+fn put_ashore(ai: &mut Ai, game: &mut Game, ship_at: Position, events: &mut Vec<Event>) -> bool {
     use f4x_core::map::terrain::TerrainClass;
     let me = ai.player;
     let (rider, shore) = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         let Some(rider) = view.my_units().into_iter().find(|&u| {
             ai.roles.is(view.serial_of(u), crate::roles::Role::SeaParty)
                 && view.unit_position(u) == Some(ship_at)
@@ -317,10 +318,10 @@ fn put_ashore(ai: &mut Ai, world: &mut World, ship_at: Position, events: &mut Ve
     let Some(shore) = shore else {
         return false;
     };
-    let serial = PlayerView::new(world, me).serial_of(rider);
+    let serial = PlayerView::new(game, me).serial_of(rider);
     if !ai
         .send(
-            world,
+            game,
             Command::GoTo {
                 units: vec![rider],
                 to: shore,
@@ -335,16 +336,16 @@ fn put_ashore(ai: &mut Ai, world: &mut World, ship_at: Position, events: &mut Ve
     ai.roles.release(serial, crate::roles::Role::SeaParty);
     let _ = ai
         .roles
-        .claim(serial, crate::roles::Role::Scout, world.turn, None);
+        .claim(serial, crate::roles::Role::Scout, game.turn, None);
     true
 }
 
 /// A scout walks to a tower nobody guards any more and changes plane there, when the ground
 /// across it is unexplored; the search for the rest of the world then goes on over there.
-fn planar_scout(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
+fn planar_scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let (tower, unit) = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         let alive: Vec<Serial> = view.my_units().iter().map(|&u| view.serial_of(u)).collect();
         ai.roles.prune(&alive);
         let tower = view
@@ -373,7 +374,7 @@ fn planar_scout(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
                     .find(|&u| view.serial_of(u) == serial);
                 drop(view);
                 if let Some(unit) = unit {
-                    ai.order(world, Command::ClearOrders { units: vec![unit] }, events);
+                    ai.order(game, Command::ClearOrders { units: vec![unit] }, events);
                 }
             }
             return;
@@ -388,14 +389,14 @@ fn planar_scout(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     let unit = match unit {
         Some(u) => u,
         None => {
-            let Some(u) = recruit(ai, world, Some(tower)) else {
+            let Some(u) = recruit(ai, game, Some(tower)) else {
                 return;
             };
-            let serial = PlayerView::new(world, me).serial_of(u);
+            let serial = PlayerView::new(game, me).serial_of(u);
             let _ = ai.roles.claim(
                 serial,
                 crate::roles::Role::PlanarScout,
-                world.turn,
+                game.turn,
                 Some(tower),
             );
             ai.planar_tower = Some(tower);
@@ -403,7 +404,7 @@ fn planar_scout(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
         }
     };
     let (at, idle, shifts) = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         (
             view.unit_position(unit),
             !view.unit_has_order(unit),
@@ -413,15 +414,15 @@ fn planar_scout(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     if at == Some(tower) {
         if shifts
             && ai
-                .send(world, Command::ShiftPlane { units: vec![unit] }, events)
+                .send(game, Command::ShiftPlane { units: vec![unit] }, events)
                 .is_ok()
         {
             // Across, the scout is an ordinary one again.
-            let serial = PlayerView::new(world, me).serial_of(unit);
+            let serial = PlayerView::new(game, me).serial_of(unit);
             ai.roles.release(serial, crate::roles::Role::PlanarScout);
             let _ = ai
                 .roles
-                .claim(serial, crate::roles::Role::Scout, world.turn, None);
+                .claim(serial, crate::roles::Role::Scout, game.turn, None);
             ai.frontier_closed = false;
             ai.bad_scout_targets.clear();
         }
@@ -429,13 +430,13 @@ fn planar_scout(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
         // A unit that has since ended up where it cannot walk to the tower (another plane, an
         // island) is let go, so that another is recruited; ordered each turn, the walk would
         // be refused each turn.
-        if !PlayerView::new(world, me).can_reach(&[unit], tower) {
-            let serial = PlayerView::new(world, me).serial_of(unit);
+        if !PlayerView::new(game, me).can_reach(&[unit], tower) {
+            let serial = PlayerView::new(game, me).serial_of(unit);
             ai.roles.release(serial, crate::roles::Role::PlanarScout);
             return;
         }
         ai.order(
-            world,
+            game,
             Command::GoTo {
                 units: vec![unit],
                 to: tower,

@@ -8,6 +8,7 @@ use f4x_core::feature::lair::Lair;
 use f4x_core::map::{Grid, Map, Plane, Position};
 use f4x_core::player::PlayerId;
 use f4x_def::content::Content;
+use f4x_master::Game;
 
 use f4x_core::world::{Command, World};
 
@@ -31,14 +32,14 @@ pub fn content() -> Content {
 }
 
 /// A new game as the game itself sets it up (wizards, cities, heroes), on the shipped content.
-pub fn fresh_game() -> Result<World, Box<dyn std::error::Error>> {
-    Ok(f4x_newgame::setup::new_game(
+pub fn fresh_game() -> Result<Game, Box<dyn std::error::Error>> {
+    Ok(Game::new(f4x_newgame::setup::new_game(
         shipped(),
         &f4x_newgame::setup::NewGame {
             seed: 7,
             ..Default::default()
         },
-    )?)
+    )?))
 }
 
 pub fn at(x: u32, y: u32) -> Position {
@@ -58,29 +59,29 @@ pub const ENEMY_CITY: (u32, u32) = (28, 6);
 
 /// Two islands, a city for each player at the given squares of the player-0 island and
 /// the east island, and nothing else.
-pub fn game(city0: (u32, u32), race: u16) -> World {
+pub fn game(city0: (u32, u32), race: u16) -> Game {
     game_seeded(city0, race, 7)
 }
 
 /// [`game`] with the east wizard's city on Myrror: no rival on the plane of the west wizard.
-pub fn game_rival_across(city0: (u32, u32), race: u16) -> World {
+pub fn game_rival_across(city0: (u32, u32), race: u16) -> Game {
     build_game(city0, race, 7, Plane::Myrror, &[])
 }
 
 /// [`game`] whose dice start from `seed`.
-pub fn game_seeded(city0: (u32, u32), race: u16, seed: u64) -> World {
+pub fn game_seeded(city0: (u32, u32), race: u16, seed: u64) -> Game {
     build_game(city0, race, seed, Plane::Arcanus, &[])
 }
 
 /// [`game`] with a river on each of the squares (of Arcanus).
-pub fn game_with_rivers(city0: (u32, u32), race: u16, rivers: &[(u32, u32)]) -> World {
+pub fn game_with_rivers(city0: (u32, u32), race: u16, rivers: &[(u32, u32)]) -> Game {
     build_game(city0, race, 7, Plane::Arcanus, rivers)
 }
 
 /// [`game`] with the sea between the islands filled but for the column of x 27: the two
 /// islands are one land mass with a strait of one sea square (rows 3 to 10) in it, and the sea
 /// round the land is open.
-pub fn game_with_strait(city0: (u32, u32), race: u16) -> World {
+pub fn game_with_strait(city0: (u32, u32), race: u16) -> Game {
     build_game_in(city0, race, 7, Plane::Arcanus, &[], true)
 }
 
@@ -90,7 +91,7 @@ fn build_game(
     seed: u64,
     rival_plane: Plane,
     rivers: &[(u32, u32)],
-) -> World {
+) -> Game {
     build_game_in(city0, race, seed, rival_plane, rivers, false)
 }
 
@@ -101,7 +102,7 @@ fn build_game_in(
     rival_plane: Plane,
     rivers: &[(u32, u32)],
     strait: bool,
-) -> World {
+) -> Game {
     let content = content();
     let ocean = content.terrains.id_numbered(8).expect("ocean");
     let grass = content.terrains.id_numbered(4).expect("grassland");
@@ -159,7 +160,7 @@ fn build_game_in(
             "city {name} not founded: {events:?}"
         );
     }
-    world
+    Game::new(world)
 }
 
 /// Spawn `count` units of `unit` at `pos` for `owner`.

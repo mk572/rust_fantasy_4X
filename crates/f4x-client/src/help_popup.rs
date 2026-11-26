@@ -135,7 +135,7 @@ impl App {
         spell: f4x_def::rules::SpellId,
         from: (f32, f32, f32, f32),
     ) -> bool {
-        let help = self.world.content().rules.spells.get(spell).help;
+        let help = self.game.content().rules.spells.get(spell).help;
         let Some(topic) = self.help.topic_of(help) else {
             return false;
         };
@@ -150,7 +150,7 @@ impl App {
     /// The help of a random event under the point (320x200 coordinates): the world event's name
     /// under the minimap, and the Plague or Pop. Boom mark after the race on the city screen.
     fn event_help_at(&self, x: f32, y: f32) -> Option<(u16, (f32, f32, f32, f32))> {
-        let events = self.world.events();
+        let events = self.game.events();
         match self.screen {
             Screen::Map => {
                 let kind = events.world_event()?;
@@ -160,7 +160,7 @@ impl App {
                 inside.then(|| (event_topic(kind), from))
             }
             Screen::City(city) => {
-                let serial = self.world.units().serial_of(city);
+                let serial = self.game.units().serial_of(city);
                 let from = (0.0, 19.0, 211.0, 8.0);
                 let inside =
                     x >= from.0 && x < from.0 + from.2 && y >= from.1 && y < from.1 + from.3;
@@ -181,7 +181,7 @@ impl App {
         let probe = self.help_ui.probe;
         if matches!(self.screen, Screen::City(_)) {
             if let Some(name) = self.help_ui.probe_building.take() {
-                let content = self.world.content();
+                let content = self.game.content();
                 if let Some(topic) = crate::alias::id_of(&content.rules.buildings, &name)
                     .and_then(|b| content.rules.buildings.get(b).help)
                 {

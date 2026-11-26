@@ -43,7 +43,7 @@ pub(crate) fn question_key(kind: ProposalKind) -> &'static str {
 impl App {
     /// The first proposal a rival has made to the human that waits for an answer.
     fn pending_proposal(&self) -> Option<Proposal> {
-        PlayerView::new(&self.world, HUMAN)
+        PlayerView::new(&self.game, HUMAN)
             .proposals_to_me()
             .into_iter()
             .next()
@@ -51,7 +51,7 @@ impl App {
 
     /// Open the box for a proposal that waits, over the map.
     pub(crate) fn queue_proposal(&mut self) {
-        if !self.world.in_battle()
+        if !self.game.in_battle()
             && matches!(self.screen, Screen::Map)
             && !self.modals.has(kind::PROPOSAL)
             && self.pending_proposal().is_some()
@@ -82,7 +82,7 @@ impl App {
         let text = self.text_with(question_key(proposal.kind), &args);
         if let Some(accept) = self.confirmation_box(&lay, &text, input) {
             let events = self
-                .world
+                .game
                 .apply(Command::Diplomacy(DiplomacyCommand::Answer {
                     player: HUMAN,
                     from: proposal.from,

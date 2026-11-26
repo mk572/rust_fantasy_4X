@@ -23,6 +23,7 @@ use crate::diplo_b::{regard, Knobs};
 use crate::memory::Memory;
 use crate::statecraft::{can_attack, leader_of, propose, remark, Power, Scene};
 use crate::Ai;
+use f4x_master::Game;
 
 /// What `me` makes of `other` (task 763).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -155,44 +156,44 @@ fn choose_enemy(
 
 /// Once a turn, in place of A's dominant war, appeasing and coalition (`statecraft::run`): look at the
 /// others now and then, choose the enemy, declare the war, court the friends.
-pub(crate) fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>, scene: &Scene) {
+pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, scene: &Scene) {
     let me = ai.player;
     let k = Knobs::current();
-    if world.turn < ai.memory.get().reviewed + k.review {
+    if game.turn < ai.memory.get().reviewed + k.review {
         return;
     }
-    ai.memory.put().reviewed = world.turn;
+    ai.memory.put().reviewed = game.turn;
     // Which of the others an army could reach, asked once.
     let reach: Vec<(PlayerId, bool)> = scene
         .others
         .iter()
-        .map(|&p| (p, can_attack(world, me, scene, p)))
+        .map(|&p| (p, can_attack(game, me, scene, p)))
         .collect();
     let reaches = |p: PlayerId| reach.iter().any(|&(q, r)| q == p && r);
     let chosen = {
         let memory = ai.memory.get();
-        choose_enemy(world, me, scene, &memory, &reaches)
+        choose_enemy(game, me, scene, &memory, &reaches)
     };
     ai.memory.put().enemy = chosen;
     if let Some((enemy, _)) = chosen {
-        declare(ai, world, events, scene, enemy, reaches(enemy));
+        declare(ai, game, events, scene, enemy, reaches(enemy));
     }
     for &w in &scene.others {
-        if Some(w) == chosen.map(|(e, _)| e) || world.treaty(me, w) == Treaty::War {
+        if Some(w) == chosen.map(|(e, _)| e) || game.treaty(me, w) == Treaty::War {
             continue;
         }
-        if world.human() != Some(w) {
-            court(ai, world, events, w, reaches(w));
+        if game.human() != Some(w) {
+            court(ai, game, events, w, reaches(w));
         }
     }
 }
 
 /// War on `enemy` now, without the choice of `run` (the friendship has fallen too far).
-pub(crate) fn declare_on(ai: &Ai, world: &mut World, events: &mut Vec<Event>, enemy: PlayerId) {
+pub(crate) fn declare_on(ai: &Ai, game: &mut Game, events: &mut Vec<Event>, enemy: PlayerId) {
     let me = ai.player;
     if ai
         .send(
-            world,
+            game,
             Command::Diplomacy(DiplomacyCommand::DeclareWar {
                 player: me,
                 on: enemy,
@@ -201,7 +202,7 @@ pub(crate) fn declare_on(ai: &Ai, world: &mut World, events: &mut Vec<Event>, en
         )
         .is_ok()
     {
-        remark(ai, world, events, enemy, Remark::DominantWar);
+        remark(ai, game, events, enemy, Remark::DominantWar);
     }
 }
 
@@ -210,7 +211,7 @@ pub(crate) fn declare_on(ai: &Ai, world: &mut World, events: &mut Vec<Event>, en
 /// spare (a front at a time, but for a straggler).
 fn declare(
     ai: &mut Ai,
-    world: &mut World,
+    game: &mut Game,
     events: &mut Vec<Event>,
     scene: &Scene,
     enemy: PlayerId,
@@ -218,9 +219,9 @@ fn declare(
 ) {
     let me = ai.player;
     let k = Knobs::current();
-    if world.turn < k.from_turn
-        || world.treaty(me, enemy) != Treaty::None
-        || world
+    if game.turn < k.from_turn
+        || game.treaty(me, enemy) != Treaty::None
+        || game
             .diplomacy
             .stance(me, enemy)
             .is_some_and(|s| s.peace_duration > 0)
@@ -229,22 +230,22 @@ fn declare(
     }
     let sk = crate::statecraft::Knobs::current();
     let busy = scene.others.iter().any(|&p| {
-        world.treaty(me, p) == Treaty::War
-            && scene.power(world, me).army < k.busy_army_x * scene.power(world, p).army.max(1)
+        game.treaty(me, p) == Treaty::War
+            && scene.power(game, me).army < k.busy_army_x * scene.power(game, p).army.max(1)
     });
     let wars = scene
         .others
         .iter()
-        .filter(|&&p| world.treaty(me, p) == Treaty::War)
+        .filter(|&&p| game.treaty(me, p) == Treaty::War)
         .count() as i32;
-    let v = values(world, me, enemy, scene, &ai.memory.get(), reachable).enemy - wars * k.war_damp;
+    let v = values(game, me, enemy, scene, &ai.memory.get(), reachable).enemy - wars * k.war_damp;
     let _ = sk;
     if busy || !reachable || v < k.declare {
         return;
     }
     if ai
         .send(
-            world,
+            game,
             Command::Diplomacy(DiplomacyCommand::DeclareWar {
                 player: me,
                 on: enemy,
@@ -253,7 +254,7 @@ fn declare(
         )
         .is_ok()
     {
-        remark(ai, world, events, enemy, Remark::DominantWar);
+        remark(ai, game, events, enemy, Remark::DominantWar);
     }
 }
 
@@ -261,7 +262,7 @@ fn declare(
 /// relation is too low for a pact; once in `court_cool` turns.
 pub(crate) fn court(
     ai: &Ai,
-    world: &mut World,
+    game: &mut Game,
     events: &mut Vec<Event>,
     other: PlayerId,
     reachable: bool,
@@ -270,22 +271,22 @@ pub(crate) fn court(
     let k = Knobs::current();
     let (friend, due) = {
         let memory = ai.memory.get();
-        let scene = Scene::new(world, me);
+        let scene = Scene::new(game, me);
         let due = memory
             .with(other)
-            .is_none_or(|d| d.courted == 0 || world.turn >= d.courted + k.court_cool);
+            .is_none_or(|d| d.courted == 0 || game.turn >= d.courted + k.court_cool);
         (
-            values(world, me, other, &scene, &memory, reachable).friend,
+            values(game, me, other, &scene, &memory, reachable).friend,
             due,
         )
     };
     if !due || friend < k.gift_min {
         return;
     }
-    let relation = ai.memory.get().friendship(world, me, other);
-    let rules = &world.content().rules.config.diplomacy;
+    let relation = ai.memory.get().friendship(game, me, other);
+    let rules = &game.content().rules.config.diplomacy;
     let (pact_floor, ally_floor) = (rules.pact_relation, rules.alliance_relation);
-    let kind = match world.treaty(me, other) {
+    let kind = match game.treaty(me, other) {
         Treaty::None if friend >= k.pact_min && relation > pact_floor => Some(ProposalKind::Pact),
         Treaty::Pact if friend >= k.ally_min && relation > ally_floor => {
             Some(ProposalKind::Alliance)
@@ -293,15 +294,15 @@ pub(crate) fn court(
         _ => None,
     };
     let done = match kind {
-        Some(kind) => propose(ai, world, events, other, kind),
+        Some(kind) => propose(ai, game, events, other, kind),
         // Too low a relation for a pact: a gift wins it over.
-        None if world.treaty(me, other) == Treaty::None && relation <= pact_floor => {
-            crate::statecraft::gift_gold(ai, world, events, other, Remark::Appeasing)
+        None if game.treaty(me, other) == Treaty::None && relation <= pact_floor => {
+            crate::statecraft::gift_gold(ai, game, events, other, Remark::Appeasing)
         }
         None => false,
     };
     if done {
-        ai.memory.put().courted(other, world.turn);
+        ai.memory.put().courted(other, game.turn);
     }
 }
 
@@ -311,12 +312,13 @@ pub(crate) mod tests {
     use crate::testworld::{at, game, spawn, COAST_CITY, P0, P1};
     use f4x_core::rules::RealmId;
     use f4x_def::half_int::HalfInt;
+    use f4x_master::Game;
 
     pub(crate) const RIVAL: (u32, u32) = (3, 8);
 
-    fn found(w: &mut World, owner: PlayerId, x: u32, y: u32) {
-        let race = w.content().rules.races.id_numbered(8);
-        w.apply(Command::FoundCity {
+    fn found(game: &mut Game, owner: PlayerId, x: u32, y: u32) {
+        let race = game.content().rules.races.id_numbered(8);
+        game.apply(Command::FoundCity {
             owner,
             pos: at(x, y),
             name: format!("City{x}x{y}"),
@@ -327,7 +329,7 @@ pub(crate) mod tests {
 
     /// P0 and P1 have met, no treaty, armies of these sizes, a city each on the west island (P1's
     /// at `RIVAL`) and one more for P0; turn `turn`.
-    pub(crate) fn pair(army0: usize, army1: usize, turn: u32) -> World {
+    pub(crate) fn pair(army0: usize, army1: usize, turn: u32) -> Game {
         let mut w = game(COAST_CITY, 8 /* high_men */);
         found(&mut w, P0, 10, 10);
         found(&mut w, P1, RIVAL.0, RIVAL.1);

@@ -5,8 +5,8 @@
 use f4x_ai::{play_round, Ai};
 use f4x_core::player::PlayerId;
 use f4x_core::world::endgame::EndKind;
-use f4x_core::world::World;
 use f4x_def::content::Content;
+use f4x_master::Game;
 use f4x_newgame::setup::{new_game, NewGame};
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -18,24 +18,24 @@ fn content() -> Result<Content, Box<dyn std::error::Error>> {
     Ok(f4x_def::testdir::shipped().clone())
 }
 
-fn game(seed: u64) -> Result<World, Box<dyn std::error::Error>> {
-    Ok(new_game(
+fn game(seed: u64) -> Result<Game, Box<dyn std::error::Error>> {
+    Ok(Game::new(new_game(
         &content()?,
         &NewGame {
             seed,
             all_ai: true,
             ..NewGame::default()
         },
-    )?)
+    )?))
 }
 
-fn play(world: &mut World, turns: u32) {
+fn play(game: &mut Game, turns: u32) {
     let mut ais = vec![Ai::new(P0), Ai::new(P1)];
     for _ in 0..turns {
-        if world.game_over.is_some() {
+        if game.game_over.is_some() {
             break;
         }
-        play_round(world, &mut ais);
+        play_round(game, &mut ais);
     }
 }
 

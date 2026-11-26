@@ -54,7 +54,7 @@ impl App {
         let Some(&first) = self.selection.first() else {
             return;
         };
-        let Some(start) = self.world.units().unit_position(first) else {
+        let Some(start) = self.game.units().unit_position(first) else {
             return;
         };
         self.road_plan = Some(RoadPlan {
@@ -93,7 +93,7 @@ impl App {
             plan.path.clear();
             return;
         }
-        match self.world.find_path(&plan.units, pos) {
+        match self.game.find_path(&plan.units, pos) {
             Some(path) => plan.path = path,
             None => {
                 plan.path.clear();
@@ -115,7 +115,7 @@ impl App {
             return;
         }
         plan.path.truncate(sum.shown);
-        let events = self.world.apply(Command::BuildRoad {
+        let events = self.game.apply(Command::BuildRoad {
             units: plan.units,
             path: plan.path,
         });
@@ -138,7 +138,7 @@ impl App {
         let moved = self.road_plan.as_ref().is_some_and(|p| {
             p.units
                 .first()
-                .is_none_or(|&u| self.world.units().unit_position(u) != Some(p.start))
+                .is_none_or(|&u| self.game.units().unit_position(u) != Some(p.start))
         });
         if moved {
             self.road_plan = None;
@@ -154,14 +154,14 @@ impl App {
 
     /// Turns, whether water blocks the way, and how much of the path counts.
     fn road_summary(&self, plan: &RoadPlan) -> Summary {
-        let mut turns = u32::from(self.world.road_turns(&plan.units, plan.start).unwrap_or(0));
+        let mut turns = u32::from(self.game.road_turns(&plan.units, plan.start).unwrap_or(0));
         let mut sum = Summary {
             turns,
             blocked: false,
             shown: plan.path.len(),
         };
         for (i, &pos) in plan.path.iter().enumerate() {
-            match self.world.road_turns(&plan.units, pos) {
+            match self.game.road_turns(&plan.units, pos) {
                 None => {
                     sum.blocked = true;
                     sum.shown = i + 1;
@@ -325,7 +325,7 @@ mod tests {
         let plan = app.road_plan.as_ref().ok_or("the mode did not open")?;
         assert_eq!(
             Some(plan.start),
-            app.world.units().unit_position(plan.units[0])
+            app.game.units().unit_position(plan.units[0])
         );
         assert!(plan.path.is_empty());
         assert_eq!(
@@ -358,15 +358,15 @@ mod tests {
         let mut app = App::for_test();
         // The fortress stands on a road (a new world has roads under its cities): step off it.
         let u = *app
-            .world
+            .game
             .units()
             .player_units(crate::view::HUMAN)
             .first()
             .ok_or("no unit")?;
-        let from = app.world.units().unit_position(u).ok_or("no position")?;
-        let stack = app.world.units().units_at(from);
+        let from = app.game.units().unit_position(u).ok_or("no position")?;
+        let stack = app.game.units().units_at(from);
         let off = app
-            .world
+            .game
             .reachable_squares(&[u])
             .into_iter()
             .find(|p| {
@@ -375,12 +375,12 @@ mod tests {
                     && p.y.abs_diff(from.y) <= 1
                     && *p != from
                     && app
-                        .world
+                        .game
                         .map()
                         .is_some_and(|m| !m.plane(p.plane).has_road(p.x as i32, p.y as i32))
             })
             .ok_or("no square beside the stack without a road")?;
-        app.world.apply(f4x_core::world::Command::MoveStack {
+        app.game.apply(f4x_core::world::Command::MoveStack {
             units: stack,
             to: off,
         });
@@ -388,7 +388,7 @@ mod tests {
         app.start_road_plan();
         let plan = app.road_plan.as_ref().ok_or("the mode did not open")?;
         assert!(
-            app.world.road_turns(&plan.units, plan.start).unwrap_or(0) > 0,
+            app.game.road_turns(&plan.units, plan.start).unwrap_or(0) > 0,
             "the start square has no road yet"
         );
         app.road_plan_confirm();

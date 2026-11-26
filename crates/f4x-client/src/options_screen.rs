@@ -193,7 +193,7 @@ impl App {
     /// Make `rec` the default game settings: the next new game starts from them, and so does a
     /// difficulty chosen on the options step (it keeps what `rec` changed).
     pub(crate) fn apply_default_game(&mut self, rec: f4x_def::settings::DefaultGame) {
-        let def = self.world.content().settings.clone();
+        let def = self.game.content().settings.clone();
         self.default_game = rec;
         let mut o = OptionsState::from_settings(&def);
         o.base = Some(rec);
@@ -227,7 +227,7 @@ impl Page for OptionsPage {
             draw_rectangle(r.x, r.y, r.w, r.h, PANEL);
         }
         let o = app.options.clone();
-        let settings = &app.world.content().settings;
+        let settings = &app.game.content().settings;
         let (most, sizes) = (settings.max_opponents, settings.land_sizes.len() as u8);
         let land = app.text(land_key(
             &settings.land_sizes[usize::from(o.land).min(sizes as usize - 1)].id,
@@ -273,7 +273,7 @@ impl Page for OptionsPage {
             }
         }
         // Too little land for each wizard: the game still starts, but the player is told.
-        let crowded = { o.settings(&app.world.content().settings).basic.crowding() };
+        let crowded = { o.settings(&app.game.content().settings).basic.crowding() };
         if let Some(each) = crowded {
             let text = app.text_with("options.crowded", &Args::new().count("n", each));
             for (i, line) in app.bm_wrap(1, &text, 150.0).iter().enumerate() {
@@ -290,7 +290,7 @@ impl Page for OptionsPage {
             _ => {}
         }
         if picked.is_some() {
-            let settings = app.world.content().settings.clone();
+            let settings = app.game.content().settings.clone();
             app.options.changed_here(picked == Some(0), &settings);
         }
         if app.options.custom.is_some() {
@@ -337,7 +337,7 @@ impl Page for GameSettingsPage {
         // What each row says and whether a click changes it: (label or line, value, clickable).
         let mut items: Vec<(String, String, bool)> = Vec::new();
         if from_menu {
-            let settings = &app.world.content().settings;
+            let settings = &app.game.content().settings;
             let o = &app.options;
             let land = settings
                 .land_sizes
@@ -364,14 +364,14 @@ impl Page for GameSettingsPage {
             // Every setting the game was made with, read-only; the list scrolls.
             for (label, value) in crate::custom_screen::lines(
                 app.texts(),
-                app.world.settings(),
-                &app.world.content().settings,
+                app.game.settings(),
+                &app.game.content().settings,
             ) {
                 items.push((label, value, false));
             }
             let seed = app.text_with(
                 "options.line_seed",
-                &Args::new().text("seed", app.world.seed().to_string()),
+                &Args::new().text("seed", app.game.seed().to_string()),
             );
             items.push((seed, String::new(), false));
         }
@@ -461,8 +461,8 @@ impl Page for GameSettingsPage {
         }
         if let Some(i) = changed {
             let back = right;
-            let lands = app.world.content().settings.land_sizes.len();
-            let most = app.world.content().settings.max_opponents;
+            let lands = app.game.content().settings.land_sizes.len();
+            let most = app.game.content().settings.max_opponents;
             let o = &mut app.options;
             match i {
                 0 => {

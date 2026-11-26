@@ -6,7 +6,7 @@
 
 use f4x_core::player::PlayerId;
 use f4x_core::world::{Event, World};
-use f4x_master::{Controller, Master, Seat, Status, Until};
+use f4x_master::{Controller, Game, Master, Seat, Status, Until};
 use std::cell::RefCell;
 
 /// Which copy of the AI plays a wizard.
@@ -30,7 +30,7 @@ pub struct Refused {
 /// What the soak needs from an AI player, whichever crate it comes from.
 pub trait Contestant {
     fn player(&self) -> PlayerId;
-    fn play_turn(&mut self, world: &mut World) -> Vec<Event>;
+    fn play_turn(&mut self, game: &mut Game) -> Vec<Event>;
     fn record_refusals(&mut self, on: bool);
     fn take_refusals(&self) -> Vec<Refused>;
     /// The AI's own state for the soak's detail lines: the tail of the player's line.
@@ -74,8 +74,8 @@ macro_rules! contestant {
             fn player(&self) -> PlayerId {
                 self.player
             }
-            fn play_turn(&mut self, world: &mut World) -> Vec<Event> {
-                $krate::Ai::play_turn(self, world)
+            fn play_turn(&mut self, game: &mut Game) -> Vec<Event> {
+                $krate::Ai::play_turn(self, game)
             }
             fn record_refusals(&mut self, on: bool) {
                 $krate::Ai::record_refusals(self, on);
@@ -259,11 +259,11 @@ impl Neutrals {
         }
     }
 
-    fn play(&mut self, world: &mut World, players: &[PlayerId], events: &mut Vec<Event>) {
+    fn play(&mut self, game: &mut Game, players: &[PlayerId], events: &mut Vec<Event>) {
         match self.version {
-            Version::New => self.new.play_turn(world, players, events),
+            Version::New => self.new.play_turn(game, players, events),
             #[cfg(feature = "reference")]
-            Version::Reference => self.reference.play_turn(world, players, events),
+            Version::Reference => self.reference.play_turn(game, players, events),
             #[cfg(not(feature = "reference"))]
             Version::Reference => without_reference(),
         }
@@ -289,17 +289,17 @@ struct ContestantSeat<'a> {
 }
 
 impl Controller for ContestantSeat<'_> {
-    fn play(&mut self, world: &mut World, _: &[PlayerId], _: &mut Vec<Event>) -> Status {
+    fn play(&mut self, game: &mut Game, _: &[PlayerId], _: &mut Vec<Event>) -> Status {
         let started = std::time::Instant::now();
         PLAYING.with(|p| {
             *p.borrow_mut() = format!(
                 "seed {} turn {} player {}",
-                world.seed(),
-                world.turn,
+                game.seed(),
+                game.turn,
                 self.contestant.player().0
             );
         });
-        let events = self.contestant.play_turn(world);
+        let events = self.contestant.play_turn(game);
         self.times
             .borrow_mut()
             .players
@@ -319,9 +319,9 @@ impl Controller for ContestantSeat<'_> {
 struct NeutralSeat<'a>(&'a mut Neutrals, &'a RefCell<RoundTimes>);
 
 impl Controller for NeutralSeat<'_> {
-    fn play(&mut self, world: &mut World, players: &[PlayerId], events: &mut Vec<Event>) -> Status {
+    fn play(&mut self, game: &mut Game, players: &[PlayerId], events: &mut Vec<Event>) -> Status {
         let started = std::time::Instant::now();
-        self.0.play(world, players, events);
+        self.0.play(game, players, events);
         self.1.borrow_mut().neutrals += started.elapsed();
         Status::Done
     }
@@ -364,7 +364,7 @@ impl RoundTimes {
 
 /// [`play_round`] with the time each seat took.
 pub fn play_round_timed(
-    world: &mut World,
+    game: &mut Game,
     players: &mut [Box<dyn Contestant>],
     neutrals: &mut Neutrals,
 ) -> (PlayerTurns, Vec<Event>, RoundTimes) {
@@ -384,7 +384,7 @@ pub fn play_round_timed(
         ));
     }
     seats.push(Seat::neutrals(Box::new(NeutralSeat(neutrals, &times))));
-    let rest = Master::new(seats).run(world, Until::Rounds(1)).events;
+    let rest = Master::new(seats).run(game, Until::Rounds(1)).events;
     let mut times = times.into_inner();
     times.total = started.elapsed();
     (turns.into_inner(), rest, times)

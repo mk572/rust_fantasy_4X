@@ -5,10 +5,11 @@
 use f4x_core::diplomacy::{DiplomacyCommand, Treaty};
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
-use f4x_core::world::{Command, Event, World};
+use f4x_core::world::{Command, Event};
 use f4x_def::rules::SpellId;
 
 use crate::Ai;
+use f4x_master::Game;
 
 /// The race is run only when the AI would finish this many times sooner than the rival.
 const LEAD: f32 = 1.25;
@@ -53,28 +54,28 @@ fn rival_turns(left: i32, seen: Option<Sighting>, now: u32, own_rate: f32) -> f3
 }
 
 /// Weigh the race and answer it, once a turn before the wizard's own casting.
-pub(crate) fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
+pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    let now = world.turn;
-    let casters = PlayerView::new(world, me).rival_mastery_casters();
+    let now = game.turn;
+    let casters = PlayerView::new(game, me).rival_mastery_casters();
     // Forget wizards that stopped (or finished) casting.
     ai.mastery_seen
         .retain(|p, _| casters.iter().any(|&(c, _)| c == *p));
     // A banished wizard casts the Spell of Return and starts no war (the game refuses it).
-    let banished = world.wizard(me).is_some_and(|w| w.is_banished());
+    let banished = game.wizard(me).is_some_and(|w| w.is_banished());
     if casters.is_empty() || banished {
         ai.racing = false;
         ai.war_on = None;
         return;
     }
     let Some(mastery) = f4x_core::hook::spell_with_hook(
-        &world.content().rules,
+        &game.content().rules,
         f4x_core::spell::special::SPELL_OF_MASTERY,
     ) else {
         return;
     };
     let (mine, own_rate, casting_other) = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         let rate = view.wizard().map_or(1.0, |m| {
             m.casting_skill(&view.content().rules).max(1) as f32
         });
@@ -105,18 +106,18 @@ pub(crate) fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     if ai.racing {
         ai.war_on = None;
         // Drop whatever else is being cast: the next step casts the Spell of Mastery.
-        let knows = PlayerView::new(world, me)
+        let knows = PlayerView::new(game, me)
             .wizard()
             .is_some_and(|m| m.knows(mastery));
         if casting_other && knows {
-            ai.order(world, Command::CancelCast { player: me }, events);
+            ai.order(game, Command::CancelCast { player: me }, events);
         }
         return;
     }
     ai.war_on = Some(rival);
-    if world.treaty(me, rival) != Treaty::War && world.have_met(me, rival) {
+    if game.treaty(me, rival) != Treaty::War && game.have_met(me, rival) {
         ai.order(
-            world,
+            game,
             Command::Diplomacy(DiplomacyCommand::DeclareWar {
                 player: me,
                 on: rival,
@@ -156,10 +157,11 @@ pub(crate) fn enemy(ai: &Ai, view: &PlayerView) -> Option<PlayerId> {
 mod tests {
     use super::*;
     use crate::testworld::{game, COAST_CITY, P0, P1};
+    use f4x_master::Game;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-    fn world() -> Result<(World, SpellId), Box<dyn std::error::Error>> {
+    fn world() -> Result<(Game, SpellId), Box<dyn std::error::Error>> {
         let mut w = game(COAST_CITY, 8 /* high_men */);
         w.make_contact(P0, P1);
         let mastery = w
@@ -171,7 +173,7 @@ mod tests {
         Ok((w, mastery))
     }
 
-    fn casts(w: &mut World, who: PlayerId, spell: SpellId, left: i32) {
+    fn casts(w: &mut Game, who: PlayerId, spell: SpellId, left: i32) {
         w.scenario_casting(who, spell, left);
     }
 

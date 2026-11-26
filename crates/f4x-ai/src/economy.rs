@@ -11,18 +11,19 @@ use f4x_def::half_int::HalfInt;
 use crate::builder;
 use crate::view::is_fighter;
 use crate::Ai;
+use f4x_master::Game;
 
 /// The lowest tax rate (up to a limit) that leaves the treasury a small surplus, else the
 /// rate that earns the most. Rebels from high taxes are counted by the treasury forecast.
-pub fn taxes(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
+pub fn taxes(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     const MAX_RATE: u8 = 3;
     let wanted_net = crate::knob("NET", 3.0) as i32;
     let me = ai.player;
     let mut best: Option<(HalfInt, u8)> = None;
     let mut chosen = None;
     for rate in 0..=MAX_RATE {
-        world.apply(Command::SetTaxRate { player: me, rate });
-        let net = PlayerView::new(world, me).budget().net_gold();
+        game.apply(Command::SetTaxRate { player: me, rate });
+        let net = PlayerView::new(game, me).budget().net_gold();
         if best.is_none_or(|(n, _)| net > n) {
             best = Some((net, rate));
         }
@@ -32,7 +33,7 @@ pub fn taxes(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
         }
     }
     let rate = chosen.or(best.map(|(_, r)| r)).unwrap_or(1);
-    ai.order(world, Command::SetTaxRate { player: me, rate }, events);
+    ai.order(game, Command::SetTaxRate { player: me, rate }, events);
 }
 
 /// How many ships the wizard wants. A landing on a big army needs a fleet: one ship per twelve
@@ -186,10 +187,10 @@ const RIVAL_RANGE: u32 = 12;
 /// build by themselves each time they finish something. The AI's own part is the plan: what
 /// matters (war, expansion or both), how much of the production goes to the army, and which
 /// cities may build settlers. It keeps the port that builds the ship, and buys what it can.
-pub fn cities(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
+pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let (mine, mut settlers_planned) = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         let mut mine = view.my_cities();
         mine.sort_by_key(|(e, _)| view.serial_of(*e));
         let in_production = mine
@@ -206,7 +207,7 @@ pub fn cities(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     };
     // The list of sites: its length is the room for more cities (`phase::width` leans wide with it).
     let (free_sites, room) = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         let taken = ai.roles.targets(crate::roles::Role::Settle);
         let list = ai.sites.refreshed(&view);
         (
@@ -214,25 +215,25 @@ pub fn cities(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
             !list.is_empty(),
         )
     };
-    let wide = crate::phase::width(&PlayerView::new(world, me), room);
+    let wide = crate::phase::width(&PlayerView::new(game, me), room);
     let war_force = ai.campaign.map(|target| {
-        let view = PlayerView::new(world, me);
-        let edge = crate::military::campaign_ratio(world, me);
+        let view = PlayerView::new(game, me);
+        let edge = crate::military::campaign_ratio(game, me);
         let strength =
-            crate::war_plan::strength_wanted(&view, &ai.city_memory, world.turn, target, edge);
+            crate::war_plan::strength_wanted(&view, &ai.city_memory, game.turn, target, edge);
         crate::war_plan::units_for(&view, strength)
     });
-    let empire = Empire::of(&PlayerView::new(world, me));
-    let roster = Roster::of(ai, &PlayerView::new(world, me));
+    let empire = Empire::of(&PlayerView::new(game, me));
+    let roster = Roster::of(ai, &PlayerView::new(game, me));
     // Fewer scouts than a wizard that builds up wants (`scout::wanted`) and no soldier spare: one
     // city builds the unit that scouts (the first that is not full, so that the others go on with
     // their plans).
     let scout_city = (roster.scouts < crate::scout::wanted(mine.len(), true)
         && roster.idle_fighters == 0
         && !ai.frontier_closed
-        && crate::phase::phase(&PlayerView::new(world, me)) == crate::phase::Phase::Build)
+        && crate::phase::phase(&PlayerView::new(game, me)) == crate::phase::Phase::Build)
         .then(|| {
-            let view = PlayerView::new(world, me);
+            let view = PlayerView::new(game, me);
             mine.iter()
                 .map(|&(c, p)| (c, p))
                 .find(|&(c, p)| {
@@ -244,16 +245,16 @@ pub fn cities(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
         })
         .flatten();
     let (elite, forges) = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         (crate::forge::active(&view), crate::forge::forges(&view))
     };
     // Each city's auto-builder reads the net gold: kept and patched for the cities whose item
     // changes, not worked out for the whole empire in every city.
-    world.begin_kept_budget();
+    game.begin_kept_budget();
     // The food of the units the cities have in production: they are not in `empire.spare_food`
     // yet, and each unit chosen below joins them.
     let mut queued_food = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         mine.iter()
             .filter_map(|&(c, _)| match view.city_production(c).item {
                 Some(ProductionItem::Unit(u)) => {
@@ -265,7 +266,7 @@ pub fn cities(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     };
     for (city, pos) in mine {
         let port_item = {
-            let view = PlayerView::new(world, me);
+            let view = PlayerView::new(game, me);
             let current = view.city_production(city).item;
             if matches!(current, Some(ProductionItem::Unit(u)) if is_settler_def(&view, u)) {
                 settlers_planned = settlers_planned.saturating_sub(1);
@@ -275,7 +276,7 @@ pub fn cities(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
             if size == 0 {
                 if current != Some(ProductionItem::Housing) {
                     ai.order(
-                        world,
+                        game,
                         Command::SetProduction {
                             city,
                             item: ProductionItem::Housing,
@@ -404,18 +405,18 @@ pub fn cities(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
             item
         };
         if let Some(ProductionItem::Unit(u)) = port_item {
-            if world.economy().city_production(city).item != port_item {
-                queued_food += world.content().rules.units.get(u).upkeep.food;
+            if game.economy().city_production(city).item != port_item {
+                queued_food += game.content().rules.units.get(u).upkeep.food;
             }
         }
         if let Some(item) = port_item {
-            if world.economy().city_production(city).item != Some(item) {
-                ai.order(world, Command::SetProduction { city, item }, events);
+            if game.economy().city_production(city).item != Some(item) {
+                ai.order(game, Command::SetProduction { city, item }, events);
             }
         }
     }
-    world.end_kept_budget();
-    spend_gold(ai, world, events);
+    game.end_kept_budget();
+    spend_gold(ai, game, events);
 }
 
 /// The most soldiers the garrison floor asks of a city while the wizard builds up and no enemy is near
@@ -652,11 +653,11 @@ pub(crate) fn gold_reserve(world: &World, me: PlayerId) -> i32 {
 
 /// Buy what is being built when the treasury has gold to spare, settlers and the first
 /// guard of each city before the rest.
-fn spend_gold(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
+fn spend_gold(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    let reserve = gold_reserve(world, me);
+    let reserve = gold_reserve(game, me);
     let wanted = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         let mut wanted: Vec<(u32, HalfInt, hecs::Entity)> = Vec::new();
         for (city, pos) in view.my_cities() {
             let Some(item) = view.city_production(city).item else {
@@ -677,9 +678,9 @@ fn spend_gold(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
         wanted
     };
     for (_, cost, city) in wanted {
-        let gold = PlayerView::new(world, me).treasury().gold;
+        let gold = PlayerView::new(game, me).treasury().gold;
         if gold - cost >= HalfInt::from_int(reserve) {
-            ai.order(world, Command::BuyProduction { city }, events);
+            ai.order(game, Command::BuyProduction { city }, events);
         }
     }
 }

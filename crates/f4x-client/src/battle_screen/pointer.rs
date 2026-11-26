@@ -113,27 +113,27 @@ mod tests {
 
     fn fight() -> Result<Fight, Box<dyn std::error::Error>> {
         let mut app = App::for_test();
-        let attackers = app.world.units().player_units(HUMAN);
+        let attackers = app.game.units().player_units(HUMAN);
         let pos = attackers
             .first()
-            .and_then(|&u| app.world.units().unit_position(u))
+            .and_then(|&u| app.game.units().unit_position(u))
             .ok_or("the human has no unit")?;
         let kind = app
-            .world
+            .game
             .content()
             .rules
             .units
             .id_numbered(39)
             .ok_or("barbarian_spearmen is not in the content")?;
         let defenders = vec![
-            app.world.spawn_unit(f4x_core::player::MONSTERS, pos, kind),
-            app.world.spawn_unit(f4x_core::player::MONSTERS, pos, kind),
+            app.game.spawn_unit(f4x_core::player::MONSTERS, pos, kind),
+            app.game.spawn_unit(f4x_core::player::MONSTERS, pos, kind),
         ];
-        app.world.apply(Command::BeginBattle {
+        app.game.apply(Command::BeginBattle {
             attackers,
             defenders,
         });
-        let mut battle = app.world.battle().ok_or("no battle began")?.clone();
+        let mut battle = app.game.battle().ok_or("no battle began")?.clone();
         let mine = |u: &BattleUnit| u.side == Side::Attacker;
         let ours = battle
             .units
@@ -218,7 +218,7 @@ mod tests {
     ) -> TestResult {
         let mut f = fight()?;
         let active = f.battle.active;
-        let battle = &mut f.app.world.battle.as_mut().ok_or("no battle")?.battle;
+        let battle = &mut f.app.game.battle.as_mut().ok_or("no battle")?.battle;
         battle
             .vortices
             .push(f4x_battle::battlemagic::vortex::Vortex {

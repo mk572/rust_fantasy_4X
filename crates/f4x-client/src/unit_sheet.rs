@@ -693,13 +693,13 @@ fn move_icon_of(movement: MovementType) -> usize {
 impl App {
     /// The sheet of a unit on the map.
     pub(crate) fn overland_sheet(&self, unit: hecs::Entity) -> Option<Sheet> {
-        let world = &self.world;
-        let units = world.units();
+        let game = &self.game;
+        let units = game.units();
         let def = units.unit_def(unit)?;
-        let content = world.content();
+        let content = game.content();
         let abilities = units.unit_abilities(unit);
         let granted = units.unit_granted_abilities(unit);
-        let stasis_held = world.unit_in_stasis(unit);
+        let stasis_held = game.unit_in_stasis(unit);
         let stat = |s: Stat| units.unit_stat(unit, s);
         let base = |s: Stat| def.stats.get(&s).map_or(0, |v| v.floor());
         let hp = stat(Stat::MaxHp).max(1);
@@ -717,7 +717,7 @@ impl App {
         let level = level_path
             .filter(|_| {
                 matches!(def.kind, UnitKind::Normal | UnitKind::Hero)
-                    && !world.units().unit_is_undead(unit)
+                    && !game.units().unit_is_undead(unit)
             })
             .and_then(|p| {
                 let i = units.unit_level(unit);
@@ -732,7 +732,7 @@ impl App {
         let ability_help = |id: Ability| content.rules.abilities.get(id).help;
         // The lasting spells the unit's items put on it come after its own (`USW_Item_UEs`); they
         // go with the item and cannot be turned off.
-        let from_items = world
+        let from_items = game
             .items()
             .spells(unit)
             .into_iter()
@@ -838,10 +838,10 @@ impl App {
     /// A hero's portrait and name, with its three item slots put at the head of `specials` (the
     /// original lists the items first, then the abilities); `None` for any other unit.
     fn hero_view(&self, unit: hecs::Entity, specials: &mut Vec<Special>) -> Option<HeroView> {
-        let units = self.world.units();
+        let units = self.game.units();
         let def = units.unit_def(unit)?;
         let hero = def.hero.as_ref()?;
-        let held = self.world.items().hero_items(unit);
+        let held = self.game.items().hero_items(unit);
         let lines = hero
             .slots()
             .into_iter()
@@ -875,7 +875,7 @@ impl App {
     ) -> Sheet {
         use f4x_def::rules::effects::Effect;
         use f4x_def::rules::ModOp;
-        let content = self.world.content();
+        let content = self.game.content();
         let mut stats = def.stats.clone();
         let mut level_line = None;
         let path = def.level_path.map(|p| content.rules.level_paths.get(p));
@@ -993,7 +993,7 @@ impl App {
     pub(crate) fn battle_sheet(&self, battle: &Battle, id: usize) -> Option<Sheet> {
         let u: &BattleUnit = battle.unit(id)?;
         let now = battle.now_of(u);
-        let content = self.world.content();
+        let content = self.game.content();
         let def = content.rules.units.get(u.unit_id?);
         let base = |s: Stat| def.stats.get(&s).map_or(0, |v| v.floor());
         let ability_name = |id: Ability| {
@@ -1035,14 +1035,14 @@ impl App {
             ranged: now.ranged(),
             granted: &u.granted,
             hero_level: def.hero.is_some().then(|| {
-                self.world
+                self.game
                     .battle_unit_source(id)
-                    .map_or(0, |e| self.world.units().unit_level(e))
+                    .map_or(0, |e| self.game.units().unit_level(e))
             }),
         });
         // A hero's three item slots head the list, as on the overland sheet; the portrait and
         // the name come from the battle unit, which kept the name when the battle began.
-        if let Some(unit) = self.world.battle_unit_source(id) {
+        if let Some(unit) = self.game.battle_unit_source(id) {
             let _ = self.hero_view(unit, &mut specials);
         }
         let owner = battle.player_of(u.side).0;
@@ -1479,12 +1479,12 @@ mod tests {
         let mut app = crate::view::App::for_test();
         app.select_first_stack();
         let at = app
-            .world
+            .game
             .units()
             .unit_position(app.selection[0])
             .ok_or("the stack has no position")?;
         let hero = app
-            .world
+            .game
             .spawn_hero(crate::view::HUMAN, at, 0)
             .map_err(|e| format!("{e:?}"))?;
         let sheet = app.overland_sheet(hero).ok_or("the hero has no sheet")?;
@@ -1516,13 +1516,13 @@ mod tests {
         let mut app = crate::view::App::for_test();
         app.select_first_stack();
         let at = app
-            .world
+            .game
             .units()
             .unit_position(app.selection[0])
             .ok_or("the stack has no position")?;
         // Hero type 0 (Brax) has Constitution as a fixed ability; at level 0 it is worth +1.
         let hero = app
-            .world
+            .game
             .spawn_hero(crate::view::HUMAN, at, 0)
             .map_err(|e| format!("{e:?}"))?;
         let sheet = app.overland_sheet(hero).ok_or("the hero has no sheet")?;
@@ -1538,7 +1538,7 @@ mod tests {
     #[test]
     fn a_hero_type_gets_a_portrait_on_the_sheets_of_offers_and_battles() -> Result<(), String> {
         let app = crate::view::App::for_test();
-        let rules = app.world.content().rules.clone();
+        let rules = app.game.content().rules.clone();
         let template = rules.hero_templates.first().ok_or("no hero type")?;
         let def = rules.units.get(template.unit);
         let view = app
@@ -1560,23 +1560,23 @@ mod tests {
         let mut app = crate::view::App::for_test();
         app.select_first_stack();
         let at = app
-            .world
+            .game
             .units()
             .unit_position(app.selection[0])
             .ok_or("the stack has no position")?;
         let hero = app
-            .world
+            .game
             .spawn_hero(crate::view::HUMAN, at, 0)
             .map_err(|e| format!("{e:?}"))?;
-        let name = app.world.units().hero_name(hero).ok_or("no hero name")?;
+        let name = app.game.units().hero_name(hero).ok_or("no hero name")?;
         app.open_test_battle();
         // Renaming afterwards changes nothing in the battle: the name was stored at the start.
-        let battle = app.world.battle().cloned().ok_or("no battle")?;
+        let battle = app.game.battle().cloned().ok_or("no battle")?;
         let id = battle
             .units
             .iter()
             .map(|u| u.id)
-            .find(|&id| app.world.battle_unit_source(id) == Some(hero))
+            .find(|&id| app.game.battle_unit_source(id) == Some(hero))
             .ok_or("the hero is not in the battle")?;
         let over = app
             .battle_sheet_over(&battle, id)

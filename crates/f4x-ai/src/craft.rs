@@ -10,6 +10,7 @@ use f4x_core::world::{Command, Event, World};
 use f4x_def::rules::{ItemKind, PowerBonus, SlotKind};
 
 use crate::Ai;
+use f4x_master::Game;
 
 /// Mana the wizard keeps back from a craft, for its other spells.
 const RESERVE: i32 = 200;
@@ -81,17 +82,17 @@ fn design(
 }
 
 /// Start an item for a hero that has an empty slot, if the armory has nothing for it.
-pub fn run(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
+pub fn run(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let choice = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         let Some(magic) = view.wizard() else {
             return;
         };
         if magic.casting().is_some() {
             return;
         }
-        let rules = &world.content().rules;
+        let rules = &game.content().rules;
         // Create Artifact takes any power; Enchant Item the cheap ones.
         let Some(craft) = [Craft::CreateArtifact, Craft::EnchantItem]
             .into_iter()
@@ -119,11 +120,11 @@ pub fn run(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
         let Some(&slot) = slots.get(waiting) else {
             return;
         };
-        design(world, me, craft, slot, budget).map(|d| (craft, d))
+        design(game, me, craft, slot, budget).map(|d| (craft, d))
     };
     if let Some((craft, design)) = choice {
         ai.order(
-            world,
+            game,
             Command::CraftItem {
                 player: me,
                 craft,
@@ -139,10 +140,11 @@ mod tests {
     use super::*;
     use crate::testworld::{fresh_game, P1};
     use f4x_core::player::view::PlayerView;
+    use f4x_master::Game;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-    fn rich(w: &mut World) -> TestResult {
+    fn rich(w: &mut Game) -> TestResult {
         let t = w.treasury_mut(P1).ok_or("player 1 has a treasury")?;
         t.gold = f4x_def::half_int::HalfInt::from_int(50_000);
         t.mana = f4x_def::half_int::HalfInt::from_int(5_000);

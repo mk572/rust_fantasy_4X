@@ -702,7 +702,7 @@ mod tests {
     /// A city whose area gets the special `change` puts on the map, and what it specializes in.
     fn specialty_after(
         change: impl Fn(&mut f4x_core::map::Grid, u32, u32),
-    ) -> Result<(Option<BuildingId>, f4x_core::world::World), Box<dyn std::error::Error>> {
+    ) -> Result<(Option<BuildingId>, f4x_master::Game), Box<dyn std::error::Error>> {
         let mut w = game(COAST_CITY, 8 /* high_men */);
         let city = w
             .economy()

@@ -12,6 +12,7 @@ use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::world::serial::Serial;
 use f4x_core::world::{Event, World};
+use f4x_master::Game;
 
 /// What a unit is doing, as far as the AI's lists say.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -900,16 +901,16 @@ pub fn register(ai: &mut Ai, world: &World) {
 /// unit with nothing to do awaits orders and stays where it stands: the soldiers among them are
 /// counted (adrift), as are the ships and the other units (unassigned). The audit is counted in an
 /// [`Event::RolesAudited`].
-pub fn audit(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
+pub fn audit(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let counted = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         // The units that are gone leave the registry; the others each get their role.
         let alive: Vec<_> = view.my_units().iter().map(|&u| view.serial_of(u)).collect();
         ai.roles.prune(&alive);
         // Units with no entry yet came into being since the start of the turn.
         let unregistered = alive.iter().filter(|&&s| ai.roles.get(s).is_none()).count() as u32;
-        let held = sync(ai, &view, world.turn);
+        let held = sync(ai, &view, game.turn);
         (tally(&held), unregistered)
     };
     let (counted, unregistered) = counted;

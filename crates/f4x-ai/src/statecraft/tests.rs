@@ -3,12 +3,13 @@ use crate::testworld::{at, game, spawn, COAST_CITY, P0, P1};
 use f4x_core::rules::RealmId;
 use f4x_core::world::Event;
 use f4x_def::half_int::HalfInt;
+use f4x_master::Game;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 /// Give a wizard its books, retorts and start spells.
 fn wizard(
-    w: &mut World,
+    w: &mut Game,
     p: PlayerId,
     books: &[(RealmId, u8)],
     retorts: &[Retort],
@@ -18,7 +19,7 @@ fn wizard(
         .expect("init_wizard succeeds");
 }
 
-fn found(w: &mut World, owner: PlayerId, x: u32, y: u32) {
+fn found(w: &mut Game, owner: PlayerId, x: u32, y: u32) {
     let race = w.content().rules.races.id_numbered(8);
     let events = w.apply(Command::FoundCity {
         owner,
@@ -36,7 +37,7 @@ fn found(w: &mut World, owner: PlayerId, x: u32, y: u32) {
 /// The west wizard (P0) holds four cities and an army of ten on the west island; the east
 /// wizard (P1) holds one city there and one on the east island and no army. They have met and
 /// P0 has seen the nearer city of P1. It is turn 100.
-fn lopsided() -> Result<World, Box<dyn std::error::Error>> {
+fn lopsided() -> Result<Game, Box<dyn std::error::Error>> {
     lopsided_at(Some(WEST_RIVAL))
 }
 
@@ -44,7 +45,7 @@ fn lopsided() -> Result<World, Box<dyn std::error::Error>> {
 const WEST_RIVAL: (u32, u32) = (3, 8);
 
 /// [`lopsided`], with the east wizard's city on the west island at `rival` or without one.
-fn lopsided_at(rival: Option<(u32, u32)>) -> Result<World, Box<dyn std::error::Error>> {
+fn lopsided_at(rival: Option<(u32, u32)>) -> Result<Game, Box<dyn std::error::Error>> {
     let mut w = game(COAST_CITY, 8 /* high_men */);
     for (x, y) in [(6, 3), (10, 10)] {
         found(&mut w, P0, x, y);

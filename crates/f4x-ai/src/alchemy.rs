@@ -6,12 +6,13 @@
 
 use crate::Ai;
 use f4x_core::player::view::PlayerView;
-use f4x_core::world::{Command, Event, World};
+use f4x_core::world::{Command, Event};
+use f4x_master::Game;
 
 /// Turn the whole mana of a player without a wizard into gold.
-pub(crate) fn run(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
+pub(crate) fn run(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let mana = {
-        let view = PlayerView::new(world, ai.player);
+        let view = PlayerView::new(game, ai.player);
         if view.wizard().is_some() {
             return;
         }
@@ -19,7 +20,7 @@ pub(crate) fn run(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
     };
     if mana > 0 {
         ai.order(
-            world,
+            game,
             Command::Alchemy {
                 player: ai.player,
                 amount: mana,
@@ -33,20 +34,22 @@ pub(crate) fn run(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use f4x_core::world::World;
     use f4x_def::half_int::HalfInt;
     use f4x_def::testdir::TestResult;
+    use f4x_master::Game;
     use f4x_newgame::setup::{new_game, NewGame};
 
     #[test]
     fn a_player_without_a_wizard_turns_its_mana_into_gold_and_a_wizard_keeps_it() -> TestResult {
-        let mut w = new_game(
+        let mut w = Game::new(new_game(
             f4x_def::testdir::shipped(),
             &NewGame {
                 seed: 7,
                 all_ai: true,
                 ..Default::default()
             },
-        )?;
+        )?);
         let race = w
             .economy()
             .cities()

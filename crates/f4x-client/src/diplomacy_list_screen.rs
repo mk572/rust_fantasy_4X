@@ -149,17 +149,17 @@ impl App {
     pub(crate) fn contacts(&self) -> Vec<Contact> {
         let ranks = self.wizard_ranks();
         let mut found: Vec<Contact> = self
-            .world
+            .game
             .player_ids()
             .into_iter()
-            .filter(|&id| id != HUMAN && self.world.takes_part_in_diplomacy(id))
-            .filter(|&id| self.world.have_met(HUMAN, id))
+            .filter(|&id| id != HUMAN && self.game.takes_part_in_diplomacy(id))
+            .filter(|&id| self.game.have_met(HUMAN, id))
             .map(|id| {
                 let relation = self.feeling(id);
-                let treaty = self.world.treaty(HUMAN, id);
+                let treaty = self.game.treaty(HUMAN, id);
                 let peace = treaty == Treaty::None
                     && self
-                        .world
+                        .game
                         .diplomacy
                         .stance(id, HUMAN)
                         .is_some_and(|s| s.peace_duration > 0);
@@ -171,12 +171,12 @@ impl App {
                     relation,
                     treaty,
                     peace,
-                    gone: self.world.player(id).is_some_and(|p| p.is_defeated()),
-                    banner: crate::map_draw::banner_of(&self.world, id),
+                    gone: self.game.player(id).is_some_and(|p| p.is_defeated()),
+                    banner: crate::map_draw::banner_of(&self.game, id),
                 }
             })
             .collect();
-        found.sort_by_key(|c| (self.world.race_of_player(c.id).is_some(), c.gone));
+        found.sort_by_key(|c| (self.game.race_of_player(c.id).is_some(), c.gone));
         found
     }
 
@@ -192,15 +192,15 @@ impl App {
 
     /// The people of a neutral player's race, "Barbarians".
     fn race_name(&self, id: PlayerId) -> Option<String> {
-        let race = self.world.race_of_player(id)?;
-        let num = self.world.content().rules.races.get(race).num;
+        let race = self.game.race_of_player(id)?;
+        let num = self.game.content().rules.races.get(race).num;
         Some(self.names.race_plural(num).to_string())
     }
 
     /// Where each wizard known stands by army strength, magic power and spell research, the
     /// scores of the Astrologer screen: 1 for the highest, a tie shares the better place.
     pub(crate) fn wizard_ranks(&self) -> std::collections::HashMap<PlayerId, [usize; 3]> {
-        let table = self.world.astrology_table();
+        let table = self.game.astrology_table();
         let known = self.known_wizards();
         let scores: Vec<(PlayerId, [i32; 3])> = known
             .iter()
@@ -225,18 +225,18 @@ impl App {
         let mut rows = Vec::new();
         let (neutral, wizards): (Vec<Contact>, Vec<Contact>) = contacts
             .into_iter()
-            .partition(|c| self.world.race_of_player(c.id).is_some());
+            .partition(|c| self.game.race_of_player(c.id).is_some());
         rows.extend(wizards.into_iter().map(Row::Contact));
         if !neutral.is_empty() {
             rows.push(Row::Heading(self.text("diplomacy.list_neutral")));
             rows.extend(neutral.into_iter().map(Row::Contact));
         }
         let unmet = self
-            .world
+            .game
             .wizards()
             .into_iter()
-            .filter(|&w| w != HUMAN && !self.world.have_met(HUMAN, w))
-            .filter(|&w| !self.world.player(w).is_some_and(|p| p.is_defeated()))
+            .filter(|&w| w != HUMAN && !self.game.have_met(HUMAN, w))
+            .filter(|&w| !self.game.player(w).is_some_and(|p| p.is_defeated()))
             .count();
         if unmet > 0 {
             rows.push(Row::Note(self.text_with(
@@ -250,10 +250,10 @@ impl App {
     /// The contact's picture: a wizard's gem in its banner colour, a race's own picture.
     fn draw_contact_gem(&mut self, lay: &Layout, c: &Contact) {
         let (x, y) = GEM_AT;
-        if let Some(race) = self.world.race_of_player(c.id) {
+        if let Some(race) = self.game.race_of_player(c.id) {
             self.draw_neutral(lay, race.num(), crate::neutral_art::Kind::Gem, x, y);
         } else {
-            let portrait = self.world.player(c.id).map_or(0, |p| p.portrait());
+            let portrait = self.game.player(c.id).map_or(0, |p| p.portrait());
             self.draw_gem(lay, portrait, c.banner, x, y);
         }
     }
@@ -270,7 +270,7 @@ impl App {
         let held: Vec<(Treaty, &Contact)> = others
             .iter()
             .filter(|o| o.id != c.id)
-            .map(|o| (self.world.treaty(c.id, o.id), o))
+            .map(|o| (self.game.treaty(c.id, o.id), o))
             .filter(|(t, _)| *t != Treaty::None)
             .collect();
         let room = TREATIES_PER_COLUMN * 2;
@@ -321,28 +321,32 @@ impl App {
     /// from hate to harmony and a war, an alliance and a pact among them, and the list opened.
     pub fn open_test_diplomacy_list(&mut self) {
         let others: Vec<PlayerId> = self
-            .world
+            .game
             .player_ids()
             .into_iter()
-            .filter(|&id| id != HUMAN && self.world.takes_part_in_diplomacy(id))
+            .filter(|&id| id != HUMAN && self.game.takes_part_in_diplomacy(id))
             .collect();
         for (i, &id) in others.iter().enumerate() {
-            self.world.make_contact(HUMAN, id);
+            self.game.world_mut().make_contact(HUMAN, id);
             let feeling = [-90, -50, -25, -5, 0, 15, 40, 70, 95][i % 9];
-            self.diplomats.set_feeling(&self.world, id, HUMAN, feeling);
+            self.diplomats.set_feeling(&self.game, id, HUMAN, feeling);
         }
         for (i, pair) in others.windows(2).enumerate() {
             let treaty = [Treaty::War, Treaty::Alliance, Treaty::Pact][i % 3];
-            self.world.make_contact(pair[0], pair[1]);
-            self.world.start_treaty(pair[0], pair[1], treaty);
+            self.game.world_mut().make_contact(pair[0], pair[1]);
+            self.game.world_mut().start_treaty(pair[0], pair[1], treaty);
         }
         if let Some(&first) = others.first() {
-            self.world.start_treaty(HUMAN, first, Treaty::War);
+            self.game
+                .world_mut()
+                .start_treaty(HUMAN, first, Treaty::War);
         }
         if let Some(&second) = others.get(1) {
-            self.world.start_treaty(HUMAN, second, Treaty::Alliance);
+            self.game
+                .world_mut()
+                .start_treaty(HUMAN, second, Treaty::Alliance);
         }
-        self.world.drain_diplomacy_events();
+        self.game.world_mut().drain_diplomacy_events();
         self.open_diplomacy_list();
     }
 
@@ -367,7 +371,7 @@ impl Page for DiplomacyListUi {
         ui.first = ui.first.min(count.saturating_sub(ROWS));
 
         let owner = app
-            .world
+            .game
             .wizard(HUMAN)
             .map_or_else(String::new, |w| w.name());
         let title = app.text_with("diplomacy.list_title", &Args::new().text("owner", owner));
@@ -522,7 +526,7 @@ impl Page for DiplomacyListUi {
         }
 
         // Your reserves, where the city list shows them.
-        let (gold, mana) = app.world.player(HUMAN).map_or(
+        let (gold, mana) = app.game.player(HUMAN).map_or(
             (
                 f4x_def::half_int::HalfInt::ZERO,
                 f4x_def::half_int::HalfInt::ZERO,
@@ -546,7 +550,7 @@ impl Page for DiplomacyListUi {
         } else if let Some(id) = left {
             app.open_talk_from_list(id);
         } else if let Some(id) = right {
-            if app.world.is_wizard(id) {
+            if app.game.is_wizard(id) {
                 app.open_wizard(id);
             }
         }
@@ -571,7 +575,7 @@ mod tests {
     fn only_the_contacts_met_are_listed_and_the_rest_are_counted() {
         let mut app = App::for_test();
         let rivals: Vec<PlayerId> = app
-            .world
+            .game
             .wizards()
             .into_iter()
             .filter(|&w| w != HUMAN)
@@ -583,7 +587,7 @@ mod tests {
             "nobody is met at the start"
         );
         assert!(matches!(rows.last(), Some(Row::Note(_))), "{rows:?}");
-        app.world.make_contact(HUMAN, rivals[0]);
+        app.game.make_contact(HUMAN, rivals[0]);
         let rows = app.diplomacy_rows();
         let met: Vec<PlayerId> = rows
             .iter()
@@ -599,13 +603,13 @@ mod tests {
     fn a_contact_row_shows_the_relation_and_the_treaty() {
         let mut app = App::for_test();
         let rival = app
-            .world
+            .game
             .wizards()
             .into_iter()
             .find(|&w| w != HUMAN)
             .expect("a rival");
-        app.world.make_contact(HUMAN, rival);
-        app.world.start_treaty(HUMAN, rival, Treaty::War);
+        app.game.make_contact(HUMAN, rival);
+        app.game.start_treaty(HUMAN, rival, Treaty::War);
         let rows = app.diplomacy_rows();
         let Some(Row::Contact(c)) = rows.first() else {
             panic!("no contact row in {rows:?}");
@@ -633,15 +637,15 @@ mod tests {
     fn an_independent_race_met_comes_after_the_wizards_under_its_own_heading() {
         let mut app = App::for_test();
         let rival = app
-            .world
+            .game
             .wizards()
             .into_iter()
             .find(|&w| w != HUMAN)
             .expect("a rival");
         let neutral = f4x_core::player::race_player::race_player_id(f4x_def::rules::RaceId::new(0));
-        app.world.add_neutral_player(neutral);
-        app.world.make_contact(HUMAN, neutral);
-        app.world.make_contact(HUMAN, rival);
+        app.game.add_neutral_player(neutral);
+        app.game.make_contact(HUMAN, neutral);
+        app.game.make_contact(HUMAN, rival);
         let rows = app.diplomacy_rows();
         let heading = rows
             .iter()
@@ -661,7 +665,7 @@ mod tests {
     fn the_ranks_count_the_wizards_known_and_a_tie_shares_the_better_place() {
         let mut app = App::for_test();
         let rival = app
-            .world
+            .game
             .wizards()
             .into_iter()
             .find(|&w| w != HUMAN)
@@ -670,7 +674,7 @@ mod tests {
             !app.wizard_ranks().contains_key(&rival),
             "a wizard not met is not ranked"
         );
-        app.world.make_contact(HUMAN, rival);
+        app.game.make_contact(HUMAN, rival);
         let ranks = app.wizard_ranks();
         let (mine, theirs) = (ranks[&HUMAN], ranks[&rival]);
         for k in 0..3 {

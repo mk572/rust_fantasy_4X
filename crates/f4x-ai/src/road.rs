@@ -20,6 +20,7 @@ use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::rules::Stat;
 use f4x_core::world::{Command, Event, World};
+use f4x_master::Game;
 
 /// The nearest cities an engineer links a city to.
 const NEIGHBOURS: usize = 3;
@@ -48,11 +49,11 @@ pub(crate) fn engineers_possible(view: &PlayerView) -> bool {
 }
 
 /// One turn of the engineers: each that is idle gets a road to build, or a place to walk to.
-pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
+pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    let turn = world.turn;
+    let turn = game.turn;
     let (count, engineers) = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         let mut engineers: Vec<hecs::Entity> = view
             .my_units()
             .into_iter()
@@ -67,7 +68,7 @@ pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     }
     for engineer in engineers {
         let (serial, busy) = {
-            let view = PlayerView::new(world, me);
+            let view = PlayerView::new(game, me);
             (
                 view.serial_of(engineer),
                 view.unit_builds_road(engineer) || view.unit_has_order(engineer),
@@ -79,14 +80,14 @@ pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
         }
         // An engineer aboard a ship at sea has no road to build.
         let afloat = {
-            let view = PlayerView::new(world, me);
+            let view = PlayerView::new(game, me);
             view.unit_position(engineer)
                 .is_some_and(|p| !view.road_possible(p))
         };
         if afloat || ai.roles.claim(serial, Role::Road, turn, None).is_err() {
             continue;
         }
-        match work(ai, world, engineer, events) {
+        match work(ai, game, engineer, events) {
             Some(to) => {
                 let _ = ai.roles.claim(serial, Role::Road, turn, Some(to));
             }
@@ -100,13 +101,13 @@ pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
 /// Give one idle engineer its work: the square it works toward, when it found some.
 fn work(
     ai: &mut Ai,
-    world: &mut World,
+    game: &mut Game,
     engineer: hecs::Entity,
     events: &mut Vec<Event>,
 ) -> Option<Position> {
     let me = ai.player;
     let (here, cities) = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         let mut cities: Vec<(hecs::Entity, Position)> = view.my_cities();
         cities.sort_by_key(|&(c, _)| view.serial_of(c));
         (view.unit_position(engineer)?, cities)
@@ -114,7 +115,7 @@ fn work(
     // In a city: build the first link that lacks a road.
     if let Some(&(city, _)) = cities.iter().find(|&&(_, p)| p == here) {
         let mut near: Vec<(u32, Position)> = {
-            let view = PlayerView::new(world, me);
+            let view = PlayerView::new(game, me);
             cities
                 .iter()
                 .filter(|&&(_, p)| p != here)
@@ -125,7 +126,7 @@ fn work(
         near.sort_by_key(|&(d, p)| (d, p.plane as u8, p.y, p.x));
         // A link another engineer is on its way to or building is left to it.
         let others: Vec<Position> = {
-            let serial = PlayerView::new(world, me).serial_of(engineer);
+            let serial = PlayerView::new(game, me).serial_of(engineer);
             ai.roles
                 .targeted(Role::Road)
                 .into_iter()
@@ -138,24 +139,24 @@ fn work(
                 continue;
             }
             let path = {
-                let view = PlayerView::new(world, me);
+                let view = PlayerView::new(game, me);
                 view.path(&[engineer], to)
             };
             let Some(path) = path else { continue };
             if !path
                 .iter()
-                .all(|&p| PlayerView::new(world, me).road_possible(p))
+                .all(|&p| PlayerView::new(game, me).road_possible(p))
             {
                 continue;
             }
-            if path.iter().all(|&p| PlayerView::new(world, me).has_road(p)) {
+            if path.iter().all(|&p| PlayerView::new(game, me).has_road(p)) {
                 continue;
             }
-            if build(ai, world, engineer, path, events) {
+            if build(ai, game, engineer, path, events) {
                 return Some(to);
             }
         }
-        let serial = PlayerView::new(world, me).serial_of(city);
+        let serial = PlayerView::new(game, me).serial_of(city);
         if !ai.road_checked.contains(&serial) {
             ai.road_checked.push(serial);
         }
@@ -163,17 +164,17 @@ fn work(
     // Every city looked at: toward the campaign target.
     if cities.iter().all(|&(c, _)| {
         ai.road_checked
-            .contains(&PlayerView::new(world, me).serial_of(c))
+            .contains(&PlayerView::new(game, me).serial_of(c))
     }) {
-        return frontier(ai, world, engineer, events);
+        return frontier(ai, game, engineer, events);
     }
     // Else to the nearest city not looked at, that has room for the engineer (a full city
     // refuses it, `StackFull`; the cities with no room wait). With none left, to the frontier.
-    let Some(next) = nearest_unchecked(ai, world, engineer, here, &cities) else {
-        return frontier(ai, world, engineer, events);
+    let Some(next) = nearest_unchecked(ai, game, engineer, here, &cities) else {
+        return frontier(ai, game, engineer, events);
     };
     ai.send(
-        world,
+        game,
         Command::GoTo {
             units: vec![engineer],
             to: next,
@@ -207,13 +208,13 @@ fn nearest_unchecked(
 /// Build a road along `path`: whether the game took the order.
 fn build(
     ai: &Ai,
-    world: &mut World,
+    game: &mut Game,
     engineer: hecs::Entity,
     path: Vec<Position>,
     events: &mut Vec<Event>,
 ) -> bool {
     ai.send(
-        world,
+        game,
         Command::BuildRoad {
             units: vec![engineer],
             path,
@@ -255,15 +256,15 @@ fn frontier_way(ai: &Ai, world: &World, engineer: hecs::Entity) -> Option<(Vec<P
 /// one. Near a rival's cities it works only with an escort.
 fn frontier(
     ai: &mut Ai,
-    world: &mut World,
+    game: &mut Game,
     engineer: hecs::Entity,
     events: &mut Vec<Event>,
 ) -> Option<Position> {
     let me = ai.player;
-    let (path, first) = frontier_way(ai, world, engineer)?;
+    let (path, first) = frontier_way(ai, game, engineer)?;
     // The stretch another engineer is on is left to it.
     {
-        let serial = PlayerView::new(world, me).serial_of(engineer);
+        let serial = PlayerView::new(game, me).serial_of(engineer);
         if ai
             .roles
             .targeted(Role::Road)
@@ -277,7 +278,7 @@ fn frontier(
         let stretch: Vec<Position> = path.into_iter().take(STRETCH).collect();
         let end = *stretch.last()?;
         let near_enemy = {
-            let view = PlayerView::new(world, me);
+            let view = PlayerView::new(game, me);
             view.known_cities().into_iter().any(|(_, owner, city)| {
                 owner != me
                     && view.is_rival_wizard(owner)
@@ -286,15 +287,15 @@ fn frontier(
                         .any(|&p| view.distance(p, city).is_some_and(|d| d <= ENEMY_NEAR))
             })
         };
-        if near_enemy && !crate::escort::guard(ai, world, engineer, events) {
+        if near_enemy && !crate::escort::guard(ai, game, engineer, events) {
             // It waits where it stands for the escort to come.
-            return PlayerView::new(world, me).unit_position(engineer);
+            return PlayerView::new(game, me).unit_position(engineer);
         }
-        return build(ai, world, engineer, stretch, events).then_some(end);
+        return build(ai, game, engineer, stretch, events).then_some(end);
     }
     let to = path[first - 1];
     ai.send(
-        world,
+        game,
         Command::GoTo {
             units: vec![engineer],
             to,
@@ -313,17 +314,17 @@ fn engineers_wanted(cities: usize) -> usize {
 
 /// The engineers' production: while there is road to build and fewer engineers than
 /// [`engineers_wanted`], the city of most people that can make them builds one.
-pub fn build_engineer(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
+pub fn build_engineer(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let city = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         if !engineers_possible(&view) {
             return;
         }
         let cities = view.my_cities();
         let work = cities.len() >= 2 && ai.road_checked.len() < cities.len()
             || ai.campaign.is_some()
-            || !PlayerView::new(world, me).towers().is_empty();
+            || !PlayerView::new(game, me).towers().is_empty();
         let engineers = view
             .my_units()
             .iter()
@@ -363,8 +364,8 @@ pub fn build_engineer(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
         best
     };
     if let Some((_, city, item)) = city {
-        if world.economy().city_production(city).item != Some(item) {
-            ai.order(world, Command::SetProduction { city, item }, events);
+        if game.economy().city_production(city).item != Some(item) {
+            ai.order(game, Command::SetProduction { city, item }, events);
         }
     }
 }
@@ -403,6 +404,7 @@ fn engineer_item(view: &PlayerView, city: hecs::Entity) -> Option<ProductionItem
 mod tests {
     use super::*;
     use crate::testworld::{at, game, spawn, COAST_CITY, INLAND_CITY, P0};
+    use f4x_master::Game;
 
     /// A race with engineers can have roads built; one without can not, until an engineer exists.
     #[test]
@@ -430,7 +432,7 @@ mod tests {
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
     /// Two cities of player 0 and engineers (high men) in the first.
-    fn world() -> Result<(World, hecs::Entity), Box<dyn std::error::Error>> {
+    fn world() -> Result<(Game, hecs::Entity), Box<dyn std::error::Error>> {
         let mut w = game(COAST_CITY, 8 /* high_men */);
         let race = w.content().rules.races.id_numbered(8).ok_or("high men")?;
         let events = w.apply(Command::FoundCity {

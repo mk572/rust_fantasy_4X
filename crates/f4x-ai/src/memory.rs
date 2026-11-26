@@ -421,6 +421,7 @@ impl Diplomats {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use f4x_master::Game;
 
     use crate::testworld::{game, COAST_CITY, P0, P1};
     use f4x_core::player::MONSTERS;
@@ -431,7 +432,7 @@ mod tests {
     const THIRD: PlayerId = MONSTERS;
 
     /// A game at turn `turn`.
-    fn at_turn(turn: u32) -> World {
+    fn at_turn(turn: u32) -> Game {
         let mut w = game(COAST_CITY, 8 /* high_men */);
         w.turn = turn;
         w

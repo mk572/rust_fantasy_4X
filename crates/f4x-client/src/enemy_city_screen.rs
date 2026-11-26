@@ -31,7 +31,7 @@ impl App {
 
     /// For the screenshot check: show the first city of another wizard, or the first city.
     pub fn open_first_enemy_city(&mut self) {
-        let cities = self.world.economy().cities();
+        let cities = self.game.economy().cities();
         let pick = cities
             .iter()
             .find(|(_, c, _)| c.owner != HUMAN)
@@ -40,7 +40,8 @@ impl App {
             let city = *city;
             // A human opens the screen of a city it has seen: the check explores it first.
             let at = self.city_position(city);
-            self.world
+            self.game
+                .world_mut()
                 .explore(HUMAN, at, f4x_def::half_int::HalfInt::from_raw(5));
             self.open_enemy_city(city);
         }
@@ -56,8 +57,8 @@ impl Page for EnemyCityPage {
     fn frame(&mut self, app: &mut App, input: &Input) {
         let city = self.city;
         let at = app.city_position(city);
-        if app.world.economy().city_at(at) != Some(city)
-            || app.world.economy().city_owner(city) == Some(HUMAN)
+        if app.game.economy().city_at(at) != Some(city)
+            || app.game.economy().city_owner(city) == Some(HUMAN)
         {
             app.screen = Screen::Map;
             return;
@@ -75,7 +76,7 @@ impl Page for EnemyCityPage {
 
         // What a human may know of the city is the report of the view, the same the AI reads
         // (`PlayerView::city_report`); a square never scouted gives none ("No Report").
-        let report = PlayerView::new(&app.world, HUMAN).city_report(city);
+        let report = PlayerView::new(&app.game, HUMAN).city_report(city);
         let Some(report) = report else {
             let none = app.text("enemy_city.no_report");
             app.draw_styled(view, &Style::city_figures(), &none, X + 54.0, 64.0);
@@ -98,7 +99,7 @@ impl Page for EnemyCityPage {
             .map(|r| {
                 (
                     app.names
-                        .race(app.world.content().rules.races.get(r).num)
+                        .race(app.game.content().rules.races.get(r).num)
                         .to_string(),
                     r.num() as usize,
                 )
@@ -139,7 +140,7 @@ impl Page for EnemyCityPage {
             app.draw_army_unit(&layout, unit, ux - 1.0, uy - 1.0);
             if ui::hit(lay.rect(ux, uy, 20.0, 18.0), true, input).hovered() {
                 let name = app
-                    .world
+                    .game
                     .units()
                     .unit_def(unit)
                     .map(|d| app.names.unit(d.num).to_string());
@@ -157,7 +158,7 @@ impl Page for EnemyCityPage {
         for (k, &(spell, caster)) in report.enchantments.iter().take(6).enumerate() {
             let name = app
                 .names
-                .spell(app.world.content().rules.spells.get(spell).num)
+                .spell(app.game.content().rules.spells.get(spell).num)
                 .to_string();
             let ink = app.city_ench_ink(caster.0);
             app.draw_styled(

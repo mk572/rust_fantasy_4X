@@ -12,6 +12,7 @@ use f4x_core::world::{Command, Event, World};
 
 use crate::view::{fighting_strength, is_fighter, unit_strength};
 use crate::Ai;
+use f4x_master::Game;
 
 /// The AI attacks when its force is this much stronger than what it expects to meet.
 pub(crate) fn attack_ratio() -> f32 {
@@ -120,17 +121,17 @@ pub(crate) fn held_by_treaty(ai: &Ai, world: &World, defenders: &[hecs::Entity])
 /// resolved at once.
 pub(crate) fn engage(
     ai: &mut Ai,
-    world: &mut World,
+    game: &mut Game,
     attackers: Vec<hecs::Entity>,
     defenders: Vec<hecs::Entity>,
     events: &mut Vec<Event>,
 ) {
-    if held_by_treaty(ai, world, &defenders) {
+    if held_by_treaty(ai, game, &defenders) {
         return;
     }
     let defended_in_person = defenders
         .first()
-        .and_then(|&d| world.units().unit_owner(d))
+        .and_then(|&d| game.units().unit_owner(d))
         .is_some_and(|owner| ai.defended_by.contains(&owner));
     if defended_in_person {
         ai.attacks.push(crate::Attack {
@@ -138,7 +139,7 @@ pub(crate) fn engage(
             defenders,
         });
     } else {
-        resolve(ai, world, attackers, defenders, events);
+        resolve(ai, game, attackers, defenders, events);
     }
 }
 
@@ -146,18 +147,18 @@ pub(crate) fn engage(
 /// fight for a city gets all it may, a sure win in the open little).
 pub(crate) fn resolve(
     ai: &mut Ai,
-    world: &mut World,
+    game: &mut Game,
     attackers: Vec<hecs::Entity>,
     defenders: Vec<hecs::Entity>,
     events: &mut Vec<Event>,
 ) {
-    if held_by_treaty(ai, world, &defenders) {
+    if held_by_treaty(ai, game, &defenders) {
         return;
     }
     let mana_budget =
-        crate::budget::for_attack(&PlayerView::new(world, ai.player), &attackers, &defenders);
+        crate::budget::for_attack(&PlayerView::new(game, ai.player), &attackers, &defenders);
     ai.order(
-        world,
+        game,
         Command::AutoResolve {
             mana_budget,
             attackers,

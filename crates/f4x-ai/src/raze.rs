@@ -11,11 +11,12 @@ use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
 use f4x_core::wizard::objective::Personality;
-use f4x_core::world::{Command, Event, World};
+use f4x_core::world::{Command, Event};
 use f4x_def::rules::BuildingId;
 
 use crate::view::{is_fighter, stack_strength};
 use crate::Ai;
+use f4x_master::Game;
 
 /// How near a city counts as being on the same land: the AI cannot count the armies of the
 /// former owner (it sees what a human sees), so it counts the cities each side holds near it.
@@ -229,7 +230,7 @@ fn case(
 }
 
 /// Decide for every city of a wizard taken in the events so far this turn.
-pub(crate) fn run(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
+pub(crate) fn run(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let k = Knobs::current();
     let taken: Vec<(hecs::Entity, PlayerId)> = events
@@ -241,7 +242,7 @@ pub(crate) fn run(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
         .collect();
     for (city, from) in taken {
         let unwanted = {
-            let view = PlayerView::new(world, me);
+            let view = PlayerView::new(game, me);
             if !view.is_rival_wizard(from) {
                 continue;
             }
@@ -256,7 +257,7 @@ pub(crate) fn run(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
             case(&view, city, at, from, &k).is_some_and(|c| c.total() > k.threshold)
         };
         if unwanted {
-            ai.order(world, Command::RazeCity { player: me, city }, events);
+            ai.order(game, Command::RazeCity { player: me, city }, events);
         }
     }
 }
@@ -279,7 +280,7 @@ mod tests {
 
     /// A wizard of the high men, of this temper, has just taken a city of `race` at `square`.
     struct Taken {
-        w: World,
+        w: Game,
         city: hecs::Entity,
         at: Position,
         events: Vec<Event>,

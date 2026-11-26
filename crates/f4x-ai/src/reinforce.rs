@@ -16,17 +16,18 @@ use f4x_core::world::{Command, Event, World};
 use crate::roles::Role;
 use crate::view::{fighting_strength, is_fighter, unit_strength, ReachCache};
 use crate::Ai;
+use f4x_master::Game;
 
 /// One turn: the soldiers that are no longer needed are released, the free ones in a threatened
 /// city stay, and each city that wants more is sent some.
-pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
+pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    let threatened: Vec<(Position, f32)> = crate::military::threats(&PlayerView::new(world, me));
-    release(ai, world, &threatened);
-    keep_home(ai, world, &threatened);
-    let mut pool = crate::dispatch::soldiers(ai, world, |roles, s| roles.is_free(s));
+    let threatened: Vec<(Position, f32)> = crate::military::threats(&PlayerView::new(game, me));
+    release(ai, game, &threatened);
+    keep_home(ai, game, &threatened);
+    let mut pool = crate::dispatch::soldiers(ai, game, |roles, s| roles.is_free(s));
     let needs: Vec<(Position, f32)> = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         let mut cities: Vec<Position> = view.my_cities().into_iter().map(|(_, p)| p).collect();
         cities.sort_by_key(|p| (p.plane as u8, p.y, p.x));
         cities
@@ -66,7 +67,7 @@ pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     for (city, mut need) in needs {
         // The pool by distance from the city, the nearest first.
         let order: Vec<hecs::Entity> = {
-            let view = PlayerView::new(world, me);
+            let view = PlayerView::new(game, me);
             let mut near: Vec<(u32, f4x_core::world::serial::Serial, hecs::Entity)> = pool
                 .iter()
                 .copied()
@@ -82,13 +83,13 @@ pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
         // Soldiers that can walk to the city go first; the ones that cannot, on this plane, are
         // tagged for a ship (`pickup.rs`) only when walkers are not enough.
         let (walkers, sailors): (Vec<hecs::Entity>, Vec<hecs::Entity>) = {
-            let view = PlayerView::new(world, me);
+            let view = PlayerView::new(game, me);
             order
                 .into_iter()
                 .partition(|&u| reached.can_reach(&view, &[u], city))
         };
         let by_sea: Vec<hecs::Entity> = {
-            let view = PlayerView::new(world, me);
+            let view = PlayerView::new(game, me);
             sailors
                 .into_iter()
                 .filter(|&u| {
@@ -106,28 +107,28 @@ pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
             if need <= 0.0 {
                 break;
             }
-            let cap = crate::garrison::city_cap(&PlayerView::new(world, me), city);
+            let cap = crate::garrison::city_cap(&PlayerView::new(game, me), city);
             let on_the_way = sent_to
                 .iter()
                 .find(|(p, _)| *p == city)
                 .map_or(0, |&(_, n)| n);
-            if world.units().units_at(city).len() + on_the_way >= cap {
+            if game.units().units_at(city).len() + on_the_way >= cap {
                 break;
             }
-            let strength = unit_strength(&PlayerView::new(world, me), unit);
+            let strength = unit_strength(&PlayerView::new(game, me), unit);
             if !sails {
                 let go = Command::GoTo {
                     units: vec![unit],
                     to: city,
                 };
-                if ai.send(world, go, events).is_err() {
+                if ai.send(game, go, events).is_err() {
                     continue;
                 }
             }
-            let serial = PlayerView::new(world, me).serial_of(unit);
+            let serial = PlayerView::new(game, me).serial_of(unit);
             let _ = ai
                 .roles
-                .claim(serial, Role::Reinforce, world.turn, Some(city));
+                .claim(serial, Role::Reinforce, game.turn, Some(city));
             ai.roles.set_target(serial, Role::Reinforce, Some(city));
             if sails {
                 ai.roles
@@ -182,11 +183,12 @@ fn keep_home(ai: &mut Ai, world: &World, threatened: &[(Position, f32)]) {
 mod tests {
     use super::*;
     use crate::testworld::{at, game, spawn, COAST_CITY, INLAND_CITY, P0, P1};
+    use f4x_master::Game;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
     /// A coast city with `n` spearmen and a second, empty city inland.
-    fn two_cities(n: usize) -> Result<(World, Ai), Box<dyn std::error::Error>> {
+    fn two_cities(n: usize) -> Result<(Game, Ai), Box<dyn std::error::Error>> {
         let mut w = game(COAST_CITY, 8 /* high_men */);
         let events = w.apply(Command::FoundCity {
             owner: P0,
@@ -235,7 +237,7 @@ mod tests {
 
     /// West's city holds one spearman; five of East's swordsmen stand two squares away and three
     /// of West's own wait three squares from them.
-    fn besieged() -> (World, Vec<hecs::Entity>) {
+    fn besieged() -> (Game, Vec<hecs::Entity>) {
         let mut w = game(COAST_CITY, 8 /* high_men */);
         spawn(&mut w, P0, at(10, 6), 104 /* high_men_spearmen */, 1);
         spawn(&mut w, P1, at(8, 6), 105 /* high_men_swordsmen */, 5);
@@ -283,7 +285,7 @@ mod tests {
     }
 
     /// The empty home city and two soldiers on the far island.
-    fn overseas() -> Result<(World, Vec<hecs::Entity>), Box<dyn std::error::Error>> {
+    fn overseas() -> Result<(Game, Vec<hecs::Entity>), Box<dyn std::error::Error>> {
         use crate::testworld::ENEMY_CITY;
         let mut w = game(COAST_CITY, 8 /* high_men */);
         w.reveal_map(P0);

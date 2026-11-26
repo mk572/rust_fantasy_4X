@@ -25,6 +25,7 @@ use crate::military::{
 use crate::roles::{MusterKind, Role};
 use crate::view::{fighting_strength, party, stack_strength};
 use crate::Ai;
+use f4x_master::Game;
 
 /// What a stack decides about one square next to it.
 enum Sortie {
@@ -68,7 +69,7 @@ fn city_safe_without(view: &PlayerView, pos: Position, target: Position) -> bool
 }
 
 /// One turn of strikes.
-pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
+pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let avoid: Vec<Position> = [
         ai.war_plan.goal,
@@ -79,14 +80,14 @@ pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     .into_iter()
     .flatten()
     .collect();
-    let own_cities: Vec<Position> = PlayerView::new(world, me)
+    let own_cities: Vec<Position> = PlayerView::new(game, me)
         .my_cities()
         .into_iter()
         .map(|(_, p)| p)
         .collect();
     // Free soldiers, those gathering or marching for the campaign, the perimeter's and the
     // garrisons: whatever role a unit holds, it may join a strike and keeps the role.
-    let fighters = crate::dispatch::soldiers(ai, world, |roles, s| {
+    let fighters = crate::dispatch::soldiers(ai, game, |roles, s| {
         roles.is_free(s)
             || roles.in_muster(s, MusterKind::Campaign)
             || roles.is(s, Role::March)
@@ -94,14 +95,14 @@ pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
             || roles.is(s, Role::Reinforce)
             || roles.is(s, Role::Garrison)
     });
-    let edge = campaign_ratio(world, me);
-    let stack_list = stacks(&PlayerView::new(world, me), fighters);
+    let edge = campaign_ratio(game, me);
+    let stack_list = stacks(&PlayerView::new(game, me), fighters);
     for (pos, units) in stack_list {
         let at_city = own_cities.contains(&pos);
         // One view for the whole stack: nothing changes until a command is sent, and a command
         // that works ends the stack's turn.
         let (ratio, sorties) = {
-            let view = PlayerView::new(world, me);
+            let view = PlayerView::new(game, me);
             if view.game_over() {
                 return;
             }
@@ -119,7 +120,7 @@ pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
                 .into_iter()
                 .filter_map(|target| {
                     let defenders = view.hostile_at(target)?;
-                    if !fair_target(world, &view, target, &defenders, &avoid) {
+                    if !fair_target(game, &view, target, &defenders, &avoid) {
                         return None;
                     }
                     if defenders.is_empty() {
@@ -142,7 +143,7 @@ pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
                 Sortie::WalkIn(city) => {
                     // An empty enemy city: walk in, with the units that can still move.
                     let walkers: Vec<hecs::Entity> = {
-                        let view = PlayerView::new(world, me);
+                        let view = PlayerView::new(game, me);
                         units
                             .iter()
                             .copied()
@@ -160,11 +161,11 @@ pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
                         units: walkers,
                         to: city,
                     };
-                    if ai.send(world, to, events).is_ok() {
+                    if ai.send(game, to, events).is_ok() {
                         // The units are off the ship, or off its boarding tile: its pickup plan
                         // must not count them any more.
                         let serials: Vec<_> = {
-                            let view = PlayerView::new(world, me);
+                            let view = PlayerView::new(game, me);
                             walkers_sent.iter().map(|&u| view.serial_of(u)).collect()
                         };
                         for s in serials {
@@ -176,7 +177,7 @@ pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
                 Sortie::Fight(defenders, theirs) => {
                     // A city's garrison goes out only when the city is safe without it.
                     let (attackers, lent) = {
-                        let view = PlayerView::new(world, me);
+                        let view = PlayerView::new(game, me);
                         let lend = at_city && city_safe_without(&view, pos, target);
                         let fit: Vec<hecs::Entity> = units
                             .iter()
@@ -191,21 +192,21 @@ pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
                             .collect();
                         (band, lent)
                     };
-                    let mine = stack_strength(&PlayerView::new(world, me), &attackers);
+                    let mine = stack_strength(&PlayerView::new(game, me), &attackers);
                     if attackers.is_empty() || mine < theirs * ratio {
                         continue;
                     }
-                    engage(ai, world, attackers, defenders, events);
+                    engage(ai, game, attackers, defenders, events);
                     // The winners stand on the enemy's square: a city's soldier goes home.
                     let out: Vec<hecs::Entity> = {
-                        let view = PlayerView::new(world, me);
+                        let view = PlayerView::new(game, me);
                         lent.into_iter()
                             .filter(|&u| view.unit_position(u).is_some_and(|p| p != pos))
                             .collect()
                     };
                     if !out.is_empty() {
                         ai.order(
-                            world,
+                            game,
                             Command::GoTo {
                                 units: out,
                                 to: pos,
@@ -224,10 +225,11 @@ pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
 mod tests {
     use super::*;
     use crate::testworld::{at, game, spawn, spawn_site, COAST_CITY, P0, P1};
+    use f4x_master::Game;
 
     /// West's six swordsmen stand next to one of East's spearmen, away from every city, and the
     /// two wizards are at war.
-    fn field(war: bool) -> (World, Vec<hecs::Entity>) {
+    fn field(war: bool) -> (Game, Vec<hecs::Entity>) {
         let mut w = game(COAST_CITY, 8 /* high_men */);
         spawn(&mut w, P0, at(6, 3), 105 /* high_men_swordsmen */, 6);
         let defenders = spawn(&mut w, P1, at(7, 3), 104 /* high_men_spearmen */, 1);

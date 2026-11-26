@@ -7,10 +7,11 @@ use f4x_core::diplomacy::{DiplomacyCommand, Treaty};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::world::serial::Serial;
-use f4x_core::world::{Command, Event, World};
+use f4x_core::world::{Command, Event};
 
 use crate::view::{is_coastal, is_fighter, is_ship};
 use crate::Ai;
+use f4x_master::Game;
 
 /// Fighters that must stand in the port before a ship sails.
 pub(crate) const MIN_LOAD: usize = 3;
@@ -272,11 +273,11 @@ fn choose_plan(ai: &Ai, view: &PlayerView) -> Option<Plan> {
 
 /// Keep the landing plan (the war job gathers the army at its port and tags it for the ships,
 /// `pickup.rs` carries it) and the sea scout.
-pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
+pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     // Forget a plan whose target is no longer an enemy's or whose port is gone.
     {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         if let Some(plan) = ai.naval {
             let enemy = if is_tower(&view, plan.target) {
                 view.towers()
@@ -296,13 +297,13 @@ pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
             ai.naval = choose_plan(ai, &view);
         }
     }
-    sea_scout(ai, world);
+    sea_scout(ai, game);
     if ai.naval.is_none() {
         return;
     }
     // The sea scout has found its enemy: the ship now carries the landing.
     let scouting: Vec<hecs::Entity> = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         my_ships(&view)
             .into_iter()
             .filter(|&s| ai.roles.is_scouting(view.serial_of(s)))
@@ -310,12 +311,12 @@ pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     };
     if !scouting.is_empty() {
         let serials: Vec<Serial> = {
-            let view = PlayerView::new(world, me);
+            let view = PlayerView::new(game, me);
             scouting.iter().map(|&s| view.serial_of(s)).collect()
         };
         ai.roles.release_many(&serials, crate::roles::Role::Scout);
         ai.roles.release_role(crate::roles::Role::SeaParty);
-        ai.order(world, Command::ClearOrders { units: scouting }, events);
+        ai.order(game, Command::ClearOrders { units: scouting }, events);
     }
 }
 
@@ -323,13 +324,13 @@ pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
 /// crossing by a tower (the war comes first, so that what stands in the way can be attacked).
 pub(crate) fn declare_war_on_city(
     ai: &mut Ai,
-    world: &mut World,
+    game: &mut Game,
     target: Position,
     events: &mut Vec<Event>,
 ) -> bool {
     let me = ai.player;
     let owner = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         view.city_at(target)
             .and_then(|c| view.city_owner(c))
             .filter(|&o| view.is_rival_wizard(o))
@@ -337,14 +338,14 @@ pub(crate) fn declare_war_on_city(
     let Some(owner) = owner else {
         return true;
     };
-    match world.treaty(me, owner) {
+    match game.treaty(me, owner) {
         Treaty::War => true,
         // A wizard it has not met cannot be declared war on: the landing goes on.
-        Treaty::None if !world.have_met(me, owner) => true,
+        Treaty::None if !game.have_met(me, owner) => true,
         Treaty::None => {
             if ai
                 .send(
-                    world,
+                    game,
                     Command::Diplomacy(DiplomacyCommand::DeclareWar {
                         player: me,
                         on: owner,
@@ -353,7 +354,7 @@ pub(crate) fn declare_war_on_city(
                 )
                 .is_ok()
             {
-                ai.memory.put().enemy = Some((owner, world.turn));
+                ai.memory.put().enemy = Some((owner, game.turn));
             }
             true
         }
@@ -363,9 +364,9 @@ pub(crate) fn declare_war_on_city(
 
 /// With every walkable square explored and no enemy city known, a ship looks for the rest of the
 /// world: the first coastal city builds one, and it scouts like any scout.
-fn sea_scout(ai: &mut Ai, world: &mut World) {
+fn sea_scout(ai: &mut Ai, game: &mut Game) {
     let me = ai.player;
-    let view = PlayerView::new(world, me);
+    let view = PlayerView::new(game, me);
     let nothing_known = !view
         .known_cities()
         .iter()
@@ -393,17 +394,17 @@ fn sea_scout(ai: &mut Ai, world: &mut World) {
         let serial = view.serial_of(ship);
         let _ = ai
             .roles
-            .claim(serial, crate::roles::Role::Scout, world.turn, None);
+            .claim(serial, crate::roles::Role::Scout, game.turn, None);
         ai.frontier_closed = false;
         ai.sea_scouting = true;
     }
 }
 
 /// The sea scout is called off: the ship has a settler to carry.
-pub(crate) fn release_scouts(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
+pub(crate) fn release_scouts(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let ships: Vec<hecs::Entity> = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         view.my_units()
             .into_iter()
             .filter(|&u| is_ship(&view, u) && ai.roles.is_scouting(view.serial_of(u)))
@@ -413,13 +414,13 @@ pub(crate) fn release_scouts(ai: &mut Ai, world: &mut World, events: &mut Vec<Ev
         return;
     }
     let serials: Vec<Serial> = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         ships.iter().map(|&s| view.serial_of(s)).collect()
     };
     ai.roles.release_many(&serials, crate::roles::Role::Scout);
     ai.roles.release_role(crate::roles::Role::SeaParty);
     ai.sea_scouting = false;
-    ai.order(world, Command::ClearOrders { units: ships }, events);
+    ai.order(game, Command::ClearOrders { units: ships }, events);
 }
 
 #[cfg(test)]
@@ -429,6 +430,7 @@ mod tests {
         at, build, game, spawn, spawn_tower, COAST_CITY, ENEMY_CITY, INLAND_CITY, P0,
     };
     use f4x_core::map::terrain::TerrainClass;
+    use f4x_core::world::World;
     use f4x_def::half_int::HalfInt;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;

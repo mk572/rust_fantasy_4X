@@ -61,7 +61,7 @@ pub(crate) fn label(texts: &Texts, plan: Option<&BuildPlan>) -> String {
 impl App {
     /// The first city's screen with the dialog open on a plan (the `--autobuild` screenshot).
     pub(crate) fn open_test_autobuild(&mut self) {
-        let Some(city) = self.world.economy().cities().first().map(|c| c.0) else {
+        let Some(city) = self.game.economy().cities().first().map(|c| c.0) else {
             return;
         };
         let mut page = CityPage::new(city);
@@ -87,7 +87,7 @@ impl App {
         input: &Input,
     ) {
         let city = page.city;
-        let plan = self.world.autobuild_of(city).map(|a| a.plan);
+        let plan = self.game.autobuild_of(city).map(|a| a.plan);
         let own = plan.is_some();
         let text = label(self.texts(), plan.as_ref());
         let frame = FrameLayout::new();
@@ -269,14 +269,14 @@ impl App {
         }
         match chosen {
             Some(0) => {
-                let events = self.world.apply(Command::SetAutoBuild {
+                let events = self.game.apply(Command::SetAutoBuild {
                     city,
                     plan: Some(d.plan),
                 });
                 self.note(events);
             }
             Some(1) => {
-                let events = self.world.apply(Command::SetAutoBuild { city, plan: None });
+                let events = self.game.apply(Command::SetAutoBuild { city, plan: None });
                 self.note(events);
             }
             Some(_) => {}

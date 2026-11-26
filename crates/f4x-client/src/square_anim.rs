@@ -54,7 +54,7 @@ impl App {
         at: Position,
         started: Option<f64>,
     ) -> Option<SquareAnim> {
-        let def = self.world.content().rules.spells.get(spell);
+        let def = self.game.content().rules.spells.get(spell);
         // The summons, city spells and global enchantments have scenes of their own, and Plane
         // Shift its fade (`plane_shift_anim`).
         if def.has_hook(f4x_core::spell::special::PLANE_SHIFT)
@@ -75,12 +75,12 @@ impl App {
             .or_else(|| {
                 self.art.spell_picture(
                     &def.id,
-                    &Role::Realm(self.world.content().rules.realms.get(def.realm).id.clone()),
+                    &Role::Realm(self.game.content().rules.realms.get(def.realm).id.clone()),
                 )
             })
             .or_else(|| {
                 self.art.shared_picture(&Role::Realm(
-                    self.world.content().rules.realms.get(def.realm).id.clone(),
+                    self.game.content().rules.realms.get(def.realm).id.clone(),
                 ))
             })?;
         Some(SquareAnim {
@@ -92,11 +92,11 @@ impl App {
 
     /// For screenshots: the animation of `id` on the first city's square.
     pub fn open_test_square(&mut self, id: u16, seconds: f64) {
-        let Some(spell) = self.world.content().rules.spells.id_numbered(id) else {
+        let Some(spell) = self.game.content().rules.spells.id_numbered(id) else {
             eprintln!("unknown spell {id}");
             return;
         };
-        let Some(city) = self.world.economy().cities().first().map(|c| c.0) else {
+        let Some(city) = self.game.economy().cities().first().map(|c| c.0) else {
             return;
         };
         let at = self.city_position(city);
@@ -155,11 +155,11 @@ mod tests {
     use f4x_def::testdir::TestResult;
 
     fn tile(app: &App) -> Result<Position, &'static str> {
-        app.world
+        app.game
             .units()
             .player_units(HUMAN)
             .first()
-            .and_then(|&u| app.world.units().unit_position(u))
+            .and_then(|&u| app.game.units().unit_position(u))
             .ok_or("the human has no unit")
     }
 
@@ -168,7 +168,7 @@ mod tests {
         let mut app = App::for_test();
         let at = tile(&app)?;
         let spell = app
-            .world
+            .game
             .content()
             .rules
             .spells
@@ -189,7 +189,7 @@ mod tests {
         let at = tile(&app)?;
         for id in [201 /* magic_spirit */, 120 /* armageddon */] {
             let spell = app
-                .world
+                .game
                 .content()
                 .rules
                 .spells

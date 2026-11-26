@@ -31,6 +31,7 @@ use f4x_core::world::{Command, Event, World};
 
 use crate::memory::Diplomats;
 use crate::Ai;
+use f4x_master::Game;
 
 /// Every number of the statecraft in one place.
 #[derive(Debug, Clone, Copy)]
@@ -324,13 +325,13 @@ pub(crate) fn arms_enemy(world: &World, judge: PlayerId, asker: PlayerId) -> boo
 /// A proposal `me` makes to `to`, which `to` answers at once when it is an AI. Whether it was made.
 pub(crate) fn propose(
     ai: &Ai,
-    world: &mut World,
+    game: &mut Game,
     events: &mut Vec<Event>,
     to: PlayerId,
     kind: ProposalKind,
 ) -> bool {
     let me = ai.player;
-    if world
+    if game
         .diplomacy
         .proposals()
         .iter()
@@ -340,26 +341,20 @@ pub(crate) fn propose(
     }
     let made = ai
         .send(
-            world,
+            game,
             Command::Diplomacy(DiplomacyCommand::Propose { from: me, to, kind }),
             events,
         )
         .is_ok();
-    if made && world.human() != Some(to) {
-        events.extend(crate::settle(world, me, to, &ai.diplomats));
+    if made && game.human() != Some(to) {
+        events.extend(crate::settle(game, me, to, &ai.diplomats));
     }
     made
 }
 
-pub(crate) fn remark(
-    ai: &Ai,
-    world: &mut World,
-    events: &mut Vec<Event>,
-    to: PlayerId,
-    why: Remark,
-) {
+pub(crate) fn remark(ai: &Ai, game: &mut Game, events: &mut Vec<Event>, to: PlayerId, why: Remark) {
     ai.order(
-        world,
+        game,
         Command::Diplomacy(DiplomacyCommand::Remark {
             from: ai.player,
             to,
@@ -370,43 +365,43 @@ pub(crate) fn remark(
 }
 
 /// Once a turn, after the talk with the other wizards.
-pub(crate) fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
+pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         if view.is_defeated() || view.wizard().is_some_and(|w| w.is_banished()) {
             return;
         }
     }
-    let scene = Scene::new(world, me);
+    let scene = Scene::new(game, me);
     // The peace score offers peace where it says so (`diplo_b.rs`); the enemy and the friends come from the
     // three values (`diplo_b_stance.rs`).
-    crate::diplo_b::wars(ai, world, events, &scene);
-    crate::diplo_b_stance::run(ai, world, events, &scene);
+    crate::diplo_b::wars(ai, game, events, &scene);
+    crate::diplo_b_stance::run(ai, game, events, &scene);
 }
 
 /// A gift of gold to `to`, once in `gift_cool` turns, from a treasury that has the gold to spare.
 pub(crate) fn gift_gold(
     ai: &Ai,
-    world: &mut World,
+    game: &mut Game,
     events: &mut Vec<Event>,
     to: PlayerId,
     why: Remark,
 ) -> bool {
     let me = ai.player;
     let k = crate::diplo_b::Knobs::current();
-    let gold = world.player(me).map_or(0, |p| p.treasury().gold.floor());
+    let gold = game.player(me).map_or(0, |p| p.treasury().gold.floor());
     if !ai
         .memory
         .get()
-        .due(to, crate::memory::Did::Gift, world.turn, k.gift_cool)
+        .due(to, crate::memory::Did::Gift, game.turn, k.gift_cool)
         || gold < 100
     {
         return false;
     }
     let given = ai
         .send(
-            world,
+            game,
             Command::Diplomacy(DiplomacyCommand::GiveGold {
                 from: me,
                 to,
@@ -416,10 +411,8 @@ pub(crate) fn gift_gold(
         )
         .is_ok();
     if given {
-        ai.memory
-            .put()
-            .did(to, crate::memory::Did::Gift, world.turn);
-        remark(ai, world, events, to, why);
+        ai.memory.put().did(to, crate::memory::Did::Gift, game.turn);
+        remark(ai, game, events, to, why);
     }
     given
 }

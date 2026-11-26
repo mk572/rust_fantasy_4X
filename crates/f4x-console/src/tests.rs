@@ -5,16 +5,22 @@ use f4x_core::rules::unit_flag::UnitFlag;
 use f4x_core::world::World;
 use f4x_def::content::Content;
 use f4x_def::testdir::TestResult;
+use f4x_master::Game;
 
-use crate::setup::{new_game, NewGame, HUMAN};
+use crate::setup::{NewGame, HUMAN};
 use crate::{commands, Access, Console, ConsoleError, Kind, Mode};
+
+/// A new game as `setup::new_game` makes its world.
+fn new_game(content: &Content, spec: &NewGame) -> Result<Game, f4x_newgame::error::NewGameError> {
+    crate::setup::new_game(content, spec).map(Game::new)
+}
 
 /// The shipped content, read once per test run.
 fn content() -> &'static Content {
     f4x_def::testdir::shipped()
 }
 
-fn game() -> World {
+fn game() -> Game {
     new_game(
         content(),
         &NewGame {
@@ -445,7 +451,7 @@ fn the_originals_map_generator_makes_a_playable_game_with_the_real_content() -> 
     Ok(())
 }
 
-fn level_game(level: u8, wizards: u8, seed: u64) -> World {
+fn level_game(level: u8, wizards: u8, seed: u64) -> Game {
     let mut spec = NewGame::with_wizards(wizards);
     spec.seed = seed;
     let basic = spec.settings.basic;
@@ -711,7 +717,7 @@ fn nature_s_eye_reveals_visible_units_four_squares_from_the_city() -> TestResult
         x: (home.x + dx) % width,
         ..home
     };
-    let spawn = |w: &mut World, id: u16, dx: u32| {
+    let spawn = |w: &mut Game, id: u16, dx: u32| {
         let def = w
             .content()
             .rules
@@ -1268,7 +1274,7 @@ fn battle_units_carry_the_numbers_of_their_special_attacks() -> TestResult {
 }
 
 /// A two-wizard game, the rival's capital with `citizens` citizens and the buildings given.
-fn siege_world(citizens: u32, extra: &[u16]) -> (World, hecs::Entity) {
+fn siege_world(citizens: u32, extra: &[u16]) -> (Game, hecs::Entity) {
     let mut w = game();
     let city = capital(&w, PlayerId(1)).0;
     w.scenario_set_citizens(city, citizens);
@@ -1290,7 +1296,7 @@ fn siege_world(citizens: u32, extra: &[u16]) -> (World, hecs::Entity) {
 
 /// A game with an independent city of `citizens` citizens and the given buildings (the
 /// rival's capital is the last city of a wizard, whose fall ends the game).
-fn neutral_world(citizens: u32, extra: &[u16]) -> (World, hecs::Entity) {
+fn neutral_world(citizens: u32, extra: &[u16]) -> (Game, hecs::Entity) {
     let mut w = game();
     // The first city with a garrison: a small one may have none.
     let city = neutral_cities(&w)
@@ -1335,7 +1341,7 @@ fn land_beside(w: &World, at: f4x_core::map::Position) -> f4x_core::map::Positio
 }
 
 /// Put the human wizard's two units on the square next to the city and start the battle.
-fn start_siege(w: &mut World, city: hecs::Entity) {
+fn start_siege(w: &mut Game, city: hecs::Entity) {
     let at = *w
         .component::<f4x_core::map::Position>(city)
         .expect("the entity has it");
@@ -1673,7 +1679,8 @@ fn an_auto_resolved_siege_of_a_walled_city_ends_and_may_take_it() {
             w.cheat_move_unit(u, from);
         }
         let garrison = w.units().units_at(at);
-        let events = w.auto_resolve(&w.units().player_units(HUMAN), &garrison);
+        let besiegers = w.units().player_units(HUMAN);
+        let events = w.auto_resolve(&besiegers, &garrison);
         assert!(!w.in_battle(), "the siege ended");
         assert!(
             events
@@ -1697,7 +1704,7 @@ fn an_auto_resolved_siege_of_a_walled_city_ends_and_may_take_it() {
 
 /// A siege of the rival's capital in which the human wizard knows `spells`, with plenty of
 /// mana and skill; returns the game.
-fn casting_siege(spells: &[u16]) -> World {
+fn casting_siege(spells: &[u16]) -> Game {
     let (mut w, city) = siege_world(6, &[]);
     arm_human(&mut w, spells);
     start_siege(&mut w, city);
@@ -1705,7 +1712,7 @@ fn casting_siege(spells: &[u16]) -> World {
 }
 
 /// The human wizard knows `spells` and has the mana and skill to cast them.
-fn arm_human(w: &mut World, spells: &[u16]) {
+fn arm_human(w: &mut Game, spells: &[u16]) {
     let ids: Vec<_> = spells
         .iter()
         .map(|s| {
@@ -1727,7 +1734,7 @@ fn arm_human(w: &mut World, spells: &[u16]) {
         .extend(ids);
 }
 
-fn cast(w: &mut World, line: &str) -> crate::Reply {
+fn cast(w: &mut Game, line: &str) -> crate::Reply {
     let mut c = console();
     c.execute(w, line)
 }
@@ -1747,7 +1754,7 @@ fn units_list_and_cast_their_own_spells_by_text() {
 }
 
 /// The human side ends its turn and the rival's does too, so the human wizard casts again.
-fn pass_turn(w: &mut World) {
+fn pass_turn(w: &mut Game) {
     let r = cast(w, "bend");
     assert!(r.ok, "{}", r.text());
     w.apply(f4x_core::world::Command::Battle(
@@ -2626,7 +2633,7 @@ fn call_chaos_and_invisibility_cast_and_the_spell_list_offers_them() {
     assert!(r.ok, "{}", r.text());
 }
 
-fn meet_all(w: &mut World) -> Vec<PlayerId> {
+fn meet_all(w: &mut Game) -> Vec<PlayerId> {
     let others: Vec<PlayerId> = w.wizards().into_iter().filter(|&id| id != HUMAN).collect();
     for &id in &others {
         w.make_contact(HUMAN, id);
@@ -2932,7 +2939,7 @@ fn blegal_lists_what_the_game_allows_and_the_listed_orders_work() {
 // ---- Animate Dead and the drained dead (tasks 157 and 159) ------------------------------
 
 /// Strike one of the human side's units down by the given kinds of damage.
-fn fell(w: &mut World, id: usize, kinds: [i32; 3]) {
+fn fell(w: &mut Game, id: usize, kinds: [i32; 3]) {
     let u = &mut w.battle.as_mut().expect("the value is there").battle.units[id];
     u.set_figures(0);
     u.status = f4x_battle::Status::Dead;

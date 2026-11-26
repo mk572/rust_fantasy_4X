@@ -26,6 +26,7 @@ use crate::diplomacy::Verdict;
 use crate::memory::{Did, Diplomats};
 use crate::statecraft::{can_attack, propose, remark, Scene};
 use crate::Ai;
+use f4x_master::Game;
 
 /// The personality's mood, in friendship points.
 fn mood(world: &World, me: PlayerId, k: &Knobs) -> i32 {
@@ -34,7 +35,7 @@ fn mood(world: &World, me: PlayerId, k: &Knobs) -> i32 {
 
 /// How `judge` rates a proposal that `asker` makes to it.
 pub(crate) fn rate(
-    world: &mut World,
+    game: &mut Game,
     asker: PlayerId,
     judge: PlayerId,
     kind: ProposalKind,
@@ -42,9 +43,9 @@ pub(crate) fn rate(
 ) -> Verdict {
     let memory = &minds.of(judge);
     let k = Knobs::current();
-    let scene = Scene::new(world, judge);
-    let r = regard(world, judge, asker, &scene, memory);
-    let rules = &world.content().rules.config.diplomacy;
+    let scene = Scene::new(game, judge);
+    let r = regard(game, judge, asker, &scene, memory);
+    let rules = &game.content().rules.config.diplomacy;
     let (pact_floor, ally_floor) = (rules.pact_relation, rules.alliance_relation);
     let yes = |b: bool| {
         if b {
@@ -57,31 +58,31 @@ pub(crate) fn rate(
         values(world, judge, asker, &scene, memory, false).friend + mood(world, judge, &k)
     };
     match kind {
-        ProposalKind::Peace => yes(crate::diplo_b::accepts(world, judge, asker, memory)),
-        ProposalKind::Pact => yes(r.friendship > pact_floor && friend(world) >= k.pact_accept),
-        ProposalKind::Alliance => yes(r.friendship > ally_floor && friend(world) >= k.ally_accept),
+        ProposalKind::Peace => yes(crate::diplo_b::accepts(game, judge, asker, memory)),
+        ProposalKind::Pact => yes(r.friendship > pact_floor && friend(game) >= k.pact_accept),
+        ProposalKind::Alliance => yes(r.friendship > ally_floor && friend(game) >= k.ally_accept),
         ProposalKind::WarOn(third) => {
             let sk = crate::statecraft::Knobs::current();
             let (m, t) = (
-                scene.power(world, judge).score(&sk).max(1),
-                scene.power(world, third).score(&sk),
+                scene.power(game, judge).score(&sk).max(1),
+                scene.power(game, third).score(&sk),
             );
-            if t * 100 > m * k.too_strong_pct && world.treaty(judge, third) != Treaty::War {
+            if t * 100 > m * k.too_strong_pct && game.treaty(judge, third) != Treaty::War {
                 return Verdict::Refused;
             }
-            let reach = can_attack(world, judge, &scene, third);
-            let enemy = values(world, judge, third, &scene, memory, reach).enemy;
-            yes(world.treaty(judge, third) == Treaty::War
-                || r.friendship + mood(world, judge, &k) + enemy >= k.war_accept)
+            let reach = can_attack(game, judge, &scene, third);
+            let enemy = values(game, judge, third, &scene, memory, reach).enemy;
+            yes(game.treaty(judge, third) == Treaty::War
+                || r.friendship + mood(game, judge, &k) + enemy >= k.war_accept)
         }
         ProposalKind::BreakAllianceWith(third) => {
-            let other = regard(world, judge, third, &scene, memory);
+            let other = regard(game, judge, third, &scene, memory);
             yes(r.friendship - other.friendship >= k.break_accept)
         }
         ProposalKind::Trade { give, get } => {
-            crate::trade::verdict(world, minds, judge, asker, give, get)
+            crate::trade::verdict(game, minds, judge, asker, give, get)
         }
-        ProposalKind::Threat => yes(yields_to_threat(world, judge, asker, &r, &k)),
+        ProposalKind::Threat => yes(yields_to_threat(game, judge, asker, &r, &k)),
         // The tribute is paid by one who fears the asker; the game pays it only if the gold is there.
         ProposalKind::Demand { .. } => yes(r.fear >= k.yield_fear),
     }
@@ -91,17 +92,17 @@ pub(crate) fn rate(
 /// 25 gold, more the more it fears) and yields; one far stronger than the asker declares war; else it
 /// refuses.
 fn yields_to_threat(
-    world: &mut World,
+    game: &mut Game,
     judge: PlayerId,
     asker: PlayerId,
     r: &Regard,
     k: &Knobs,
 ) -> bool {
     if r.fear >= k.yield_fear {
-        let gold = world.player(judge).map_or(0, |p| p.treasury().gold.floor());
+        let gold = game.player(judge).map_or(0, |p| p.treasury().gold.floor());
         let pay = (25 * (2 + r.fear / 25)).min(gold / 25 * 25);
         return pay <= 0
-            || !world
+            || !game
                 .apply(Command::Diplomacy(DiplomacyCommand::GiveGold {
                     from: judge,
                     to: asker,
@@ -110,8 +111,8 @@ fn yields_to_threat(
                 .iter()
                 .any(|e| matches!(e, Event::Rejected(_)));
     }
-    if army_strength(world, judge) * 80 > army_strength(world, asker) * 100 {
-        world.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+    if army_strength(game, judge) * 80 > army_strength(game, asker) * 100 {
+        game.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
             player: judge,
             on: asker,
         }));
@@ -122,46 +123,46 @@ fn yields_to_threat(
 /// What an AI wizard says to the human at the start of the human's turn, as commands a human could send:
 /// peace, courting, gifts, demands, warnings, a treaty broken, war. The proposals wait for the human's
 /// answer in that turn. The client calls it for each rival after the turn has changed.
-pub(crate) fn approach_human(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
+pub(crate) fn approach_human(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    let Some(human) = world.human().filter(|&h| h != me) else {
+    let Some(human) = game.human().filter(|&h| h != me) else {
         return;
     };
-    if world.player(human).is_none_or(|p| p.is_defeated())
-        || world.wizard(human).is_none_or(|w| w.is_banished())
+    if game.player(human).is_none_or(|p| p.is_defeated())
+        || game.wizard(human).is_none_or(|w| w.is_banished())
     {
         return;
     }
-    let scene = Scene::new(world, me);
-    let banished = PlayerView::new(world, me)
+    let scene = Scene::new(game, me);
+    let banished = PlayerView::new(game, me)
         .wizard()
         .is_some_and(|w| w.is_banished());
     if banished || !scene.others.contains(&human) {
         return;
     }
     let k = Knobs::current();
-    let treaty = world.treaty(me, human);
+    let treaty = game.treaty(me, human);
     if treaty == Treaty::War {
-        if crate::diplo_b::offer_due(ai, world, human)
-            && propose(ai, world, events, human, ProposalKind::Peace)
+        if crate::diplo_b::offer_due(ai, game, human)
+            && propose(ai, game, events, human, ProposalKind::Peace)
         {
-            ai.memory.put().offered_peace(human, world.turn);
-            remark(ai, world, events, human, Remark::WarWeary);
+            ai.memory.put().offered_peace(human, game.turn);
+            remark(ai, game, events, human, Remark::WarWeary);
         }
         return;
     }
     let friendship = {
         let memory = ai.memory.get();
-        regard(world, me, human, &scene, &memory).friendship
+        regard(game, me, human, &scene, &memory).friendship
     };
-    if treaty == Treaty::None && friendship <= k.war_below && world.turn >= k.from_turn {
-        declare_on(ai, world, events, human);
+    if treaty == Treaty::None && friendship <= k.war_below && game.turn >= k.from_turn {
+        declare_on(ai, game, events, human);
         return;
     }
     if treaty != Treaty::None {
         if friendship <= k.break_below {
             ai.order(
-                world,
+                game,
                 Command::Diplomacy(DiplomacyCommand::BreakTreaty {
                     player: me,
                     with: human,
@@ -173,31 +174,31 @@ pub(crate) fn approach_human(ai: &Ai, world: &mut World, events: &mut Vec<Event>
         let warn_due = ai
             .memory
             .get()
-            .due(human, Did::Warn, world.turn, k.warn_cool);
+            .due(human, Did::Warn, game.turn, k.warn_cool);
         if friendship <= k.warn_below && warn_due {
             ai.order(
-                world,
+                game,
                 Command::Diplomacy(DiplomacyCommand::Warn {
                     from: me,
                     to: human,
                 }),
                 events,
             );
-            ai.memory.put().did(human, Did::Warn, world.turn);
+            ai.memory.put().did(human, Did::Warn, game.turn);
             return;
         }
     }
-    let reachable = can_attack(world, me, &scene, human);
-    court(ai, world, events, human, reachable);
-    demand(ai, world, events, human, friendship, treaty, &k);
-    gift(ai, world, events, human, friendship, treaty, &k);
+    let reachable = can_attack(game, me, &scene, human);
+    court(ai, game, events, human, reachable);
+    demand(ai, game, events, human, friendship, treaty, &k);
+    gift(ai, game, events, human, friendship, treaty, &k);
 }
 
 /// A demand for tribute from a stronger wizard that does not like the human: a quarter of the human's
 /// gold, at most a hundred, in whole 25s.
 fn demand(
     ai: &Ai,
-    world: &mut World,
+    game: &mut Game,
     events: &mut Vec<Event>,
     human: PlayerId,
     friendship: i32,
@@ -205,23 +206,23 @@ fn demand(
     k: &Knobs,
 ) {
     let me = ai.player;
-    let gold = world.player(human).map_or(0, |p| p.treasury().gold.floor());
+    let gold = game.player(human).map_or(0, |p| p.treasury().gold.floor());
     let due = ai
         .memory
         .get()
-        .due(human, Did::Demand, world.turn, k.demand_cool);
+        .due(human, Did::Demand, game.turn, k.demand_cool);
     if !due
         || treaty == Treaty::Alliance
         || friendship >= k.warn_below
         || gold < 100
-        || army_strength(world, me) <= army_strength(world, human)
+        || army_strength(game, me) <= army_strength(game, human)
     {
         return;
     }
     let asked = (gold / 4 / 25 * 25).min(100);
     if asked >= 25 {
         ai.order(
-            world,
+            game,
             Command::Diplomacy(DiplomacyCommand::Propose {
                 from: me,
                 to: human,
@@ -229,14 +230,14 @@ fn demand(
             }),
             events,
         );
-        ai.memory.put().did(human, Did::Demand, world.turn);
+        ai.memory.put().did(human, Did::Demand, game.turn);
     }
 }
 
 /// A gift from a close friend with a treaty: a spell the human lacks, else gold from a full treasury.
 fn gift(
     ai: &Ai,
-    world: &mut World,
+    game: &mut Game,
     events: &mut Vec<Event>,
     human: PlayerId,
     friendship: i32,
@@ -247,14 +248,14 @@ fn gift(
     let due = ai
         .memory
         .get()
-        .due(human, Did::Gift, world.turn, k.gift_cool);
+        .due(human, Did::Gift, game.turn, k.gift_cool);
     if !due || treaty == Treaty::None || friendship < k.gift_friend {
         return;
     }
-    if world.turn.is_multiple_of(3) {
-        if let Some(spell) = crate::trade::spell_to_give(world, me, human) {
+    if game.turn.is_multiple_of(3) {
+        if let Some(spell) = crate::trade::spell_to_give(game, me, human) {
             ai.order(
-                world,
+                game,
                 Command::Diplomacy(DiplomacyCommand::GiveSpell {
                     from: me,
                     to: human,
@@ -262,14 +263,14 @@ fn gift(
                 }),
                 events,
             );
-            ai.memory.put().did(human, Did::Gift, world.turn);
+            ai.memory.put().did(human, Did::Gift, game.turn);
             return;
         }
     }
-    let gold = world.player(me).map_or(0, |p| p.treasury().gold.floor());
+    let gold = game.player(me).map_or(0, |p| p.treasury().gold.floor());
     if gold >= 200 {
         ai.order(
-            world,
+            game,
             Command::Diplomacy(DiplomacyCommand::GiveGold {
                 from: me,
                 to: human,
@@ -277,35 +278,35 @@ fn gift(
             }),
             events,
         );
-        ai.memory.put().did(human, Did::Gift, world.turn);
+        ai.memory.put().did(human, Did::Gift, game.turn);
     }
 }
 
 /// The trades the wizard offers the other wizards, now and then (the human is asked by
 /// `approach_human`'s courting and by the human's own offers).
-pub(crate) fn negotiate(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
+pub(crate) fn negotiate(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let k = Knobs::current();
-    let scene = Scene::new(world, me);
-    let banished = PlayerView::new(world, me)
+    let scene = Scene::new(game, me);
+    let banished = PlayerView::new(game, me)
         .wizard()
         .is_some_and(|w| w.is_banished());
     if banished {
         return;
     }
     for &other in &scene.others {
-        if world.human() == Some(other)
-            || world.treaty(me, other) == Treaty::War
+        if game.human() == Some(other)
+            || game.treaty(me, other) == Treaty::War
             || !ai
                 .memory
                 .get()
-                .due(other, Did::Trade, world.turn, k.trade_cool)
+                .due(other, Did::Trade, game.turn, k.trade_cool)
         {
             continue;
         }
-        ai.memory.put().did(other, Did::Trade, world.turn);
-        if let Some(kind) = crate::trade::offer(world, &ai.minds(), me, other) {
-            if propose(ai, world, events, other, kind) {
+        ai.memory.put().did(other, Did::Trade, game.turn);
+        if let Some(kind) = crate::trade::offer(game, &ai.minds(), me, other) {
+            if propose(ai, game, events, other, kind) {
                 // `propose` has the other answer at once.
             }
         }
@@ -317,13 +318,14 @@ mod tests {
     use super::*;
     use crate::diplo_b_stance::tests::pair;
     use crate::testworld::{P0, P1};
+    use f4x_master::Game;
 
     /// What `P0` feels about `P1`, set outright in the memory of the `Ai` the test holds for P0.
-    fn feel(w: &mut World, ai: &Ai, value: i32) {
+    fn feel(w: &mut Game, ai: &Ai, value: i32) {
         ai.memory.put().set_friendship(w, P0, P1, value);
     }
 
-    fn verdict(w: &mut World, ai: &Ai, kind: ProposalKind) -> Verdict {
+    fn verdict(w: &mut Game, ai: &Ai, kind: ProposalKind) -> Verdict {
         rate(w, P1, P0, kind, &ai.minds())
     }
 
@@ -408,7 +410,7 @@ mod tests {
     }
 
     /// The human is P1 and P0 the AI.
-    fn with_human(mut w: World) -> World {
+    fn with_human(mut w: Game) -> Game {
         w.set_human(Some(P1));
         w
     }

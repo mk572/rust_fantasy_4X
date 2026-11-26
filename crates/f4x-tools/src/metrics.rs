@@ -1740,14 +1740,14 @@ mod tests {
     /// founded or was taken, and none that was lost is still there.
     #[test]
     fn founded_cities_account_for_the_cities_a_wizard_ends_with() -> TestResult {
-        let mut world = new_game(
+        let mut world = f4x_master::Game::new(new_game(
             shipped(),
             &NewGame {
                 seed: 4,
                 all_ai: true,
                 ..NewGame::with_wizards(2)
             },
-        )?;
+        )?);
         let players = [PlayerId(0), PlayerId(1)];
         let start: Vec<usize> = players
             .iter()

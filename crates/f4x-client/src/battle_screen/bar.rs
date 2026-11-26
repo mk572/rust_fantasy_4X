@@ -252,8 +252,8 @@ impl App {
         // creature caster); otherwise the Spell button is the wizard's.
         let unit_caster = sel.filter(|&u| {
             my_turn
-                && (self.world.battle_unit_spells(u).iter().any(|s| s.castable)
-                    || self.world.can_summon_demon(u))
+                && (self.game.battle_unit_spells(u).iter().any(|s| s.castable)
+                    || self.game.can_summon_demon(u))
         });
         let can_cast = my_turn
             && ui.aiming.is_none()
@@ -312,7 +312,7 @@ impl App {
         }
         // Info lists the effects in force.
         let has_info = self
-            .world
+            .game
             .battle_info(HUMAN)
             .is_some_and(|info| !info.is_empty());
         if (self.battle_button(&lay, "battle.button_info", (lx, row(1.0)), has_info, input)
@@ -421,7 +421,7 @@ impl App {
         let n = battle.now_of(u);
         let owner = battle.player_of(u.side).0;
         let banner = self.banner_index(owner);
-        let units = &self.world.content().rules.units;
+        let units = &self.game.content().rules.units;
         let art = u
             .unit_id
             .and_then(|id| self.art.unit_entry(&units.get(id).id));

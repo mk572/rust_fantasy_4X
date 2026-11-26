@@ -30,7 +30,7 @@ impl Modal for CastAnyway {
         let answer = app.confirmation_box(&Layout::new(), &text, input);
         match answer {
             Some(true) => {
-                let events = app.world.apply(Command::Anyway(Box::new(self.command)));
+                let events = app.game.apply(Command::Anyway(Box::new(self.command)));
                 app.note(events);
                 None
             }
@@ -60,7 +60,7 @@ impl App {
     ) {
         let spell_name = self
             .names
-            .spell_term(self.world.content().rules.spells.get(spell).num);
+            .spell_term(self.game.content().rules.spells.get(spell).num);
         self.modals.open(CastAnyway {
             command,
             spell_name,

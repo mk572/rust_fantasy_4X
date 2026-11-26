@@ -15,7 +15,7 @@ use f4x_core::city::production::ProductionItem;
 impl App {
     /// Remember a finished item of a city of the human's, to be announced at the start of the turn.
     pub(crate) fn note_finished(&mut self, city: hecs::Entity, item: ProductionItem) {
-        if self.world.economy().city_owner(city) == Some(HUMAN) {
+        if self.game.economy().city_owner(city) == Some(HUMAN) {
             self.finished_cities.push_back((city, item));
         }
     }
@@ -25,11 +25,11 @@ impl App {
     /// only gets the message of a building over the map, as before. True when it did something.
     pub(crate) fn finished_city_frame(&mut self) -> bool {
         if self.finished_cities.is_empty()
-            || self.world.in_battle()
+            || self.game.in_battle()
             || !matches!(self.screen, Screen::Map)
             || self.turn_events.is_some()
             || !self.modals.is_empty()
-            || !self.world.offers(HUMAN).is_empty()
+            || !self.game.offers(HUMAN).is_empty()
         {
             return false;
         }
@@ -38,7 +38,7 @@ impl App {
             return false;
         }
         while let Some((city, item)) = self.finished_cities.pop_front() {
-            let economy = self.world.economy();
+            let economy = self.game.economy();
             if economy.city_owner(city) != Some(HUMAN) {
                 continue;
             }
@@ -68,7 +68,7 @@ mod tests {
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
     fn city_of(app: &App, player: PlayerId) -> Result<hecs::Entity, &'static str> {
-        app.world
+        app.game
             .economy()
             .cities_of(player)
             .first()
@@ -80,7 +80,7 @@ mod tests {
     fn a_city_that_finished_opens_its_screen_on_the_map() -> TestResult {
         let mut app = App::for_test();
         let city = city_of(&app, HUMAN)?;
-        app.world.scenario_clear_production(city);
+        app.game.scenario_clear_production(city);
         app.note_finished(city, ProductionItem::Housing);
         assert!(app.finished_city_frame());
         assert!(matches!(app.screen, Screen::City(c) if c == city));
@@ -100,14 +100,14 @@ mod tests {
             .filter(|&p| p != HUMAN)
             .find_map(|p| city_of(&app, p).ok())
             .ok_or("no rival city")?;
-        app.world.scenario_clear_production(rival);
+        app.game.scenario_clear_production(rival);
         app.note_finished(rival, ProductionItem::Housing);
         assert!(
             app.finished_cities.is_empty(),
             "a rival's city is not noted"
         );
         let own = city_of(&app, HUMAN)?;
-        app.world
+        app.game
             .set_production(own, ProductionItem::TradeGoods)
             .map_err(|e| format!("{e:?}"))?;
         app.note_finished(own, ProductionItem::Housing);
@@ -120,7 +120,7 @@ mod tests {
     fn with_the_switch_off_no_city_opens_and_the_queue_is_dropped() -> TestResult {
         let mut app = App::for_test();
         let city = city_of(&app, HUMAN)?;
-        app.world.scenario_clear_production(city);
+        app.game.scenario_clear_production(city);
         app.note_finished(city, ProductionItem::Housing);
         app.prefs
             .set(crate::preferences::Pref::OpenFinishedCities, false);
@@ -134,7 +134,7 @@ mod tests {
     fn the_screen_waits_while_the_turn_changes() -> TestResult {
         let mut app = App::for_test();
         let city = city_of(&app, HUMAN)?;
-        app.world.scenario_clear_production(city);
+        app.game.scenario_clear_production(city);
         app.note_finished(city, ProductionItem::Housing);
         app.turn_events = Some(Vec::new());
         assert!(!app.finished_city_frame());

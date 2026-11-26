@@ -128,10 +128,10 @@ impl Modal for OfferAsk {
 impl App {
     /// Open the box for the offers that wait, over the map.
     pub(crate) fn queue_offer(&mut self) {
-        if !self.world.in_battle()
+        if !self.game.in_battle()
             && matches!(self.screen, Screen::Map)
             && !self.modals.has(kind::OFFER)
-            && !self.world.offers(HUMAN).is_empty()
+            && !self.game.offers(HUMAN).is_empty()
         {
             self.modals.enqueue(OfferAsk);
         }
@@ -146,20 +146,21 @@ impl App {
             "mercenaries" => OfferKind::Mercenaries,
             _ => OfferKind::Item,
         };
-        self.world.set_fame(HUMAN, 100);
-        if let Some(t) = self.world.treasury_mut(HUMAN) {
+        self.game.world_mut().set_fame(HUMAN, 100);
+        if let Some(t) = self.game.world_mut().treasury_mut(HUMAN) {
             t.gold = f4x_def::half_int::HalfInt::from_int(5000);
         }
-        self.world.turn = self.world.turn.max(40);
+        self.game.world_mut().turn = self.game.turn.max(40);
         // A hero is drawn at random from those fame allows: try until one comes.
-        let made = (0..200).any(|_| self.world.cheat_offer(HUMAN, what).is_some());
+        let made = (0..200).any(|_| self.game.world_mut().cheat_offer(HUMAN, what).is_some());
         if !made {
             eprintln!("nothing to offer");
         }
         if matches!(kind, "summoned" | "champion") {
             // What Summon Hero (or Champion) leaves for the human wizard to accept.
             if let Some(offers) = self
-                .world
+                .game
+                .world_mut()
                 .player_component_mut::<f4x_core::player::Offers>(HUMAN)
             {
                 if let Some(Offer::Hero { kind: hero, .. }) = offers.0.first().cloned() {
@@ -174,7 +175,8 @@ impl App {
         if kind == "prisoner" {
             // The same hero, free: what a cleared lair's prisoner is.
             if let Some(offers) = self
-                .world
+                .game
+                .world_mut()
                 .player_component_mut::<f4x_core::player::Offers>(HUMAN)
             {
                 if let Some(Offer::Hero { price, .. }) = offers.0.first_mut() {
@@ -187,14 +189,14 @@ impl App {
     /// The first unanswered offer of the human wizard, shown over the map until answered.
     /// Returns whether the box took the frame.
     pub(crate) fn offer_prompt_frame(&mut self, input: &Input) -> bool {
-        let Some(offer) = self.world.offers(HUMAN).first().cloned() else {
+        let Some(offer) = self.game.offers(HUMAN).first().cloned() else {
             self.offer_ui.shown = None;
             return false;
         };
         if self.offer_ui.shown.as_ref() != Some(&offer) {
             self.offer_ui.name = match &offer {
                 Offer::Hero { kind, .. } | Offer::Summoned { kind, .. } => {
-                    self.world.units().hero_type_name(*kind).unwrap_or_default()
+                    self.game.units().hero_type_name(*kind).unwrap_or_default()
                 }
                 _ => String::new(),
             };
@@ -204,7 +206,7 @@ impl App {
         }
         let lay = Layout::new();
         let affordable = self
-            .world
+            .game
             .player(HUMAN)
             .is_some_and(|p| p.treasury().gold >= offer.price());
         let (accept, reject) = match &offer {
@@ -236,14 +238,14 @@ impl App {
                         | Offer::Mercenaries { .. }
                         | Offer::Summoned { at: None, .. }
                 );
-                if comes_to_a_circle && self.world.has_several_circles(HUMAN) {
+                if comes_to_a_circle && self.game.has_several_circles(HUMAN) {
                     // With several summoning circles the wizard says which one it comes to.
                     let cities = self.circle_cities();
                     let prompt = self.text("offer.choose_circle");
                     self.pick_city(prompt, cities, move |app, city| {
                         let at = city.and_then(|c| app.circle_position(c));
                         if at.is_some() {
-                            let events = app.world.apply(Command::AcceptOffer {
+                            let events = app.game.apply(Command::AcceptOffer {
                                 player: HUMAN,
                                 index: 0,
                                 name,
@@ -254,7 +256,7 @@ impl App {
                     });
                     return;
                 }
-                let events = self.world.apply(Command::AcceptOffer {
+                let events = self.game.apply(Command::AcceptOffer {
                     player: HUMAN,
                     index: 0,
                     name,
@@ -266,12 +268,12 @@ impl App {
             if self.offer_ui.naming {
                 self.offer_ui.naming = false;
             } else {
-                let mut events = self.world.apply(Command::RejectOffer {
+                let mut events = self.game.apply(Command::RejectOffer {
                     player: HUMAN,
                     index: 0,
                 });
                 // A resold item goes on to the next wizard, who may be a computer one.
-                events.extend(f4x_ai::answer_resales(&mut self.world));
+                events.extend(f4x_ai::answer_resales(&mut self.game));
                 self.note(events);
             }
         }
@@ -326,7 +328,7 @@ impl App {
     ) -> (bool, bool) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let (wx, wy) = WINDOW;
-        let rules = self.world.content().rules.clone();
+        let rules = self.game.content().rules.clone();
         let hero_kind = match offer {
             Offer::Hero { kind, .. } | Offer::Summoned { kind, .. } => Some(*kind),
             _ => None,
@@ -337,7 +339,7 @@ impl App {
                     .hero_templates
                     .get(*kind)
                     .and_then(|t| rules.units.try_get(t.unit));
-                let level = self.world.units().hero_kept_level(*kind);
+                let level = self.game.units().hero_kept_level(*kind);
                 (unit, Some(level))
             }
             Offer::Mercenaries { unit, level, .. } => {
@@ -446,7 +448,7 @@ impl App {
         self.draw_pic(lay, "items", self.art.item_icon(item), 0, x + 9.0, y + 6.0);
         let name = self.names.item_name(item, &self.texts);
         self.draw_styled(view, &Style::set(4, 4), &name, x + 31.0, y + 12.0);
-        let rules = self.world.content().rules.clone();
+        let rules = self.game.content().rules.clone();
         let b = item.bonus;
         let mut lines: Vec<String> = Vec::new();
         for (v, what) in [
@@ -507,7 +509,7 @@ mod tests {
 
     fn gold(app: &App) -> Result<i32, &'static str> {
         Ok(app
-            .world
+            .game
             .player(HUMAN)
             .ok_or("no human")?
             .treasury()
@@ -516,7 +518,7 @@ mod tests {
     }
 
     fn first_offer(app: &App) -> Result<Offer, &'static str> {
-        app.world
+        app.game
             .offers(HUMAN)
             .first()
             .cloned()
@@ -640,7 +642,7 @@ mod tests {
         let before = gold(&app)?;
         app.settle_offer(&offer, true, false);
         assert_eq!(gold(&app)?, before - offer.price());
-        assert!(app.world.offers(HUMAN).is_empty());
+        assert!(app.game.offers(HUMAN).is_empty());
         Ok(())
     }
 
@@ -652,7 +654,7 @@ mod tests {
         let before = gold(&app)?;
         app.settle_offer(&offer, false, true);
         assert_eq!(gold(&app)?, before);
-        assert!(app.world.offers(HUMAN).is_empty());
+        assert!(app.game.offers(HUMAN).is_empty());
         Ok(())
     }
 
@@ -665,7 +667,7 @@ mod tests {
         app.settle_offer(&offer, true, false);
         assert_eq!(gold(&app)?, before - offer.price());
         assert!(!app.offer_ui.naming);
-        assert!(app.world.offers(HUMAN).is_empty());
+        assert!(app.game.offers(HUMAN).is_empty());
         Ok(())
     }
 
@@ -679,11 +681,11 @@ mod tests {
         app.settle_offer(&offer, true, false);
         assert!(app.offer_ui.naming, "the first accept asks for the name");
         assert_eq!(gold(&app)?, before, "nothing is paid yet");
-        assert_eq!(app.world.offers(HUMAN).len(), 1);
+        assert_eq!(app.game.offers(HUMAN).len(), 1);
         app.offer_ui.name = "Rhea".into();
         app.settle_offer(&offer, true, false);
         assert_eq!(gold(&app)?, before - offer.price());
-        assert!(app.world.offers(HUMAN).is_empty());
+        assert!(app.game.offers(HUMAN).is_empty());
         Ok(())
     }
 
@@ -695,10 +697,10 @@ mod tests {
         app.settle_offer(&offer, true, false);
         app.settle_offer(&offer, false, true);
         assert!(!app.offer_ui.naming);
-        assert_eq!(app.world.offers(HUMAN).len(), 1, "the offer still stands");
+        assert_eq!(app.game.offers(HUMAN).len(), 1, "the offer still stands");
         app.settle_offer(&offer, false, true);
         assert!(
-            app.world.offers(HUMAN).is_empty(),
+            app.game.offers(HUMAN).is_empty(),
             "the second reject declines it"
         );
         Ok(())
@@ -719,12 +721,13 @@ mod tests {
         app.offer_ui.name = "Rhea".into();
         app.settle_offer(&offer, true, false);
         assert_eq!(gold(&app)?, before, "a summoning costs no gold");
-        assert!(app.world.offers(HUMAN).is_empty());
-        assert!(app.world.units().hero_units(HUMAN).iter().any(|&h| app
-            .world
+        assert!(app.game.offers(HUMAN).is_empty());
+        assert!(app
+            .game
             .units()
-            .hero_kind(h)
-            == Some(kind)));
+            .hero_units(HUMAN)
+            .iter()
+            .any(|&h| app.game.units().hero_kind(h) == Some(kind)));
         Ok(())
     }
 
@@ -735,8 +738,8 @@ mod tests {
         let offer = first_offer(&app)?;
         assert!(matches!(offer, Offer::Summoned { champion: true, .. }));
         app.settle_offer(&offer, false, true);
-        assert!(app.world.offers(HUMAN).is_empty());
-        assert!(app.world.units().hero_units(HUMAN).is_empty());
+        assert!(app.game.offers(HUMAN).is_empty());
+        assert!(app.game.units().hero_units(HUMAN).is_empty());
         Ok(())
     }
 }

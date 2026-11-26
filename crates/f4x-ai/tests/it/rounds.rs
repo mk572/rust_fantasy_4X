@@ -3,19 +3,22 @@
 use f4x_ai::{play_round, Ai};
 use f4x_core::player::PlayerId;
 use f4x_core::world::Event;
+use f4x_master::Game;
 use f4x_newgame::setup::{new_game, NewGame};
 
 #[test]
 fn rounds_with_two_ais_advance_the_round_counter_once_each() {
-    let mut w = new_game(
-        f4x_def::testdir::shipped(),
-        &NewGame {
-            seed: 5,
-            all_ai: true,
-            ..NewGame::default()
-        },
-    )
-    .expect("a new game");
+    let mut w = Game::new(
+        new_game(
+            f4x_def::testdir::shipped(),
+            &NewGame {
+                seed: 5,
+                all_ai: true,
+                ..NewGame::default()
+            },
+        )
+        .expect("a new game"),
+    );
     let mut ais = vec![Ai::new(PlayerId(0)), Ai::new(PlayerId(1))];
     let start = w.turn;
     let mut started = 0;
@@ -37,15 +40,17 @@ fn rounds_with_two_ais_advance_the_round_counter_once_each() {
 fn the_second_ai_plays_on_the_board_the_first_left() {
     // Same seed, same AIs: playing in sequence is deterministic.
     let play = || {
-        let mut w = new_game(
-            f4x_def::testdir::shipped(),
-            &NewGame {
-                seed: 9,
-                all_ai: true,
-                ..NewGame::default()
-            },
-        )
-        .expect("a new game");
+        let mut w = Game::new(
+            new_game(
+                f4x_def::testdir::shipped(),
+                &NewGame {
+                    seed: 9,
+                    all_ai: true,
+                    ..NewGame::default()
+                },
+            )
+            .expect("a new game"),
+        );
         let mut ais = vec![Ai::new(PlayerId(0)), Ai::new(PlayerId(1))];
         for _ in 0..15 {
             play_round(&mut w, &mut ais);
@@ -58,25 +63,29 @@ fn the_second_ai_plays_on_the_board_the_first_left() {
 #[test]
 fn a_game_loaded_with_the_ais_plans_plays_on_as_the_saved_one_would_have() {
     use f4x_core::world::save::Snapshot;
-    let mut w = new_game(
-        f4x_def::testdir::shipped(),
-        &NewGame {
-            seed: 15,
-            all_ai: true,
-            ..NewGame::default()
-        },
-    )
-    .expect("a new game");
+    let mut w = Game::new(
+        new_game(
+            f4x_def::testdir::shipped(),
+            &NewGame {
+                seed: 15,
+                all_ai: true,
+                ..NewGame::default()
+            },
+        )
+        .expect("a new game"),
+    );
     let mut ais = vec![Ai::new(PlayerId(0)), Ai::new(PlayerId(1))];
     for _ in 0..40 {
         play_round(&mut w, &mut ais);
     }
     Ai::remember(&mut w, &ais);
     let text = w.snapshot().to_text().expect("saves");
-    let mut loaded = Snapshot::from_text(&text)
-        .expect("reads")
-        .restore(w.content().clone())
-        .expect("loads");
+    let mut loaded = Game::new(
+        Snapshot::from_text(&text)
+            .expect("reads")
+            .restore(w.content().clone())
+            .expect("loads"),
+    );
     let mut fresh = vec![Ai::new(PlayerId(0)), Ai::new(PlayerId(1))];
     Ai::recall(&loaded, &mut fresh);
     for (a, b) in fresh.iter().zip(&ais) {
@@ -97,15 +106,17 @@ fn a_game_loaded_with_the_ais_plans_plays_on_as_the_saved_one_would_have() {
 fn the_master_hands_the_ais_plans_to_the_game_at_every_round_start() {
     use f4x_ai::AiSeat;
     use f4x_master::{Master, Seat, Stopped, Until};
-    let mut w = new_game(
-        f4x_def::testdir::shipped(),
-        &NewGame {
-            seed: 3,
-            all_ai: true,
-            ..NewGame::default()
-        },
-    )
-    .expect("a new game");
+    let mut w = Game::new(
+        new_game(
+            f4x_def::testdir::shipped(),
+            &NewGame {
+                seed: 3,
+                all_ai: true,
+                ..NewGame::default()
+            },
+        )
+        .expect("a new game"),
+    );
     let mut ais = vec![Ai::new(PlayerId(0)), Ai::new(PlayerId(1))];
     let [a, b] = &mut ais[..] else { unreachable!() };
     let seats = vec![

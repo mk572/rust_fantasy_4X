@@ -104,9 +104,9 @@ impl App {
     fn item_at(&self, spot: ItemSpot) -> Option<Item> {
         use f4x_core::item::armory::ItemWorld;
         match spot {
-            ItemSpot::Vault(i) => self.world.items().armory(HUMAN).vault.get(i)?.clone(),
-            ItemSpot::Award(i) => self.world.items().armory(HUMAN).awards.get(i).cloned(),
-            ItemSpot::Hero(unit, slot) => self.world.items().hero_item(unit, slot),
+            ItemSpot::Vault(i) => self.game.items().armory(HUMAN).vault.get(i)?.clone(),
+            ItemSpot::Award(i) => self.game.items().armory(HUMAN).awards.get(i).cloned(),
+            ItemSpot::Hero(unit, slot) => self.game.items().hero_item(unit, slot),
         }
     }
 
@@ -114,7 +114,7 @@ impl App {
     /// always there, so an item can be put down after the last one.
     fn vault_pages(&self) -> usize {
         let used = self
-            .world
+            .game
             .items()
             .armory(HUMAN)
             .vault
@@ -168,7 +168,7 @@ impl App {
 impl ItemUi {
     /// The next item on the award list comes into the hand (`Process_Item_Pool`).
     fn pick_up_award(&mut self, app: &mut App) {
-        if self.held.is_none() && !app.world.items().armory(HUMAN).awards.is_empty() {
+        if self.held.is_none() && !app.game.items().armory(HUMAN).awards.is_empty() {
             self.held = Some(ItemSpot::Award(0));
         }
     }
@@ -176,10 +176,10 @@ impl ItemUi {
     /// Whether `hero`'s square is the one the item in the hand comes from.
     fn same_location(&self, app: &App, hero: hecs::Entity) -> bool {
         let source = match self.held {
-            Some(ItemSpot::Hero(unit, _)) => app.world.units().unit_position(unit),
-            _ => app.world.wizard(HUMAN).and_then(|w| w.fortress()),
+            Some(ItemSpot::Hero(unit, _)) => app.game.units().unit_position(unit),
+            _ => app.game.wizard(HUMAN).and_then(|w| w.fortress()),
         };
-        source.is_some() && source == app.world.units().unit_position(hero)
+        source.is_some() && source == app.game.units().unit_position(hero)
     }
 
     /// Put the item in the hand at `to` (or pick up what is there).
@@ -201,7 +201,7 @@ impl ItemUi {
         // in the hand stays there while the swapped one is picked up in its place, which the core
         // does as a swap.
         let before = app.item_at(to);
-        let events = app.world.apply(Command::MoveItem {
+        let events = app.game.apply(Command::MoveItem {
             player: HUMAN,
             from,
             to,
@@ -237,7 +237,7 @@ impl ItemUi {
             Some(ItemSpot::Award(i)) => Spot::Award(i),
             _ => return,
         };
-        let events = app.world.apply(Command::ScrapItem {
+        let events = app.game.apply(Command::ScrapItem {
             player: HUMAN,
             from: spot,
         });
@@ -254,11 +254,11 @@ impl ItemUi {
             Some(ItemSpot::Award(i)) => Spot::Award(i),
             _ => return,
         };
-        let mut events = app.world.apply(Command::SellItem {
+        let mut events = app.game.apply(Command::SellItem {
             player: HUMAN,
             from: spot,
         });
-        events.extend(f4x_ai::answer_resales(&mut app.world));
+        events.extend(f4x_ai::answer_resales(&mut app.game));
         app.note(events);
         self.held = None;
         self.pick_up_award(app);
@@ -281,7 +281,7 @@ impl ItemUi {
             app.draw_pic(lay, "newgame", 45, 0, 67.0, 152.0);
             let text = app.text_with(
                 "item.transfer_ask",
-                &Args::new().count("mana", app.world.content().rules.config.item.transfer_mana),
+                &Args::new().count("mana", app.game.content().rules.config.item.transfer_mana),
             );
             let lines = app.bm_wrap(1, &text, 160.0);
             for (i, line) in lines.iter().enumerate() {
@@ -350,7 +350,7 @@ impl Page for ItemUi {
         let busy = self.card.is_some() || self.confirm.is_some();
         let left = input.mouse_pressed(MouseButton::Left) && !busy;
         let right = input.mouse_pressed(MouseButton::Right) && !busy;
-        let heroes = app.world.units().hero_units(HUMAN);
+        let heroes = app.game.units().hero_units(HUMAN);
         let held = self.held.is_some();
         let ink = Color::new(0.95, 0.85, 0.5, 1.0);
         let mut card_at = None;
@@ -363,14 +363,14 @@ impl Page for ItemUi {
             let (x1, y1) = hero_square(i);
             app.draw_pic(&lay, "armylist", 6, 0, x1, y1);
             let portrait = app
-                .world
+                .game
                 .units()
                 .unit_def(hero)
                 .and_then(|d| app.art.hero_portrait(&d.id));
             if let Some(p) = portrait {
                 app.draw_pic(&lay, "portrait", p, 0, x1 + 1.0, y1 + 1.0);
             }
-            let name = app.world.units().hero_name(hero).unwrap_or_default();
+            let name = app.game.units().hero_name(hero).unwrap_or_default();
             app.draw_styled(
                 view,
                 &Style::inked(1, Ink::Set(font_ramp::ITEM_NAME)).shadow(),
@@ -402,7 +402,7 @@ impl Page for ItemUi {
                 return;
             }
             let kinds = app
-                .world
+                .game
                 .units()
                 .unit_def(hero)
                 .and_then(|d| d.hero.as_ref().map(|h| h.kind.slots()))
@@ -479,7 +479,7 @@ impl Page for ItemUi {
         }
 
         // The gold and the mana, the anvil, the buttons.
-        let (gold, mana) = app.world.player(HUMAN).map_or((0, 0), |p| {
+        let (gold, mana) = app.game.player(HUMAN).map_or((0, 0), |p| {
             (p.treasury().gold.floor(), p.treasury().mana.floor())
         });
         let style = if gold > 19999 || mana > 19999 { 0 } else { 1 };

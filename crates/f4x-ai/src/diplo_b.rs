@@ -22,6 +22,7 @@ use f4x_core::world::{Event, World};
 use crate::memory::Memory;
 use crate::statecraft::{propose, remark, Scene};
 use crate::Ai;
+use f4x_master::Game;
 
 /// Every number of system B's peace.
 #[derive(Debug, Clone, Copy)]
@@ -363,15 +364,15 @@ pub(crate) fn offer_due(ai: &Ai, world: &World, other: PlayerId) -> bool {
 }
 
 /// The wars it fights with the other wizards: peace is offered where the wish says so.
-pub(crate) fn wars(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>, scene: &Scene) {
+pub(crate) fn wars(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, scene: &Scene) {
     for &w in &scene.others {
         // The human is asked by `approach_human`.
-        if world.human() == Some(w) || !offer_due(ai, world, w) {
+        if game.human() == Some(w) || !offer_due(ai, game, w) {
             continue;
         }
-        if propose(ai, world, events, w, ProposalKind::Peace) {
-            ai.memory.put().offered_peace(w, world.turn);
-            remark(ai, world, events, w, Remark::WarWeary);
+        if propose(ai, game, events, w, ProposalKind::Peace) {
+            ai.memory.put().offered_peace(w, game.turn);
+            remark(ai, game, events, w, Remark::WarWeary);
         }
     }
 }
@@ -384,11 +385,12 @@ mod tests {
     use f4x_core::rules::RealmId;
     use f4x_core::world::Command;
     use f4x_def::half_int::HalfInt;
+    use f4x_master::Game;
 
     /// Where the east wizard has a city on the west island.
     const RIVAL: (u32, u32) = (3, 8);
 
-    fn found(w: &mut World, owner: PlayerId, x: u32, y: u32) {
+    fn found(w: &mut Game, owner: PlayerId, x: u32, y: u32) {
         let race = w.content().rules.races.id_numbered(8);
         w.apply(Command::FoundCity {
             owner,
@@ -401,7 +403,7 @@ mod tests {
 
     /// P0 and P1 are at war since turn 100, with armies of these sizes, each with two cities (P1's
     /// nearer one on P0's island) and it is turn `turn`.
-    fn war(army0: usize, army1: usize, turn: u32) -> World {
+    fn war(army0: usize, army1: usize, turn: u32) -> Game {
         let mut w = game(COAST_CITY, 8 /* high_men */);
         found(&mut w, P0, 10, 10);
         found(&mut w, P1, RIVAL.0, RIVAL.1);
@@ -640,7 +642,7 @@ mod tests {
     use crate::{answer_proposals, Diplomats};
 
     /// `asker` proposes peace to `judge`, who answers through the game's table; whether the war is over.
-    fn asked_for_peace(w: &mut World, asker: PlayerId, judge: PlayerId, table: &Diplomats) -> bool {
+    fn asked_for_peace(w: &mut Game, asker: PlayerId, judge: PlayerId, table: &Diplomats) -> bool {
         w.apply(Command::Diplomacy(DiplomacyCommand::Propose {
             from: asker,
             to: judge,

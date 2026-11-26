@@ -59,12 +59,12 @@ pub(crate) fn thumb_at(extra: i32, most: i32) -> f32 {
 impl App {
     /// For screenshots: the slider of Disenchant Area, a third of the way along.
     pub(crate) fn open_test_extra_mana(&mut self) {
-        let Some(spell) = self.world.content().rules.spells.id_numbered(204)
+        let Some(spell) = self.game.content().rules.spells.id_numbered(204)
         /* disenchant_area */
         else {
             return;
         };
-        let most = most_extra(self.world.content().rules.spells.get(spell).cost as i32);
+        let most = most_extra(self.game.content().rules.spells.get(spell).cost as i32);
         self.modals.open(ExtraMana {
             spell,
             extra: most / 3,
@@ -78,7 +78,7 @@ impl Modal for ExtraMana {
     }
     fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
         let Self { spell, mut extra } = *self;
-        let def = app.world.content().rules.spells.get(spell);
+        let def = app.game.content().rules.spells.get(spell);
         let base = def.cost as i32;
         let most = most_extra(base);
         let lay = Layout::new();

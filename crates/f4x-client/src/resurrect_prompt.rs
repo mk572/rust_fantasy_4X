@@ -92,7 +92,7 @@ impl App {
     /// Start Resurrection: open the list of the dead heroes, or say there are none.
     pub(crate) fn open_resurrect(&mut self, spell: SpellId, resolve: bool) {
         self.screen = Screen::Map;
-        if self.world.units().raisable_heroes().is_empty() {
+        if self.game.units().raisable_heroes().is_empty() {
             self.log.push(self.text("spell.no_dead"));
         } else {
             self.modals.open(Resurrect {
@@ -114,10 +114,10 @@ impl App {
             resolve,
             row,
         } = resurrect;
-        let dead = self.world.units().raisable_heroes();
+        let dead = self.game.units().raisable_heroes();
         let lines: Vec<String> = dead
             .iter()
-            .map(|&kind| self.world.units().hero_type_name(kind).unwrap_or_default())
+            .map(|&kind| self.game.units().hero_type_name(kind).unwrap_or_default())
             .collect();
         let row = row.min(lines.len().saturating_sub(1));
         let (w, h) = (screen_width(), screen_height());
@@ -135,7 +135,7 @@ impl App {
         let mut left = None;
         match verdict {
             Step::Cancel => self.log.push(self.text("log.cast_cancelled")),
-            Step::Raise if self.world.has_several_circles(HUMAN) => {
+            Step::Raise if self.game.has_several_circles(HUMAN) => {
                 // With several summoning circles the hero comes back to the one the wizard picks.
                 let (hero, cities) = (dead[pick], self.circle_cities());
                 let prompt = self.text("offer.choose_circle");
@@ -143,7 +143,7 @@ impl App {
                     match city.and_then(|c| app.circle_position(c)) {
                         Some(at) => {
                             let events =
-                                app.world
+                                app.game
                                     .apply(raise_command(spell, resolve, hero, Some(at)));
                             app.note(events);
                         }
@@ -153,7 +153,7 @@ impl App {
             }
             Step::Raise => {
                 let command = raise_command(spell, resolve, dead[pick], None);
-                let events = self.world.apply(command);
+                let events = self.game.apply(command);
                 self.note(events);
             }
             Step::Stay => {
@@ -175,7 +175,7 @@ impl App {
         draw_rectangle_lines(w / 2.0 - 280.0, h / 2.0 - 80.0, 560.0, height, 3.0, GOLD);
         let name_term = self
             .names
-            .spell_term(self.world.content().rules.spells.get(spell).num);
+            .spell_term(self.game.content().rules.spells.get(spell).num);
         crate::frame::text_centered(
             &self.text_with(
                 "spell.choose_dead",
@@ -261,7 +261,7 @@ mod tests {
     fn the_command_answers_a_waiting_cast_or_starts_one() -> TestResult {
         let app = App::for_test();
         let spell = app
-            .world
+            .game
             .content()
             .rules
             .spells

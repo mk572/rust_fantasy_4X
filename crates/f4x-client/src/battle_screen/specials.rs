@@ -131,14 +131,14 @@ impl App {
         }
         let selected = ui.selected.and_then(|id| battle.unit(id));
         let id = selected.map_or(0, |u| u.id);
-        for s in selected.map_or_else(Vec::new, |_| self.world.battle_unit_spells(id)) {
+        for s in selected.map_or_else(Vec::new, |_| self.game.battle_unit_spells(id)) {
             let name = self
                 .names
-                .spell(self.world.content().rules.spells.get(s.spell).num)
+                .spell(self.game.content().rules.spells.get(s.spell).num)
                 .to_string();
             let name_term = self
                 .names
-                .spell_term(self.world.content().rules.spells.get(s.spell).num);
+                .spell_term(self.game.content().rules.spells.get(s.spell).num);
             let label = if s.cost > 0 {
                 self.text_with(
                     "battle.spell_row",
@@ -208,7 +208,7 @@ impl App {
                     self.text_with("battle.demon_row", &Args::new().count("n", *left)),
                     gold,
                     None,
-                    free && self.world.can_summon_demon(id),
+                    free && self.game.can_summon_demon(id),
                 ),
                 Row::Ability(icon, name) => (name.clone(), light, *icon, false),
                 Row::Merge(icon, name, can) => (name.clone(), gold, *icon, *can && free),

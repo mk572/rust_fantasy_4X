@@ -8,11 +8,12 @@
 
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
-use f4x_core::world::{Command, Event, World};
+use f4x_core::world::{Command, Event};
 use f4x_def::rules::Ability;
 
 use crate::view::{distance, is_fighter};
 use crate::Ai;
+use f4x_master::Game;
 
 /// A unit below this share of its hit points rests.
 pub(crate) const REST_PCT: u32 = 60;
@@ -32,10 +33,10 @@ pub(crate) fn needs_rest(view: &PlayerView, unit: hecs::Entity) -> bool {
 
 /// Send the wounded units that are out in the field to a healer or home, and let go of the tasks
 /// they were on.
-pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
+pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let orders: Vec<(hecs::Entity, Position)> = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         let cities: Vec<Position> = view.my_cities().into_iter().map(|(_, p)| p).collect();
         let busy = |serial| {
             ai.roles.is(serial, crate::roles::Role::SeaParty)
@@ -87,7 +88,7 @@ pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
         out
     };
     for (unit, to) in orders {
-        let serial = PlayerView::new(world, me).serial_of(unit);
+        let serial = PlayerView::new(game, me).serial_of(unit);
         ai.roles.retain_role(crate::roles::Role::Raid, |s| {
             let s = &s;
             *s != serial
@@ -96,9 +97,9 @@ pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
             let s = &s;
             *s != serial
         });
-        ai.order(world, Command::ClearOrders { units: vec![unit] }, events);
+        ai.order(game, Command::ClearOrders { units: vec![unit] }, events);
         ai.order(
-            world,
+            game,
             Command::GoTo {
                 units: vec![unit],
                 to,

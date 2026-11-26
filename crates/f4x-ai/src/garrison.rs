@@ -6,10 +6,11 @@
 
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
-use f4x_core::world::{Command, Event, World};
+use f4x_core::world::{Command, Event};
 
 use crate::view::{garrison_wanted, is_fighter, unit_strength};
 use crate::Ai;
+use f4x_master::Game;
 
 /// How many units the AI lets stand on `at`: what a square lets in (the game's `tile_limit`).
 pub fn city_cap(view: &PlayerView, at: Position) -> usize {
@@ -130,10 +131,10 @@ const LATE_SPARE: usize = 1;
 /// room in the city's stack and fight no tower or city. A city keeps at least what it wants and the
 /// stronger units; the weakest low-tier ones beyond that are dismissed. Not in a threatened city, and
 /// not a unit with a task.
-pub fn thin_out(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
+pub fn thin_out(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let dismissed: Vec<hecs::Entity> = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         if crate::phase::phase(&view) != crate::phase::Phase::Win {
             return;
         }
@@ -175,7 +176,7 @@ pub fn thin_out(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
         out
     };
     for unit in dismissed {
-        ai.order(world, Command::DismissUnit { unit }, events);
+        ai.order(game, Command::DismissUnit { unit }, events);
     }
 }
 
@@ -184,11 +185,12 @@ mod tests {
     use super::*;
     use crate::testworld::{at, game, spawn, COAST_CITY, INLAND_CITY, P0};
     use f4x_core::wizard::fortress::{Fortress, SummonAt};
+    use f4x_core::world::World;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
     /// Player 0 with a city on the coast and a second one inland, and its circle on the coast.
-    fn two_cities() -> Result<World, Box<dyn std::error::Error>> {
+    fn two_cities() -> Result<Game, Box<dyn std::error::Error>> {
         let mut w = game(COAST_CITY, 8 /* high_men */);
         let events = w.apply(Command::FoundCity {
             owner: P0,

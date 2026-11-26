@@ -73,11 +73,11 @@ impl App {
     /// For screenshots and checks: announce this building (an id) as if the first city had just
     /// finished it.
     pub fn open_test_built(&mut self, id: u16) {
-        let Some(building) = self.world.content().rules.buildings.id_numbered(id) else {
+        let Some(building) = self.game.content().rules.buildings.id_numbered(id) else {
             eprintln!("unknown building {id}");
             return;
         };
-        let Some(city) = self.world.economy().cities().first().map(|c| c.0) else {
+        let Some(city) = self.game.economy().cities().first().map(|c| c.0) else {
             return;
         };
         self.modals.enqueue(BuiltNotice { city, building });
@@ -85,7 +85,7 @@ impl App {
 
     /// Remember a finished building of the human wizard's, to be announced.
     pub(crate) fn announce_built(&mut self, city: hecs::Entity, building: BuildingId) {
-        if self.world.economy().city_owner(city) == Some(HUMAN) {
+        if self.game.economy().city_owner(city) == Some(HUMAN) {
             self.modals.enqueue(BuiltNotice { city, building });
         }
     }
@@ -121,7 +121,7 @@ impl App {
         input: &Input,
     ) -> Option<BuiltNotice> {
         let lay = Layout::new();
-        let def = self.world.content().rules.buildings.get(building);
+        let def = self.game.content().rules.buildings.get(building);
         let walls = def.num == 35 /* city_walls */;
         let name = self.names.building_term(def.num);
         let entry = if walls {

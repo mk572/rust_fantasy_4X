@@ -439,7 +439,7 @@ impl App {
 
     /// What should be playing now: a short piece while its box is up, else the screen's music.
     fn want_music(&mut self) -> Option<Track> {
-        if self.world.in_battle() || matches!(self.screen, Screen::Battle) {
+        if self.game.in_battle() || matches!(self.screen, Screen::Battle) {
             return self.combat_track();
         }
         self.audio.battle_track = None;
@@ -479,23 +479,23 @@ impl App {
     }
 
     fn game_over_pending(&self) -> bool {
-        self.world.game_over.is_some() && !self.game_over_seen
+        self.game.game_over.is_some() && !self.game_over_seen
     }
 
     /// The overland track by how the human's power compares with the rivals' (`Get_Background_Music`).
     fn background_track(&self) -> u16 {
-        let at = (self.world.turn as usize).saturating_sub(1).min(287);
+        let at = (self.game.turn as usize).saturating_sub(1).min(287);
         let power = |p: PlayerId| {
-            self.world
+            self.game
                 .player(p)
                 .and_then(|h| h.history().get(at).copied())
                 .map(i32::from)
         };
         let rivals: Vec<i32> = self
-            .world
+            .game
             .player_ids()
             .into_iter()
-            .filter(|&p| p != HUMAN && self.world.is_wizard(p))
+            .filter(|&p| p != HUMAN && self.game.is_wizard(p))
             .filter_map(power)
             .collect();
         power(HUMAN).map_or(music::BACKGROUND_NEUTRAL, |me| {
@@ -504,7 +504,7 @@ impl App {
     }
 
     pub(crate) fn wizard_tracks_of(&self, player: PlayerId) -> Option<u16> {
-        let slot = self.world.wizard(player)?.portrait();
+        let slot = self.game.wizard(player)?.portrait();
         self.art
             .has_wizard(slot)
             .then(|| self.art.wizard(slot).music)
@@ -512,7 +512,7 @@ impl App {
 
     /// The pair of the opposing wizard, or the general pair against monsters, picked once.
     fn combat_track(&mut self) -> Option<Track> {
-        let battle = self.world.battle()?;
+        let battle = self.game.battle()?;
         let foe = if battle.attacker == HUMAN {
             battle.defender
         } else {
@@ -523,17 +523,17 @@ impl App {
                 return Some(track);
             }
         }
-        let pick = (self.world.turn as usize + usize::from(foe.0)) % 2;
+        let pick = (self.game.turn as usize + usize::from(foe.0)) % 2;
         let wizard = self
             .wizard_tracks_of(foe)
-            .filter(|_| self.world.is_wizard(foe));
+            .filter(|_| self.game.is_wizard(foe));
         let track = Track::looping(combat_entry(wizard, pick));
         self.audio.battle_track = Some((foe, track));
         Some(track)
     }
 
     fn game_over_track(&self) -> Option<Track> {
-        let over = self.world.game_over?;
+        let over = self.game.game_over?;
         let won = over.winner == HUMAN;
         Some(Track::piece(match (won, over.kind) {
             (true, _) => music::WIN_MILITARY,

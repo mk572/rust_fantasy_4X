@@ -60,9 +60,9 @@ impl App {
         victim: PlayerId,
         started: Option<f64>,
     ) -> Option<WizardAnim> {
-        let def = self.world.content().rules.spells.get(spell);
+        let def = self.game.content().rules.spells.get(spell);
         let picture = self.art.spell_picture(&def.id, &Role::Cast)?;
-        let slot = self.world.wizard(victim).map_or(0, |w| w.portrait());
+        let slot = self.game.wizard(victim).map_or(0, |w| w.portrait());
         let portrait = self.art.wizard(slot).mirror;
         Some(WizardAnim {
             portrait,
@@ -73,7 +73,7 @@ impl App {
 
     /// For screenshots: the animation of `id` on wizard `victim`.
     pub fn open_test_wizard_anim(&mut self, id: u16, victim: u8, seconds: f64) {
-        let Some(spell) = self.world.content().rules.spells.id_numbered(id) else {
+        let Some(spell) = self.game.content().rules.spells.id_numbered(id) else {
             eprintln!("unknown spell {id}");
             return;
         };
@@ -115,7 +115,7 @@ mod tests {
     fn a_spell_on_a_wizard_animates_for_the_human_and_not_when_animations_are_off() -> TestResult {
         let mut app = App::for_test();
         let spell = app
-            .world
+            .game
             .content()
             .rules
             .spells

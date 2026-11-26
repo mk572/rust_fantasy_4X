@@ -1,21 +1,22 @@
 //! Settlers: choose a place for the next city, walk there and found it.
 
 use f4x_core::player::view::PlayerView;
-use f4x_core::world::{Command, Event, World};
+use f4x_core::world::{Command, Event};
 
 use crate::city_site::Free;
 use crate::Ai;
+use f4x_master::Game;
 
 /// A settler has the settle role only while a site is assigned to it. Where the site stops being
 /// one (a city stands on it, it cannot be founded, no way leads to it: `dispatch.rs`
 /// `mission_valid`), the role and the site go together and the settler awaits orders again. The
 /// site check (`city_site.rs`, the book is rebuilt every few turns) gives a site to each settler
 /// that has none, and at once to one that has just come into being.
-pub fn settlers(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
+pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     use crate::roles::Role;
     let me = ai.player;
     let (mine, plan) = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         let mut mine: Vec<hecs::Entity> = view
             .my_units()
             .into_iter()
@@ -25,14 +26,14 @@ pub fn settlers(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
         // The site check is due when the book is rebuilt; a new settler does not wait for it.
         let due = {
             ai.sites.refreshed(&view);
-            ai.sites.rebuilt_on(world.turn)
+            ai.sites.rebuilt_on(game.turn)
         };
         let free: Vec<Free> = mine
             .iter()
             .filter(|&&u| {
                 let serial = view.serial_of(u);
                 !ai.roles.has_role(serial)
-                    && (due || ai.roles.get(serial).is_some_and(|a| a.since == world.turn))
+                    && (due || ai.roles.get(serial).is_some_and(|a| a.since == game.turn))
             })
             .filter_map(|&u| {
                 Some(Free {
@@ -51,10 +52,10 @@ pub fn settlers(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
     };
     // The sites go to the free settlers; the role comes with the site.
     for &(unit, site, ship) in &plan {
-        let serial = PlayerView::new(world, me).serial_of(unit);
+        let serial = PlayerView::new(game, me).serial_of(unit);
         if ai
             .roles
-            .claim(serial, Role::Settle, world.turn, Some(site))
+            .claim(serial, Role::Settle, game.turn, Some(site))
             .is_err()
         {
             continue;
@@ -69,7 +70,7 @@ pub fn settlers(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
 
     for unit in mine {
         let (pos, serial) = {
-            let view = PlayerView::new(world, me);
+            let view = PlayerView::new(game, me);
             let Some(pos) = view.unit_position(unit) else {
                 continue;
             };
@@ -89,12 +90,12 @@ pub fn settlers(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
         }
         if target == pos {
             let (can_found, name) = {
-                let view = PlayerView::new(world, me);
+                let view = PlayerView::new(game, me);
                 (view.can_found_city(pos), city_name(&view, unit))
             };
             if can_found
                 && ai
-                    .send(world, Command::SettleOutpost { unit, name }, events)
+                    .send(game, Command::SettleOutpost { unit, name }, events)
                     .is_ok()
             {
                 ai.roles.release(serial, Role::Settle);
@@ -103,18 +104,18 @@ pub fn settlers(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
             // Blocked on arrival: the site is no place for a city after all.
             ai.settler_fates
                 .note(crate::settler_fate::SettlerFate::SiteUnusable);
-            give_up(ai, world, unit, serial, events);
+            give_up(ai, game, unit, serial, events);
             continue;
         }
-        let walking = PlayerView::new(world, me).unit_has_order(unit);
+        let walking = PlayerView::new(game, me).unit_has_order(unit);
         if walking && ai.roles.track(serial, pos, true) < 1 {
             continue; // still walking
         }
-        if walking || !crate::escort::walk(ai, world, unit, target, events) {
+        if walking || !crate::escort::walk(ai, game, unit, target, events) {
             // It did not move all turn, or no walk can be ordered: the way is blocked.
             ai.settler_fates
                 .note(crate::settler_fate::SettlerFate::WayBlocked);
-            give_up(ai, world, unit, serial, events);
+            give_up(ai, game, unit, serial, events);
         }
     }
 }
@@ -123,14 +124,14 @@ pub fn settlers(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
 /// awaits orders until the next site check.
 fn give_up(
     ai: &mut Ai,
-    world: &mut World,
+    game: &mut Game,
     unit: hecs::Entity,
     serial: crate::Serial,
     events: &mut Vec<Event>,
 ) {
     ai.roles.release(serial, crate::roles::Role::Settle);
     ai.roles.clear_track(serial);
-    ai.order(world, Command::ClearOrders { units: vec![unit] }, events);
+    ai.order(game, Command::ClearOrders { units: vec![unit] }, events);
 }
 
 /// A name for the next city: the race's list, by how many cities the wizard has.
@@ -149,7 +150,9 @@ mod tests {
     use crate::testworld::{at, game, spawn, COAST_CITY, P0};
     use crate::view::distance;
     use f4x_core::map::Position;
+    use f4x_core::world::World;
     use f4x_def::half_int::HalfInt;
+    use f4x_master::Game;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -160,7 +163,7 @@ mod tests {
     }
 
     /// The west island, explored by its wizard, with `count` settlers standing in the capital.
-    fn island_with_settlers(count: usize) -> (World, Vec<hecs::Entity>) {
+    fn island_with_settlers(count: usize) -> (Game, Vec<hecs::Entity>) {
         let mut w = game(COAST_CITY, 8 /* high_men */);
         w.explore(P0, at(7, 6), HalfInt::from_int(4));
         let units = spawn(
@@ -181,7 +184,7 @@ mod tests {
             .collect()
     }
 
-    fn end_turn(w: &mut World) {
+    fn end_turn(w: &mut Game) {
         // The settlers eat: put the citizens on the farms, or they starve at the turn.
         w.balance_farmers(P0);
         w.apply(Command::EndTurn);

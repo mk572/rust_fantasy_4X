@@ -142,7 +142,7 @@ pub(crate) struct MagicUi {
 impl App {
     /// The magic screen as it opens: the staves at the wizard's power split.
     fn fresh_magic(&self) -> MagicUi {
-        let (m, r, s) = self.world.wizard(HUMAN).map_or((34, 33, 33), |m| {
+        let (m, r, s) = self.game.wizard(HUMAN).map_or((34, 33, 33), |m| {
             let s = m.power_split();
             (s.mana, s.research, s.skill)
         });
@@ -169,11 +169,11 @@ impl App {
 
     /// Every overland enchantment in play, with its wizard.
     fn overland_enchantments(&self) -> Vec<(SpellId, f4x_core::player::PlayerId)> {
-        self.world
+        self.game
             .player_ids()
             .into_iter()
             .flat_map(|id| {
-                self.world
+                self.game
                     .wizard(id)
                     .map(|w| w.global())
                     .unwrap_or_default()
@@ -305,7 +305,7 @@ impl MagicUi {
     /// Keep the staves' positions as the power split.
     fn commit_staves(&mut self, app: &mut App) {
         let [m, r, s] = self.pos;
-        let events = app.world.apply(Command::SetPowerSplit {
+        let events = app.game.apply(Command::SetPowerSplit {
             player: HUMAN,
             mana: (2 * m) as u8,
             research: (2 * r) as u8,
@@ -316,7 +316,7 @@ impl MagicUi {
 
     /// The income under each staff and the block of facts below them.
     fn magic_text(&mut self, app: &mut App, lay: &Layout, view: (f32, f32, f32)) {
-        let income = app.cache.income(&app.world, HUMAN);
+        let income = app.cache.income(&app.game, HUMAN);
         let split = if self.drag.is_some() {
             // While dragging show what the staves would give.
             let base = income.power_base;
@@ -330,8 +330,8 @@ impl MagicUi {
         } else {
             income.split
         };
-        let researching_spell = app.world.wizard(HUMAN).and_then(|m| m.researching());
-        let casting_spell = app.world.wizard(HUMAN).and_then(|m| m.casting());
+        let researching_spell = app.game.wizard(HUMAN).and_then(|m| m.researching());
+        let casting_spell = app.game.wizard(HUMAN).and_then(|m| m.casting());
         app.draw_styled(
             view,
             &Style::sh_set(2, 3).edge(EDGE_FIGURES).right(),
@@ -358,11 +358,11 @@ impl MagicUi {
         );
 
         let skill = app
-            .world
+            .game
             .wizard(HUMAN)
-            .map_or(0, |m| m.casting_skill(&app.world.content().rules));
+            .map_or(0, |m| m.casting_skill(&app.game.content().rules));
         let reserve = app
-            .world
+            .game
             .player(HUMAN)
             .map_or(0, |p| p.treasury().mana.floor());
         let base = income.power_base.floor();
@@ -372,19 +372,19 @@ impl MagicUi {
                 .to_string()
         };
         let casting =
-            casting_spell.map_or_else(|| app.text("magic.none"), |c| name(&app.world, c.spell));
+            casting_spell.map_or_else(|| app.text("magic.none"), |c| name(&app.game, c.spell));
         let researching =
-            researching_spell.map_or_else(|| app.text("magic.none"), |s| name(&app.world, s));
+            researching_spell.map_or_else(|| app.text("magic.none"), |s| name(&app.game, s));
         let summon = app
-            .world
+            .game
             .wizard(HUMAN)
             .and_then(|wizard| wizard.summon_at())
-            .and_then(|at| app.world.economy().city_at(at))
+            .and_then(|at| app.game.economy().city_at(at))
             .map_or_else(|| app.text("magic.none"), |c| app.city_name(c));
         let rows = [
             (
                 app.text("magic.casting_skill"),
-                format!("{}({skill})", skill + app.world.hero_casting_skill(HUMAN)),
+                format!("{}({skill})", skill + app.game.hero_casting_skill(HUMAN)),
                 app.text("magic.casting"),
                 casting,
             ),
@@ -546,7 +546,7 @@ impl MagicUi {
         for (i, &(spell, owner)) in list.iter().skip(first).take(per_page).enumerate() {
             let name = app
                 .names
-                .spell(app.world.content().rules.spells.get(spell).num)
+                .spell(app.game.content().rules.spells.get(spell).num)
                 .to_string();
             let ink = app.banner_ink(owner.0, &[172, 216, 123, 201, 211]);
             let (x, y, style) = if two_columns {
@@ -594,16 +594,16 @@ impl MagicUi {
         };
         let (px, py) = (80.0, 60.0);
         let gold = app
-            .world
+            .game
             .player(HUMAN)
             .map_or(0, |p| p.treasury().gold.floor());
         let mana = app
-            .world
+            .game
             .player(HUMAN)
             .map_or(0, |p| p.treasury().mana.floor());
-        let percent = app.world.wizard(HUMAN).map_or(50, |m| {
+        let percent = app.game.wizard(HUMAN).map_or(50, |m| {
             m.stat(
-                &app.world.content().rules,
+                &app.game.content().rules,
                 f4x_def::rules::Stat::AlchemyPercent,
                 50,
             )
@@ -680,7 +680,7 @@ impl MagicUi {
             ui.slider = 3;
         }
         if ok && amount > 0 {
-            let events = app.world.apply(Command::Alchemy {
+            let events = app.game.apply(Command::Alchemy {
                 player: HUMAN,
                 amount,
                 gold_to_mana: ui.gold_to_mana,
@@ -768,7 +768,7 @@ impl Page for MagicUi {
         if let Some(spell) = self.turn_off {
             let name_term = app
                 .names
-                .spell_term(app.world.content().rules.spells.get(spell).num);
+                .spell_term(app.game.content().rules.spells.get(spell).num);
             let question = app.text_with(
                 "magic.cancel_spell",
                 &Args::new().term("spell", name_term.clone()),
@@ -776,7 +776,7 @@ impl Page for MagicUi {
             match app.confirm_box(&question, input) {
                 Some(true) => {
                     self.turn_off = None;
-                    let events = app.world.apply(Command::TurnOffSpell {
+                    let events = app.game.apply(Command::TurnOffSpell {
                         player: HUMAN,
                         spell,
                     });

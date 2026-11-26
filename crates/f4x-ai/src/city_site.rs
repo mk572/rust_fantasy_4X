@@ -448,9 +448,10 @@ mod tests {
     use super::*;
     use crate::testworld::{at, game, game_with_rivers, spawn, COAST_CITY, ENEMY_CITY, P0, P1};
     use f4x_def::half_int::HalfInt;
+    use f4x_master::Game;
 
     /// The west island, explored by its wizard.
-    fn explored_island() -> f4x_core::world::World {
+    fn explored_island() -> Game {
         let mut w = game(COAST_CITY, 8 /* high_men */);
         w.explore(P0, at(7, 6), HalfInt::from_int(4));
         w

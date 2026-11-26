@@ -14,6 +14,7 @@ use f4x_def::half_int::HalfInt;
 use std::cmp::Reverse;
 
 use crate::Ai;
+use f4x_master::Game;
 
 /// Buildings the AI sells first when the gold runs out, most dispensable first.
 const SELL_ORDER: &[&str] = &[
@@ -28,23 +29,23 @@ const SELL_ORDER: &[&str] = &[
     "bank",
 ];
 
-pub fn run(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
+pub fn run(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    if let Some(short) = world.upkeep_shortfall(me) {
+    if let Some(short) = game.upkeep_shortfall(me) {
         let items = choose_upkeep(&short);
-        ai.order(world, Command::ReleaseUpkeep { player: me, items }, events);
+        ai.order(game, Command::ReleaseUpkeep { player: me, items }, events);
     }
-    sell_for_gold(ai, world, events);
-    let Some(short) = world.treasury_shortfall(me) else {
+    sell_for_gold(ai, game, events);
+    let Some(short) = game.treasury_shortfall(me) else {
         return;
     };
     let units = choose_troops(&short);
-    let scrap = world
+    let scrap = game
         .item_overflow(me, &units)
         .map(|o| o.default_scrap)
         .unwrap_or_default();
     ai.order(
-        world,
+        game,
         Command::ReleaseTroops {
             player: me,
             units,
@@ -55,20 +56,20 @@ pub fn run(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
 }
 
 /// Sell dispensable buildings while the gold is short, one at a time.
-fn sell_for_gold(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
+fn sell_for_gold(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     loop {
-        let missing = world
+        let missing = game
             .treasury_shortfall(me)
             .map_or(HalfInt::ZERO, |s| s.missing(&[]).1);
         if missing == HalfInt::ZERO {
             return;
         }
-        let Some((city, building)) = next_sale(world, me) else {
+        let Some((city, building)) = next_sale(game, me) else {
             return;
         };
         if !ai
-            .send(world, Command::SellBuilding { city, building }, events)
+            .send(game, Command::SellBuilding { city, building }, events)
             .is_ok()
         {
             return;

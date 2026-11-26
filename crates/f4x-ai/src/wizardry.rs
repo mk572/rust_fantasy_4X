@@ -15,6 +15,7 @@ use f4x_def::rules::{CastContext, Duration, SpellDef, SpellId, SpellTarget};
 
 use crate::view::{fighting_strength, is_fighter, unit_strength};
 use crate::Ai;
+use f4x_master::Game;
 
 /// The kinds of overland spell the AI knows what to do with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -395,15 +396,15 @@ fn cast_rank(k: Kind, traits: &crate::objective::Traits) -> i32 {
 }
 
 /// Everything the wizard does with its magic in a turn.
-pub fn run(ai: &mut Ai, world: &mut World, events: &mut Vec<Event>) {
-    fund_return(ai, world, events);
-    alchemy(ai, world, events);
-    stop_aimless(ai, world, events);
-    resolve_paid(ai, world, events);
-    split(ai, world, events);
-    research(ai, world, events);
-    cast(ai, world, events);
-    crate::craft::run(ai, world, events);
+pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+    fund_return(ai, game, events);
+    alchemy(ai, game, events);
+    stop_aimless(ai, game, events);
+    resolve_paid(ai, game, events);
+    split(ai, game, events);
+    research(ai, game, events);
+    cast(ai, game, events);
+    crate::craft::run(ai, game, events);
 }
 
 /// Gold a wizard keeps; what is above it, once the cities have bought what they can, is turned
@@ -439,9 +440,9 @@ fn mana_wanted(view: &PlayerView, blocked: &[f4x_core::map::Plane]) -> i32 {
 /// A wizard rich in gold and short of the mana for a summon it could cast turns just enough of the
 /// surplus gold into mana for it (Alchemy returns a percent of what is put in). Mana it has no use
 /// for is not bought.
-fn alchemy(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
+fn alchemy(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let gold = {
-        let view = PlayerView::new(world, ai.player);
+        let view = PlayerView::new(game, ai.player);
         let Some(w) = view.wizard() else {
             return;
         };
@@ -458,7 +459,7 @@ fn alchemy(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
     };
     if gold > 0 {
         ai.order(
-            world,
+            game,
             Command::Alchemy {
                 player: ai.player,
                 amount: gold,
@@ -472,16 +473,16 @@ fn alchemy(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
 /// A banished wizard pays the Spell of Return from its mana reserve and has no income. When the
 /// reserve does not cover this turn's payment it turns as much gold as it needs into mana, and no
 /// more (a choice of the script, not a rule).
-fn fund_return(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
+fn fund_return(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let gold = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         let Some(w) = view.wizard() else {
             return;
         };
         let Some(casting) = w
             .casting()
-            .filter(|c| world.spell_has_hook(c.spell, f4x_core::spell::special::SPELL_OF_RETURN))
+            .filter(|c| game.spell_has_hook(c.spell, f4x_core::spell::special::SPELL_OF_RETURN))
         else {
             return;
         };
@@ -505,7 +506,7 @@ fn fund_return(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
     };
     if gold > 0 {
         ai.order(
-            world,
+            game,
             Command::Alchemy {
                 player: me,
                 amount: gold,
@@ -518,16 +519,16 @@ fn fund_return(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
 
 /// The game asks a wizard whose spell has nothing to aim at whether to stop casting it; the AI
 /// answers yes, as a human would.
-fn stop_aimless(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
-    let Some(spell) = world
+fn stop_aimless(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
+    let Some(spell) = game
         .wizard(ai.player)
         .and_then(|m| m.casting())
         .map(|c| c.spell)
     else {
         return;
     };
-    if world.spell_needs_target(ai.player, spell) && !world.spell_has_target(ai.player, spell) {
-        ai.order(world, Command::CancelCast { player: ai.player }, events);
+    if game.spell_needs_target(ai.player, spell) && !game.spell_has_target(ai.player, spell) {
+        ai.order(game, Command::CancelCast { player: ai.player }, events);
     }
 }
 
@@ -591,10 +592,10 @@ fn split_target(view: &PlayerView, traits: &crate::objective::Traits) -> [i32; 3
     t
 }
 
-fn split(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
+fn split(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let (casting_mastery, racing) = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         let Some(m) = view.wizard() else {
             return;
         };
@@ -605,28 +606,28 @@ fn split(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
         )
     };
     if casting_mastery {
-        ai.order(world, set_split(me, MASTERY_SPLIT), events);
+        ai.order(game, set_split(me, MASTERY_SPLIT), events);
         return;
     }
     // Nothing left to research: research points go to waste, so the power goes to mana and to the
     // casting skill that spends it (a wizard that knows every spell, seen in the soaks, put 70% of
     // 378 power into research and had 38 mana a turn).
     let nothing_to_research = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         view.wizard()
             .is_some_and(|m| m.researching().is_none() && !m.known().is_empty())
             && view.research_choices().is_empty()
     };
     if nothing_to_research {
-        ai.order(world, set_split(me, DONE_RESEARCHING), events);
+        ai.order(game, set_split(me, DONE_RESEARCHING), events);
         return;
     }
     if racing {
-        ai.order(world, set_split(me, RACING_SPLIT), events);
+        ai.order(game, set_split(me, RACING_SPLIT), events);
         return;
     }
     let mut target = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         split_target(&view, &crate::objective::traits(&view))
     };
     // The income must cover the upkeep of the lasting spells and creatures (a reserve pays for a
@@ -634,8 +635,8 @@ fn split(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
     let mut chosen = target;
     for _ in 0..40 {
         chosen = target;
-        world.apply(set_split(me, as_split(chosen)));
-        let view = PlayerView::new(world, me);
+        game.apply(set_split(me, as_split(chosen)));
+        let view = PlayerView::new(game, me);
         let income = view.income();
         let deficit_allowed = f4x_def::half_int::HalfInt::from_int(
             view.treasury().mana.floor().max(0) / MANA_HORIZON,
@@ -652,7 +653,7 @@ fn split(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
             shift(&mut target, 2, 0, STEP);
         }
     }
-    ai.order(world, set_split(me, as_split(chosen)), events);
+    ai.order(game, set_split(me, as_split(chosen)), events);
 }
 
 fn as_split(share: [i32; 3]) -> (u8, u8, u8) {
@@ -744,9 +745,9 @@ fn liked(def: &SpellDef, kind: Kind, traits: &crate::objective::Traits) -> bool 
     })
 }
 
-fn research(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
+fn research(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let spell = {
-        let view = PlayerView::new(world, ai.player);
+        let view = PlayerView::new(game, ai.player);
         let Some(m) = view.wizard() else {
             return;
         };
@@ -764,7 +765,7 @@ fn research(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
     };
     if let Some(spell) = spell {
         ai.order(
-            world,
+            game,
             Command::SetResearch {
                 player: ai.player,
                 spell,
@@ -777,27 +778,27 @@ fn research(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
 // ---- casting --------------------------------------------------------------------
 
 /// A spell that has been paid for over turns and waits for its target.
-fn resolve_paid(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
+fn resolve_paid(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     // Resurrection: the last of the dead heroes, chosen now that the cost is paid.
-    let paid = PlayerView::new(world, ai.player).paid_spell();
+    let paid = PlayerView::new(game, ai.player).paid_spell();
     if paid.is_some_and(|s| {
-        f4x_core::spell::hero::HeroSummon::Resurrection.is_in(world.content().rules.spells.get(s))
+        f4x_core::spell::hero::HeroSummon::Resurrection.is_in(game.content().rules.spells.get(s))
     }) {
-        if let Some(kind) = world.units().ai_resurrection_pick() {
-            let target = raise_target(&PlayerView::new(world, ai.player), kind);
+        if let Some(kind) = game.units().ai_resurrection_pick() {
+            let target = raise_target(&PlayerView::new(game, ai.player), kind);
             let command = Command::ResolveCast {
                 player: ai.player,
                 target,
             };
-            ai.order(world, command, events);
+            ai.order(game, command, events);
         }
         return;
     }
     // The Spell of Return: the fortress goes to the biggest city (the game refuses a city that
     // is not the wizard's). Left unaimed it waited for ever, with no income all the while.
-    if paid.is_some_and(|s| world.spell_has_hook(s, f4x_core::spell::special::SPELL_OF_RETURN)) {
+    if paid.is_some_and(|s| game.spell_has_hook(s, f4x_core::spell::special::SPELL_OF_RETURN)) {
         let city = {
-            let view = PlayerView::new(world, ai.player);
+            let view = PlayerView::new(game, ai.player);
             let mut cities = view.my_cities();
             cities.sort_by_key(|&(c, _)| {
                 (
@@ -812,12 +813,12 @@ fn resolve_paid(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
                 player: ai.player,
                 target: Target::City(city),
             };
-            ai.order(world, command, events);
+            ai.order(game, command, events);
         }
         return;
     }
     let target = {
-        let view = PlayerView::new(world, ai.player);
+        let view = PlayerView::new(game, ai.player);
         let Some(spell) = view.paid_spell() else {
             return;
         };
@@ -833,7 +834,7 @@ fn resolve_paid(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
     };
     if let Some(target) = target {
         ai.order(
-            world,
+            game,
             Command::ResolveCast {
                 player: ai.player,
                 target,
@@ -1407,45 +1408,45 @@ fn upkeep_ok(view: &PlayerView, def: &SpellDef) -> bool {
 /// one lies dead. The last of the raisable heroes is raised (`ai_resurrection_pick`); a cast that
 /// is paid over turns picks its hero when it is done (`resolve_paid`). Returns whether it began: a
 /// cast the game refuses is not begun, and the wizard goes on to its other spells.
-fn resurrect(ai: &Ai, world: &mut World, events: &mut Vec<Event>) -> bool {
+fn resurrect(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
     let me = ai.player;
     let kind = {
         let Some(spell) =
-            f4x_core::spell::hero::HeroSummon::Resurrection.spell_in(&world.content().rules)
+            f4x_core::spell::hero::HeroSummon::Resurrection.spell_in(&game.content().rules)
         else {
             return false;
         };
-        let knows = world
+        let knows = game
             .wizard(me)
             .is_some_and(|m| m.casting().is_none() && m.knows(spell));
-        if !knows || world.units().hero_spell_blocked(me, spell).is_some() {
+        if !knows || game.units().hero_spell_blocked(me, spell).is_some() {
             return false;
         }
-        let mana = world.player(me).map_or(0, |p| p.treasury().mana.floor());
-        let cost = world.casting_cost(me, spell, false);
+        let mana = game.player(me).map_or(0, |p| p.treasury().mana.floor());
+        let cost = game.casting_cost(me, spell, false);
         // The same gate as the other spells: paid from the reserve, not more than fifty turns.
-        let per_turn = mana / 10 + world.income(me).split.mana.floor();
+        let per_turn = mana / 10 + game.income(me).split.mana.floor();
         if cost * 3 / 2 > mana || cost / 50 > per_turn {
             return false;
         }
-        world.units().ai_resurrection_pick()
+        game.units().ai_resurrection_pick()
     };
     let Some(kind) = kind else {
         return false;
     };
     let Some(spell) =
-        f4x_core::spell::hero::HeroSummon::Resurrection.spell_in(&world.content().rules)
+        f4x_core::spell::hero::HeroSummon::Resurrection.spell_in(&game.content().rules)
     else {
         return false;
     };
-    let target = raise_target(&PlayerView::new(world, me), kind);
+    let target = raise_target(&PlayerView::new(game, me), kind);
     let command = Command::CastSpell {
         extra: 0,
         player: me,
         spell,
         target: Some(target),
     };
-    ai.send(world, command, events).is_ok()
+    ai.send(game, command, events).is_ok()
 }
 
 /// Where the spell would go in the situation of the wizard, if anywhere.
@@ -1509,13 +1510,13 @@ fn note_unmet(ai: &Ai, view: &PlayerView, world: &World, known: &[(Kind, i32, Sp
     }
 }
 
-fn cast(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
+fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    if resurrect(ai, world, events) {
+    if resurrect(ai, game, events) {
         return;
     }
     let choice: Option<(SpellId, Option<Target>)> = {
-        let view = PlayerView::new(world, me);
+        let view = PlayerView::new(game, me);
         let Some(magic) = view.wizard() else {
             return;
         };
@@ -1539,7 +1540,7 @@ fn cast(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
             .map(|s| (kind(view.spell(s)), view.casting_cost(s), s))
             .filter(|&(k, cost, _)| k != Kind::Other && cost > 0)
             .collect();
-        note_unmet(ai, &view, world, &options);
+        note_unmet(ai, &view, game, &options);
         let traits = crate::objective::traits(&view);
         // The intents in the order the wizard's objective ranks them; within an intent the helper's
         // rating puts the best spell first.
@@ -1693,7 +1694,7 @@ fn cast(ai: &Ai, world: &mut World, events: &mut Vec<Event>) {
     };
     if let Some((spell, target)) = choice {
         ai.order(
-            world,
+            game,
             Command::CastSpell {
                 extra: 0,
                 player: me,
@@ -1714,12 +1715,13 @@ mod tests {
     use f4x_core::wizard::objective::Objective;
     use f4x_def::half_int::HalfInt;
     use f4x_def::rules::RealmId;
+    use f4x_master::Game;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
     /// A wizard of the fresh game that knows the dearest summon the rules have, with the given
     /// gold and mana.
-    fn summoner(gold: i32, mana: i32) -> Result<(World, i32), Box<dyn std::error::Error>> {
+    fn summoner(gold: i32, mana: i32) -> Result<(Game, i32), Box<dyn std::error::Error>> {
         let mut w = fresh_game()?;
         let summon = w
             .content()
@@ -1783,7 +1785,7 @@ mod tests {
             .ok_or(format!("{id} is shipped"))
     }
 
-    fn treasury(w: &mut World, player: PlayerId) -> Result<&mut Treasury, &'static str> {
+    fn treasury(w: &mut Game, player: PlayerId) -> Result<&mut Treasury, &'static str> {
         w.treasury_mut(player).ok_or("the player has a treasury")
     }
 
@@ -2052,7 +2054,7 @@ mod tests {
 
     /// Puts lasting spells with an upkeep on the wizard until its mana income at the split that
     /// gives mana the most is below the upkeep.
-    fn overburdened(w: &mut World, player: PlayerId) -> Result<(), Box<dyn std::error::Error>> {
+    fn overburdened(w: &mut Game, player: PlayerId) -> Result<(), Box<dyn std::error::Error>> {
         let loaded: Vec<_> = w
             .content()
             .rules
@@ -2313,7 +2315,7 @@ mod tests {
 
     /// A wizard with the mana, the skill and the books to cast what it knows at once, and a
     /// world with a strait: its walkers at the west wait for a target in the east.
-    fn strait_wizard(spells: &[u16]) -> Result<(World, Ai), Box<dyn std::error::Error>> {
+    fn strait_wizard(spells: &[u16]) -> Result<(Game, Ai), Box<dyn std::error::Error>> {
         use crate::roles::{Crossing, Role};
         let mut w = crate::testworld::game_with_strait(COAST_CITY, 8 /* high_men */);
         w.reveal_map(P0);

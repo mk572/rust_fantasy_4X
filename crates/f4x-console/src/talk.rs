@@ -98,7 +98,7 @@ impl Ctx<'_> {
         if id == self.session.player {
             return Err(ConsoleError::Usage("that is you".into()));
         }
-        if !self.world.is_wizard(id) {
+        if !self.game.is_wizard(id) {
             return Err(ConsoleError::NoSuch("wizard".into()));
         }
         Ok(id)
@@ -110,30 +110,30 @@ fn diplomacy(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let others: Vec<PlayerId> = match a.get(0) {
         Some(_) => vec![ctx.other_wizard(a, 0)?],
         None => ctx
-            .world
+            .game
             .wizards()
             .into_iter()
-            .filter(|&w| w != me && ctx.world.have_met(me, w))
+            .filter(|&w| w != me && ctx.game.have_met(me, w))
             .collect(),
     };
     if others.is_empty() {
         ctx.say("you have met no other wizard");
     }
     for &w in &others {
-        let name = ctx.world.wizard(w).map_or("?".to_string(), |w| w.name());
-        if !ctx.world.have_met(me, w) {
+        let name = ctx.game.wizard(w).map_or("?".to_string(), |w| w.name());
+        if !ctx.game.have_met(me, w) {
             ctx.say(format!("{} {name}: not met", w.0));
             continue;
         }
-        let rel = ctx.session.diplomats.feeling(ctx.world, w, me);
+        let rel = ctx.session.diplomats.feeling(ctx.game, w, me);
         ctx.say(format!(
             "{} {name}: {} ({rel}), {}",
             w.0,
             relation_word(rel),
-            treaty_word(ctx.world.treaty(me, w))
+            treaty_word(ctx.game.treaty(me, w))
         ));
         if a.get(0).is_some() {
-            let can = |k| ctx.world.check_proposal(me, w, k).is_ok();
+            let can = |k| ctx.game.check_proposal(me, w, k).is_ok();
             let mut offers = Vec::new();
             for (word, kind) in [
                 ("pact", ProposalKind::Pact),
@@ -155,19 +155,19 @@ fn diplomacy(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         }
     }
     let waiting: Vec<String> = ctx
-        .world
+        .game
         .diplomacy
         .proposals()
         .iter()
         .filter(|p| p.from == me || p.to == me)
         .map(|p| {
             let (from, to) = (
-                crate::describe::player(ctx.world, p.from),
-                crate::describe::player(ctx.world, p.to),
+                crate::describe::player(ctx.game, p.from),
+                crate::describe::player(ctx.game, p.to),
             );
             format!(
                 "waiting: {from} to {to}: {}",
-                crate::describe::proposal(ctx.world, p.kind)
+                crate::describe::proposal(ctx.game, p.kind)
             )
         })
         .collect();
@@ -190,7 +190,7 @@ fn propose(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         "war" => ProposalKind::WarOn(ctx.other_wizard(a, 2)?),
         "break" => ProposalKind::BreakAllianceWith(ctx.other_wizard(a, 2)?),
         "swap" => {
-            let spells = &ctx.world.content().rules.spells;
+            let spells = &ctx.game.content().rules.spells;
             let give = resolve(spells, a.need(2, "your spell")?, |d| &d.id, "spell")?;
             let get = resolve(spells, a.need(3, "their spell")?, |d| &d.id, "spell")?;
             ProposalKind::Trade {
@@ -200,7 +200,7 @@ fn propose(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         }
         // `propose <wizard> buy <their spell> <gold>` and `sell <your spell> <gold>`.
         "buy" => {
-            let spells = &ctx.world.content().rules.spells;
+            let spells = &ctx.game.content().rules.spells;
             let get = resolve(spells, a.need(2, "their spell")?, |d| &d.id, "spell")?;
             let gold = a.int(3, "gold")? as i32;
             ProposalKind::Trade {
@@ -209,7 +209,7 @@ fn propose(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             }
         }
         "sell" => {
-            let spells = &ctx.world.content().rules.spells;
+            let spells = &ctx.game.content().rules.spells;
             let give = resolve(spells, a.need(2, "your spell")?, |d| &d.id, "spell")?;
             let gold = a.int(3, "gold")? as i32;
             ProposalKind::Trade {
@@ -271,7 +271,7 @@ fn givegold(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 fn givespell(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let to = ctx.other_wizard(a, 0)?;
     let spell = resolve(
-        &ctx.world.content().rules.spells,
+        &ctx.game.content().rules.spells,
         a.need(1, "spell")?,
         |d| &d.id,
         "spell",

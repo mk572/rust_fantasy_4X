@@ -68,7 +68,7 @@ fn stat_key(stat: Stat) -> &'static str {
 impl App {
     /// One line for each temporary effect on a unit or city: "Defense +1".
     pub(crate) fn temp_effect_lines(&self, e: hecs::Entity) -> Vec<String> {
-        self.world
+        self.game
             .units()
             .temp_effects(e)
             .iter()
@@ -77,7 +77,7 @@ impl App {
     }
 
     fn temp_effect_line(&self, t: &TempEffect) -> String {
-        let abilities = &self.world.content().rules.abilities;
+        let abilities = &self.game.content().rules.abilities;
         let ability = |id: f4x_def::rules::Ability| self.names.ability_term(abilities.get(id).num);
         let effect = match &t.kind {
             TempKind::Modifier { stat, op, value } => {
@@ -116,30 +116,30 @@ mod tests {
     fn a_mutated_unit_lists_the_effects_the_mutation_gave_it() {
         // Chaos Channels is the one spell that puts temporary effects on a unit.
         let mut app = App::for_test();
-        let unit = app.world.units().player_units(HUMAN)[0];
+        let unit = app.game.units().player_units(HUMAN)[0];
         let spell = app
-            .world
+            .game
             .content()
             .rules
             .spells
             .id_numbered(93 /* chaos_channels */)
             .expect("chaos_channels is a spell");
-        app.world.cheat_learn_spell(HUMAN, spell);
-        app.world.treasury_mut(HUMAN).expect("a treasury").mana =
+        app.game.cheat_learn_spell(HUMAN, spell);
+        app.game.treasury_mut(HUMAN).expect("a treasury").mana =
             f4x_def::half_int::HalfInt::from_int(1000);
-        app.world
+        app.game
             .wizard_mut(HUMAN)
             .expect("a wizard")
             .get_mut::<f4x_core::wizard::sheet::Skill>()
             .left = 99_999;
-        let events = app.world.apply(f4x_core::world::Command::CastSpell {
+        let events = app.game.apply(f4x_core::world::Command::CastSpell {
             extra: 0,
             player: HUMAN,
             spell,
             target: Some(Target::Unit(unit)),
         });
-        assert!(app.world.units().unit_is_mutated(unit), "{events:?}");
-        let effects = app.world.units().temp_effects(unit);
+        assert!(app.game.units().unit_is_mutated(unit), "{events:?}");
+        let effects = app.game.units().temp_effects(unit);
         let lines = app.temp_effect_lines(unit);
         assert!(!effects.is_empty());
         assert_eq!(lines.len(), effects.len());
@@ -153,7 +153,7 @@ mod tests {
             .expect("a mutation grants an ability");
         let name = app
             .names
-            .ability_term(app.world.content().rules.abilities.get(granted).num);
+            .ability_term(app.game.content().rules.abilities.get(granted).num);
         assert!(lines.contains(&app.text_with("temp.grant", &Args::new().term("ability", name))));
     }
 

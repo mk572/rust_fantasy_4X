@@ -192,7 +192,7 @@ mod tests {
     #[test]
     fn the_zombies_figure_is_the_zombies_unit() {
         let app = App::for_test();
-        let rules = &app.world.content().rules;
+        let rules = &app.game.content().rules;
         let zombies = rules
             .units
             .iter()

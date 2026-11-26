@@ -140,7 +140,7 @@ impl App {
             );
             return;
         };
-        match self.world.cheat_event(kind, HUMAN) {
+        match self.game.world_mut().cheat_event(kind, HUMAN) {
             Ok(events) => {
                 self.note(events);
             }
@@ -153,7 +153,7 @@ impl App {
     fn mascot_realm(&self) -> usize {
         let books: Vec<i32> = REALMS
             .iter()
-            .map(|&r| self.world.wizard(HUMAN).map_or(0, |m| m.books_in(r)))
+            .map(|&r| self.game.wizard(HUMAN).map_or(0, |m| m.books_in(r)))
             .collect();
         mascot_of(&books)
     }
@@ -302,7 +302,7 @@ impl App {
                 &Args::new().text(
                     "spell",
                     self.names
-                        .spell(self.world.content().rules.spells.get(spell).num),
+                        .spell(self.game.content().rules.spells.get(spell).num),
                 ),
             ),
             4 => self.text(match site {
@@ -345,7 +345,7 @@ impl App {
     fn conquest_notice(&self, spells: &[f4x_def::rules::SpellId]) -> SpellNotice {
         let name = |app: &Self, spell| {
             self.names
-                .spell_term(app.world.content().rules.spells.get(spell).num)
+                .spell_term(app.game.content().rules.spells.get(spell).num)
         };
         let text = match spells {
             [] => self.text("spell.conquest_none"),
@@ -398,7 +398,7 @@ impl App {
         }
         let name = self
             .names
-            .spell_term(self.world.content().rules.spells.get(spell).num);
+            .spell_term(self.game.content().rules.spells.get(spell).num);
         let text = self.fizzle_text(caster, counter, name, counter_spell);
         Some(SpellNotice {
             text,
@@ -413,13 +413,13 @@ impl App {
     /// For screenshots: five of the human's spells dispelled at once.
     pub fn open_test_dispelled(&mut self, site: DispelSite) {
         let spells: Vec<_> = self
-            .world
+            .game
             .content()
             .rules
             .spells
             .defs()
             .iter()
-            .filter_map(|s| self.world.content().rules.spells.id_numbered(s.num))
+            .filter_map(|s| self.game.content().rules.spells.id_numbered(s.num))
             .take(6)
             .collect();
         let mut count = 0;
@@ -431,10 +431,10 @@ impl App {
     /// For screenshots: an enemy wizard's Suppress Magic stops the human's spell.
     pub fn open_test_fizzle(&mut self) {
         let rival = self
-            .world
+            .game
             .player_ids()
             .into_iter()
-            .find(|&id| id != HUMAN && self.world.is_wizard(id));
+            .find(|&id| id != HUMAN && self.game.is_wizard(id));
         if let Some(rival) = rival {
             let text = self.fizzle_text(
                 HUMAN,
@@ -467,7 +467,7 @@ impl App {
     /// The name of the world event that is going on, centred under the minimap
     /// (`Main_Screen_Draw_Status_Window`).
     pub(crate) fn draw_world_event(&mut self, lay: &Layout) {
-        let Some(kind) = self.world.events().world_event() else {
+        let Some(kind) = self.game.events().world_event() else {
             return;
         };
         let (name, colour, y) = match kind {
@@ -501,7 +501,7 @@ mod tests {
     use f4x_def::testdir::TestResult;
 
     fn spell(app: &App, id: u16) -> Result<f4x_def::rules::SpellId, String> {
-        app.world
+        app.game
             .content()
             .rules
             .spells
@@ -602,10 +602,10 @@ mod tests {
         let app = App::for_test();
         let fire = spell(&app, 83 /* fire_bolt */)?;
         let first = app
-            .world
+            .game
             .player_ids()
             .into_iter()
-            .find(|&id| id != HUMAN && app.world.is_wizard(id))
+            .find(|&id| id != HUMAN && app.game.is_wizard(id))
             .ok_or("the game has no rival wizard")?;
         let second = f4x_core::player::MONSTERS;
         let by_you = app

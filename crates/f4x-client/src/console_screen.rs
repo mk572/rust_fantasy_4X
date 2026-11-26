@@ -65,7 +65,7 @@ impl App {
         };
         self.console.scroll = 0;
         self.console.lines.push(format!("{prompt} {line}"));
-        let reply = self.console.console.execute(&mut self.world, &line);
+        let reply = self.console.console.execute(&mut self.game, &line);
         for l in reply.text().lines() {
             self.console.lines.push(l.to_string());
         }

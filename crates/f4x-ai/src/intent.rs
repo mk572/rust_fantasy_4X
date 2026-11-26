@@ -275,6 +275,7 @@ mod tests {
     };
     use f4x_core::diplomacy::DiplomacyCommand;
     use f4x_core::world::{Command, World};
+    use f4x_master::Game;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -286,7 +287,7 @@ mod tests {
             .ok_or(format!("spell {num} is shipped"))
     }
 
-    fn war(w: &mut World) {
+    fn war(w: &mut Game) {
         w.make_contact(P0, P1);
         w.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
             player: P0,
@@ -294,7 +295,7 @@ mod tests {
         }));
     }
 
-    fn books(w: &mut World, player: f4x_core::player::PlayerId, books: &[(u16, u8)]) {
+    fn books(w: &mut Game, player: f4x_core::player::PlayerId, books: &[(u16, u8)]) {
         let realms: Vec<_> = books.iter().map(|&(r, n)| (RealmId::new(r), n)).collect();
         if let Some(mut wizard) = w.wizard_mut(player) {
             wizard.found(&shipped().rules, &realms, &[]);

@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 
 use f4x_console::setup::{new_game, NewGame, HUMAN};
 use f4x_console::{Access, Console};
+use f4x_master::Game;
 
 const USAGE: &str = "usage: f4x-tools console [--seed N] [--load FILE] [--content DIR] [--access readonly|play|full] [--script FILE]";
 
@@ -39,7 +40,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let dir = content_dir.unwrap_or_else(|| f4x_def::SHIPPED_CONTENT.into());
     let content = f4x_def::load::load_content_layers(&[&dir, Path::new(f4x_def::SHIPPED_CONTENT)])
         .map_err(|e| e.to_string())?;
-    let mut world = match load {
+    let mut game = Game::new(match load {
         Some(path) => {
             let (mut w, _) =
                 f4x_core::world::save::load_game(&path, content).map_err(|e| e.to_string())?;
@@ -53,7 +54,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 ..NewGame::default()
             },
         )?,
-    };
+    });
     let mut console = Console::new(HUMAN, access);
     let input: Box<dyn BufRead> = match &script {
         Some(path) => Box::new(std::io::BufReader::new(
@@ -72,7 +73,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
         if !interactive {
             println!("> {trimmed}");
         }
-        let reply = console.execute(&mut world, trimmed);
+        let reply = console.execute(&mut game, trimmed);
         let text = reply.text();
         if !text.is_empty() {
             println!("{text}");

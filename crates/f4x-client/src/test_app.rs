@@ -136,7 +136,7 @@ mod tests {
         use f4x_core::world::Event;
         let mut app = App::for_test();
         let (mine, theirs, other) = {
-            let cities = app.world.economy().cities();
+            let cities = app.game.economy().cities();
             let of = |p| {
                 cities
                     .iter()
@@ -144,10 +144,10 @@ mod tests {
                     .map(|&(e, ..)| e)
             };
             let rival = app
-                .world
+                .game
                 .player_ids()
                 .into_iter()
-                .find(|&p| p != HUMAN && app.world.is_wizard(p))
+                .find(|&p| p != HUMAN && app.game.is_wizard(p))
                 .ok_or("no rival")?;
             (of(HUMAN), of(rival), rival)
         };
@@ -158,9 +158,9 @@ mod tests {
         let item = ProductionItem::Housing;
         let news = |app: &App, city| app.concerns_human(&Event::ProductionCompleted { city, item });
         assert!(news(&app, mine), "your own city");
-        assert!(!app.world.have_met(HUMAN, other));
+        assert!(!app.game.have_met(HUMAN, other));
         assert!(!news(&app, theirs), "a player never met");
-        app.world.make_contact(HUMAN, other);
+        app.game.make_contact(HUMAN, other);
         assert!(news(&app, theirs), "a player met");
         Ok(())
     }
@@ -169,6 +169,6 @@ mod tests {
     fn y_closes_the_resign_question_but_the_rules_refuse_while_the_fortress_stands() {
         let mut app = App::for_test();
         assert!(!app.resign_answer(&Input::key(KeyCode::Y)));
-        assert_eq!(app.world.player(HUMAN).and_then(|p| p.defeated_by()), None);
+        assert_eq!(app.game.player(HUMAN).and_then(|p| p.defeated_by()), None);
     }
 }

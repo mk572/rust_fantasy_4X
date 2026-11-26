@@ -244,6 +244,7 @@ mod tests {
     use super::*;
     use crate::testworld::{at, game, spawn_tower, COAST_CITY, INLAND_CITY, P0};
     use f4x_core::world::{Command, World};
+    use f4x_master::Game;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -256,7 +257,7 @@ mod tests {
     }
 
     /// A road along row 6 from the inland city to the coast city, as the engineers would leave it.
-    fn with_road(w: &mut World) {
+    fn with_road(w: &mut Game) {
         for x in INLAND_CITY.0..=COAST_CITY.0 {
             w.scenario_set_road(at(x, 6), true);
         }
@@ -264,7 +265,7 @@ mod tests {
 
     /// The wizard's fortress inland at (6, 6), its other city on the coast at (10, 6) and a road
     /// between them along row 6, as the engineers would leave it.
-    fn world() -> Result<World, Box<dyn std::error::Error>> {
+    fn world() -> Result<Game, Box<dyn std::error::Error>> {
         let mut w = game(COAST_CITY, 8 /* high_men */);
         w.reveal_map(P0);
         let events = w.apply(Command::PlaceFortress {
@@ -312,7 +313,7 @@ mod tests {
     /// The fortress inland at (4, 4), the harbour on the coast at (10, 6) with a road along row
     /// 4 and down column 10, and a second city of the given size inland at (4, 9) with a road
     /// down column 4.
-    fn wide_world(population: u32) -> Result<World, Box<dyn std::error::Error>> {
+    fn wide_world(population: u32) -> Result<Game, Box<dyn std::error::Error>> {
         let mut w = game(COAST_CITY, 8 /* high_men */);
         w.reveal_map(P0);
         w.apply(Command::PlaceFortress {
