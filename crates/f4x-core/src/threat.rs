@@ -30,13 +30,13 @@ pub struct Threat {
 
 impl World {
     /// Once a turn, at the turn change.
-    pub(crate) fn process_threats(&mut self) -> Vec<Event> {
+    pub(crate) fn process_threats(&mut self, round: u32) -> Vec<Event> {
         let mut events = Vec::new();
         if self.settings.world.raiders_enabled {
-            events.extend(self.make_raiders());
+            events.extend(self.make_raiders(round));
         }
         if self.settings.world.monsters_enabled {
-            events.extend(self.make_monsters());
+            events.extend(self.make_monsters(round));
         }
         events
     }

@@ -49,11 +49,11 @@ struct Armed {
 
 impl World {
     /// The turn's events: a draw, if random events are on, and the playing out.
-    pub(crate) fn process_events(&mut self) -> Vec<Event> {
+    pub(crate) fn process_events(&mut self, round: u32) -> Vec<Event> {
         let mut out = Vec::new();
         let mut rng = std::mem::replace(&mut self.rng, GameRng::lent());
         let armed = if self.settings.events.random_events {
-            self.determine_event(&mut rng)
+            self.determine_event(round, &mut rng)
         } else {
             None
         };
@@ -66,11 +66,10 @@ impl World {
     /// apply, except the wait for `big_events_from_turn`. Returns what the player is told, or why the event
     /// cannot happen.
     pub fn cheat_event(&mut self, kind: EventKind, victim: PlayerId) -> Result<Vec<Event>, String> {
-        let turn = self.turn;
-        self.turn = turn.max(self.content.rules.config.threat.big_events_from_turn);
+        // As late as the big events wait for, so that the wait vetoes nothing.
+        let late = self.content.rules.config.threat.big_events_from_turn;
         let mut rng = std::mem::replace(&mut self.rng, GameRng::lent());
-        let armed = self.try_event(kind, victim, &mut rng);
-        self.turn = turn;
+        let armed = self.try_event(kind, victim, late, &mut rng);
         let Some(armed) = armed else {
             self.rng = rng;
             return Err(format!(
@@ -86,9 +85,9 @@ impl World {
     }
 
     /// `Determine_Event`: whether an event is drawn this turn, and which.
-    fn determine_event(&mut self, rng: &mut GameRng) -> Option<Armed> {
+    fn determine_event(&mut self, round: u32, rng: &mut GameRng) -> Option<Armed> {
         let pressure = self.events.pressure(
-            self.turn,
+            round,
             self.settings.events.pressure_percent,
             self.settings.events.frequency,
             self.settings.events.start_turn,
@@ -103,8 +102,8 @@ impl World {
             let Some(victim) = self.event_victim(kind.is_good(), rng) else {
                 continue;
             };
-            if let Some(armed) = self.try_event(kind, victim, rng) {
-                self.events.drawn(self.turn);
+            if let Some(armed) = self.try_event(kind, victim, round, rng) {
+                self.events.drawn(round);
                 return Some(armed);
             }
         }
@@ -112,7 +111,13 @@ impl World {
     }
 
     /// The vetoes of a draw: `None` when the event cannot happen to this wizard now.
-    fn try_event(&mut self, kind: EventKind, victim: PlayerId, rng: &mut GameRng) -> Option<Armed> {
+    fn try_event(
+        &mut self,
+        kind: EventKind,
+        victim: PlayerId,
+        round: u32,
+        rng: &mut GameRng,
+    ) -> Option<Armed> {
         self.economy().fortress_city(victim)?;
         if self.events.is_ongoing(kind) {
             return None;
@@ -136,7 +141,7 @@ impl World {
             }
         }
         if matches!(kind, EventKind::Marriage | EventKind::GreatMeteor)
-            && self.turn < self.content.rules.config.threat.big_events_from_turn
+            && round < self.content.rules.config.threat.big_events_from_turn
         {
             return None;
         }

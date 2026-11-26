@@ -249,7 +249,7 @@ impl World {
 
     /// Roll the offers of a wizard for the turn that begins (`Determine_Offer`). Offers not
     /// answered last turn lapse first.
-    pub(crate) fn determine_offers(&mut self, id: PlayerId) -> Vec<Event> {
+    pub(crate) fn determine_offers(&mut self, id: PlayerId, round: u32) -> Vec<Event> {
         let mut events = Vec::new();
         let old = self
             .player_component_mut::<Offers>(id)
@@ -265,7 +265,7 @@ impl World {
         for offer in &old {
             self.release_offer(id, offer);
         }
-        for offer in self.offers_for(id) {
+        for offer in self.offers_for(id, round) {
             if let Some(o) = self.player_component_mut::<Offers>(id) {
                 o.0.push(offer.clone());
             }
@@ -312,7 +312,7 @@ impl World {
     }
 
     /// One wizard's offers this turn: item, mercenaries, hero.
-    fn offers_for(&mut self, player: PlayerId) -> Vec<Offer> {
+    fn offers_for(&mut self, player: PlayerId, round: u32) -> Vec<Offer> {
         let mut offers = Vec::new();
         if !self.can_be_offered(player) {
             return offers;
@@ -330,7 +330,7 @@ impl World {
         if self.rng.roll(100) as i32
             <= mercenary_chance(&self.content.rules.config.offer, fame, percent, computer)
         {
-            offers.extend(self.mercenary_offer(player));
+            offers.extend(self.mercenary_offer(player, round));
         }
         let heroes = self.units().hero_units(player).len();
         if self.rng.roll(100) as i32
@@ -398,13 +398,13 @@ impl World {
 
     /// `Generate_Mercenaries`: a company, if the turn is late enough, there is something to
     /// offer, it fits the summoning circle's square and the wizard can pay.
-    fn mercenary_offer(&mut self, player: PlayerId) -> Option<Offer> {
+    fn mercenary_offer(&mut self, player: PlayerId, round: u32) -> Option<Offer> {
         let fame = self.fame(player);
         let percent = self.hire_percent(player);
         let gold = self
             .player(player)
             .map_or(HalfInt::ZERO, |p| p.treasury().gold);
-        if self.turn < self.content.rules.config.offer.first_turn {
+        if round < self.content.rules.config.offer.first_turn {
             return None;
         }
         let (arcanus, myrror) = self.planes_of(player);
@@ -429,13 +429,13 @@ impl World {
     /// Make the wizard an offer of this kind now, whatever the chance (the console's `offer`):
     /// the same offer the turn change would make, put on the list. `None` when there is nothing
     /// to offer (no free slot, too early for mercenaries, not enough gold).
-    pub fn cheat_offer(&mut self, player: PlayerId, what: OfferKind) -> Option<Offer> {
+    pub fn cheat_offer(&mut self, player: PlayerId, what: OfferKind, round: u32) -> Option<Offer> {
         if !self.can_be_offered(player) {
             return None;
         }
         let offer = match what {
             OfferKind::Hero => self.hero_offer(player),
-            OfferKind::Mercenaries => self.mercenary_offer(player),
+            OfferKind::Mercenaries => self.mercenary_offer(player, round),
             OfferKind::Item => self.item_offer(player),
         }?;
         self.player_component_mut::<Offers>(player)?

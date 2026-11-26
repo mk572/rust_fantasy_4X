@@ -142,8 +142,8 @@ The master runs them in order and asks each seat (human, AI, neutrals) to act in
 
 | Phase | Step of the game | What it does |
 |---|---|---|
-| Round start | `start_round` | `World.turn` advances, `TurnStarted`, world events (`process_events`), threats (`process_threats`) |
-| Turn start | `start_player_turn(player)` | what changes the land and the people, then the player's units become ready (4.1) |
+| Round start | `start_round(round)` | `World.turn` becomes `round`, `TurnStarted`, world events (`process_events`), threats (`process_threats`) |
+| Turn start | `start_player_turn(player, round)` | what changes the land and the people, then the player's units become ready (4.1) |
 | Turn end | `end_player_turn(player)` | the player's income, bills and production (4.2) |
 | Round end | `end_round` | durations and world-wide processes, once (4.3) |
 
@@ -154,7 +154,7 @@ The order follows the original's turn change, which is why income, bills and pro
 turn **end** (a defender finished now defends against the rivals' turns, and a shortage costs its
 units before the rivals can attack) and growth is the next turn **start**.
 
-### 4.1 `World::start_player_turn(player)`
+### 4.1 `World::start_player_turn(player, round)`
 
 1. Reopen the player's city sales; process stasis.
 2. Except in the first round: learn the research that finished and choose the next spell

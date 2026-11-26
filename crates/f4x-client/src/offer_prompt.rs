@@ -150,9 +150,14 @@ impl App {
         if let Some(t) = self.game.world_mut().treasury_mut(HUMAN) {
             t.gold = f4x_def::half_int::HalfInt::from_int(5000);
         }
-        self.game.world_mut().turn = self.game.turn.max(40);
+        let round = self.game.round().max(40);
         // A hero is drawn at random from those fame allows: try until one comes.
-        let made = (0..200).any(|_| self.game.world_mut().cheat_offer(HUMAN, what).is_some());
+        let made = (0..200).any(|_| {
+            self.game
+                .world_mut()
+                .cheat_offer(HUMAN, what, round)
+                .is_some()
+        });
         if !made {
             eprintln!("nothing to offer");
         }

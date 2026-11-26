@@ -173,8 +173,8 @@ pub(crate) fn arming_share(view: &PlayerView, units: usize) -> f32 {
 /// The mana the wizard wants in the pool for the hardest intact tower in reach that its nine best
 /// soldiers cannot take alone, but soldiers and spells together could (0 when there is none, or
 /// when the wizard has no battle spell).
-pub(crate) fn mana_goal(view: &PlayerView, blocked: &[Plane]) -> i32 {
-    if !has_battle_spell(view) || crate::phase::phase(view) == crate::phase::Phase::Build {
+pub(crate) fn mana_goal(view: &PlayerView, blocked: &[Plane], round: u32) -> i32 {
+    if !has_battle_spell(view) || crate::phase::phase(view, round) == crate::phase::Phase::Build {
         return 0;
     }
     let fighters: Vec<_> = view
@@ -270,19 +270,19 @@ mod tests {
         crate::testworld::spawn_tower(&mut w, at(33, 9), true)?;
         w.reveal_map(P0);
         assert_eq!(
-            mana_goal(&PlayerView::new(&w, P0), &[]),
+            mana_goal(&PlayerView::new(&w, P0), &[], w.turn),
             0,
             "no battle spell"
         );
         learn_a_battle_spell(&mut w)?;
-        let goal = mana_goal(&PlayerView::new(&w, P0), &[]);
+        let goal = mana_goal(&PlayerView::new(&w, P0), &[], w.turn);
         assert!(
             goal > 0,
             "one soldier is short of a tower's guess of guards"
         );
         // The goal is spells for the shortfall only: a tenth soldier more and it shrinks.
         spawn(&mut w, P0, at(10, 6), 113 /* high_men_paladins */, 4);
-        assert!(mana_goal(&PlayerView::new(&w, P0), &[]) < goal);
+        assert!(mana_goal(&PlayerView::new(&w, P0), &[], w.turn) < goal);
         Ok(())
     }
 

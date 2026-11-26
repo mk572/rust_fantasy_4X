@@ -44,7 +44,7 @@ pub(crate) fn rate(
     let memory = &minds.of(judge);
     let k = Knobs::current();
     let scene = Scene::new(game, judge);
-    let r = regard(game, judge, asker, &scene, memory);
+    let r = regard(game, judge, asker, &scene, memory, game.round());
     let rules = &game.content().rules.config.diplomacy;
     let (pact_floor, ally_floor) = (rules.pact_relation, rules.alliance_relation);
     let yes = |b: bool| {
@@ -55,10 +55,17 @@ pub(crate) fn rate(
         }
     };
     let friend = |world: &World| {
-        values(world, judge, asker, &scene, memory, false).friend + mood(world, judge, &k)
+        values(world, judge, asker, &scene, memory, false, game.round()).friend
+            + mood(world, judge, &k)
     };
     match kind {
-        ProposalKind::Peace => yes(crate::diplo_b::accepts(game, judge, asker, memory)),
+        ProposalKind::Peace => yes(crate::diplo_b::accepts(
+            game,
+            judge,
+            asker,
+            memory,
+            game.round(),
+        )),
         ProposalKind::Pact => yes(r.friendship > pact_floor && friend(game) >= k.pact_accept),
         ProposalKind::Alliance => yes(r.friendship > ally_floor && friend(game) >= k.ally_accept),
         ProposalKind::WarOn(third) => {
@@ -71,12 +78,12 @@ pub(crate) fn rate(
                 return Verdict::Refused;
             }
             let reach = can_attack(game, judge, &scene, third);
-            let enemy = values(game, judge, third, &scene, memory, reach).enemy;
+            let enemy = values(game, judge, third, &scene, memory, reach, game.round()).enemy;
             yes(game.treaty(judge, third) == Treaty::War
                 || r.friendship + mood(game, judge, &k) + enemy >= k.war_accept)
         }
         ProposalKind::BreakAllianceWith(third) => {
-            let other = regard(game, judge, third, &scene, memory);
+            let other = regard(game, judge, third, &scene, memory, game.round());
             yes(r.friendship - other.friendship >= k.break_accept)
         }
         ProposalKind::Trade { give, get } => {
@@ -143,19 +150,19 @@ pub(crate) fn approach_human(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) 
     let k = Knobs::current();
     let treaty = game.treaty(me, human);
     if treaty == Treaty::War {
-        if crate::diplo_b::offer_due(ai, game, human)
+        if crate::diplo_b::offer_due(ai, game, human, game.round())
             && propose(ai, game, events, human, ProposalKind::Peace)
         {
-            ai.memory.put().offered_peace(human, game.turn);
+            ai.memory.put().offered_peace(human, game.round());
             remark(ai, game, events, human, Remark::WarWeary);
         }
         return;
     }
     let friendship = {
         let memory = ai.memory.get();
-        regard(game, me, human, &scene, &memory).friendship
+        regard(game, me, human, &scene, &memory, game.round()).friendship
     };
-    if treaty == Treaty::None && friendship <= k.war_below && game.turn >= k.from_turn {
+    if treaty == Treaty::None && friendship <= k.war_below && game.round() >= k.from_turn {
         declare_on(ai, game, events, human);
         return;
     }
@@ -174,7 +181,7 @@ pub(crate) fn approach_human(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) 
         let warn_due = ai
             .memory
             .get()
-            .due(human, Did::Warn, game.turn, k.warn_cool);
+            .due(human, Did::Warn, game.round(), k.warn_cool);
         if friendship <= k.warn_below && warn_due {
             ai.order(
                 game,
@@ -184,7 +191,7 @@ pub(crate) fn approach_human(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) 
                 }),
                 events,
             );
-            ai.memory.put().did(human, Did::Warn, game.turn);
+            ai.memory.put().did(human, Did::Warn, game.round());
             return;
         }
     }
@@ -210,7 +217,7 @@ fn demand(
     let due = ai
         .memory
         .get()
-        .due(human, Did::Demand, game.turn, k.demand_cool);
+        .due(human, Did::Demand, game.round(), k.demand_cool);
     if !due
         || treaty == Treaty::Alliance
         || friendship >= k.warn_below
@@ -230,7 +237,7 @@ fn demand(
             }),
             events,
         );
-        ai.memory.put().did(human, Did::Demand, game.turn);
+        ai.memory.put().did(human, Did::Demand, game.round());
     }
 }
 
@@ -248,11 +255,11 @@ fn gift(
     let due = ai
         .memory
         .get()
-        .due(human, Did::Gift, game.turn, k.gift_cool);
+        .due(human, Did::Gift, game.round(), k.gift_cool);
     if !due || treaty == Treaty::None || friendship < k.gift_friend {
         return;
     }
-    if game.turn.is_multiple_of(3) {
+    if game.round().is_multiple_of(3) {
         if let Some(spell) = crate::trade::spell_to_give(game, me, human) {
             ai.order(
                 game,
@@ -263,7 +270,7 @@ fn gift(
                 }),
                 events,
             );
-            ai.memory.put().did(human, Did::Gift, game.turn);
+            ai.memory.put().did(human, Did::Gift, game.round());
             return;
         }
     }
@@ -278,7 +285,7 @@ fn gift(
             }),
             events,
         );
-        ai.memory.put().did(human, Did::Gift, game.turn);
+        ai.memory.put().did(human, Did::Gift, game.round());
     }
 }
 
@@ -300,11 +307,11 @@ pub(crate) fn negotiate(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             || !ai
                 .memory
                 .get()
-                .due(other, Did::Trade, game.turn, k.trade_cool)
+                .due(other, Did::Trade, game.round(), k.trade_cool)
         {
             continue;
         }
-        ai.memory.put().did(other, Did::Trade, game.turn);
+        ai.memory.put().did(other, Did::Trade, game.round());
         if let Some(kind) = crate::trade::offer(game, &ai.minds(), me, other) {
             if propose(ai, game, events, other, kind) {
                 // `propose` has the other answer at once.
@@ -466,7 +473,7 @@ mod tests {
         let k = Knobs::current();
         let friendship = |w: &World| {
             let scene = Scene::new(w, P0);
-            regard(w, P0, P1, &scene, &ai.memory.get()).friendship
+            regard(w, P0, P1, &scene, &ai.memory.get(), w.turn).friendship
         };
         feel(&mut w, &ai, k.warn_below - 1);
         assert!(

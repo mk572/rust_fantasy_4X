@@ -76,7 +76,7 @@ fn act(
             crate::military::neighbours(&view, pos),
             view.vacant_zones(),
             stack_strength(&view, &crate::view::party(&view, &units)),
-            view.turn(),
+            game.round(),
         )
     };
     for &n in &neighbours {

@@ -394,7 +394,7 @@ pub(crate) fn gift_gold(
     if !ai
         .memory
         .get()
-        .due(to, crate::memory::Did::Gift, game.turn, k.gift_cool)
+        .due(to, crate::memory::Did::Gift, game.round(), k.gift_cool)
         || gold < 100
     {
         return false;
@@ -411,7 +411,9 @@ pub(crate) fn gift_gold(
         )
         .is_ok();
     if given {
-        ai.memory.put().did(to, crate::memory::Did::Gift, game.turn);
+        ai.memory
+            .put()
+            .did(to, crate::memory::Did::Gift, game.round());
         remark(ai, game, events, to, why);
     }
     given

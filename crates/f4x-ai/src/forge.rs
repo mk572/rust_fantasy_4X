@@ -19,8 +19,8 @@ const RICH_GOLD: i32 = 3000;
 const MOST_FORGES_RICH: usize = 12;
 
 /// Is the wizard past the build-up, so that its cities work toward the strong units?
-pub(crate) fn active(view: &PlayerView) -> bool {
-    view.turn() >= FORGE_TURN && phase(view) != Phase::Build
+pub(crate) fn active(view: &PlayerView, round: u32) -> bool {
+    round >= FORGE_TURN && phase(view, round) != Phase::Build
 }
 
 /// How many forge cities a wizard of `cities` cities has: one for [`CITIES_PER_FORGE`], two at
@@ -35,8 +35,8 @@ fn forge_count(cities: usize, rich: bool) -> usize {
 
 /// The forge cities: the biggest cities (the most production), the largest first; none before the
 /// wizard is past its build-up.
-pub(crate) fn forges(view: &PlayerView) -> Vec<hecs::Entity> {
-    if !active(view) {
+pub(crate) fn forges(view: &PlayerView, round: u32) -> Vec<hecs::Entity> {
+    if !active(view, round) {
         return Vec::new();
     }
     let mut cities: Vec<(u32, hecs::Entity)> = view
@@ -154,7 +154,7 @@ mod tests {
     #[test]
     fn a_young_game_has_no_forge_cities() -> TestResult {
         let w = game(COAST_CITY, 8 /* high_men */);
-        assert!(forges(&PlayerView::new(&w, P0)).is_empty());
+        assert!(forges(&PlayerView::new(&w, P0), w.turn).is_empty());
         Ok(())
     }
 

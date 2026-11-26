@@ -562,7 +562,8 @@ fn offer(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         }
     };
     let id = player_arg(ctx, a, 1)?;
-    match ctx.game.world_mut().cheat_offer(id, what) {
+    let round = ctx.game.round();
+    match ctx.game.world_mut().cheat_offer(id, what, round) {
         Some(o) => {
             let line = describe::offer(ctx.game, &o);
             ctx.say(format!(

@@ -56,7 +56,7 @@ fn rival_turns(left: i32, seen: Option<Sighting>, now: u32, own_rate: f32) -> f3
 /// Weigh the race and answer it, once a turn before the wizard's own casting.
 pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    let now = game.turn;
+    let now = game.round();
     let casters = PlayerView::new(game, me).rival_mastery_casters();
     // Forget wizards that stopped (or finished) casting.
     ai.mastery_seen

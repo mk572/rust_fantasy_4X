@@ -220,14 +220,13 @@ impl Memory {
     /// Take in what `me` has been told: the battles it fought and the cities it won or lost against
     /// another wizard or neutral race. What happened to others, and its fights with monsters, are not
     /// its business.
-    pub(crate) fn notice(&mut self, me: PlayerId, world: &World, events: &[Event]) {
+    pub(crate) fn notice(&mut self, me: PlayerId, world: &World, round: u32, events: &[Event]) {
         use crate::diplo_b::Knobs;
-        let turn = world.turn;
         let known =
             |p: PlayerId| p != me && (world.is_wizard(p) || world.race_of_player(p).is_some());
         let k = Knobs::current();
         for event in events {
-            self.feel(world, me, event);
+            self.feel(world, me, event, round);
             // What the others do that is ruthless, seen when they are known to it.
             let act = match *event {
                 Event::CityRazed { player, .. } => Some((player, Ruth::Razed)),
@@ -252,7 +251,7 @@ impl Memory {
             };
             if let Some((who, kind)) = act {
                 if known(who) && world.have_met(me, who) {
-                    self.ruthless(who, turn, kind);
+                    self.ruthless(who, round, kind);
                 }
                 continue;
             }
@@ -269,13 +268,13 @@ impl Memory {
             // A war that began since the last clash is another war: its weariness starts at 0.
             let since = world
                 .war_age(me, with)
-                .map_or(0, |age| turn.saturating_sub(age));
+                .map_or(0, |age| round.saturating_sub(age));
             let d = self.dealing(with);
             if d.war_since != since {
                 d.war_since = since;
                 d.weary = 0;
             }
-            d.last_clash = turn;
+            d.last_clash = round;
             let (up, down) = if city {
                 (k.city_lost, k.city_taken)
             } else {
@@ -445,6 +444,7 @@ mod tests {
         m.notice(
             ME,
             &at_turn(10),
+            10,
             &[
                 Event::BattleEnded {
                     winner: ME,
@@ -494,6 +494,7 @@ mod tests {
         m.notice(
             ME,
             &at_turn(3),
+            3,
             &[Event::BattleEnded {
                 winner: FOE,
                 loser: THIRD,
@@ -510,6 +511,7 @@ mod tests {
         mine.put().notice(
             ME,
             &at_turn(5),
+            5,
             &[Event::BattleEnded {
                 winner: ME,
                 loser: FOE,
@@ -527,6 +529,7 @@ mod tests {
         m.notice(
             ME,
             &at_turn(7),
+            7,
             &[Event::BattleEnded {
                 winner: FOE,
                 loser: ME,

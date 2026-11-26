@@ -209,21 +209,21 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let (free_sites, room) = {
         let view = PlayerView::new(game, me);
         let taken = ai.roles.targets(crate::roles::Role::Settle);
-        let list = ai.sites.refreshed(&view);
+        let list = ai.sites.refreshed(&view, game.round());
         (
             crate::city_site::free_sites(list, &taken, &view),
             !list.is_empty(),
         )
     };
-    let wide = crate::phase::width(&PlayerView::new(game, me), room);
+    let wide = crate::phase::width(&PlayerView::new(game, me), room, game.round());
     let war_force = ai.campaign.map(|target| {
         let view = PlayerView::new(game, me);
-        let edge = crate::military::campaign_ratio(game, me);
+        let edge = crate::military::campaign_ratio(game, me, game.round());
         let strength =
-            crate::war_plan::strength_wanted(&view, &ai.city_memory, game.turn, target, edge);
+            crate::war_plan::strength_wanted(&view, &ai.city_memory, game.round(), target, edge);
         crate::war_plan::units_for(&view, strength)
     });
-    let empire = Empire::of(&PlayerView::new(game, me));
+    let empire = Empire::of(&PlayerView::new(game, me), game.round());
     let roster = Roster::of(ai, &PlayerView::new(game, me));
     // Fewer scouts than a wizard that builds up wants (`scout::wanted`) and no soldier spare: one
     // city builds the unit that scouts (the first that is not full, so that the others go on with
@@ -231,7 +231,8 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let scout_city = (roster.scouts < crate::scout::wanted(mine.len(), true)
         && roster.idle_fighters == 0
         && !ai.frontier_closed
-        && crate::phase::phase(&PlayerView::new(game, me)) == crate::phase::Phase::Build)
+        && crate::phase::phase(&PlayerView::new(game, me), game.round())
+            == crate::phase::Phase::Build)
         .then(|| {
             let view = PlayerView::new(game, me);
             mine.iter()
@@ -246,7 +247,10 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         .flatten();
     let (elite, forges) = {
         let view = PlayerView::new(game, me);
-        (crate::forge::active(&view), crate::forge::forges(&view))
+        (
+            crate::forge::active(&view, game.round()),
+            crate::forge::forges(&view, game.round()),
+        )
     };
     // Each city's auto-builder reads the net gold: kept and patched for the cities whose item
     // changes, not worked out for the whole empire in every city.
@@ -394,7 +398,7 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                         builder::Need {
                             net_gold: empire.net,
                             rival_near,
-                            garrison_cap: quiet_cap(&view, pos),
+                            garrison_cap: quiet_cap(&view, pos, game.round()),
                             settler_first: empire.cities <= 1,
                             spare_food: empire.spare_food - queued_food,
                         },
@@ -421,8 +425,8 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 
 /// The most soldiers the garrison floor asks of a city while the wizard builds up and no enemy is near
 /// it: the soldiers the phase gives it (`garrison::wanted_share`), rounded up; no limit otherwise.
-fn quiet_cap(view: &PlayerView, pos: Position) -> u32 {
-    let share = crate::garrison::wanted_share(view, pos);
+fn quiet_cap(view: &PlayerView, pos: Position, round: u32) -> u32 {
+    let share = crate::garrison::wanted_share(view, pos, round);
     if share < crate::view::garrison_wanted(view, pos) as f32 {
         share.ceil() as u32
     } else {
@@ -459,6 +463,7 @@ fn rescue_port(ai: &Ai, view: &PlayerView) -> Option<Position> {
 /// the budget, the army and the rivals do not change from one city to the next (a plan only
 /// sets what a city builds), and each of them costs a pass over all the units or cities.
 struct Empire {
+    round: u32,
     /// The gold on hand.
     gold: i32,
     /// Net gold with the gold on hand, spread over a hundred turns, counted as income.
@@ -473,11 +478,12 @@ struct Empire {
 }
 
 impl Empire {
-    fn of(view: &PlayerView) -> Empire {
+    fn of(view: &PlayerView, round: u32) -> Empire {
         let gold = view.treasury().gold.floor();
         let budget = view.budget();
         let my_cities = view.my_cities();
         Empire {
+            round,
             gold,
             net: budget.net_gold() + (gold / 100).max(0),
             spare_food: builder::spare_food(view),
@@ -489,7 +495,7 @@ impl Empire {
             cities: my_cities.len(),
             home_guard: my_cities
                 .iter()
-                .map(|&(_, p)| crate::garrison::wanted_share(view, p))
+                .map(|&(_, p)| crate::garrison::wanted_share(view, p, round))
                 .sum::<f32>()
                 .ceil() as usize,
             traits: crate::objective::traits(view),
@@ -525,6 +531,7 @@ fn plan_for(
     } = pressure;
     let broke = empire.broke();
     let Empire {
+        round,
         gold,
         net: _,
         spare_food,
@@ -553,7 +560,7 @@ fn plan_for(
     // with nobody marching wants attackers.
     let army_short = if threatened {
         true
-    } else if roster.idle_army() || crate::phase::phase(view) == crate::phase::Phase::Build {
+    } else if roster.idle_army() || crate::phase::phase(view, round) == crate::phase::Phase::Build {
         // While the wizard builds up, with nothing threatening, the army waits: the food and the
         // production go to settlers and buildings (a soldier eats a settler's food).
         false
@@ -633,7 +640,7 @@ fn plan_for(
         min_settler_pop: 3,
         event_prompt: false,
         eager_settlers: true,
-        elite_units: crate::phase::phase(view) == crate::phase::Phase::Win,
+        elite_units: crate::phase::phase(view, round) == crate::phase::Phase::Win,
     }
 }
 
@@ -724,7 +731,7 @@ mod tests {
     fn plan_of(w: &World, ai: &Ai, city: hecs::Entity) -> Result<BuildPlan, &'static str> {
         let view = PlayerView::new(w, P0);
         let pos = w.city_position(city).ok_or("the city has a position")?;
-        let empire = Empire::of(&view);
+        let empire = Empire::of(&view, w.turn);
         let mut planned = settlers_alive(&view);
         Ok(plan_for(
             &view,
@@ -743,7 +750,7 @@ mod tests {
                     &ai.roles.targets(crate::roles::Role::Settle),
                     &view,
                 ),
-                wide: crate::phase::width(&view, crate::city_site::has_sites(&view)),
+                wide: crate::phase::width(&view, crate::city_site::has_sites(&view), w.turn),
             },
         ))
     }
@@ -902,7 +909,7 @@ mod tests {
             );
             let mut ai = Ai::new(P0);
             ai.frontier_closed = true;
-            crate::roles::register(&mut ai, &w);
+            crate::roles::register(&mut ai, &w, w.turn);
             let serials: Vec<_> = {
                 let view = PlayerView::new(&w, P0);
                 stranded.iter().map(|&u| view.serial_of(u)).collect()
@@ -930,7 +937,7 @@ mod tests {
         spawn(&mut w, P0, at(9, 9), 104 /* high_men_spearmen */, 6);
         let mut ai = Ai::new(P0);
         ai.frontier_closed = true;
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         let roster = Roster::of(&ai, &PlayerView::new(&w, P0));
         assert!(roster.idle_army(), "{}", roster.idle_fighters);
         let plan = plan_of(&w, &ai, capital(&w)?)?;
@@ -965,7 +972,7 @@ mod tests {
         let view = PlayerView::new(&w, P0);
         let pos = w.city_position(city).ok_or("the city has a position")?;
         // All the cities it wanted, and a leaning to build up: it does not press for more.
-        let mut empire = Empire::of(&view);
+        let mut empire = Empire::of(&view, w.turn);
         empire.traits.cities_wanted = 0;
         let plan_with = |planned: usize| {
             let mut planned = planned;
@@ -1002,7 +1009,7 @@ mod tests {
         let city = capital(&w)?;
         let view = PlayerView::new(&w, P0);
         let pos = w.city_position(city).ok_or("the city has a position")?;
-        let mut empire = Empire::of(&view);
+        let mut empire = Empire::of(&view, w.turn);
         empire.traits.cities_wanted = 0;
         let mut planned = planned;
         Ok(plan_for(
@@ -1102,7 +1109,7 @@ mod tests {
         });
         let mut ai = Ai::new(P0);
         ai.frontier_closed = true;
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         cities(&mut ai, &mut w, &mut Vec::new());
         // It looks at every building it can build: a library or a temple is chosen over trade goods.
         let item = w.economy().city_production(city).item;

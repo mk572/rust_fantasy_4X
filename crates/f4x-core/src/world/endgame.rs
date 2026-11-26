@@ -115,7 +115,7 @@ impl World {
             .collect()
     }
 
-    pub fn score(&self, player: PlayerId) -> Score {
+    pub fn score(&self, player: PlayerId, round: u32) -> Score {
         if !self.has_player(player) {
             return Score::default();
         }
@@ -140,7 +140,7 @@ impl World {
             .is_some_and(|wizard| wizard.fortress().is_some())
             && mastery_by.is_none_or(|id| id == player)
         {
-            2000 - self.turn as i32 * 2
+            2000 - round as i32 * 2
         } else {
             0
         };

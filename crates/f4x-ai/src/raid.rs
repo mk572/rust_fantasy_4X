@@ -230,7 +230,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 /// the spells (`gather`). Returns whether any party left.
 pub fn form(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
     let me = ai.player;
-    release(ai, game);
+    release(ai, game, game.round());
     let free = crate::dispatch::soldiers(ai, game, |roles, s| roles.is_free(s));
     let by_square = crate::military::stacks(&PlayerView::new(game, me), free.clone());
     let mut left = false;
@@ -264,7 +264,7 @@ pub fn form(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
                     let view = PlayerView::new(game, me);
                     let serials: Vec<Serial> = party.iter().map(|&u| view.serial_of(u)).collect();
                     ai.roles
-                        .claim_all(serials, crate::roles::Role::Raid, game.turn);
+                        .claim_all(serials, crate::roles::Role::Raid, game.round());
                     left = true;
                     break;
                 }
@@ -279,7 +279,7 @@ pub fn form(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
 
 /// End a muster whose soldiers have come (or waited long enough): they are free soldiers again,
 /// and `raid::form` sends the best nine of the square they stand on.
-pub(crate) fn release(ai: &mut Ai, world: &World) {
+pub(crate) fn release(ai: &mut Ai, world: &World, round: u32) {
     use crate::roles::MusterKind;
     if !ai.roles.any_muster(MusterKind::Raid) {
         return;
@@ -298,7 +298,7 @@ pub(crate) fn release(ai: &mut Ai, world: &World) {
             view.unit_position(u)
                 .is_some_and(|p| distance(&view, p, muster.rally).is_some_and(|d| d <= 1))
         });
-        if alive.is_empty() || arrived || world.turn.saturating_sub(muster.since) > MUSTER_TURNS {
+        if alive.is_empty() || arrived || round.saturating_sub(muster.since) > MUSTER_TURNS {
             ai.roles.end_muster(party);
         }
     }
@@ -320,7 +320,7 @@ pub(crate) fn gather(
     }
     let (rally, objective, orders) = {
         let view = PlayerView::new(game, me);
-        if crate::phase::phase(&view) == crate::phase::Phase::Build {
+        if crate::phase::phase(&view, game.round()) == crate::phase::Phase::Build {
             return;
         }
         let mut best: Vec<_> = free
@@ -409,7 +409,7 @@ pub(crate) fn gather(
         rally,
         Some(objective),
         &serials,
-        game.turn,
+        game.round(),
     );
 }
 
@@ -900,13 +900,13 @@ mod tests {
         // Control: free, they raid.
         let mut w = world(6, guards.clone(), false)?;
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         run(&mut ai, &mut w, &mut Vec::new());
         assert!(ai.roles.any(crate::roles::Role::Raid), "free soldiers raid");
         // Mustering for the campaign, they stay out of it.
         let mut w = world(6, guards, false)?;
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         let members = serials(&w);
         assert!(ai
             .roles

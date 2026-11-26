@@ -484,7 +484,7 @@ impl App {
 
     /// The overland track by how the human's power compares with the rivals' (`Get_Background_Music`).
     fn background_track(&self) -> u16 {
-        let at = (self.game.turn as usize).saturating_sub(1).min(287);
+        let at = (self.game.round() as usize).saturating_sub(1).min(287);
         let power = |p: PlayerId| {
             self.game
                 .player(p)
@@ -523,7 +523,7 @@ impl App {
                 return Some(track);
             }
         }
-        let pick = (self.game.turn as usize + usize::from(foe.0)) % 2;
+        let pick = (self.game.round() as usize + usize::from(foe.0)) % 2;
         let wizard = self
             .wizard_tracks_of(foe)
             .filter(|_| self.game.is_wizard(foe));

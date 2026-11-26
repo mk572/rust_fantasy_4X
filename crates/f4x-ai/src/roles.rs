@@ -813,8 +813,8 @@ pub struct Held {
 /// - a ship with no mission and no order: `TransportFree` (with a mission it holds
 ///   `TransportSpace`, `TransportReady` or `Transporting`, which `naval.rs` and `pickup.rs` set);
 /// - anything else: `AwaitingOrders`.
-pub fn sync(ai: &mut Ai, view: &PlayerView, turn: u32) -> Vec<Held> {
-    ai.roles.now = ai.roles.now.max(turn);
+pub fn sync(ai: &mut Ai, view: &PlayerView, round: u32) -> Vec<Held> {
+    ai.roles.now = ai.roles.now.max(round);
     let mut out = Vec::new();
     // The soldiers each city keeps as its garrison; the others standing in it await orders.
     let mut posts: std::collections::HashSet<hecs::Entity> = std::collections::HashSet::new();
@@ -837,7 +837,7 @@ pub fn sync(ai: &mut Ai, view: &PlayerView, turn: u32) -> Vec<Held> {
             }
         }
         for (at, soldiers) in by_city.into_values() {
-            posts.extend(crate::garrison::post(view, at, &soldiers));
+            posts.extend(crate::garrison::post(view, at, &soldiers, round));
         }
     }
     for unit in view.my_units() {
@@ -861,7 +861,7 @@ pub fn sync(ai: &mut Ai, view: &PlayerView, turn: u32) -> Vec<Held> {
             _ if ordered => (Role::MoveTo, target),
             _ => (Role::AwaitingOrders, None),
         };
-        ai.roles.set_base(serial, role, to, turn);
+        ai.roles.set_base(serial, role, to, round);
         let role = ai.roles.role_of(serial).unwrap_or(Role::AwaitingOrders);
         out.push(Held { unit, class, role });
     }
@@ -890,11 +890,11 @@ pub fn tally(held: &[Held]) -> Tally {
 
 /// The start of the turn: units that appeared since the last audit (built, summoned, hired, come
 /// off a ship) get their role at once, and those gone leave the registry.
-pub fn register(ai: &mut Ai, world: &World) {
+pub fn register(ai: &mut Ai, world: &World, round: u32) {
     let view = PlayerView::new(world, ai.player);
     let alive: Vec<_> = view.my_units().iter().map(|&u| view.serial_of(u)).collect();
     ai.roles.prune(&alive);
-    sync(ai, &view, world.turn);
+    sync(ai, &view, round);
 }
 
 /// The end-of-turn check: every unit the wizard owns is looked at, each turn, and has a role. A
@@ -910,7 +910,7 @@ pub fn audit(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         ai.roles.prune(&alive);
         // Units with no entry yet came into being since the start of the turn.
         let unregistered = alive.iter().filter(|&&s| ai.roles.get(s).is_none()).count() as u32;
-        let held = sync(ai, &view, game.turn);
+        let held = sync(ai, &view, game.round());
         (tally(&held), unregistered)
     };
     let (counted, unregistered) = counted;
@@ -1243,7 +1243,7 @@ mod tests {
         let home = at(COAST_CITY.0, COAST_CITY.1);
         let soldiers = spawn(&mut w, P0, home, 104 /* spearmen */, 2);
         let mut ai = Ai::new(P0);
-        register(&mut ai, &w);
+        register(&mut ai, &w, w.turn);
         let view = PlayerView::new(&w, P0);
         for &u in &soldiers {
             let s = view.serial_of(u);

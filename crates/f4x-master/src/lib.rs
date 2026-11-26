@@ -58,7 +58,7 @@ pub trait Controller {
     /// played it. A computer wizard keeps what concerns it (it fought a battle on another
     /// wizard's turn, a city of it was taken) as a human's screen shows them. The default ignores
     /// them.
-    fn notice(&mut self, _world: &World, _events: &[Event]) {}
+    fn notice(&mut self, _game: &Game, _events: &[Event]) {}
 }
 
 /// A controller that plays nothing and finishes at once: for a seat the host does not drive
@@ -425,12 +425,12 @@ impl<'a> Master<'a> {
 
     /// Tell every seat what happened. A host that changes the game outside the master (a human's
     /// commands on the client) tells it the events they caused with this.
-    pub fn tell(&mut self, world: &World, events: &[Event]) {
+    pub fn tell(&mut self, game: &Game, events: &[Event]) {
         if events.is_empty() {
             return;
         }
         for seat in &mut self.seats {
-            seat.controller.notice(world, events);
+            seat.controller.notice(game, events);
         }
     }
 

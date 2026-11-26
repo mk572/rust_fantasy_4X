@@ -121,7 +121,7 @@ impl App {
     /// At the start of a turn with nothing being researched and spells on offer (and the game past
     /// its first turn), ask what to research.
     pub(crate) fn maybe_ask_for_research(&mut self) {
-        if !matches!(self.screen, Screen::Map) || self.game.in_battle() || self.game.turn <= 1 {
+        if !matches!(self.screen, Screen::Map) || self.game.in_battle() || self.game.round() <= 1 {
             return;
         }
         let idle = self

@@ -47,10 +47,10 @@ enum Phase {
 /// One round as the master runs it, player by player, with `look` called at each step of each player's
 /// turn. The events of the round come back.
 fn round(w: &mut World, look: &mut dyn FnMut(&mut World, PlayerId, Phase)) -> Vec<Event> {
-    let mut events = w.start_round();
+    let mut events = w.start_round(w.turn + 1);
     for p in turn_players(w) {
         look(w, p, Phase::BeforeStart);
-        events.extend(w.start_player_turn(p));
+        events.extend(w.start_player_turn(p, w.turn));
         look(w, p, Phase::BeforeEnd);
         events.extend(w.end_player_turn(p));
         look(w, p, Phase::AfterEnd);
@@ -458,8 +458,8 @@ fn a_building_sells_for_a_third_of_its_cost_once_a_turn_and_not_while_another_ne
             "{name}"
         );
         // The next turn of the wizard opens the sale again.
-        w.start_round();
-        w.start_player_turn(p);
+        w.start_round(w.turn + 1);
+        w.start_player_turn(p, w.turn);
         let def = rules.buildings.get(base);
         let price = sale(def.cost, def.num == 35);
         let before = gold(&w, p);

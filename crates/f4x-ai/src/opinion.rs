@@ -177,6 +177,7 @@ impl Memory {
         from: PlayerId,
         value: i32,
         action: Action,
+        round: u32,
     ) {
         if value == 0 || from == me || !world.have_met(me, from) {
             return;
@@ -214,7 +215,7 @@ impl Memory {
         let treaty = world.treaty(me, from);
         let o = self.slot(world, me, from);
         if world.human() == Some(from) && action != Action::AuraOfMajesty {
-            o.moved = world.turn;
+            o.moved = round;
         }
         // Wars are not made worse by what one does in them.
         if !(treaty == Treaty::War && action != Action::Trespass && v < 0) {
@@ -230,10 +231,10 @@ impl Memory {
 
     /// What an event does to `me`'s feelings (task 780): the facts the core reports, which the AI weighs by
     /// the table of `docs/diplomacy.md` section 5. (The rest of the table comes with 782 and 783.)
-    pub(crate) fn feel(&mut self, world: &World, me: PlayerId, event: &Event) {
+    pub(crate) fn feel(&mut self, world: &World, me: PlayerId, event: &Event, round: u32) {
         match *event {
             Event::CityCaptured { from, to, .. } if from == me => {
-                self.change(world, me, to, -40, Action::AttackedCity);
+                self.change(world, me, to, -40, Action::AttackedCity, round);
             }
             Event::Diplomacy(DiplomacyEvent::WarDeclared { attacker, defender }) => {
                 if me == attacker {
@@ -312,11 +313,11 @@ impl Memory {
             }) => match proposal.kind {
                 // Turning a demand down sours the one who made it (`Random(10) + 1`).
                 ProposalKind::Demand { .. } if !accepted && proposal.from == me => {
-                    self.change(world, me, proposal.to, -6, Action::Threat);
+                    self.change(world, me, proposal.to, -6, Action::Threat, round);
                 }
                 // A threat costs the threatener the goodwill of the one threatened (`Random(15)`).
                 ProposalKind::Threat if proposal.to == me => {
-                    self.change(world, me, proposal.from, -7, Action::Threat);
+                    self.change(world, me, proposal.from, -7, Action::Threat, round);
                 }
                 // A trade that was agreed pleases both (the original: when it is the better deal).
                 ProposalKind::Trade { .. }
@@ -327,7 +328,7 @@ impl Memory {
                     } else {
                         proposal.to
                     };
-                    self.change(world, me, other, 5, Action::Friendship);
+                    self.change(world, me, other, 5, Action::Friendship, round);
                 }
                 _ => {}
             },
@@ -341,7 +342,14 @@ impl Memory {
                 // A hero counts 20, another unit `Random(20)` and a settler `Random(10)` more: the
                 // rolls at their averages (19/2 and 9/2).
                 let lost = 20 * heroes + (19 * others + 9 * settlers) / 2;
-                self.change(world, me, attacker, -(lost as i32), Action::BattleLosses);
+                self.change(
+                    world,
+                    me,
+                    attacker,
+                    -(lost as i32),
+                    Action::BattleLosses,
+                    round,
+                );
             }
             Event::Diplomacy(DiplomacyEvent::AssaultFailed {
                 attacker,
@@ -349,21 +357,21 @@ impl Memory {
                 fortress,
             }) if defender == me => {
                 let value = if fortress { -60 } else { -20 };
-                self.change(world, me, attacker, value, Action::AttackedCity);
+                self.change(world, me, attacker, value, Action::AttackedCity, round);
             }
             Event::Diplomacy(DiplomacyEvent::FortressTaken { winner, loser })
                 if me != winner && me != loser =>
             {
-                self.conquest(world, me, winner, loser, 20);
+                self.conquest(world, me, winner, loser, 20, round);
             }
             Event::Diplomacy(DiplomacyEvent::WizardDestroyed { winner, loser })
                 if me != winner && me != loser =>
             {
-                self.conquest(world, me, winner, loser, 40);
+                self.conquest(world, me, winner, loser, 40, round);
             }
             Event::Diplomacy(DiplomacyEvent::EnchantmentCast { caster, spell }) if caster != me => {
                 if let Some((value, action)) = enchantment_reaction(world, spell.num(), me) {
-                    self.change(world, me, caster, value, action);
+                    self.change(world, me, caster, value, action, round);
                 }
             }
             Event::Diplomacy(DiplomacyEvent::CitySpellCast {
@@ -372,7 +380,7 @@ impl Memory {
                 spell,
             }) if owner == me => {
                 if let Some(value) = bad_city_spell(spell.num()) {
-                    self.change(world, me, caster, value, Action::BadCitySpell);
+                    self.change(world, me, caster, value, Action::BadCitySpell, round);
                 }
             }
             Event::Diplomacy(DiplomacyEvent::Subverted { target, .. })
@@ -398,10 +406,11 @@ impl Memory {
         winner: PlayerId,
         loser: PlayerId,
         base: i32,
+        round: u32,
     ) {
         let gap = self.friendship(world, me, loser) - self.friendship(world, me, winner);
         let value = (-base * gap / 100).clamp(-base, base);
-        self.change(world, me, winner, value, Action::Threat);
+        self.change(world, me, winner, value, Action::Threat, round);
     }
 
     /// A part of a point, in hundredths, that adds up until it is a whole one and then moves the feeling.
@@ -412,6 +421,7 @@ impl Memory {
         other: PlayerId,
         hundredths: i32,
         action: Action,
+        round: u32,
     ) {
         if hundredths == 0 || !world.have_met(me, other) {
             return;
@@ -421,7 +431,7 @@ impl Memory {
         let whole = o.carry / 100;
         if whole != 0 {
             o.carry -= whole * 100;
-            self.change(world, me, other, whole, action);
+            self.change(world, me, other, whole, action, round);
         }
     }
 
@@ -430,12 +440,12 @@ impl Memory {
     /// grown too large, units next to its cities, and the drift back to where the feeling started. The
     /// original rolls a die for most of it; here each rule gives its average, with parts of a point added
     /// up from turn to turn (`Opinion::carry`). Called once a turn.
-    pub(crate) fn look(&mut self, world: &World, me: PlayerId) {
-        if self.looked == Some(world.turn) || !world.is_wizard(me) {
+    pub(crate) fn look(&mut self, world: &World, me: PlayerId, round: u32) {
+        if self.looked == Some(round) || !world.is_wizard(me) {
             return;
         }
-        self.looked = Some(world.turn);
-        let turn = world.turn;
+        self.looked = Some(round);
+        let turn = round;
         let mine = world.army_strength(me);
         let view = f4x_core::player::view::PlayerView::new(world, me);
         let my_cities = view.my_cities();
@@ -447,11 +457,11 @@ impl Memory {
             // A treaty grows the feeling: `Random(3)` on half the turns for a pact, `Random(6)` for an alliance.
             match treaty {
                 Treaty::Pact if turn.is_multiple_of(2) => {
-                    self.change(world, me, other, 1, Action::Friendship);
+                    self.change(world, me, other, 1, Action::Friendship, round);
                 }
                 Treaty::Alliance => {
                     let v = 1 + i32::from(turn.is_multiple_of(4));
-                    self.change(world, me, other, v, Action::Friendship);
+                    self.change(world, me, other, v, Action::Friendship, round);
                 }
                 _ => {}
             }
@@ -465,7 +475,7 @@ impl Memory {
                 }
                 for (spell, divisor) in active {
                     if let Some((value, action)) = enchantment_reaction(world, spell, me) {
-                        self.change(world, me, other, value / divisor, action);
+                        self.change(world, me, other, value / divisor, action, round);
                     }
                 }
             }
@@ -474,7 +484,14 @@ impl Memory {
             if mine > 0 && theirs > mine {
                 let threshold = theirs * 50 / mine;
                 if threshold <= 100 {
-                    self.drip(world, me, other, -(101 - threshold) / 2, Action::Threat);
+                    self.drip(
+                        world,
+                        me,
+                        other,
+                        -(101 - threshold) / 2,
+                        Action::Threat,
+                        round,
+                    );
                 }
             }
             // Too many cities, looked at every second turn: one in four, the surplus over the allowance.
@@ -483,10 +500,10 @@ impl Memory {
             if turn.is_multiple_of(2) && allowance < cities && treaty != Treaty::Alliance {
                 let divisor = (world.land_size() + 6 - i32::from(world.difficulty())).max(1);
                 let value = (-(cities - allowance) / divisor * 2).min(-15);
-                self.drip(world, me, other, value * 25, Action::Overextension);
+                self.drip(world, me, other, value * 25, Action::Overextension, round);
             }
             // Units next to its cities (`DIPL_GetOffMyLawn`).
-            self.watch_lawn(world, &view, &my_cities, me, other, treaty);
+            self.watch_lawn(world, &view, &my_cities, me, other, round);
             // Drift back to where the feeling started, unless the other has just changed it.
             let o = self.opinion(world, me, other);
             if o.moved.saturating_add(1) < turn {
@@ -528,8 +545,9 @@ impl Memory {
         cities: &[(hecs::Entity, f4x_core::map::Position)],
         me: PlayerId,
         other: PlayerId,
-        treaty: Treaty,
+        round: u32,
     ) {
+        let treaty = world.treaty(me, other);
         let trespassing = treaty != Treaty::War
             && cities.iter().any(|&(_, city)| {
                 (-2..=2).any(|dy| {
@@ -556,16 +574,16 @@ impl Memory {
             let step = self.slot(world, me, other).trespass + 1;
             self.slot(world, me, other).trespass = step;
             match step {
-                1 => self.change(world, me, other, -2, Action::Trespass),
+                1 => self.change(world, me, other, -2, Action::Trespass, round),
                 2 => {}
                 _ => {
-                    self.change(world, me, other, -5, Action::Trespass);
+                    self.change(world, me, other, -5, Action::Trespass, round);
                     self.slot(world, me, other).trespass = 0;
                 }
             }
         } else {
             // A turn in sixteen costs `Random(5)`: 2 / 16.
-            self.drip(world, me, other, -12, Action::Trespass);
+            self.drip(world, me, other, -12, Action::Trespass, round);
         }
     }
 
@@ -679,19 +697,19 @@ mod tests {
     fn a_good_deed_counts_for_more_when_it_is_needed_and_a_bad_one_when_it_is_not() {
         let w = pair(8, 8, 100);
         let mut low = mind(&w, -40);
-        low.change(&w, P0, P1, 5, Action::Friendship);
+        low.change(&w, P0, P1, 5, Action::Friendship, w.turn);
         assert!(
             low.friendship(&w, P0, P1) >= -40 + 10,
             "doubled when it is negative"
         );
         let mut high = mind(&w, 60);
-        high.change(&w, P0, P1, -5, Action::AttackedCity);
+        high.change(&w, P0, P1, -5, Action::AttackedCity, w.turn);
         assert!(
             high.friendship(&w, P0, P1) <= 60 - 10,
             "doubled when it is positive"
         );
         let mut warm = mind(&w, 60);
-        warm.change(&w, P0, P1, 10, Action::Friendship);
+        warm.change(&w, P0, P1, 10, Action::Friendship, w.turn);
         assert!(
             warm.friendship(&w, P0, P1) < 70,
             "less when it is already good"
@@ -702,17 +720,17 @@ mod tests {
     fn the_feeling_is_capped_and_a_war_is_not_made_worse() {
         let mut w = pair(8, 8, 100);
         let mut m = mind(&w, 60);
-        m.change(&w, P0, P1, 100, Action::Friendship);
+        m.change(&w, P0, P1, 100, Action::Friendship, w.turn);
         assert!(m.friendship(&w, P0, P1) <= 65, "no treaty: at most 65");
         w.declare_war(P1, P0);
         let mut m = mind(&w, -50);
-        m.change(&w, P0, P1, -20, Action::AttackedCity);
+        m.change(&w, P0, P1, -20, Action::AttackedCity, w.turn);
         assert_eq!(
             m.friendship(&w, P0, P1),
             -50,
             "a war is not made worse by what is done in it"
         );
-        m.change(&w, P0, P1, 30, Action::Friendship);
+        m.change(&w, P0, P1, 30, Action::Friendship, w.turn);
         assert!(
             m.friendship(&w, P0, P1) <= -25,
             "in a war it stays at -25 or below"
@@ -729,14 +747,14 @@ mod tests {
             to: P1,
         };
         let mut loser = mind(&w, 0);
-        loser.feel(&w, P0, &event);
+        loser.feel(&w, P0, &event, w.turn);
         assert!(
             loser.friendship(&w, P0, P1) <= -40,
             "{}",
             loser.friendship(&w, P0, P1)
         );
         let mut taker = mind(&w, 0);
-        taker.feel(&w, P1, &event);
+        taker.feel(&w, P1, &event, w.turn);
         assert_eq!(taker.friendship(&w, P0, P1), 0);
     }
 
@@ -748,7 +766,7 @@ mod tests {
             f4x_core::diplomacy::DiplomacyCommand::DeclareWar { player: P1, on: P0 },
         ));
         for e in &events {
-            m.feel(&w, P0, e);
+            m.feel(&w, P0, e, w.turn);
         }
         assert_eq!(m.friendship(&w, P0, P1), -87);
         assert!(m.opinion(&w, P0, P1).war);
@@ -757,9 +775,9 @@ mod tests {
             b: P1,
             treaty: Treaty::None,
         });
-        m.feel(&w, P0, &peace);
+        m.feel(&w, P0, &peace, w.turn);
         assert_eq!(m.friendship(&w, P0, P1), -47);
-        m.feel(&w, P0, &peace);
+        m.feel(&w, P0, &peace, w.turn);
         assert_eq!(
             m.friendship(&w, P0, P1),
             -47,
@@ -776,14 +794,14 @@ mod tests {
             treaty: Treaty::Alliance,
         });
         let mut victim = mind(&w, 30);
-        victim.feel(&w, P0, &broke);
+        victim.feel(&w, P0, &broke, w.turn);
         let o = victim.opinion(&w, P0, P1);
         assert!(o.broken && o.hidden <= -20 && o.friendship < 30, "{o:?}");
         let mut other = Memory::default();
-        other.feel(&w, PlayerId(2), &broke);
+        other.feel(&w, PlayerId(2), &broke, w.turn);
         assert_eq!(other.opinion(&w, PlayerId(2), P1).hidden, -5);
         let mut breaker = mind(&w, 30);
-        breaker.feel(&w, P1, &broke);
+        breaker.feel(&w, P1, &broke, w.turn);
         assert_eq!(
             breaker.friendship(&w, P0, P1),
             30,
@@ -804,6 +822,7 @@ mod tests {
                 to: P0,
                 spell,
             }),
+            w.turn,
         );
         let o = m.opinion(&w, P0, P1);
         assert!(o.friendship > 0 && o.hidden == 5, "{o:?}");
@@ -816,6 +835,7 @@ mod tests {
                 to: P0,
                 spell,
             }),
+            w.turn,
         );
         assert_eq!(
             other.friendship(&w, P0, P1),
@@ -840,15 +860,15 @@ mod tests {
             })
         };
         let mut m = mind(&w, 0);
-        m.feel(&w, P0, &demand(true));
+        m.feel(&w, P0, &demand(true), w.turn);
         assert_eq!(m.friendship(&w, P0, P1), 0);
-        m.feel(&w, P0, &demand(false));
+        m.feel(&w, P0, &demand(false), w.turn);
         assert!(m.friendship(&w, P0, P1) < 0);
     }
 
     fn felt(w: &World, event: DiplomacyEvent) -> i32 {
         let mut m = mind(w, 0);
-        m.feel(w, P0, &Event::Diplomacy(event));
+        m.feel(w, P0, &Event::Diplomacy(event), w.turn);
         m.friendship(w, P0, P1)
     }
 
@@ -889,7 +909,7 @@ mod tests {
         let judged = |event: DiplomacyEvent, winner: i32, loser: i32| {
             let mut m = mind(&w, winner);
             m.set_friendship(&w, P0, third, loser);
-            m.feel(&w, P0, &Event::Diplomacy(event));
+            m.feel(&w, P0, &Event::Diplomacy(event), w.turn);
             m.friendship(&w, P0, P1) - winner
         };
         let taken = DiplomacyEvent::FortressTaken {
@@ -946,7 +966,7 @@ mod tests {
             ),
         ] {
             let mut m = mind(&w, 50);
-            m.notice(P0, &w, &[Event::Diplomacy(event)]);
+            m.notice(P0, &w, w.turn, &[Event::Diplomacy(event)]);
             assert_eq!(m.ruthlessness(P1, w.turn, k.ruth_half), points);
         }
     }
@@ -990,7 +1010,7 @@ mod tests {
     fn looks(w: &mut Game, m: &mut Memory, turns: u32) {
         for _ in 0..turns {
             w.turn += 1;
-            m.look(w, P0);
+            m.look(w, P0, w.turn);
         }
     }
 
@@ -1026,7 +1046,7 @@ mod tests {
         );
         // A second look in the same turn changes nothing.
         let before = m.friendship(&w, P0, P1);
-        m.look(&w, P0);
+        m.look(&w, P0, w.turn);
         assert_eq!(m.friendship(&w, P0, P1), before);
     }
 
@@ -1063,7 +1083,7 @@ mod tests {
         let mut m = mind(&w, 0);
         let step = |w: &mut Game, m: &mut Memory| {
             w.turn += 1;
-            m.look(w, P0);
+            m.look(w, P0, w.turn);
             (m.opinion(w, P0, P1).trespass, m.friendship(w, P0, P1))
         };
         let (n1, f1) = step(&mut w, &mut m);

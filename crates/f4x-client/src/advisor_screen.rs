@@ -87,7 +87,7 @@ impl Page for HistoryPage {
             160.0,
             10.0,
         );
-        let turn = app.game.turn as usize;
+        let turn = app.game.round() as usize;
         let date = app.text_with(
             "advisor.date",
             &Args::new()

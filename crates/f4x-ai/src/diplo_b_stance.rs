@@ -40,10 +40,11 @@ pub(crate) fn values(
     scene: &Scene,
     memory: &Memory,
     reachable: bool,
+    round: u32,
 ) -> Values {
     let k = Knobs::current();
     let sk = crate::statecraft::Knobs::current();
-    let r = regard(world, me, other, scene, memory);
+    let r = regard(world, me, other, scene, memory, round);
     let (mine, theirs): (Power, Power) = (scene.power(world, me), scene.power(world, other));
     let (m, t) = (mine.score(&sk).max(1), theirs.score(&sk));
     let leader = leader_of(world, me);
@@ -131,15 +132,16 @@ fn choose_enemy(
     scene: &Scene,
     memory: &Memory,
     reach: &dyn Fn(PlayerId) -> bool,
+    round: u32,
 ) -> Option<(PlayerId, u32)> {
     let k = Knobs::current();
-    let value = |p| values(world, me, p, scene, memory, reach(p)).enemy;
+    let value = |p| values(world, me, p, scene, memory, reach(p), round).enemy;
     // A pact or alliance partner is no enemy: the AI breaks no treaty to attack (the game refuses it), and
     // a treaty is ended by the talk (`diplo_b_talk`) before a war is chosen (task 776).
     let free = |p: PlayerId| !world.bound_by_treaty(me, p);
     if let Some((e, since)) = memory.enemy {
         let alive = scene.others.contains(&e) && free(e);
-        if alive && (world.turn < since + k.hold || value(e) >= k.keep) {
+        if alive && (round < since + k.hold || value(e) >= k.keep) {
             return Some((e, since));
         }
     }
@@ -151,7 +153,7 @@ fn choose_enemy(
         .map(|p| (value(p), p))
         .filter(|&(v, _)| v >= k.enemy_min)
         .max_by_key(|&(v, p)| (v, std::cmp::Reverse(p.0)))
-        .map(|(_, p)| (p, world.turn))
+        .map(|(_, p)| (p, round))
 }
 
 /// Once a turn, in place of A's dominant war, appeasing and coalition (`statecraft::run`): look at the
@@ -159,10 +161,10 @@ fn choose_enemy(
 pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, scene: &Scene) {
     let me = ai.player;
     let k = Knobs::current();
-    if game.turn < ai.memory.get().reviewed + k.review {
+    if game.round() < ai.memory.get().reviewed + k.review {
         return;
     }
-    ai.memory.put().reviewed = game.turn;
+    ai.memory.put().reviewed = game.round();
     // Which of the others an army could reach, asked once.
     let reach: Vec<(PlayerId, bool)> = scene
         .others
@@ -172,7 +174,7 @@ pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, scene: 
     let reaches = |p: PlayerId| reach.iter().any(|&(q, r)| q == p && r);
     let chosen = {
         let memory = ai.memory.get();
-        choose_enemy(game, me, scene, &memory, &reaches)
+        choose_enemy(game, me, scene, &memory, &reaches, game.round())
     };
     ai.memory.put().enemy = chosen;
     if let Some((enemy, _)) = chosen {
@@ -219,7 +221,7 @@ fn declare(
 ) {
     let me = ai.player;
     let k = Knobs::current();
-    if game.turn < k.from_turn
+    if game.round() < k.from_turn
         || game.treaty(me, enemy) != Treaty::None
         || game
             .diplomacy
@@ -238,7 +240,17 @@ fn declare(
         .iter()
         .filter(|&&p| game.treaty(me, p) == Treaty::War)
         .count() as i32;
-    let v = values(game, me, enemy, scene, &ai.memory.get(), reachable).enemy - wars * k.war_damp;
+    let v = values(
+        game,
+        me,
+        enemy,
+        scene,
+        &ai.memory.get(),
+        reachable,
+        game.round(),
+    )
+    .enemy
+        - wars * k.war_damp;
     let _ = sk;
     if busy || !reachable || v < k.declare {
         return;
@@ -274,9 +286,9 @@ pub(crate) fn court(
         let scene = Scene::new(game, me);
         let due = memory
             .with(other)
-            .is_none_or(|d| d.courted == 0 || game.turn >= d.courted + k.court_cool);
+            .is_none_or(|d| d.courted == 0 || game.round() >= d.courted + k.court_cool);
         (
-            values(game, me, other, &scene, &memory, reachable).friend,
+            values(game, me, other, &scene, &memory, reachable, game.round()).friend,
             due,
         )
     };
@@ -302,7 +314,7 @@ pub(crate) fn court(
         None => false,
     };
     if done {
-        ai.memory.put().courted(other, game.turn);
+        ai.memory.put().courted(other, game.round());
     }
 }
 
@@ -354,7 +366,7 @@ pub(crate) mod tests {
 
     fn value(w: &World, me: PlayerId, other: PlayerId, reach: bool) -> Values {
         let scene = Scene::new(w, me);
-        values(w, me, other, &scene, &Memory::default(), reach)
+        values(w, me, other, &scene, &Memory::default(), reach, w.turn)
     }
 
     #[test]
@@ -362,7 +374,7 @@ pub(crate) mod tests {
         let mut w = pair(30, 1, 100);
         let enemy = |w: &World, memory: &Memory| {
             let scene = Scene::new(w, P0);
-            choose_enemy(w, P0, &scene, memory, &|_| true).map(|(p, _)| p)
+            choose_enemy(w, P0, &scene, memory, &|_| true, w.turn).map(|(p, _)| p)
         };
         assert_eq!(
             enemy(&w, &Memory::default()),

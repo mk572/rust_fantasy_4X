@@ -50,11 +50,11 @@ impl App {
     /// Note each hero's level at a new turn, and queue a box for each that has gone up. The first
     /// look at a game only notes the levels.
     pub(crate) fn check_hero_levels(&mut self) {
-        if self.game.turn == self.levels_turn {
+        if self.game.round() == self.levels_turn {
             return;
         }
         let first = self.levels_turn == u32::MAX;
-        self.levels_turn = self.game.turn;
+        self.levels_turn = self.game.round();
         for hero in self.game.units().hero_units(HUMAN) {
             let level = self.game.units().unit_xp_level(hero);
             let before = self.hero_levels.insert(hero, level);

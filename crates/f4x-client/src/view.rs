@@ -1240,7 +1240,7 @@ impl App {
         match f4x_core::world::save::save_game(path, &self.game) {
             Ok(()) => {
                 let args = Args::new()
-                    .count("turn", self.game.turn)
+                    .count("turn", self.game.round())
                     .text("path", path.display().to_string());
                 self.log.push(self.text_with("log.saved", &args));
             }
@@ -1316,7 +1316,7 @@ impl App {
             self.center_on(pos);
         }
         let args = Args::new()
-            .count("turn", self.game.turn)
+            .count("turn", self.game.round())
             .text("path", path.display().to_string());
         self.log.push(self.text_with("log.loaded", &args));
         if integrity != f4x_core::world::save::Integrity::Intact {
@@ -1442,7 +1442,7 @@ impl App {
             .into_iter()
             .filter(|e| self.concerns_human(e))
             .collect();
-        let turn = self.game.turn;
+        let turn = self.game.round();
         let news = self.collect_report(&events);
         self.last_news = news.clone();
         self.note_shown(events);
@@ -2946,7 +2946,7 @@ impl App {
         let turn = self.text_with(
             "ui.status_line",
             &Args::new()
-                .count("turn", self.game.turn)
+                .count("turn", self.game.round())
                 .text("plane", plane),
         );
         self.overlay_line(view, &mut y, &turn, GOLD);

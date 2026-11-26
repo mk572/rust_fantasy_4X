@@ -561,8 +561,8 @@ pub fn game(
     // The time of each phase since the last `--every` line, in order: one per wizard, the
     // neutrals, the rest (turn changes, other players' turn ends).
     let mut phases = vec![std::time::Duration::ZERO; usize::from(players) + 2];
-    while game.turn <= opts.turns && game.game_over.is_none() {
-        if opts.grant_mastery == Some(game.turn) {
+    while game.round() <= opts.turns && game.game_over.is_none() {
+        if opts.grant_mastery == Some(game.round()) {
             grant_mastery_to_all(game.world_mut());
         }
         let (turns, rest, times) = contestant::play_round_timed(&mut game, &mut ais, &mut neutrals);
@@ -574,17 +574,17 @@ pub fn game(
         phases[usize::from(players)] += times.neutrals;
         phases[usize::from(players) + 1] += times.rest();
         for (player, events) in &turns {
-            tally.record(&game, Some(*player), events);
+            tally.record(&game, game.round(), Some(*player), events);
         }
-        tally.record(&game, None, &rest);
-        tally.sample_mana(&game);
+        tally.record(&game, game.round(), None, &rest);
+        tally.sample_mana(&game, game.round());
         watch.observe(&game);
         if game.in_battle() {
             open_rounds += 1;
-            first_open.get_or_insert(game.turn);
+            first_open.get_or_insert(game.round());
         }
-        if game.turn <= opts.trace && opts.trace > 0 {
-            trace_turn(&game, &ais, &turns, &rest);
+        if game.round() <= opts.trace && opts.trace > 0 {
+            trace_turn(&game, game.round(), &ais, &turns, &rest);
         }
         if let Some(out) = refused_out
             .lock()
@@ -604,14 +604,14 @@ pub fn game(
                 }
             }
         }
-        if opts.every > 0 && game.turn % opts.every == 0 {
+        if opts.every > 0 && game.round().is_multiple_of(opts.every) {
             // The time since the last line shows where a game slows down.
             let now = Instant::now();
             let per_turn = now.duration_since(last_line).as_secs_f32() * 1000.0 / opts.every as f32;
             last_line = now;
             println!(
                 "{tag} turn {}: {} ({} entities) [{:.1}s, {per_turn:.0} ms a turn]",
-                game.turn,
+                game.round(),
                 status(&game),
                 game.entity_count(),
                 started.elapsed().as_secs_f32(),
@@ -632,13 +632,13 @@ pub fn game(
                 .iter_mut()
                 .for_each(|d| *d = std::time::Duration::ZERO);
             if opts.detail {
-                for line in detail_lines(&game, &ais) {
+                for line in detail_lines(&game, game.round(), &ais) {
                     println!("    {line}");
                 }
             }
         }
         if let Some(n) = opts.snapshots_every.filter(|&n| n > 0) {
-            if game.turn % n == 0 {
+            if game.round().is_multiple_of(n) {
                 // The plans of the AIs go into the save, so it is a full game save.
                 let plans: Vec<_> = ais
                     .iter()
@@ -648,7 +648,10 @@ pub fn game(
                 if !plans.is_empty() {
                     game.world_mut().set_plans(plans);
                 }
-                fingerprints.push((game.turn, save_snapshot(&game, snapshot_dir.as_deref())?));
+                fingerprints.push((
+                    game.round(),
+                    save_snapshot(&game, game.round(), snapshot_dir.as_deref())?,
+                ));
             }
         }
     }
@@ -660,7 +663,7 @@ pub fn game(
             "won by player {} ({:?}) on turn {}",
             o.winner.0, o.kind, o.turn
         ),
-        None => format!("no winner after {} turns", game.turn - 1),
+        None => format!("no winner after {} turns", game.round() - 1),
     };
     let open = match first_open {
         Some(turn) => {
@@ -888,13 +891,13 @@ pub fn game(
         failure_lines(tally.cast_failures())
     );
     if opts.events {
-        logln!(log, "{}", watch.summary(game.turn.saturating_sub(1)));
+        logln!(log, "{}", watch.summary(game.round().saturating_sub(1)));
     }
     let standing = game
         .player_ids()
         .into_iter()
         .filter(|&p| game.is_wizard(p))
-        .map(|p| (p, Standing::of(&game, p)))
+        .map(|p| (p, Standing::of(&game, p, game.round())))
         .collect();
     Ok(GameResult {
         over: game.game_over,
@@ -977,14 +980,14 @@ impl EventWatch {
 
 /// Fingerprint the saved game (without its checksum line) and, when `dir` is given, write it as
 /// `tNNNN.f4x`.
-fn save_snapshot(world: &World, dir: Option<&Path>) -> Result<u64, String> {
+fn save_snapshot(world: &World, round: u32, dir: Option<&Path>) -> Result<u64, String> {
     let text = world.snapshot().to_text().map_err(|e| e.to_string())?;
     let mut hasher = DefaultHasher::new();
     text.split_once('\n')
         .map_or(&*text, |(_, body)| body)
         .hash(&mut hasher);
     if let Some(dir) = dir {
-        let path = dir.join(format!("t{:04}.f4x", world.turn));
+        let path = dir.join(format!("t{:04}.f4x", round));
         std::fs::write(&path, text).map_err(|e| format!("{}: {e}", path.display()))?;
     }
     Ok(hasher.finish())
@@ -992,12 +995,13 @@ fn save_snapshot(world: &World, dir: Option<&Path>) -> Result<u64, String> {
 
 fn trace_turn(
     world: &World,
+    round: u32,
     ais: &[Box<dyn Contestant>],
     turns: &[(PlayerId, Vec<f4x_core::world::Event>)],
     rest: &[f4x_core::world::Event],
 ) {
     for ai in ais {
-        println!("  [t{}] ai {} {}", world.turn, ai.player().0, ai.describe());
+        println!("  [t{}] ai {} {}", round, ai.player().0, ai.describe());
     }
     for (c, city, _) in world.economy().cities() {
         let prod = world.economy().city_production(c);
@@ -1005,7 +1009,7 @@ fn trace_turn(
         let eco = world.economy().city_economy(c);
         println!(
             "  [t{}] {} (p{}): {:?} {}/{} eco {:?}",
-            world.turn,
+            round,
             city.name,
             city.owner.0,
             item,
@@ -1015,11 +1019,7 @@ fn trace_turn(
         );
     }
     for e in turns.iter().flat_map(|(_, events)| events).chain(rest) {
-        println!(
-            "  [t{}] {}",
-            world.turn,
-            f4x_console::describe::event(world, e)
-        );
+        println!("  [t{}] {}", round, f4x_console::describe::event(world, e));
     }
 }
 
@@ -1565,7 +1565,7 @@ pub(crate) fn status(world: &World) -> String {
 
 /// One line per wizard about magic and exploring: mana, spells known, research, the spell being
 /// cast and how much of the map is explored.
-fn detail_lines(world: &World, ais: &[Box<dyn Contestant>]) -> Vec<String> {
+fn detail_lines(world: &World, round: u32, ais: &[Box<dyn Contestant>]) -> Vec<String> {
     let mut out = Vec::new();
     for id in world
         .player_ids()
@@ -1610,7 +1610,7 @@ fn detail_lines(world: &World, ais: &[Box<dyn Contestant>]) -> Vec<String> {
                 .map_or(String::new(), |a| a.describe())
         ));
         if let Some(a) = ais.iter().find(|a| a.player() == id) {
-            let note = a.diplomacy_note(world);
+            let note = a.diplomacy_note(world, round);
             if !note.is_empty() {
                 out.push(format!("  p{}: {note}", id.0));
             }

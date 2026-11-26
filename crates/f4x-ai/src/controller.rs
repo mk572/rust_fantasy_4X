@@ -28,8 +28,8 @@ impl Controller for AiSeat<'_> {
             .collect()
     }
 
-    fn notice(&mut self, world: &World, events: &[Event]) {
-        self.0.notice(world, events);
+    fn notice(&mut self, game: &Game, events: &[Event]) {
+        self.0.notice(game, events);
     }
 }
 
@@ -150,9 +150,9 @@ impl Controller for NeutralSeat {
         NeutralSeat::plans(self)
     }
 
-    fn notice(&mut self, world: &World, events: &[Event]) {
+    fn notice(&mut self, game: &Game, events: &[Event]) {
         for ai in self.ais.values_mut() {
-            ai.notice(world, events);
+            ai.notice(game, events);
         }
     }
 }

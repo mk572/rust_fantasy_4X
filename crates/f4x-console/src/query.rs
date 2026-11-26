@@ -168,7 +168,7 @@ fn status(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     let me = ctx.session.player;
     ctx.say(format!(
         "turn {}, playing {}, mode {}",
-        ctx.game.turn,
+        ctx.game.round(),
         describe::player(ctx.game, me),
         ctx.session.mode.name()
     ));
@@ -1004,7 +1004,7 @@ fn score(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         Some(p) => crate::args::parse_player(p)?,
         None => ctx.session.player,
     };
-    let s = ctx.game.score(who);
+    let s = ctx.game.score(who, ctx.game.round());
     ctx.say(format!(
         "spells {}, townsfolk {}, wizards defeated {}, fame {}, time {}, mastery {}; scale {}%; total {}",
         s.spells,

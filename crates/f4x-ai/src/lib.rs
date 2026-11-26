@@ -421,7 +421,7 @@ impl Ai {
 
     /// The diplomacy system and, for B, the main enemy and what it has seen of the others, for the soak's
     /// detail lines.
-    pub fn diplomacy_note(&self, world: &World) -> String {
+    pub fn diplomacy_note(&self, world: &World, round: u32) -> String {
         let m = self.memory.get();
         let enemy = m.enemy.map_or("-".to_string(), |(p, since)| {
             format!("p{} since {since}", p.0)
@@ -455,7 +455,7 @@ impl Ai {
             .filter(|&w| w != self.player && world.have_met(self.player, w))
             .map(|w| {
                 let o = m.opinion(world, self.player, w);
-                let r = diplo_b::regard(world, self.player, w, &scene, &m);
+                let r = diplo_b::regard(world, self.player, w, &scene, &m, round);
                 format!(
                     "p{} friendship {} (feeling {}, regard {}) fear {} strategic {}",
                     w.0, r.friendship, o.friendship, o.hidden, r.fear, r.strategic
@@ -472,8 +472,10 @@ impl Ai {
 
     /// Tell the wizard what has happened (the events of a turn): the battles it fought and the
     /// cities it won or lost go into its memory. What a human would be told of, and no more.
-    pub fn notice(&mut self, world: &World, events: &[Event]) {
-        self.memory.put().notice(self.player, world, events);
+    pub fn notice(&mut self, game: &Game, events: &[Event]) {
+        self.memory
+            .put()
+            .notice(self.player, game, game.round(), events);
     }
 
     pub fn new(player: PlayerId) -> Self {
@@ -621,7 +623,7 @@ impl Ai {
             }
         }
         // Units built or hired since the last turn await orders from the first moment.
-        roles::register(self, game);
+        roles::register(self, game, game.round());
         let dropped = self.drop_stale_plans(game.turn);
         if dropped.sea {
             naval::release_scouts(self, game, &mut events);
@@ -638,7 +640,7 @@ impl Ai {
                 self.order(game, Command::ClearOrders { units }, &mut events);
             }
         }
-        self.memory.put().look(game, self.player);
+        self.memory.put().look(game, self.player, game.round());
         diplomacy::answer(self, game, &mut events);
         diplo_b_talk::negotiate(self, game, &mut events);
         statecraft::run(self, game, &mut events);

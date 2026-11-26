@@ -146,7 +146,8 @@ fn neutral_races_take_part_too() -> TestResult {
     let reach = crate::statecraft::can_attack(&w, P0, &scene, neutral);
     assert!(reach, "no army can get there");
     let value =
-        crate::diplo_b_stance::values(&w, P0, neutral, &scene, &ai.memory.get(), reach).enemy;
+        crate::diplo_b_stance::values(&w, P0, neutral, &scene, &ai.memory.get(), reach, w.turn)
+            .enemy;
     assert!(value >= crate::diplo_b::Knobs::current().declare, "{value}");
     Ok(())
 }

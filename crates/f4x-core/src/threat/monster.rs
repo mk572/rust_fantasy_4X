@@ -39,7 +39,7 @@ impl World {
     }
 
     /// Run the monsters' clock and, when it runs out, let a stack take over a random lair.
-    pub(super) fn make_monsters(&mut self) -> Vec<Event> {
+    pub(super) fn make_monsters(&mut self, round: u32) -> Vec<Event> {
         let d = u32::from(self.difficulty());
         let spared = self.content.rules.config.threat.spared_realms.clone();
         let zones: Vec<_> = self
@@ -60,7 +60,7 @@ impl World {
             return Vec::new();
         }
         self.threat.monster_clock = 0;
-        if self.turn < self.monster_first_turn() {
+        if round < self.monster_first_turn() {
             return Vec::new();
         }
         // A lair on a landmass where a player has a city.
@@ -92,7 +92,7 @@ impl World {
         let Some(exile_square) = self.adjacent_free_square(zone.pos) else {
             return Vec::new();
         };
-        let mut budget = ((self.roll(d + 1) + self.roll(d + 1)) * self.turn / 5) as i32;
+        let mut budget = ((self.roll(d + 1) + self.roll(d + 1)) * round / 5) as i32;
         // On a landmass that holds a computer wizard's cities and none of the human's the budget is
         // halved.
         let land = self.landmass_at(&lands, zone.pos);

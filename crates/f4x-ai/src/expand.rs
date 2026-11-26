@@ -25,15 +25,19 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         view.sort_by_serial(&mut mine);
         // The site check is due when the book is rebuilt; a new settler does not wait for it.
         let due = {
-            ai.sites.refreshed(&view);
-            ai.sites.rebuilt_on(game.turn)
+            ai.sites.refreshed(&view, game.round());
+            ai.sites.rebuilt_on(game.round())
         };
         let free: Vec<Free> = mine
             .iter()
             .filter(|&&u| {
                 let serial = view.serial_of(u);
                 !ai.roles.has_role(serial)
-                    && (due || ai.roles.get(serial).is_some_and(|a| a.since == game.turn))
+                    && (due
+                        || ai
+                            .roles
+                            .get(serial)
+                            .is_some_and(|a| a.since == game.round()))
             })
             .filter_map(|&u| {
                 Some(Free {
@@ -43,7 +47,7 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 })
             })
             .collect();
-        let list = ai.sites.refreshed(&view).to_vec();
+        let list = ai.sites.refreshed(&view, game.round()).to_vec();
         let taken = ai.roles.targets(Role::Settle);
         (
             mine,
@@ -55,7 +59,7 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let serial = PlayerView::new(game, me).serial_of(unit);
         if ai
             .roles
-            .claim(serial, Role::Settle, game.turn, Some(site))
+            .claim(serial, Role::Settle, game.round(), Some(site))
             .is_err()
         {
             continue;
@@ -248,7 +252,7 @@ mod tests {
         use crate::roles::Role;
         let (mut w, units) = island_with_settlers(1);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         settlers(&mut ai, &mut w, &mut Vec::new());
         let serial = PlayerView::new(&w, P0).serial_of(units[0]);
         ai.roles
@@ -283,7 +287,7 @@ mod tests {
         );
         let serial = PlayerView::new(&w, P0).serial_of(units[0]);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         settlers(&mut ai, &mut w, &mut Vec::new());
         assert!(!ai.roles.has_role(serial), "no site, no settle role");
         assert!(ai.roles.targets(crate::roles::Role::Settle).is_empty());
@@ -338,7 +342,7 @@ mod tests {
         let before = PlayerView::new(&w, P0).my_cities().len();
         for _ in 0..40 {
             let mut events = Vec::new();
-            crate::roles::register(&mut ai, &w);
+            crate::roles::register(&mut ai, &w, w.turn);
             crate::dispatch::revalidate(&mut ai, &mut w, &mut events);
             settlers(&mut ai, &mut w, &mut events);
             crate::pickup::run(&mut ai, &mut w, &mut events);

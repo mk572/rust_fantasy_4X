@@ -37,7 +37,7 @@ pub trait Contestant {
     fn describe(&self) -> String;
     /// The diplomacy system the wizard plays and its state, for the detail lines (empty for a version
     /// without systems).
-    fn diplomacy_note(&self, _world: &World) -> String {
+    fn diplomacy_note(&self, _world: &World, _round: u32) -> String {
         String::new()
     }
     /// The turns a situation called for a kind of spell the wizard did not know, by the kind; none
@@ -65,7 +65,7 @@ pub trait Contestant {
     /// Join the game's table of memories (`f4x_ai::Diplomats`), and hear the events of the turns, as
     /// the live AI does; the reference copy has neither.
     fn join(&mut self, _diplomats: &f4x_ai::Diplomats) {}
-    fn notice(&mut self, _world: &World, _events: &[Event]) {}
+    fn notice(&mut self, _game: &Game, _events: &[Event]) {}
 }
 
 macro_rules! contestant {
@@ -128,11 +128,11 @@ macro_rules! contestant {
                 fn join(&mut self, diplomats: &f4x_ai::Diplomats) {
                     $krate::Ai::$memory(self, diplomats);
                 }
-                fn notice(&mut self, world: &World, events: &[Event]) {
-                    $krate::Ai::notice(self, world, events);
+                fn notice(&mut self, game: &Game, events: &[Event]) {
+                    $krate::Ai::notice(self, game, events);
                 }
-                fn diplomacy_note(&self, world: &World) -> String {
-                    $krate::Ai::diplomacy_note(self, world)
+                fn diplomacy_note(&self, world: &World, round: u32) -> String {
+                    $krate::Ai::diplomacy_note(self, world, round)
                 }
             )?
             $(
@@ -253,9 +253,9 @@ impl Neutrals {
         }
     }
 
-    fn notice(&mut self, world: &World, events: &[Event]) {
+    fn notice(&mut self, game: &Game, events: &[Event]) {
         if self.version == Version::New {
-            Controller::notice(&mut self.new, world, events);
+            Controller::notice(&mut self.new, game, events);
         }
     }
 
@@ -295,7 +295,7 @@ impl Controller for ContestantSeat<'_> {
             *p.borrow_mut() = format!(
                 "seed {} turn {} player {}",
                 game.seed(),
-                game.turn,
+                game.round(),
                 self.contestant.player().0
             );
         });
@@ -310,8 +310,8 @@ impl Controller for ContestantSeat<'_> {
         Status::Done
     }
 
-    fn notice(&mut self, world: &World, events: &[Event]) {
-        self.contestant.notice(world, events);
+    fn notice(&mut self, game: &Game, events: &[Event]) {
+        self.contestant.notice(game, events);
     }
 }
 
@@ -326,8 +326,8 @@ impl Controller for NeutralSeat<'_> {
         Status::Done
     }
 
-    fn notice(&mut self, world: &World, events: &[Event]) {
-        self.0.notice(world, events);
+    fn notice(&mut self, game: &Game, events: &[Event]) {
+        self.0.notice(game, events);
     }
 }
 

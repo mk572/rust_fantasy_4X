@@ -81,20 +81,20 @@ impl SiteBook {
     }
 
     /// The list, best first, rebuilt when it is old or a city has been founded, lost or found.
-    pub fn refreshed(&mut self, view: &PlayerView) -> &[Site] {
+    pub fn refreshed(&mut self, view: &PlayerView, round: u32) -> &[Site] {
         let cities = view.my_cities().len() + view.known_cities().len();
         let explored = explored_squares(view);
         let stale = match self.built {
             None => true,
             Some(turn) => {
-                view.turn().saturating_sub(turn) >= REFRESH_TURNS
+                round.saturating_sub(turn) >= REFRESH_TURNS
                     || cities != self.cities
                     || explored >= self.explored + REFRESH_SQUARES
             }
         };
         if stale {
             self.list = scan(view);
-            self.built = Some(view.turn());
+            self.built = Some(round);
             self.cities = cities;
             self.explored = explored;
         }

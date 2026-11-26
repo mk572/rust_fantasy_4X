@@ -13,14 +13,14 @@ use f4x_def::half_int::HalfInt;
 use rand::SeedableRng;
 
 impl World {
-    /// Round start, once per round before any player acts: the round counter advances and the
-    /// world's opening work runs (the event draw, the raiders' and monsters' clocks). See
+    /// Round start, once per round before any player acts: `round` begins and the world's
+    /// opening work runs (the event draw, the raiders' and monsters' clocks). See
     /// `docs/turn-structure.md` section 7.1 for what belongs to which phase.
-    pub fn start_round(&mut self) -> Vec<Event> {
-        self.turn += 1;
-        let mut events = vec![Event::TurnStarted { turn: self.turn }];
-        events.extend(self.process_events());
-        events.extend(self.process_threats());
+    pub fn start_round(&mut self, round: u32) -> Vec<Event> {
+        self.turn = round;
+        let mut events = vec![Event::TurnStarted { turn: round }];
+        events.extend(self.process_events(round));
+        events.extend(self.process_threats(round));
         events
     }
 
@@ -30,10 +30,10 @@ impl World {
     /// (a unit finished at the last turn end moves now), offers rolled, the work of their units
     /// carried on and their standing orders followed. The first round has none of it: the game
     /// begins with the first turn.
-    pub fn start_player_turn(&mut self, player: PlayerId) -> Vec<Event> {
+    pub fn start_player_turn(&mut self, player: PlayerId, round: u32) -> Vec<Event> {
         self.reopen_sales(player);
         let mut events = self.process_stasis(player);
-        if self.turn > 1 {
+        if round > 1 {
             events.extend(self.run_growth(player));
         }
         let stopper = self.time_stopper();
@@ -51,7 +51,7 @@ impl World {
                 self.strip::<crate::unit::Standby>(unit);
             }
         }
-        events.extend(self.determine_offers(player));
+        events.extend(self.determine_offers(player, round));
         events.extend(self.process_purify(player));
         self.unload_in_ports(player);
         events.extend(self.sail_marooned(player));

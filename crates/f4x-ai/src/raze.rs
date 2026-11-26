@@ -185,7 +185,7 @@ fn defence_part(
 
 /// How much of the defence the city wants is missing: the soldiers in it and near it count, those
 /// that hold another own city do not.
-fn garrison_part(view: &PlayerView, at: Position, k: &Knobs) -> i32 {
+fn garrison_part(view: &PlayerView, at: Position, k: &Knobs, round: u32) -> i32 {
     let cities: Vec<Position> = view.my_cities().into_iter().map(|(_, p)| p).collect();
     let there: Vec<hecs::Entity> = view
         .my_units()
@@ -199,7 +199,7 @@ fn garrison_part(view: &PlayerView, at: Position, k: &Knobs) -> i32 {
         })
         .collect();
     let have = stack_strength(view, &there);
-    let wanted = crate::garrison::wanted_strength(view, at);
+    let wanted = crate::garrison::wanted_strength(view, at, round);
     let missing = if have <= 0.0 {
         1.0
     } else if wanted <= have {
@@ -218,6 +218,7 @@ fn case(
     at: Position,
     from: PlayerId,
     k: &Knobs,
+    round: u32,
 ) -> Option<Case> {
     Some(Case {
         temper: temper_part(view, from, k)?,
@@ -225,7 +226,7 @@ fn case(
         land: land_part(view, at, k),
         size: size_part(view, city, k),
         defence: defence_part(view, city, at, from, k),
-        garrison: garrison_part(view, at, k),
+        garrison: garrison_part(view, at, k, round),
     })
 }
 
@@ -254,7 +255,7 @@ pub(crate) fn run(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             else {
                 continue;
             };
-            case(&view, city, at, from, &k).is_some_and(|c| c.total() > k.threshold)
+            case(&view, city, at, from, &k, game.round()).is_some_and(|c| c.total() > k.threshold)
         };
         if unwanted {
             ai.order(game, Command::RazeCity { player: me, city }, events);
@@ -322,7 +323,14 @@ mod tests {
 
         fn case(&self) -> Option<Case> {
             let view = PlayerView::new(&self.w, P0);
-            case(&view, self.city, self.at, P1, &Knobs::current())
+            case(
+                &view,
+                self.city,
+                self.at,
+                P1,
+                &Knobs::current(),
+                self.w.turn,
+            )
         }
 
         fn parts(&self) -> Result<Case, &'static str> {

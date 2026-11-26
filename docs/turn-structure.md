@@ -227,7 +227,7 @@ This document defines the lifecycle and design constraints, not a demand to rewr
 
 ## 10. Splitting the game from the world (task 822)
 
-**Built so far:** `f4x_master::Game` owns the world; the master drives it, and the AI, the console, the client and the tools hold it. It reads like a world, and a command goes through `Game::apply`; setup and cheats use `Game::world_mut`. Undo and the replay log are the game's (`game/undo.rs`, `game/replay.rs`). So is the turn order (`game/step.rs`): the lifecycle commands and `EndTurn` are gone, the game makes the steps (`Game::start_round` and the others, `Game::play_round`) through `World::advance`, `turn_players` is master's, and the replay log holds commands and steps. A command in the log still has no sender (10.4). No state has moved out of the world yet.
+**Built so far:** `f4x_master::Game` owns the world; the master drives it, and the AI, the console, the client and the tools hold it. It reads like a world, and a command goes through `Game::apply`; setup and cheats use `Game::world_mut`. Undo and the replay log are the game's (`game/undo.rs`, `game/replay.rs`). So is the turn order (`game/step.rs`): the lifecycle commands and `EndTurn` are gone, the game makes the steps (`Game::start_round` and the others, `Game::play_round`) through `World::advance`, `turn_players` is master's, and the replay log holds commands and steps. A command in the log still has no sender (10.4). The world operations that need the round take it as an argument (`start_round`, `start_player_turn`, `score`, `cheat_offer`), and everyone outside the world asks `Game::round`. No state has moved out of the world yet: `Game::round` still reads `World.turn`, which `start_round` sets.
 
 The **world** (`f4x-core`'s `World`, named `Game` until 26 November 2026) says what is in the world and what can be done in it. The **game** (`Game` in `f4x-master`) owns a `World` and advances time.
 
@@ -327,7 +327,7 @@ No command takes a round.
 - **Game over:** the `Game` stamps the winning turn.
 - **Cheat log:** the caller, which has the `Game`, writes "turn N:" into the line it records.
 - **Client, console and tools** ask `game.round()`.
-- **AI:** each AI notes the round when it is asked to play or to react; it is not saved with its plans. `PlayerView::turn` goes, and `PlayerView::new` stays as it is.
+- **AI:** reads `game.round()` where it has the game and hands the round to the functions that need it; it stores none (changed 27 November 2026 from a noted copy, which could go stale). `PlayerView::turn` is gone, and `PlayerView::new` stays as it is.
 
 ### 10.7 Game over (decided 26 November 2026)
 

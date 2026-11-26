@@ -920,10 +920,10 @@ impl Tally {
 
     /// Note the mana of every wizard after a round: what it spent is the pool before, plus the
     /// income the turn change paid, less the pool now.
-    pub fn sample_mana(&mut self, world: &World) {
-        self.sample_wars(world);
+    pub fn sample_mana(&mut self, world: &World, round: u32) {
+        self.sample_wars(world, round);
         self.sample_settlers(world);
-        self.sample_cities(world);
+        self.sample_cities(world, round);
         let now = self.mana_now(world);
         for p in world.player_ids() {
             if world.wizard(p).is_none() {
@@ -1016,7 +1016,7 @@ impl Tally {
     /// Count each city (a neutral one too: it is the neutrals' share) that holds no unit but
     /// engineers, settlers, mana spirits and ships (the units that cannot defend it), once per round, and keep which city on which turn. An
     /// outpost is a city, so it counts.
-    fn sample_cities(&mut self, world: &World) {
+    fn sample_cities(&mut self, world: &World, round: u32) {
         // A ship defends nothing, and neither do the workers.
         let defends = |u| {
             world
@@ -1032,12 +1032,12 @@ impl Tally {
                 .any(|u| world.units().unit_owner(u) == Some(info.owner) && defends(u));
             if !held {
                 self.bump(info.owner, |m| m.undefended_cities += 1);
-                self.undefended.push((world.turn, info.owner.0, at));
+                self.undefended.push((round, info.owner.0, at));
             }
         }
     }
 
-    fn sample_wars(&mut self, world: &World) {
+    fn sample_wars(&mut self, world: &World, round: u32) {
         let wizards: Vec<PlayerId> = world
             .player_ids()
             .into_iter()
@@ -1050,9 +1050,9 @@ impl Tally {
                     self.war_since.remove(&key);
                     continue;
                 }
-                let since = *self.war_since.entry(key).or_insert(world.turn);
+                let since = *self.war_since.entry(key).or_insert(round);
                 let last = self.last_fight.get(&key).copied().unwrap_or(0).max(since);
-                let stalled = world.turn.saturating_sub(last) >= STALLED_WAR_TURNS;
+                let stalled = round.saturating_sub(last) >= STALLED_WAR_TURNS;
                 for p in [a, b] {
                     self.bump(p, |m| {
                         m.war_turns += 1;
@@ -1278,7 +1278,13 @@ impl Tally {
 
     /// Count `events`. `source` is the wizard whose orders caused them (a city founded or a
     /// building finished has no player of its own: its owner counts), none for the turn change.
-    pub fn record(&mut self, world: &World, source: Option<PlayerId>, events: &[Event]) {
+    pub fn record(
+        &mut self,
+        world: &World,
+        round: u32,
+        source: Option<PlayerId>,
+        events: &[Event],
+    ) {
         let owner = |city| world.economy().city_owner(city).or(source);
         for event in events {
             match event {
@@ -1291,7 +1297,7 @@ impl Tally {
                     }
                 }
                 Event::CityCaptured { city, from, to } => {
-                    self.last_fight.insert(pair(*from, *to), world.turn);
+                    self.last_fight.insert(pair(*from, *to), round);
                     self.last_taker.insert(from.0, to.0);
                     let at = world
                         .economy()
@@ -1314,7 +1320,7 @@ impl Tally {
                     if far {
                         if let Some(pos) = at {
                             self.far_captures
-                                .push((world.turn, to.0, from.0, pos.plane.index()));
+                                .push((round, to.0, from.0, pos.plane.index()));
                         }
                     }
                     if let Some(m) = self.at(*to) {
@@ -1353,7 +1359,7 @@ impl Tally {
                     self.bump(*player, |m| m.units_lost_in_battle += units)
                 }
                 Event::BattleEnded { winner, loser } => {
-                    self.last_fight.insert(pair(*winner, *loser), world.turn);
+                    self.last_fight.insert(pair(*winner, *loser), round);
                     self.count_by_role(*winner, *loser);
                     if let Some(m) = self.at(*winner) {
                         m.battles_won += 1;
@@ -1461,7 +1467,7 @@ impl Tally {
                         continue;
                     };
                     slot.insert(mass);
-                    let first = world.turn;
+                    let first = round;
                     if let Some(m) = self.at(player) {
                         m.troops_landed += troops;
                         if m.wizards_landed == 0 {
@@ -1542,7 +1548,7 @@ impl Tally {
                 Event::ItemSold { player, .. } => self.bump(*player, |m| m.items_sold += 1),
                 Event::ItemScrapped { player, .. } => self.bump(*player, |m| m.items_scrapped += 1),
                 Event::Diplomacy(DiplomacyEvent::WarDeclared { attacker, defender }) => {
-                    self.wars.push((world.turn, attacker.0, defender.0));
+                    self.wars.push((round, attacker.0, defender.0));
                     self.bump(*attacker, |m| {
                         m.wars_declared += 1;
                         m.diplomacy_started += 1;
@@ -1631,7 +1637,7 @@ impl Tally {
                 // A standing order that stopped on a refused step counts as a refused order.
                 Event::WizardDefeated { player } => {
                     let killer = self.last_taker.get(&player.0).copied();
-                    self.defeats.push((world.turn, player.0, killer));
+                    self.defeats.push((round, player.0, killer));
                     if let Some(k) = killer.map(PlayerId).filter(|&k| world.is_wizard(k)) {
                         self.bump(k, |m| m.wizards_eliminated += 1);
                     }
@@ -1690,7 +1696,7 @@ pub struct Standing {
 }
 
 impl Standing {
-    pub fn of(world: &World, player: PlayerId) -> Self {
+    pub fn of(world: &World, player: PlayerId, round: u32) -> Self {
         let cities: Vec<_> = world
             .economy()
             .cities()
@@ -1708,7 +1714,7 @@ impl Standing {
             spells_known: world.wizard(player).map_or(0, |w| w.known().len()),
             explored: world.explored_squares(player),
             fame: world.wizard(player).map_or(0, |w| w.fame()),
-            score: world.score(player).total(),
+            score: world.score(player, round).total(),
         }
     }
 
@@ -1751,7 +1757,7 @@ mod tests {
         let players = [PlayerId(0), PlayerId(1)];
         let start: Vec<usize> = players
             .iter()
-            .map(|&p| Standing::of(&world, p).cities)
+            .map(|&p| Standing::of(&world, p, world.turn).cities)
             .collect();
         let mut ais: Vec<_> = players
             .iter()
@@ -1763,14 +1769,14 @@ mod tests {
             let (turns, rest, _) =
                 contestant::play_round_timed(&mut world, &mut ais, &mut neutrals);
             for (player, events) in &turns {
-                tally.record(&world, Some(*player), events);
+                tally.record(&world, world.turn, Some(*player), events);
             }
-            tally.record(&world, None, &rest);
+            tally.record(&world, world.turn, None, &rest);
         }
         assert!(tally.total().cities_founded > 0, "nobody founded a city");
         for (k, &p) in players.iter().enumerate() {
             let m = tally.of(p);
-            let ends = Standing::of(&world, p).cities;
+            let ends = Standing::of(&world, p, world.turn).cities;
             assert_eq!(
                 start[k] + m.cities_founded as usize + m.cities_captured as usize
                     - m.cities_lost as usize,
@@ -1830,6 +1836,7 @@ mod tests {
         world.scenario_remove_unit(made[1]);
         tally.record(
             &world,
+            world.turn,
             None,
             &[Event::UnitLost {
                 player: PlayerId(0),
@@ -1849,7 +1856,12 @@ mod tests {
         // The last one founds a city where it stands: that is no failure.
         let city = world.economy().city_at(home).ok_or("no capital")?;
         world.scenario_remove_unit(made[2]);
-        tally.record(&world, None, &[Event::CityFounded { city, pos: home }]);
+        tally.record(
+            &world,
+            world.turn,
+            None,
+            &[Event::CityFounded { city, pos: home }],
+        );
         tally.sample_settlers(&world);
         assert_eq!(tally.of(PlayerId(0)).settlers_killed, 1);
         Ok(())
@@ -1887,7 +1899,7 @@ mod tests {
             world.scenario_remove_unit(u);
         }
         let mut tally = Tally::new(&world);
-        tally.sample_cities(&world);
+        tally.sample_cities(&world, world.turn);
         assert_eq!(tally.of(PlayerId(0)).undefended_cities, 1, "an empty city");
         let ours: Vec<_> = tally.undefended().iter().filter(|u| u.1 == 0).collect();
         assert_eq!(ours, [&(world.turn, 0, home)], "turn and square");
@@ -1903,7 +1915,7 @@ mod tests {
             pos: home,
             unit: settler,
         });
-        tally.sample_cities(&world);
+        tally.sample_cities(&world, world.turn);
         assert_eq!(tally.of(PlayerId(0)).undefended_cities, 2, "a settler only");
         // Nor is a ship.
         let ship = kind_of(&|d| is_ship(d))?;
@@ -1912,7 +1924,7 @@ mod tests {
             pos: home,
             unit: ship,
         });
-        tally.sample_cities(&world);
+        tally.sample_cities(&world, world.turn);
         assert_eq!(tally.of(PlayerId(0)).undefended_cities, 3, "a ship too");
         // A soldier is.
         let soldier = kind_of(&|d| d.is_fighter())?;
@@ -1921,7 +1933,7 @@ mod tests {
             pos: home,
             unit: soldier,
         });
-        tally.sample_cities(&world);
+        tally.sample_cities(&world, world.turn);
         assert_eq!(tally.of(PlayerId(0)).undefended_cities, 3, "defended now");
         Ok(())
     }
@@ -1977,7 +1989,7 @@ mod tests {
                 from: PlayerId(1),
                 to: PlayerId(0),
             };
-            tally.record(&world, None, &[event]);
+            tally.record(&world, world.turn, None, &[event]);
             Ok(tally)
         };
         let far = taken(1 - plane)?;
@@ -2013,7 +2025,7 @@ mod tests {
             bridges: 1,
             waiting_bridge: waiting + 1,
         };
-        tally.record(&world, None, &[audit(2, 4, 3), audit(1, 5, 2)]);
+        tally.record(&world, world.turn, None, &[audit(2, 4, 3), audit(1, 5, 2)]);
         let m = tally.of(player);
         assert_eq!((m.units_adrift, m.units_unassigned), (3, 9));
         assert_eq!(m.waiting_for_ship, 5);
@@ -2066,7 +2078,7 @@ mod tests {
                 target_changed: true,
             },
         ];
-        tally.record(&world, None, &events);
+        tally.record(&world, world.turn, None, &events);
         let m = tally.of(player);
         assert_eq!(
             (
@@ -2095,6 +2107,7 @@ mod tests {
         let mut tally = Tally::new(&world);
         tally.record(
             &world,
+            world.turn,
             None,
             &[
                 Event::Diplomacy(DiplomacyEvent::ContactMade { a, b }),
@@ -2146,6 +2159,7 @@ mod tests {
         let mut tally = Tally::new(&world);
         tally.record(
             &world,
+            world.turn,
             None,
             &[
                 offer(ProposalKind::Peace),
@@ -2266,6 +2280,7 @@ mod tests {
         tally.note_refused_cast(&world, "GoTo { units: [] }", "Move(Treaty)");
         tally.record(
             &world,
+            world.turn,
             None,
             &[Event::NoTargetForCast {
                 player: PlayerId(1),
@@ -2305,6 +2320,7 @@ mod tests {
         let side = f4x_battle::Side::Attacker;
         tally.record(
             &world,
+            world.turn,
             None,
             &[
                 Event::Battle(BattleEvent::SpellCast {

@@ -92,7 +92,7 @@ pub fn run(
     events: &mut Vec<Event>,
 ) -> Vec<hecs::Entity> {
     let me = ai.player;
-    let turn = game.turn;
+    let turn = game.round();
     // The cities the economy builds soldiers for: the enemy near is more than the garrison holds.
     ai.threatened = crate::military::threats(&PlayerView::new(game, me))
         .iter()

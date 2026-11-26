@@ -43,7 +43,7 @@ impl World {
 
     /// Raise the party. Nothing happens (and false is returned) when no race has a weight on the
     /// plane or no coast is free; the caller then raids as usual.
-    pub(super) fn make_sea_raid(&mut self) -> Option<Vec<Event>> {
+    pub(super) fn make_sea_raid(&mut self, round: u32) -> Option<Vec<Event>> {
         let plane = if self.roll(2) == 1 {
             Plane::Arcanus
         } else {
@@ -51,12 +51,12 @@ impl World {
         };
         let race = self.sea_raid_race(plane)?;
         let landing = self.sea_raid_landing(plane)?;
-        let (fighters, settler) = self.sea_raid_troops(race)?;
-        let ship = self.sea_raid_ship()?;
+        let (fighters, settler) = self.sea_raid_troops(race, round)?;
+        let ship = self.sea_raid_ship(round)?;
         let owner = self.race_player(race);
         let ship = self.spawn_unit(owner, landing.sea, ship);
         self.put(ship, Unpaid);
-        let xp_level = match self.turn {
+        let xp_level = match round {
             251.. => 3,
             121.. => 2,
             41.. => 1,
@@ -110,7 +110,7 @@ impl World {
     }
 
     /// The ship for the turn: the last of the list that has begun.
-    fn sea_raid_ship(&self) -> Option<UnitId> {
+    fn sea_raid_ship(&self, round: u32) -> Option<UnitId> {
         let rules = &self.content.rules;
         rules
             .config
@@ -118,14 +118,14 @@ impl World {
             .sea_raid
             .ships
             .iter()
-            .rfind(|&&(from, _)| self.turn >= from)
+            .rfind(|&&(from, _)| round >= from)
             .and_then(|&(_, num)| rules.units.id_numbered(num))
     }
 
     /// The fighters of the party and its settler. The race's fighters are sorted by cost; the step
     /// the turn has reached (`threat.sea_raid.parties`) gives how many there are and how many of
     /// the cheapest each is rolled from. Settlers and engineers are no fighters.
-    fn sea_raid_troops(&mut self, race: RaceId) -> Option<(Vec<UnitId>, UnitId)> {
+    fn sea_raid_troops(&mut self, race: RaceId, round: u32) -> Option<(Vec<UnitId>, UnitId)> {
         let rules = &self.content.rules;
         let mut fighters: Vec<(u32, UnitId)> = Vec::new();
         let mut settler = None;
@@ -153,7 +153,7 @@ impl World {
             .sea_raid
             .parties
             .iter()
-            .rfind(|&&(from, ..)| self.turn >= from)
+            .rfind(|&&(from, ..)| round >= from)
             .copied()?;
         let pool = if pool == 0 {
             fighters.len()

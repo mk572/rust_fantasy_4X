@@ -74,7 +74,7 @@ fn choose_target(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, capital:
         for (_, owner, pos) in view.known_cities() {
             if owner != me && view.sees(pos) {
                 let strength = fighting_strength(&view, &view.hostile_at(pos).unwrap_or_default());
-                ai.city_memory.insert(pos, (strength, game.turn));
+                ai.city_memory.insert(pos, (strength, game.round()));
             }
         }
         if ai.campaign.is_some_and(|c| {
@@ -108,7 +108,7 @@ fn choose_target(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, capital:
             let towns = crate::war_plan::towns(
                 &view,
                 &ai.city_memory,
-                game.turn,
+                game.round(),
                 capital,
                 &ai.unreachable,
                 focus,
@@ -132,7 +132,7 @@ fn choose_target(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, capital:
                         break;
                     };
                     ai.unreachable.push(goal);
-                    ai.unreachable_since = game.turn;
+                    ai.unreachable_since = game.round();
                 }
             }
         }
@@ -196,7 +196,7 @@ fn choose_target(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, capital:
             ai.campaign = None;
             ai.crossing = None;
             ai.unreachable.push(city);
-            ai.unreachable_since = game.turn;
+            ai.unreachable_since = game.round();
         }
     }
 }
@@ -213,7 +213,7 @@ fn march_on(
 ) {
     let me = ai.player;
     // Targets that could not be reached are tried again after a while.
-    if game.turn.saturating_sub(ai.unreachable_since) > UNREACHABLE_TURNS {
+    if game.round().saturating_sub(ai.unreachable_since) > UNREACHABLE_TURNS {
         ai.unreachable.clear();
     }
     // Gather at the rally city the war plan names; march when strong enough.
@@ -231,14 +231,14 @@ fn march_on(
         // target gets the walk to it on top of the usual time (the slowest unit covers a square
         // a turn), or the stack would turn back before it arrived.
         let trip = distance(&view, rally, target).unwrap_or(0);
-        let too_long = march_called_off(game.turn, ai.march_started, trip);
+        let too_long = march_called_off(game.round(), ai.march_started, trip);
         if too_long || ai.march_target != Some(target) {
             if ai.roles.any(crate::roles::Role::March) {
                 events.push(Event::MarchCalledOff {
                     player: me,
                     target: ai.march_target.unwrap_or(target),
                     units: ai.roles.count(crate::roles::Role::March) as u32,
-                    turns: game.turn.saturating_sub(ai.march_started),
+                    turns: game.round().saturating_sub(ai.march_started),
                     target_changed: !too_long,
                 });
             }
@@ -246,9 +246,9 @@ fn march_on(
             ai.roles.end_musters(crate::roles::MusterKind::Campaign);
             ai.march_target = Some(target);
         }
-        let edge = crate::military::campaign_ratio(game, me);
+        let edge = crate::military::campaign_ratio(game, me, game.round());
         let wanted =
-            crate::war_plan::strength_wanted(&view, &ai.city_memory, game.turn, target, edge);
+            crate::war_plan::strength_wanted(&view, &ai.city_memory, game.round(), target, edge);
         // The army attacks as one stack from one square: the units on the rally square, the
         // strongest of them up to what a square holds. The rest of them stay available.
         let (mut at_rally, elsewhere): (Vec<_>, Vec<_>) = free
@@ -294,7 +294,9 @@ fn march_on(
     // In the win phase the wizard sends every free soldier it has, up to a full party: stacks that
     // wait for more than the march needs while the rivals build theirs stall the late game
     // (task 697). The march itself still leaves only when the force at the rally is strong enough.
-    let needed = if crate::phase::phase(&PlayerView::new(game, me)) == crate::phase::Phase::Win {
+    let needed = if crate::phase::phase(&PlayerView::new(game, me), game.round())
+        == crate::phase::Phase::Win
+    {
         f32::INFINITY
     } else {
         wanted
@@ -461,7 +463,7 @@ fn march_on(
             .find(|(_, m, _)| m.kind == MusterKind::Campaign)
         {
             Some((id, ..)) => {
-                ai.roles.join_muster(id, &members, game.turn);
+                ai.roles.join_muster(id, &members, game.round());
             }
             None => {
                 ai.roles.begin_muster(
@@ -469,7 +471,7 @@ fn march_on(
                     rally,
                     Some(target),
                     &members,
-                    game.turn,
+                    game.round(),
                 );
             }
         }
@@ -550,7 +552,7 @@ fn march_on(
             // No square next to the target can be reached: give it up for a while and go for
             // the next nearest city (ships or a gate may open the way later).
             ai.unreachable.push(target);
-            ai.unreachable_since = game.turn;
+            ai.unreachable_since = game.round();
             ai.campaign = None;
         } else if !launched.is_empty() {
             events.push(Event::MarchLaunched {
@@ -562,13 +564,13 @@ fn march_on(
             ai.roles.assign(
                 crate::roles::Role::March,
                 launched.iter().copied(),
-                game.turn,
+                game.round(),
             );
             for &s in &launched {
                 ai.roles
                     .set_target(s, crate::roles::Role::March, Some(target));
             }
-            ai.march_started = game.turn;
+            ai.march_started = game.round();
         }
     }
 }
@@ -609,7 +611,7 @@ fn set_sail(
     for &s in &serials {
         if ai
             .roles
-            .claim(s, crate::roles::Role::March, game.turn, Some(target))
+            .claim(s, crate::roles::Role::March, game.round(), Some(target))
             .is_ok()
         {
             ai.roles
@@ -620,7 +622,7 @@ fn set_sail(
             }
         }
     }
-    ai.march_started = game.turn;
+    ai.march_started = game.round();
 }
 
 /// Has a march gone on too long? It has [`MARCH_TURNS`] and the walk to a far target on top (the
@@ -842,7 +844,7 @@ fn march_landed(
                 reached
             })
             .collect();
-        let expected = expected_defence(&view, &ai.city_memory, game.turn, target);
+        let expected = expected_defence(&view, &ai.city_memory, game.round(), target);
         (landed, expected)
     };
     // One battle is one square's party: each square is judged on its own best nine, and the
@@ -890,13 +892,13 @@ fn march_landed(
         ai.roles.assign(
             crate::roles::Role::March,
             launched.iter().copied(),
-            game.turn,
+            game.round(),
         );
         for &s in &launched {
             ai.roles
                 .set_target(s, crate::roles::Role::March, Some(target));
         }
-        ai.march_started = game.turn;
+        ai.march_started = game.round();
     }
 }
 
@@ -983,7 +985,7 @@ mod tests {
             spawn(&mut w, P0, at(5, 9), 113 /* high_men_paladins */, 9);
             w.reveal_map(P0);
             let mut ai = Ai::new(P0);
-            crate::roles::register(&mut ai, &w);
+            crate::roles::register(&mut ai, &w, w.turn);
             run(&mut ai, &mut w, &mut Vec::new());
             let musters = ai.roles.musters();
             Ok(musters.first().map_or(0, |(_, _, members)| members.len()))
@@ -1003,7 +1005,7 @@ mod tests {
         let troops = spawn(&mut w, P0, at(5, 9), 113 /* high_men_paladins */, 9);
         w.reveal_map(P0);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         run(&mut ai, &mut w, &mut Vec::new());
         assert_eq!(ai.campaign, Some(at(4, 4)));
         let musters = ai.roles.musters();
@@ -1029,7 +1031,7 @@ mod tests {
         for &u in &sent {
             w.cheat_move_unit(u, capital);
         }
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         run(&mut ai, &mut w, &mut Vec::new());
         assert!(
             ai.roles.musters().is_empty(),
@@ -1055,7 +1057,7 @@ mod tests {
         }
         w.reveal_map(P0);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         run(&mut ai, &mut w, &mut Vec::new());
         let view = PlayerView::new(&w, P0);
         for &u in hurt {
@@ -1104,7 +1106,7 @@ mod tests {
         let tile = w.max_tile();
         let troops = spawn(&mut w, P0, capital, 113 /* high_men_paladins */, tile);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         run(&mut ai, &mut w, &mut Vec::new());
         assert_eq!(ai.campaign, Some(town));
         assert!(ai.roles.any(Role::March), "the march left");
@@ -1121,7 +1123,7 @@ mod tests {
             let view = PlayerView::new(&w, P0);
             troops.iter().map(|&u| view.unit_position(u)).collect()
         };
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         run(&mut ai, &mut w, &mut Vec::new());
         assert_ne!(ai.campaign, Some(town), "the taken town is no target");
         assert!(!ai.roles.any(Role::March), "the march is over");
@@ -1224,9 +1226,9 @@ mod tests {
         let beside = spawn(&mut w, P0, at(COAST_CITY.0 - 1, COAST_CITY.1), 113, 2);
         w.reveal_map(P0);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         run(&mut ai, &mut w, &mut Vec::new());
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         let view = PlayerView::new(&w, P0);
         let marching: Vec<_> = stack
             .iter()
@@ -1373,7 +1375,7 @@ mod tests {
         let troops = spawn(&mut w, P0, at(COAST_CITY.0, COAST_CITY.1), 104, 6);
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         run(&mut ai, &mut w, &mut events);
         assert_eq!(
             ai.crossing,
@@ -1506,7 +1508,7 @@ mod tests {
         spawn(&mut w, P0, capital, 113 /* high_men_paladins */, tile);
         w.reveal_map(P0);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         run(&mut ai, &mut w, &mut Vec::new());
         assert!(ai.roles.any(Role::March), "the march left");
         let target = ai.campaign.ok_or("a campaign")?;
@@ -1588,7 +1590,7 @@ mod tests {
         let (mut w, mut ai) = landing_world(6)?;
         assert_ne!(w.treaty(P0, P1), f4x_core::diplomacy::Treaty::War);
         for _ in 0..3 {
-            crate::roles::register(&mut ai, &w);
+            crate::roles::register(&mut ai, &w, w.turn);
             crate::naval::run(&mut ai, &mut w, &mut Vec::new());
             run(&mut ai, &mut w, &mut Vec::new());
         }
@@ -1612,7 +1614,7 @@ mod tests {
         let (mut w, mut ai) = landing_world(6)?;
         w.start_treaty(P0, P1, f4x_core::diplomacy::Treaty::Pact);
         for _ in 0..3 {
-            crate::roles::register(&mut ai, &w);
+            crate::roles::register(&mut ai, &w, w.turn);
             crate::naval::run(&mut ai, &mut w, &mut Vec::new());
             run(&mut ai, &mut w, &mut Vec::new());
         }
@@ -1632,7 +1634,7 @@ mod tests {
         for _ in 0..60 {
             let mut events = Vec::new();
             w.balance_farmers(P0);
-            crate::roles::register(&mut ai, &w);
+            crate::roles::register(&mut ai, &w, w.turn);
             crate::dispatch::revalidate(&mut ai, &mut w, &mut events);
             crate::naval::run(&mut ai, &mut w, &mut events);
             run(&mut ai, &mut w, &mut events);
@@ -1685,7 +1687,7 @@ mod tests {
         for _ in 0..60 {
             let mut events = Vec::new();
             w.balance_farmers(P0);
-            crate::roles::register(&mut ai, &w);
+            crate::roles::register(&mut ai, &w, w.turn);
             crate::dispatch::revalidate(&mut ai, &mut w, &mut events);
             crate::naval::run(&mut ai, &mut w, &mut events);
             run(&mut ai, &mut w, &mut events);

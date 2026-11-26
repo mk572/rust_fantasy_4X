@@ -38,8 +38,8 @@ pub(crate) fn edge(phase: crate::phase::Phase, lead: f32) -> f32 {
 }
 
 /// [`edge`] for this wizard now.
-pub(crate) fn campaign_ratio(world: &World, me: f4x_core::player::PlayerId) -> f32 {
-    let phase = crate::phase::phase(&PlayerView::new(world, me));
+pub(crate) fn campaign_ratio(world: &World, me: f4x_core::player::PlayerId, round: u32) -> f32 {
+    let phase = crate::phase::phase(&PlayerView::new(world, me), round);
     edge(phase, crate::statecraft::lead_of(world, me))
 }
 
@@ -276,9 +276,9 @@ mod tests {
     fn the_same_wizard_asks_a_smaller_edge_late_in_the_game_than_early() {
         let mut w = crate::testworld::game(crate::testworld::COAST_CITY, 8 /* high_men */);
         w.turn = 1;
-        let early = campaign_ratio(&w, crate::testworld::P0);
+        let early = campaign_ratio(&w, crate::testworld::P0, w.turn);
         w.turn = 400;
-        let late = campaign_ratio(&w, crate::testworld::P0);
+        let late = campaign_ratio(&w, crate::testworld::P0, w.turn);
         assert!(late < early, "{late} against {early}");
     }
 

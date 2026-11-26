@@ -51,7 +51,7 @@ pub(crate) fn engineers_possible(view: &PlayerView) -> bool {
 /// One turn of the engineers: each that is idle gets a road to build, or a place to walk to.
 pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    let turn = game.turn;
+    let turn = game.round();
     let (count, engineers) = {
         let view = PlayerView::new(game, me);
         let mut engineers: Vec<hecs::Entity> = view

@@ -50,13 +50,13 @@ fn only_the_start_of_a_round_advances_the_round_counter() {
         let turn = w.turn;
         let p = wizards(&w)[0];
         w.end_player_turn(p);
-        w.start_player_turn(p);
+        w.start_player_turn(p, w.turn);
         w.end_round();
         assert_eq!(
             w.turn, turn,
             "{name}: a player's turn or the round's end moved it"
         );
-        let events = w.start_round();
+        let events = w.start_round(w.turn + 1);
         assert_eq!(w.turn, turn + 1, "{name}");
         assert!(
             events.contains(&Event::TurnStarted { turn: turn + 1 }),
@@ -108,14 +108,14 @@ fn the_start_of_a_player_turn_grows_only_their_cities_and_not_in_the_first_round
             others.iter().map(|&o| people(&w, o)).collect::<Vec<_>>(),
         );
         assert_eq!(w.turn, 1, "{name}: the world is not at its first round");
-        w.start_player_turn(p);
+        w.start_player_turn(p, w.turn);
         assert_eq!(
             people(&w, p),
             first.0,
             "{name}: the first round has no growth"
         );
-        w.start_round();
-        w.start_player_turn(p);
+        w.start_round(w.turn + 1);
+        w.start_player_turn(p, w.turn);
         grew += usize::from(people(&w, p) != first.0);
         for (i, &o) in others.iter().enumerate() {
             assert_eq!(
@@ -138,7 +138,7 @@ fn the_start_of_a_player_turn_refills_only_their_units_moves() {
         for &u in mine.iter().chain(&theirs) {
             w.scenario_set_moves_left(u, HalfInt::ZERO);
         }
-        w.start_player_turn(o);
+        w.start_player_turn(o, w.turn);
         for &u in &mine {
             assert_eq!(w.units().unit_moves_left(u), HalfInt::ZERO, "{name}");
         }
@@ -168,8 +168,8 @@ fn standby_done_lasts_the_turn_and_patrol_stays() {
             });
             assert_eq!(w.units().unit_standby(u), Some(s), "{name}");
         }
-        w.start_round();
-        w.start_player_turn(p);
+        w.start_round(w.turn + 1);
+        w.start_player_turn(p, w.turn);
         assert_eq!(
             w.units().unit_standby(done),
             None,
@@ -287,14 +287,14 @@ fn a_standing_order_does_not_move_a_unit_while_another_wizard_keeps_time_stop() 
             continue;
         };
         tried += 1;
-        w.start_round();
-        w.start_player_turn(other);
+        w.start_round(w.turn + 1);
+        w.start_player_turn(other, w.turn);
         assert_eq!(
             w.units().unit_position(theirs),
             Some(their_at),
             "{name}: a unit walked in stopped time"
         );
-        w.start_player_turn(keeper);
+        w.start_player_turn(keeper, w.turn);
         assert_ne!(
             w.units().unit_position(own),
             Some(own_at),

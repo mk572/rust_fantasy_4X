@@ -149,7 +149,7 @@ pub fn diff(args: &[String]) -> Result<(), String> {
             .into_iter()
             .filter(|&p| world.is_wizard(p))
         {
-            let line: Vec<String> = Standing::of(&world, p)
+            let line: Vec<String> = Standing::of(&world, p, world.turn)
                 .rows()
                 .iter()
                 .map(|(name, v)| format!("{name} {v}"))

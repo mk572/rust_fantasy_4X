@@ -3299,7 +3299,8 @@ fn an_offer_can_be_listed_and_taken_by_number() {
     w.treasury_mut(HUMAN)
         .expect("the player has a treasury")
         .gold += 5000;
-    let made = w.cheat_offer(HUMAN, f4x_core::player::offer::OfferKind::Hero);
+    let round = w.turn;
+    let made = w.cheat_offer(HUMAN, f4x_core::player::offer::OfferKind::Hero, round);
     assert!(made.is_some());
     let listed = c.execute(&mut w, "offers");
     assert!(listed.text().contains("1: "), "{}", listed.text());
@@ -3324,8 +3325,9 @@ fn an_offer_can_be_listed_and_taken_by_number() {
     w.treasury_mut(HUMAN)
         .expect("the player has a treasury")
         .gold += 50_000;
+    let round = w.turn;
     assert!(w
-        .cheat_offer(HUMAN, f4x_core::player::offer::OfferKind::Item)
+        .cheat_offer(HUMAN, f4x_core::player::offer::OfferKind::Item, round)
         .is_some());
     assert!(c.execute(&mut w, "reject 1").ok);
 }
@@ -3457,7 +3459,8 @@ fn items_are_listed_equipped_and_scrapped_by_place() -> TestResult {
     w.treasury_mut(HUMAN)
         .expect("the player has a treasury")
         .gold += 5000;
-    w.cheat_offer(HUMAN, f4x_core::player::offer::OfferKind::Hero)
+    let round = w.turn;
+    w.cheat_offer(HUMAN, f4x_core::player::offer::OfferKind::Hero, round)
         .ok_or("no hero can be offered")?;
     assert!(c.execute(&mut w, "accept 1 Rex").ok);
     let hero = w.units().hero_units(HUMAN)[0];
@@ -3540,7 +3543,8 @@ fn a_dead_hero_is_listed_and_raised_from_the_console() -> TestResult {
     w.treasury_mut(HUMAN)
         .expect("the player has a treasury")
         .gold += 5000;
-    w.cheat_offer(HUMAN, f4x_core::player::offer::OfferKind::Hero)
+    let round = w.turn;
+    w.cheat_offer(HUMAN, f4x_core::player::offer::OfferKind::Hero, round)
         .ok_or("no hero can be offered")?;
     assert!(c.execute(&mut w, "accept 1 Rex").ok);
     assert!(c.execute(&mut w, "dead").text().contains("no dead heroes"));

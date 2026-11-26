@@ -24,7 +24,7 @@ struct Source {
 
 impl World {
     /// Run the raider clock and, when it runs out, raise a party in a random neutral city.
-    pub(super) fn make_raiders(&mut self) -> Vec<Event> {
+    pub(super) fn make_raiders(&mut self, round: u32) -> Vec<Event> {
         let d = u32::from(self.difficulty());
         // A sea raid needs no city of its own, so with the setting on the clock always runs.
         if !self.settings.world.sea_raids
@@ -42,7 +42,7 @@ impl World {
         }
         self.threat.raider_clock = 0;
         if self.sea_raid_comes() {
-            if let Some(events) = self.make_sea_raid() {
+            if let Some(events) = self.make_sea_raid(round) {
                 return events;
             }
         }
@@ -58,12 +58,12 @@ impl World {
         if source.ai_fortress {
             count = count * 2 / 3;
         }
-        if pos.plane == crate::map::Plane::Myrror && self.turn < 200 {
+        if pos.plane == crate::map::Plane::Myrror && round < 200 {
             count /= 2;
         }
         let count = count.max(1) as usize;
         let troops = source.troops.clone();
-        let xp_level = match self.turn {
+        let xp_level = match round {
             251.. => 3,
             121.. => 2,
             41.. => 1,

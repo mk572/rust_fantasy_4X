@@ -24,7 +24,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let threatened: Vec<(Position, f32)> = crate::military::threats(&PlayerView::new(game, me));
     release(ai, game, &threatened);
-    keep_home(ai, game, &threatened);
+    keep_home(ai, game, &threatened, game.round());
     let mut pool = crate::dispatch::soldiers(ai, game, |roles, s| roles.is_free(s));
     let needs: Vec<(Position, f32)> = {
         let view = PlayerView::new(game, me);
@@ -52,7 +52,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     .chain(&coming)
                     .map(|&u| unit_strength(&view, u))
                     .sum();
-                let peace = crate::garrison::wanted_strength(&view, city) - held;
+                let peace = crate::garrison::wanted_strength(&view, city, game.round()) - held;
                 let danger = threatened
                     .iter()
                     .find(|&&(p, _)| p == city)
@@ -128,7 +128,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             let serial = PlayerView::new(game, me).serial_of(unit);
             let _ = ai
                 .roles
-                .claim(serial, Role::Reinforce, game.turn, Some(city));
+                .claim(serial, Role::Reinforce, game.round(), Some(city));
             ai.roles.set_target(serial, Role::Reinforce, Some(city));
             if sails {
                 ai.roles
@@ -163,7 +163,7 @@ fn release(ai: &mut Ai, world: &World, threatened: &[(Position, f32)]) {
 }
 
 /// The free soldiers standing in a threatened city stay in it.
-fn keep_home(ai: &mut Ai, world: &World, threatened: &[(Position, f32)]) {
+fn keep_home(ai: &mut Ai, world: &World, threatened: &[(Position, f32)], round: u32) {
     let free = crate::dispatch::soldiers(ai, world, |roles, s| roles.is_free(s));
     let view = PlayerView::new(world, ai.player);
     for u in free {
@@ -172,9 +172,7 @@ fn keep_home(ai: &mut Ai, world: &World, threatened: &[(Position, f32)]) {
         };
         if threatened.iter().any(|&(p, _)| p == at) {
             let serial = view.serial_of(u);
-            let _ = ai
-                .roles
-                .claim(serial, Role::Reinforce, world.turn, Some(at));
+            let _ = ai.roles.claim(serial, Role::Reinforce, round, Some(at));
         }
     }
 }
@@ -206,7 +204,7 @@ mod tests {
             n,
         );
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         Ok((w, ai))
     }
 
@@ -217,7 +215,7 @@ mod tests {
         run(&mut ai, &mut w, &mut Vec::new());
         assert_eq!(ai.roles.targets(Role::Reinforce), vec![inland]);
         // The one on its way is counted as held: the next turn sends no more.
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         run(&mut ai, &mut w, &mut Vec::new());
         assert_eq!(ai.roles.count(Role::Reinforce), 1);
         Ok(())
@@ -252,7 +250,7 @@ mod tests {
     fn a_stronger_enemy_near_a_city_brings_the_spare_soldiers_into_it() {
         let (mut w, spare) = besieged();
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         run(&mut ai, &mut w, &mut Vec::new());
         let view = PlayerView::new(&w, P0);
         for &u in &spare {
@@ -270,7 +268,7 @@ mod tests {
         let (mut w, _) = besieged();
         let extra = spawn(&mut w, P0, at(10, 6), 105, 2);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         run(&mut ai, &mut w, &mut Vec::new());
         let view = PlayerView::new(&w, P0);
         let held = extra
@@ -306,7 +304,7 @@ mod tests {
         let (mut w, overseas) = overseas()?;
         let city = at(COAST_CITY.0, COAST_CITY.1);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         run(&mut ai, &mut w, &mut Vec::new());
         let view = PlayerView::new(&w, P0);
         let tagged: Vec<_> = overseas
@@ -330,7 +328,7 @@ mod tests {
         let (mut w, overseas) = overseas()?;
         let walker = spawn(&mut w, P0, at(8, 6), 104, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         run(&mut ai, &mut w, &mut Vec::new());
         let view = PlayerView::new(&w, P0);
         assert_eq!(

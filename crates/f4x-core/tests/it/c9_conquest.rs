@@ -523,7 +523,7 @@ fn finishing_the_spell_of_mastery_wins_at_once_and_scores_it_for_the_caster_only
             "{}",
             f.name
         );
-        let (won, lost) = (f.w.score(f.a), f.w.score(f.b));
+        let (won, lost) = (f.w.score(f.a, f.w.turn), f.w.score(f.b, f.w.turn));
         assert!(
             won.mastery > 0 && lost.mastery == 0,
             "{}: {won:?} {lost:?}",

@@ -28,7 +28,7 @@ pub fn walk(
     events: &mut Vec<Event>,
 ) -> bool {
     let me = ai.player;
-    let turn = game.turn;
+    let turn = game.round();
     let (charge, at) = {
         let view = PlayerView::new(game, me);
         (view.serial_of(settler), view.unit_position(settler))
@@ -179,7 +179,7 @@ fn stragglers(ai: &Ai, world: &World) -> Vec<hecs::Entity> {
 /// sent to it. Whether the escort is with its charge now.
 pub fn guard(ai: &mut Ai, game: &mut Game, charge: hecs::Entity, events: &mut Vec<Event>) -> bool {
     let me = ai.player;
-    let turn = game.turn;
+    let turn = game.round();
     let (serial, at) = {
         let view = PlayerView::new(game, me);
         let Some(at) = view.unit_position(charge) else {
@@ -449,7 +449,7 @@ mod tests {
         let (mut w, _, soldiers) = world();
         let healer = spawn(&mut w, P0, at(7, 6), 7 /* healer */, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         run(&mut ai, &mut w, &mut Vec::new());
         let view = PlayerView::new(&w, P0);
         let charge = view.serial_of(healer);
@@ -459,7 +459,7 @@ mod tests {
         let mut w = world().0;
         let in_city = spawn(&mut w, P0, at(COAST_CITY.0, COAST_CITY.1), 7, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         run(&mut ai, &mut w, &mut Vec::new());
         let charge = PlayerView::new(&w, P0).serial_of(in_city);
         assert_eq!(ai.roles.escort_of(charge), None);

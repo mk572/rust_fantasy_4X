@@ -7,7 +7,7 @@
 use crate::attack_prompt::PendingAttack;
 use f4x_ai::{Ai, Attack};
 use f4x_core::player::PlayerId;
-use f4x_core::world::{Event, World};
+use f4x_core::world::Event;
 use f4x_master::Game;
 use f4x_master::{Controller, Status};
 use std::cell::RefCell;
@@ -83,8 +83,8 @@ impl Controller for RivalSeat<'_> {
             .collect()
     }
 
-    fn notice(&mut self, world: &World, events: &[Event]) {
-        self.ai.notice(world, events);
+    fn notice(&mut self, game: &Game, events: &[Event]) {
+        self.ai.notice(game, events);
     }
 }
 
@@ -109,7 +109,7 @@ impl Controller for NeutralSeat<'_> {
         self.inner.plans()
     }
 
-    fn notice(&mut self, world: &World, events: &[Event]) {
-        Controller::notice(&mut *self.inner, world, events);
+    fn notice(&mut self, game: &Game, events: &[Event]) {
+        Controller::notice(&mut *self.inner, game, events);
     }
 }

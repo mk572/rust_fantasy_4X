@@ -345,7 +345,7 @@ impl Controller for Listener {
         Status::Done
     }
 
-    fn notice(&mut self, _: &World, events: &[Event]) {
+    fn notice(&mut self, _: &Game, events: &[Event]) {
         *self.told.borrow_mut() += events.len();
     }
 }

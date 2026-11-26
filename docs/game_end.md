@@ -55,7 +55,7 @@ until they too have lost every city.
 ## 4. The score
 
 The original scores only the human wizard, at the end of the game (`End_Of_Game_Score_Draw`).
-`World::score(player)` gives the same breakdown for anyone:
+`World::score(player, round)` gives the same breakdown for anyone:
 
 | Part | Points |
 |---|---|

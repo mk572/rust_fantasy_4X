@@ -190,7 +190,7 @@ pub fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             let Some(offer) = view.offers().get(index).cloned() else {
                 continue;
             };
-            (offer, view.treasury().gold, view.turn())
+            (offer, view.treasury().gold, game.round())
         };
         let accept = match &offer {
             Offer::Hero { price, .. } => ai_accepts_hero(*price, gold),
@@ -309,8 +309,9 @@ mod tests {
     /// over 100, and the pick can come up empty, so it tries again.
     fn offer_hero(w: &mut Game) {
         w.set_fame(P1, 100);
+        let round = w.turn;
         assert!(
-            (0..500).any(|_| w.cheat_offer(P1, OfferKind::Hero).is_some()),
+            (0..500).any(|_| w.cheat_offer(P1, OfferKind::Hero, round).is_some()),
             "no hero was ever offered"
         );
     }
@@ -348,7 +349,8 @@ mod tests {
         w.turn = first - 10;
         let mut got = 0;
         for _ in 0..50 {
-            if w.cheat_offer(P1, OfferKind::Mercenaries).is_some() {
+            let round = w.turn;
+            if w.cheat_offer(P1, OfferKind::Mercenaries, round).is_some() {
                 got += 1;
             }
         }
@@ -363,7 +365,8 @@ mod tests {
             .any(|e| matches!(e, Event::MercenariesHired { .. })));
         assert!(w.offers(P1).is_empty());
         w.turn = first;
-        w.cheat_offer(P1, OfferKind::Mercenaries);
+        let round = w.turn;
+        w.cheat_offer(P1, OfferKind::Mercenaries, round);
         let mut events = Vec::new();
         answer(&ai, &mut w, &mut events);
         assert!(events
@@ -378,8 +381,9 @@ mod tests {
         let mut w = game()?;
         let ai = Ai::new(P1);
         set_gold(&mut w, P1, 100_000)?;
+        let round = w.turn;
         // Without a hero to carry it, the item is turned down.
-        w.cheat_offer(P1, OfferKind::Item)
+        w.cheat_offer(P1, OfferKind::Item, round)
             .ok_or("an item is offered")?;
         let mut events = Vec::new();
         answer(&ai, &mut w, &mut events);
@@ -394,7 +398,8 @@ mod tests {
             .ok_or("the wizard hired a hero")?;
         let mut equipped = false;
         for _ in 0..40 {
-            if w.cheat_offer(P1, OfferKind::Item).is_none() {
+            let round = w.turn;
+            if w.cheat_offer(P1, OfferKind::Item, round).is_none() {
                 continue;
             }
             answer(&ai, &mut w, &mut events);

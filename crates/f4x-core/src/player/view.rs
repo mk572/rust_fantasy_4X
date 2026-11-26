@@ -117,11 +117,6 @@ impl<'a> PlayerView<'a> {
         self.world.content()
     }
 
-    /// The turn the game is at.
-    pub fn turn(&self) -> u32 {
-        self.world.turn
-    }
-
     /// Has the game ended?
     /// The name of the `index`th city of a race (see [`World::city_name_for`]).
     pub fn city_name_for(&self, race: crate::rules::RaceId, index: usize) -> String {

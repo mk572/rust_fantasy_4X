@@ -297,7 +297,7 @@ fn load(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     ctx.say(format!(
         "loaded {} (turn {})",
         path.display(),
-        ctx.game.turn
+        ctx.game.round()
     ));
     if integrity != f4x_core::world::save::Integrity::Intact {
         ctx.say("warning: this save was edited since the game wrote it".to_string());
@@ -369,7 +369,7 @@ fn replay(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         "played {} entries from {} (turn {})",
         events.len(),
         path.display(),
-        ctx.game.turn
+        ctx.game.round()
     ));
     Ok(())
 }

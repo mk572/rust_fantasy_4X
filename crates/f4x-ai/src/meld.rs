@@ -37,7 +37,7 @@ pub(crate) fn open_nodes(ai: &Ai, view: &PlayerView) -> Vec<Position> {
 
 /// Whether the wizard wants a spirit now and has none: a node is open, or a raid is out to clear
 /// one, so a spirit should be ready to meld when it is done.
-pub(crate) fn spirit_wanted(ai: &Ai, view: &PlayerView) -> bool {
+pub(crate) fn spirit_wanted(ai: &Ai, view: &PlayerView, round: u32) -> bool {
     if view.my_units().into_iter().any(|u| is_melder(view, u)) {
         return false;
     }
@@ -46,7 +46,7 @@ pub(crate) fn spirit_wanted(ai: &Ai, view: &PlayerView) -> bool {
     }
     // Early in the game a spirit is the best scout there is: it flies over what a soldier cannot
     // cross, and it is cheap (`scout.rs` recruits it).
-    if crate::phase::phase(view) == crate::phase::Phase::Build
+    if crate::phase::phase(view, round) == crate::phase::Phase::Build
         && !ai.frontier_closed
         && ai.roles.scouting().is_empty()
     {
@@ -61,7 +61,7 @@ pub(crate) fn spirit_wanted(ai: &Ai, view: &PlayerView) -> bool {
 /// One turn of the spirits.
 pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    let turn = game.turn;
+    let turn = game.round();
     let spirits: Vec<hecs::Entity> = {
         let view = PlayerView::new(game, me);
         let mut spirits: Vec<hecs::Entity> = view

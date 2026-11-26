@@ -112,7 +112,7 @@ struct Ship {
 /// it (a role dropped, a saved game) is let off its post.
 fn keep_posts(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    let turn = game.turn;
+    let turn = game.round();
     let ships: Vec<Ship> = {
         let view = PlayerView::new(game, me);
         view.my_units()
@@ -203,7 +203,7 @@ fn keep_posts(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 /// walk (their tag is cleared); those whose strait is gone go back to waiting for a ferry.
 fn serve(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    let turn = game.turn;
+    let turn = game.round();
     let units: HashMap<Serial, hecs::Entity> = {
         let view = PlayerView::new(game, me);
         view.my_units()
@@ -295,7 +295,7 @@ fn send_a_ship(ai: &mut Ai, game: &mut Game, square: Position, events: &mut Vec<
         return false;
     }
     let serial = PlayerView::new(game, me).serial_of(ship);
-    let turn = game.turn;
+    let turn = game.round();
     if ai
         .roles
         .claim(serial, Role::Bridge, turn, Some(square))
@@ -341,7 +341,7 @@ mod tests {
         let walker = spawn(&mut w, P0, at(9, 6), 104 /* spearmen */, 1)[0];
         let ship = spawn(&mut w, P0, at(25, 1), 36 /* galley */, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         let s = PlayerView::new(&w, P0).serial_of(walker);
         let _ = ai.roles.claim(s, Role::Reinforce, w.turn, Some(at(30, 6)));
         ai.roles.set_crossing(s, Some(Crossing::Sea));

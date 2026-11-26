@@ -70,7 +70,7 @@ fn the_budget_is_the_sum_of_what_the_cities_yield() {
 
 /// The turn of one player as the master runs it: the player's start, then the player's end.
 fn play_turn_of(w: &mut World, p: PlayerId) -> Vec<Event> {
-    let mut events = w.start_player_turn(p);
+    let mut events = w.start_player_turn(p, w.turn);
     events.extend(w.end_player_turn(p));
     events
 }
@@ -81,9 +81,9 @@ fn the_treasury_after_a_turn_is_what_the_budget_said_once() {
     for (name, mut w) in worlds() {
         idle_cities(&mut w);
         for round in 0..10 {
-            w.start_round();
+            w.start_round(w.turn + 1);
             for p in turn_players(&w) {
-                let mut events = w.start_player_turn(p);
+                let mut events = w.start_player_turn(p, w.turn);
                 if w.is_neutral_player(p) || w.wizard(p).is_none() {
                     events.extend(w.end_player_turn(p));
                     continue;

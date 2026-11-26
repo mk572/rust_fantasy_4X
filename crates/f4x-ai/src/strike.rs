@@ -95,7 +95,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             || roles.is(s, Role::Reinforce)
             || roles.is(s, Role::Garrison)
     });
-    let edge = campaign_ratio(game, me);
+    let edge = campaign_ratio(game, me, game.round());
     let stack_list = stacks(&PlayerView::new(game, me), fighters);
     for (pos, units) in stack_list {
         let at_city = own_cities.contains(&pos);

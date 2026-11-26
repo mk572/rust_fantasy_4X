@@ -48,7 +48,7 @@ impl App {
         self.game.world_mut().game_over = Some(f4x_core::world::endgame::GameOver {
             winner: HUMAN,
             kind: EndKind::SpellOfMastery,
-            turn: self.game.turn,
+            turn: self.game.round(),
         });
     }
 }
@@ -73,7 +73,7 @@ impl Page for GameOverPage {
         let race = wizard.and_then(|w| w.capital_race());
         let race_icon = race.map_or(0, |r| 15 + r.num() as usize);
         app.draw_styled(view, &score_style(3).center(), &name, 160.0, 3.0);
-        let score = app.game.score(HUMAN);
+        let score = app.game.score(HUMAN, app.game.round());
 
         // One point for each spell known, a book each (fifty at most).
         app.draw_styled(

@@ -413,7 +413,7 @@ const GOLD_KEPT: i32 = 1000;
 
 /// The mana the wizard could put to use now: what its dearest summon it can aim costs with the
 /// margin the casting rule asks for (zero when it has none to cast).
-fn mana_wanted(view: &PlayerView, blocked: &[f4x_core::map::Plane]) -> i32 {
+fn mana_wanted(view: &PlayerView, blocked: &[f4x_core::map::Plane], round: u32) -> i32 {
     let Some(magic) = view.wizard() else {
         return 0;
     };
@@ -434,7 +434,7 @@ fn mana_wanted(view: &PlayerView, blocked: &[f4x_core::map::Plane]) -> i32 {
         .map_or(0, |c| c.remaining.max(0));
     // The summon is cast first and paid for, and the pool then holds the mana for the battle spells
     // that take a tower the soldiers alone cannot (task 502).
-    summon + crate::spellhelper::mana_goal(view, blocked) + mastery
+    summon + crate::spellhelper::mana_goal(view, blocked, round) + mastery
 }
 
 /// A wizard rich in gold and short of the mana for a summon it could cast turns just enough of the
@@ -446,7 +446,8 @@ fn alchemy(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         let Some(w) = view.wizard() else {
             return;
         };
-        let short = mana_wanted(&view, &ai.tower_blocked) - view.treasury().mana.floor();
+        let short =
+            mana_wanted(&view, &ai.tower_blocked, game.round()) - view.treasury().mana.floor();
         let spare = view.treasury().gold.floor() - GOLD_KEPT;
         let percent = w
             .stat(
@@ -562,12 +563,12 @@ fn shift(split: &mut [i32; 3], from: usize, to: usize, amount: i32) {
 
 /// The split a wizard wants before the upkeep is looked at: the balanced base, moved by the phase
 /// of the game, the wizard's goal (`split_shift`, `lean_mana`) and the reserve it holds.
-fn split_target(view: &PlayerView, traits: &crate::objective::Traits) -> [i32; 3] {
+fn split_target(view: &PlayerView, traits: &crate::objective::Traits, round: u32) -> [i32; 3] {
     const MANA: usize = 0;
     const RESEARCH: usize = 1;
     const SKILL: usize = 2;
     let mut t = BASE_SPLIT;
-    match crate::phase::phase(view) {
+    match crate::phase::phase(view, round) {
         // Growing: spells and their research come first, little is cast.
         crate::phase::Phase::Build => shift(&mut t, MANA, RESEARCH, 10),
         crate::phase::Phase::Secure => {}
@@ -628,7 +629,7 @@ fn split(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     }
     let mut target = {
         let view = PlayerView::new(game, me);
-        split_target(&view, &crate::objective::traits(&view))
+        split_target(&view, &crate::objective::traits(&view), game.round())
     };
     // The income must cover the upkeep of the lasting spells and creatures (a reserve pays for a
     // small deficit for a long while): mana takes from research first, then from skill.
@@ -1549,7 +1550,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             .map(|&(k, _, s)| (s, (crate::spellhelper::rate(&view, s, k) * 1000.0) as i64))
             .collect();
         // A spirit for a node that is open or being cleared comes before everything else.
-        let spirit = crate::meld::spirit_wanted(ai, &view);
+        let spirit = crate::meld::spirit_wanted(ai, &view, game.round());
         let priority_spirit = |s: SpellId| spirit && summons_melder(&view, view.spell(s));
         options.sort_by_key(|&(k, _cost, s)| {
             (
@@ -1601,7 +1602,8 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 Kind::Summon => {
                     // A conqueror in the late game summons whatever the mana pays for and the
                     // upkeep allows: the army cap is for a wizard that is still building up.
-                    let conquering = crate::phase::phase(&view) == crate::phase::Phase::Win
+                    let conquering = crate::phase::phase(&view, game.round())
+                        == crate::phase::Phase::Win
                         && crate::phase::goal(&view) == crate::phase::Goal::Conquest;
                     now && (room || conquering)
                         && (fighters < 12 + 2 * view.my_cities().len()
@@ -1736,7 +1738,7 @@ mod tests {
         let t = w.treasury_mut(P1).ok_or("a treasury")?;
         t.gold = HalfInt::from_int(gold);
         t.mana = HalfInt::from_int(mana);
-        let wanted = mana_wanted(&PlayerView::new(&w, P1), &[]);
+        let wanted = mana_wanted(&PlayerView::new(&w, P1), &[], w.turn);
         Ok((w, wanted))
     }
 
@@ -1808,7 +1810,11 @@ mod tests {
         treasury(&mut w, P1)?.mana = HalfInt::from_int(5_000);
         let mut ai = Ai::new(P1);
         ai.frontier_closed = true;
-        assert!(!crate::meld::spirit_wanted(&ai, &PlayerView::new(&w, P1)));
+        assert!(!crate::meld::spirit_wanted(
+            &ai,
+            &PlayerView::new(&w, P1),
+            w.turn
+        ));
         let feature = w
             .content()
             .features
@@ -1832,7 +1838,11 @@ mod tests {
             }),
             lair: None,
         });
-        assert!(crate::meld::spirit_wanted(&ai, &PlayerView::new(&w, P1)));
+        assert!(crate::meld::spirit_wanted(
+            &ai,
+            &PlayerView::new(&w, P1),
+            w.turn
+        ));
         cast(&ai, &mut w, &mut Vec::new());
         let view = PlayerView::new(&w, P1);
         let casting = view
@@ -2345,7 +2355,7 @@ mod tests {
         }
         wizard.set_split(55, 0, 45).map_err(|e| format!("{e:?}"))?;
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         let _ = (Crossing::Sea, Role::Reinforce);
         Ok((w, ai))
     }
@@ -2375,7 +2385,7 @@ mod tests {
         let (mut w, mut ai) = strait_wizard(&[8 /* water_walking */])?;
         let ship = spawn(&mut w, P0, at(25, 1), 36 /* galley */, 1)[0];
         let walkers = spawn(&mut w, P0, at(9, 6), 104 /* spearmen */, 3);
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         wait_for_a_ship(&mut ai, &w, &walkers);
         // One has a ship coming: it is not the one.
         {
@@ -2399,7 +2409,7 @@ mod tests {
             strait_wizard(&[8 /* water_walking */, 63 /* wind_walking */])?;
         let walkers = spawn(&mut w, P0, at(9, 6), 104 /* spearmen */, 2);
         let flier = spawn(&mut w, P0, at(9, 6), 164 /* great_drake */, 1)[0];
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         // Nobody waits for a ship.
         cast(&ai, &mut w, &mut Vec::new());
         for &u in &walkers {
@@ -2420,7 +2430,7 @@ mod tests {
         let (mut w, mut ai) = strait_wizard(&[63 /* wind_walking */])?;
         let lone = spawn(&mut w, P0, at(8, 6), 104 /* spearmen */, 1);
         let stack = spawn(&mut w, P0, at(9, 6), 104 /* spearmen */, 3);
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         wait_for_a_ship(&mut ai, &w, &[lone[0], stack[0], stack[1], stack[2]]);
         cast(&ai, &mut w, &mut Vec::new());
         let carriers: Vec<_> = stack
@@ -2445,7 +2455,7 @@ mod tests {
         let (mut w, mut ai) =
             strait_wizard(&[63 /* wind_walking */, 8 /* water_walking */])?;
         let units = spawn(&mut w, P0, at(9, 6), 104 /* spearmen */, 2);
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         wait_for_a_ship(&mut ai, &w, &units);
         cast(&ai, &mut w, &mut Vec::new());
         assert!(units.iter().any(|&u| has(&w, u, 8) == Ok(true)));
@@ -2459,7 +2469,7 @@ mod tests {
     fn flight_goes_to_the_walker_that_waits_for_a_ship() -> TestResult {
         let (mut w, mut ai) = strait_wizard(&[56 /* flight */])?;
         let units = spawn(&mut w, P0, at(9, 6), 104 /* spearmen */, 3);
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         // The last one waits: by serial order the buff would go to the first.
         wait_for_a_ship(&mut ai, &w, &units[2..]);
         cast(&ai, &mut w, &mut Vec::new());
@@ -2474,7 +2484,7 @@ mod tests {
     fn a_floating_island_is_raised_in_the_strait_for_units_that_wait_for_a_ship() -> TestResult {
         let (mut w, mut ai) = strait_wizard(&[43 /* floating_island */])?;
         let units = spawn(&mut w, P0, at(9, 6), 104 /* spearmen */, 2);
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         let islands = |w: &World| {
             let view = PlayerView::new(w, P0);
             view.my_units()
@@ -2489,7 +2499,7 @@ mod tests {
         cast(&ai, &mut w, &mut Vec::new());
         assert_eq!(islands(&w), 1, "an island for the waiting units");
         // It has no work yet: no second one is raised.
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         wait_for_a_ship(&mut ai, &w, &units);
         cast(&ai, &mut w, &mut Vec::new());
         assert_eq!(islands(&w), 1, "one island at a time");
@@ -2854,7 +2864,7 @@ mod tests {
     #[test]
     fn the_mana_owed_for_the_spell_of_mastery_is_mana_to_buy_with_gold() -> TestResult {
         let (mut w, _) = summoner(50_000, 0)?;
-        let before = mana_wanted(&PlayerView::new(&w, P1), &[]);
+        let before = mana_wanted(&PlayerView::new(&w, P1), &[], w.turn);
         let mastery = w
             .content()
             .rules
@@ -2866,7 +2876,7 @@ mod tests {
         w.cheat_learn_spell(P1, mastery);
         w.scenario_casting(P1, mastery, 3000);
         assert_eq!(
-            mana_wanted(&PlayerView::new(&w, P1), &[]),
+            mana_wanted(&PlayerView::new(&w, P1), &[], w.turn),
             before + 3000,
             "what is still owed is wanted on top"
         );

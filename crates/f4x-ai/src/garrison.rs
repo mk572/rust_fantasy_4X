@@ -50,13 +50,13 @@ fn phase_factor(phase: crate::phase::Phase) -> f32 {
 /// strength of an average soldier of the wizard (so a few strong units or many weak ones meet it
 /// alike). A city with no enemy near it (the base count) wants the share its phase gives; a
 /// city near the border keeps what the border asks.
-pub fn wanted_strength(view: &PlayerView, at: Position) -> f32 {
-    wanted_share(view, at) * typical_strength(view)
+pub fn wanted_strength(view: &PlayerView, at: Position, round: u32) -> f32 {
+    wanted_share(view, at, round) * typical_strength(view)
 }
 
 /// How many average soldiers a city wants: `garrison_wanted`, less the share a building wizard
 /// does not keep in a city with no enemy near it. The autobuilder counts the same.
-pub fn wanted_share(view: &PlayerView, at: Position) -> f32 {
+pub fn wanted_share(view: &PlayerView, at: Position, round: u32) -> f32 {
     let wanted = garrison_wanted(view, at);
     let base = if view.fortress() == Some(at) { 2 } else { 1 };
     if wanted != base {
@@ -66,7 +66,7 @@ pub fn wanted_share(view: &PlayerView, at: Position) -> f32 {
     // phase gives; above one soldier the share is rounded down to whole soldiers: the two units a
     // wizard starts with are one garrison and one scout, not two garrisons (and `reinforce.rs` does
     // not call the scout back to make up the difference).
-    let share = wanted as f32 * phase_factor(crate::phase::phase(view));
+    let share = wanted as f32 * phase_factor(crate::phase::phase(view, round));
     if share > 1.0 {
         share.floor()
     } else {
@@ -82,8 +82,13 @@ pub fn wanted_share(view: &PlayerView, at: Position) -> f32 {
 /// half a rebel each (`UnitView::is_garrison`), so the normal units that stand in it stay (up to
 /// what a battle side holds, the most that calms it) and a fantastic creature, however strong,
 /// does not take their place. Heroes keep order too but are the first to be sent off.
-pub fn post(view: &PlayerView, at: Position, soldiers: &[hecs::Entity]) -> Vec<hecs::Entity> {
-    let wanted = wanted_strength(view, at);
+pub fn post(
+    view: &PlayerView,
+    at: Position,
+    soldiers: &[hecs::Entity],
+    round: u32,
+) -> Vec<hecs::Entity> {
+    let wanted = wanted_strength(view, at, round);
     let hero = |u: hecs::Entity| {
         view.unit_def(u)
             .is_some_and(|d| d.kind == f4x_def::rules::UnitKind::Hero)
@@ -135,7 +140,7 @@ pub fn thin_out(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let dismissed: Vec<hecs::Entity> = {
         let view = PlayerView::new(game, me);
-        if crate::phase::phase(&view) != crate::phase::Phase::Win {
+        if crate::phase::phase(&view, game.round()) != crate::phase::Phase::Win {
             return;
         }
         let mut out = Vec::new();
@@ -260,7 +265,7 @@ mod tests {
         let paladin = spawn(&mut w, P0, inland, 113 /* high_men_paladins */, 1)[0];
         w.turn = 250;
         let all: Vec<hecs::Entity> = spearmen.iter().copied().chain([paladin]).collect();
-        let kept = |w: &World| post(&PlayerView::new(w, P0), inland, &all);
+        let kept = |w: &World| post(&PlayerView::new(w, P0), inland, &all, w.turn);
         let rebels = |w: &World| -> Result<u32, Box<dyn std::error::Error>> {
             let view = PlayerView::new(w, P0);
             let city = view.city_at(inland).ok_or("no city")?;
@@ -295,14 +300,20 @@ mod tests {
         w.turn = 1;
         let building = {
             let view = PlayerView::new(&w, P0);
-            assert_eq!(crate::phase::phase(&view), crate::phase::Phase::Build);
-            wanted_strength(&view, inland)
+            assert_eq!(
+                crate::phase::phase(&view, w.turn),
+                crate::phase::Phase::Build
+            );
+            wanted_strength(&view, inland, w.turn)
         };
         w.turn = 250;
         let settled = {
             let view = PlayerView::new(&w, P0);
-            assert_eq!(crate::phase::phase(&view), crate::phase::Phase::Secure);
-            wanted_strength(&view, inland)
+            assert_eq!(
+                crate::phase::phase(&view, w.turn),
+                crate::phase::Phase::Secure
+            );
+            wanted_strength(&view, inland, w.turn)
         };
         assert!(building < settled, "{building} against {settled}");
         Ok(())

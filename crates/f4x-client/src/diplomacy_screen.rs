@@ -237,7 +237,7 @@ impl App {
             .diplomacy
             .stance(HUMAN, with)
             .is_some_and(|s| s.stage == Stage::Greeted);
-        let salt = (self.game.turn as usize).wrapping_add(usize::from(with.0));
+        let salt = (self.game.round() as usize).wrapping_add(usize::from(with.0));
         let personality = self
             .game
             .wizard(with)
@@ -899,7 +899,7 @@ impl DiploUi {
     /// Put a proposal, or answer the wizard's trade with one (`counter`), and show the answer.
     fn diplo_send(&mut self, app: &mut App, kind: ProposalKind, counter: bool) {
         let with = self.with;
-        let salt = app.game.turn as usize + usize::from(with.0);
+        let salt = app.game.round() as usize + usize::from(with.0);
         let level = relation_level(app.feeling(with));
         let command = if counter {
             f4x_core::diplomacy::DiplomacyCommand::Counter {
@@ -973,7 +973,7 @@ impl DiploUi {
 
     fn diplo_act(&mut self, app: &mut App, act: Act) {
         let with = self.with;
-        let salt = app.game.turn as usize + usize::from(with.0);
+        let salt = app.game.round() as usize + usize::from(with.0);
         match act {
             Act::Nothing => {}
             Act::Go(menu) => {
@@ -1201,7 +1201,7 @@ impl Page for DiploUi {
             if click || input.key_pressed(KeyCode::Space) || input.key_pressed(KeyCode::Enter) {
                 if self.menu == Menu::Greeting {
                     if app.audience_refused(with) {
-                        let salt = app.game.turn as usize;
+                        let salt = app.game.round() as usize;
                         let said = say::cold_shoulder(app.texts(), salt);
                         self.diplo_say(said, Mood::Bad, true);
                     } else {

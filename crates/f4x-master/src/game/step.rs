@@ -38,6 +38,11 @@ pub fn turn_players(world: &World) -> Vec<PlayerId> {
 }
 
 impl Game {
+    /// The round the game is in, the first being 1.
+    pub fn round(&self) -> u32 {
+        self.world.turn
+    }
+
     /// [`turn_players`] of the game's world.
     pub fn turn_players(&self) -> Vec<PlayerId> {
         turn_players(&self.world)
@@ -88,26 +93,27 @@ impl Game {
             Step::PlayRound => self.turn_players(),
             _ => Vec::new(),
         };
+        let round = self.round();
         self.world.advance(|world| match step {
-            Step::StartRound => world.start_round(),
-            Step::StartTurn(player) => world.start_player_turn(player),
+            Step::StartRound => world.start_round(round + 1),
+            Step::StartTurn(player) => world.start_player_turn(player, round),
             Step::EndTurn(player) => world.end_player_turn(player),
             Step::EndRound => world.end_round(),
-            Step::PlayRound => whole_round(world, &players),
+            Step::PlayRound => whole_round(world, &players, round + 1),
         })
     }
 }
 
-/// [`Game::play_round`] on the world.
-fn whole_round(world: &mut World, players: &[PlayerId]) -> Vec<Event> {
+/// [`Game::play_round`] on the world, which begins round `next`.
+fn whole_round(world: &mut World, players: &[PlayerId], next: u32) -> Vec<Event> {
     let mut events = Vec::new();
     for &p in players {
         events.extend(world.end_player_turn(p));
     }
     events.extend(world.end_round());
-    events.extend(world.start_round());
+    events.extend(world.start_round(next));
     for &p in players {
-        events.extend(world.start_player_turn(p));
+        events.extend(world.start_player_turn(p, next));
     }
     events
 }

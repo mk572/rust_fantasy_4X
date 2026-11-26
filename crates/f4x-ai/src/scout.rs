@@ -60,9 +60,9 @@ pub(crate) fn worth_crossing(view: &PlayerView, tower: Position) -> bool {
 /// Past the build-up, a plane the wizard has hardly seen and has no unit on is worth a crossing
 /// at any open tower, whatever the ground at the tower: the rivals that live over there are
 /// found only by looking (task 502, a rival on the other plane is never met otherwise).
-fn blind_across(view: &PlayerView, tower: Position) -> bool {
+fn blind_across(view: &PlayerView, tower: Position, round: u32) -> bool {
     let far = across(tower).plane;
-    crate::phase::phase(view) != crate::phase::Phase::Build
+    crate::phase::phase(view, round) != crate::phase::Phase::Build
         && !view
             .my_units()
             .into_iter()
@@ -90,7 +90,7 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         (
             scouts,
             view.my_cities().len(),
-            crate::phase::phase(&view) == crate::phase::Phase::Build,
+            crate::phase::phase(&view, game.round()) == crate::phase::Phase::Build,
         )
     };
     if scouts.len() < wanted(cities, building) {
@@ -98,7 +98,7 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             let serial = PlayerView::new(game, me).serial_of(unit);
             let _ = ai
                 .roles
-                .claim(serial, crate::roles::Role::Scout, game.turn, None);
+                .claim(serial, crate::roles::Role::Scout, game.round(), None);
         }
     }
     let scouts: Vec<hecs::Entity> = {
@@ -181,7 +181,7 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     .set_target(serial, crate::roles::Role::Scout, Some(to));
                 let mut units = vec![unit];
                 if is_sea_scout {
-                    units.extend(board(ai, game, unit, pos));
+                    units.extend(board(ai, game, unit, pos, game.round()));
                 }
                 ai.order(game, Command::GoTo { units, to }, events);
             }
@@ -215,8 +215,14 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 /// land nobody holds. The party sails with the ship (the order names them) and is left alone by
 /// the rest of the scouting meanwhile. Returns the fighters taken aboard now, with the ones
 /// already aboard.
-fn board(ai: &mut Ai, world: &World, ship: hecs::Entity, at: Position) -> Vec<hecs::Entity> {
-    let game_turn = world.turn;
+fn board(
+    ai: &mut Ai,
+    world: &World,
+    ship: hecs::Entity,
+    at: Position,
+    round: u32,
+) -> Vec<hecs::Entity> {
+    let game_turn = round;
     let view = PlayerView::new(world, ai.player);
     let mut party: Vec<hecs::Entity> = view
         .my_units()
@@ -336,7 +342,7 @@ fn put_ashore(ai: &mut Ai, game: &mut Game, ship_at: Position, events: &mut Vec<
     ai.roles.release(serial, crate::roles::Role::SeaParty);
     let _ = ai
         .roles
-        .claim(serial, crate::roles::Role::Scout, game.turn, None);
+        .claim(serial, crate::roles::Role::Scout, game.round(), None);
     true
 }
 
@@ -357,7 +363,7 @@ fn planar_scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     // An enemy unit stands on it (task 567): the scout would wait next to it for
                     // ever, as an order onto an occupied square does not take it there.
                     && view.hostile_at(p).is_none()
-                    && (worth_crossing(&view, p) || blind_across(&view, p))
+                    && (worth_crossing(&view, p) || blind_across(&view, p, game.round()))
             })
             .map(|(p, _)| p)
             .min_by_key(|&p| (p.plane as u8, p.y, p.x));
@@ -396,7 +402,7 @@ fn planar_scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             let _ = ai.roles.claim(
                 serial,
                 crate::roles::Role::PlanarScout,
-                game.turn,
+                game.round(),
                 Some(tower),
             );
             ai.planar_tower = Some(tower);
@@ -422,7 +428,7 @@ fn planar_scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             ai.roles.release(serial, crate::roles::Role::PlanarScout);
             let _ = ai
                 .roles
-                .claim(serial, crate::roles::Role::Scout, game.turn, None);
+                .claim(serial, crate::roles::Role::Scout, game.round(), None);
             ai.frontier_closed = false;
             ai.bad_scout_targets.clear();
         }
@@ -666,11 +672,11 @@ mod tests {
         let mut w = game(COAST_CITY, 8 /* high_men */);
         spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 1);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         assert_eq!(recruit(&ai, &w, None), None);
         // A lone fighter outside any city is free to go.
         let outside = spawn(&mut w, P0, at(5, 5), 104 /* high_men_spearmen */, 1)[0];
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         assert_eq!(recruit(&ai, &w, None), Some(outside));
     }
 
@@ -701,7 +707,7 @@ mod tests {
         let mut w = game(COAST_CITY, 8 /* high_men */);
         spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 1);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w);
+        crate::roles::register(&mut ai, &w, w.turn);
         scout(&mut ai, &mut w, &mut Vec::new());
         assert!(ai.roles.scouting().is_empty());
         assert!(!ai.frontier_closed);
@@ -983,21 +989,21 @@ mod tests {
         spawn_tower(&mut w, at(4, 4), false)?;
         let tower = at(4, 4);
         // Early on the wizard builds up instead.
-        assert!(!blind_across(&PlayerView::new(&w, P0), tower));
+        assert!(!blind_across(&PlayerView::new(&w, P0), tower, w.turn));
         // Late, with the far plane unseen and no unit there, it is worth looking.
         w.turn = 400;
-        assert!(blind_across(&PlayerView::new(&w, P0), tower));
+        assert!(blind_across(&PlayerView::new(&w, P0), tower, w.turn));
         // Once the far plane is seen, or a unit of the wizard stands on it, it is not.
         let far = Position {
             plane: f4x_core::map::Plane::Myrror,
             ..tower
         };
         let scout = spawn(&mut w, P0, far, 113 /* high_men_paladins */, 1);
-        assert!(!blind_across(&PlayerView::new(&w, P0), tower));
+        assert!(!blind_across(&PlayerView::new(&w, P0), tower, w.turn));
         w.cheat_remove_unit(scout[0]);
-        assert!(blind_across(&PlayerView::new(&w, P0), tower));
+        assert!(blind_across(&PlayerView::new(&w, P0), tower, w.turn));
         w.reveal_map(P0);
-        assert!(!blind_across(&PlayerView::new(&w, P0), tower));
+        assert!(!blind_across(&PlayerView::new(&w, P0), tower, w.turn));
         Ok(())
     }
 }

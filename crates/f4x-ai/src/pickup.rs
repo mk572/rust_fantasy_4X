@@ -572,7 +572,7 @@ fn adopt_passengers(ai: &mut Ai, game: &mut Game) {
         };
         if ai
             .roles
-            .plan_ship(ship, serials.len(), capacity, game.turn, at)
+            .plan_ship(ship, serials.len(), capacity, game.round(), at)
         {
             let party = ai.roles.new_party();
             let role = ai.roles.role_of(ship).unwrap_or(Role::TransportSpace);
@@ -681,7 +681,7 @@ fn assign_ships(ai: &mut Ai, game: &mut Game) {
             )
         };
         let room = (game.economy().ship_room(plan.ship) as usize).max(1);
-        let turn = game.turn;
+        let turn = game.round();
         if ai.roles.plan_ship(ship, units.len(), room, turn, plan.sea) {
             let party = ai.roles.new_party();
             let role = ai.roles.role_of(ship).unwrap_or(Role::TransportSpace);
