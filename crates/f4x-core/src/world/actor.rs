@@ -55,6 +55,7 @@ impl World {
             | Command::StartPlayerTurn { player }
             | Command::EndPlayerTurn { player }
             | Command::RazeCity { player, .. }
+            | Command::BalanceFarmers { player }
             | Command::SetTaxRate { player, .. }
             | Command::SetGrandVizier { player, .. }
             | Command::SetPowerSplit { player, .. }

@@ -7,7 +7,6 @@
 //! Tests: none, because it only passes on to the world.
 
 use f4x_battle::battle::BattleCommand;
-use f4x_core::player::PlayerId;
 use f4x_core::world::{Command, Event, World};
 
 /// A game being played.
@@ -40,11 +39,6 @@ impl Game {
     /// A player's command.
     pub fn apply(&mut self, command: Command) -> Vec<Event> {
         self.world.apply(command)
-    }
-
-    /// Put the player's citizens on the farms its food needs ([`World::balance_farmers`]).
-    pub fn balance_farmers(&mut self, player: PlayerId) {
-        self.world.balance_farmers(player);
     }
 
     /// The next command of the side to play in the battle being fought

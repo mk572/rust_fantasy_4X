@@ -196,6 +196,7 @@ pub fn commands(w: &World) -> Vec<Command> {
         out.push(Command::EndPlayerTurn { player: p });
         out.push(Command::Resign { player: p });
         out.push(Command::CancelCast { player: p });
+        out.push(Command::BalanceFarmers { player: p });
         for rate in [0u8, 3, 255] {
             out.push(Command::SetTaxRate { player: p, rate });
         }

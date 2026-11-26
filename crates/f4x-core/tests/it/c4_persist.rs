@@ -2,7 +2,7 @@
 
 use crate::support::{busy_round, content, shape, text, worlds};
 use f4x_core::world::save::{Integrity, LoadError, Snapshot};
-use f4x_core::world::World;
+use f4x_core::world::{Command, World};
 
 fn restored(w: &World) -> World {
     Snapshot::from_text(&text(w))
@@ -242,6 +242,35 @@ fn a_recorded_game_plays_again_to_the_same_game() {
         let replay = Replay::from_text(&replay.to_text().expect("writes")).expect("reads");
         let (played, _) = replay.play(content(), usize::MAX).expect("plays");
         assert_eq!(text(&played), text(&w), "{name}");
+    }
+}
+
+/// Put everyone on the farms, so that balancing them changes something.
+fn all_farm(w: &mut World) {
+    for (city, ..) in w.economy().cities() {
+        w.apply(Command::SetFarmers {
+            city,
+            farmers: u32::MAX,
+        });
+    }
+}
+
+#[test]
+fn balancing_the_farmers_is_replayed_and_can_be_taken_back() {
+    for (name, mut w) in worlds() {
+        all_farm(&mut w);
+        let player = w.player_ids()[0];
+        w.start_recording().expect("recording starts");
+        w.set_undo(true);
+        let before = text(&w);
+        w.apply(Command::BalanceFarmers { player });
+        let balanced = text(&w);
+        assert_ne!(balanced, before, "{name}: nothing was balanced");
+        let replay = w.replay_so_far().expect("a record");
+        let (again, _) = replay.play(content(), usize::MAX).expect("plays");
+        assert_eq!(text(&again), balanced, "{name}");
+        w.undo().expect("takes it back");
+        assert_eq!(text(&w), before, "{name}");
     }
 }
 

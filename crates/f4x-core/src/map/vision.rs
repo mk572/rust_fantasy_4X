@@ -213,6 +213,7 @@ impl VisionEffect {
             | C::SetProduction { .. }
             | C::BuyProduction { .. }
             | C::SetFarmers { .. }
+            | C::BalanceFarmers { .. }
             | C::SetAutoBuild { .. }
             | C::RenameCity { .. }
             | C::SetTaxRate { .. }

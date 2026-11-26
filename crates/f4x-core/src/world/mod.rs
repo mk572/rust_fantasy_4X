@@ -796,6 +796,10 @@ impl World {
                     .insert_one(city, city::economy::Farmers(farmers.clamp(min, figures)));
                 Vec::new()
             }
+            Command::BalanceFarmers { player } => {
+                self.balance_farmers(player);
+                Vec::new()
+            }
             Command::SetTaxRate { player, rate } => {
                 let max = self
                     .content

@@ -1385,7 +1385,7 @@ impl App {
         }
         let t = self.cache.budget(&self.game, HUMAN);
         if t.food_surplus < t.food_upkeep {
-            self.game.balance_farmers(HUMAN);
+            self.game.apply(Command::BalanceFarmers { player: HUMAN });
         }
         self.seating.human_done = true;
         self.turn_events = Some(Vec::new());
@@ -2439,7 +2439,7 @@ impl App {
         }
         self.stack_keys(input);
         if self.hotkeys.pressed("balance_farmers", input) {
-            self.game.balance_farmers(HUMAN);
+            self.game.apply(Command::BalanceFarmers { player: HUMAN });
             self.log.push(self.text("log.farmers_balanced"));
         }
         if self.hotkeys.pressed("wait", input) && !self.selection.is_empty() {

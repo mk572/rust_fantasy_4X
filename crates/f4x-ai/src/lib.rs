@@ -644,7 +644,13 @@ impl Ai {
         statecraft::run(self, game, &mut events);
         offer::answer(self, game, &mut events);
         offer::equip(self, game, &mut events);
-        game.balance_farmers(self.player);
+        self.order(
+            game,
+            Command::BalanceFarmers {
+                player: self.player,
+            },
+            &mut events,
+        );
         economy::taxes(self, game, &mut events);
         alchemy::run(self, game, &mut events);
         race::run(self, game, &mut events);

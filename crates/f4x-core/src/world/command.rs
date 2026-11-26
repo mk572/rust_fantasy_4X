@@ -195,6 +195,11 @@ pub enum Command {
         city: hecs::Entity,
         farmers: u32,
     },
+    /// Put just enough citizens on farms in all the player's cities to feed its citizens and
+    /// its army (`World::balance_farmers`).
+    BalanceFarmers {
+        player: player::PlayerId,
+    },
     /// Found the wizard's first city with the fortress and summoning circle in it.
     PlaceFortress {
         player: player::PlayerId,

@@ -98,7 +98,7 @@ A line is split on spaces; double quotes keep a name together. Battle squares ar
 | Settler founds an outpost | `outpost <unit> [name]` |
 | Engineers build a road; purify; meld a node; change plane; teleport by Earth Gate | `road <units> [pos ...]`, `purify`, `meld`, `shift`, `gate <units> <city pos>` |
 | Assault a lair, tower or node | `enter <units> <pos>` |
-| City production, buying, farmers, selling | `produce <city> <item>`, `buy`, `farmers <city> <n>`, `sell <city> <building>` |
+| City production, buying, farmers, selling | `produce <city> <item>`, `buy`, `farmers <city> <n>`, `balance-farmers`, `sell <city> <building>` |
 | Tax rate, power split, Grand Vizier | `tax <rate>`, `power <mana> <research> <skill>`, `vizier <on\|off>` |
 | A city's auto-builder plan | `autobuild <city> <buildings\|units\|both> <focus> [secondary] [settlers[=pop]]`, `autobuild <city> off` |
 | Choose research | `research <spell>` |

@@ -43,6 +43,7 @@ pub const TABLE: &[CommandDef] = &[
     legal!("raze", "raze <city>", "Destroy the city you have just taken (before the turn ends): more fame lost, a tenth of its buildings' cost looted.", raze),
     legal!("buy", "buy <city>", "Pay gold to finish the current item at the next turn change.", buy),
     legal!("farmers", "farmers <city> <number>", "Set how many citizens farm.", farmers),
+    legal!("balance-farmers", "balance-farmers", "Put just enough citizens on farms in all your cities to feed your people and army.", balance_farmers),
     legal!("sell", "sell <city> <building>", "Sell a building for its cost in gold.", sell),
     legal!("tax", "tax <rate>", "Set the tax rate (an index into the rate table).", tax),
     legal!("accept", "accept <offer> [name] [at=x,y]", "Take an offer (numbers are listed by `offers`); a hired hero gets the name if you give one. With several summoning circles, at=x,y names the one a hero or the mercenaries come to.", accept),
@@ -274,6 +275,11 @@ fn farmers(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let city = ctx.my_city(a, 0)?;
     let farmers = a.int(1, "number of farmers")?.max(0) as u32;
     ctx.apply(Command::SetFarmers { city, farmers })
+}
+
+fn balance_farmers(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
+    let player = ctx.session.player;
+    ctx.apply(Command::BalanceFarmers { player })
 }
 
 fn sell(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {

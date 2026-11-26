@@ -60,6 +60,7 @@ networked play.)
 | `BuyProduction { city }` | Pay gold so the item completes at the next turn change | none | `Production(NotEnoughGold, NothingToBuy)` |
 | `SellBuilding { city, building }` | Sell for its construction cost | none | `Production(NotBuilt, MissingBuilding)` |
 | `SetFarmers { city, farmers }` | Citizens on farms, clamped to the minimum that feeds the city and the population | none | none |
+| `BalanceFarmers { player }` | Just enough citizens on farms in all the player's cities to feed its citizens and army | none | none |
 | `SetTaxRate { player, rate }` | Tax rate, clamped to the table | none | none |
 | `PlaceFortress { player, pos, name, race, population }` | Found the wizard's first city with the fortress and summoning circle in it (once per wizard) | `CityFounded`, `FortressPlaced` | `Rejected(Fortress(..))` |
 
@@ -212,8 +213,9 @@ numbers.
   order by gold upkeep, then the upkeep is paid.
 - Disbanded units are removed and one `UnitsDisbanded { player, units }` is emitted.
 
-Mana and research are handled by `process_magic` (section 4.2). `balance_farmers(player)` is a helper, used by
-the client at game start, that sets farmers so the cities also feed the army.
+Mana and research are handled by `process_magic` (section 4.2). The command `BalanceFarmers` sets farmers so the
+cities also feed the army; the AI sends it every turn, and the client when food is short at the end of a turn
+or when asked.
 
 ## 6. Healing
 
