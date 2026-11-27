@@ -1,22 +1,16 @@
-//! Class 9, the turn: the four phases and what each one touches (the round's start and end, one player's
-//! start and end), Time Stop, standing orders, standby, and a treasury that cannot pay.
+//! Class 9, the turn: the world's operations at the boundaries of a turn and what each one touches
+//! (the round's start and end, one player's start and end), Time Stop, standing orders, standby, and
+//! a treasury that cannot pay. The order of the operations and the round counter are the game's
+//! (`f4x-master/tests/it`).
 
-use crate::support::{around, state};
+use crate::support::{around, state, worlds};
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::player::{PlayerId, MONSTERS};
 use f4x_core::unit::movement::MoveError;
 use f4x_core::unit::Standby;
+use f4x_core::world::testutil::Table;
 use f4x_core::world::{Command, Event, Rejection, World};
 use f4x_def::half_int::HalfInt;
-use f4x_master::Game;
-
-/// The fresh worlds, each in a game, so that time can pass in them.
-fn worlds() -> Vec<(String, Game)> {
-    crate::support::worlds()
-        .into_iter()
-        .map(|(name, w)| (name, Game::from(w)))
-        .collect()
-}
 
 fn wizards(w: &World) -> Vec<PlayerId> {
     w.player_ids()
@@ -50,28 +44,6 @@ fn people(w: &World, p: PlayerId) -> Vec<(u32, u32)> {
             (pop.figures, pop.tens)
         })
         .collect()
-}
-
-#[test]
-fn only_the_start_of_a_round_advances_the_round_counter() {
-    for (name, mut w) in worlds() {
-        let turn = w.round();
-        let p = wizards(&w)[0];
-        w.end_player_turn(p);
-        w.start_player_turn(p);
-        w.end_round();
-        assert_eq!(
-            w.round(),
-            turn,
-            "{name}: a player's turn or the round's end moved it"
-        );
-        let events = w.start_round();
-        assert_eq!(w.round(), turn + 1, "{name}");
-        assert!(
-            events.contains(&Event::TurnStarted { turn: turn + 1 }),
-            "{name}: {events:?}"
-        );
-    }
 }
 
 #[test]
@@ -116,15 +88,14 @@ fn the_start_of_a_player_turn_grows_only_their_cities_and_not_in_the_first_round
             people(&w, p),
             others.iter().map(|&o| people(&w, o)).collect::<Vec<_>>(),
         );
-        assert_eq!(w.round(), 1, "{name}: the world is not at its first round");
-        w.start_player_turn(p);
+        w.start_player_turn(p, 1);
         assert_eq!(
             people(&w, p),
             first.0,
             "{name}: the first round has no growth"
         );
-        w.start_round();
-        w.start_player_turn(p);
+        w.start_round(2);
+        w.start_player_turn(p, 2);
         grew += usize::from(people(&w, p) != first.0);
         for (i, &o) in others.iter().enumerate() {
             assert_eq!(
@@ -147,7 +118,7 @@ fn the_start_of_a_player_turn_refills_only_their_units_moves() {
         for &u in mine.iter().chain(&theirs) {
             w.scenario_set_moves_left(u, HalfInt::ZERO);
         }
-        w.start_player_turn(o);
+        w.start_player_turn(o, 1);
         for &u in &mine {
             assert_eq!(w.units().unit_moves_left(u), HalfInt::ZERO, "{name}");
         }
@@ -171,14 +142,14 @@ fn standby_done_lasts_the_turn_and_patrol_stays() {
             continue;
         }
         for (u, s) in [(done, Standby::Done), (patrol, Standby::Patrol)] {
-            w.command(Command::SetStandby {
+            w.apply(Command::SetStandby {
                 units: vec![u],
                 standby: Some(s),
             });
             assert_eq!(w.units().unit_standby(u), Some(s), "{name}");
         }
-        w.start_round();
-        w.start_player_turn(p);
+        w.start_round(2);
+        w.start_player_turn(p, 2);
         assert_eq!(
             w.units().unit_standby(done),
             None,
@@ -206,7 +177,7 @@ fn the_player_of_the_monsters_has_no_turn_end() {
 }
 
 /// Wizard 0 keeps Time Stop (spell 80, `time_stop`) with mana to pay for it.
-fn stopped() -> Vec<(String, Game, Vec<PlayerId>)> {
+fn stopped() -> Vec<(String, Table, Vec<PlayerId>)> {
     worlds()
         .into_iter()
         .map(|(name, mut w)| {
@@ -225,43 +196,11 @@ fn stopped() -> Vec<(String, Game, Vec<PlayerId>)> {
 }
 
 #[test]
-fn time_stop_halts_growth_gold_and_mana_for_the_others_and_gold_for_the_keeper() {
-    for (name, mut w, ids) in stopped() {
-        assert_eq!(w.time_stopper(), Some(ids[0]), "{name}");
-        let (keeper, others) = (ids[0], &ids[1..]);
-        let before: Vec<_> = ids
-            .iter()
-            .map(|&p| (gold(&w, p), mana(&w, p), people(&w, p)))
-            .collect();
-        for _ in 0..3 {
-            w.play_round();
-        }
-        assert_eq!(
-            gold(&w, keeper),
-            before[0].0,
-            "{name}: the keeper earned or paid gold"
-        );
-        assert!(
-            mana(&w, keeper) < before[0].1,
-            "{name}: Time Stop cost no mana"
-        );
-        for (i, &o) in others.iter().enumerate() {
-            let at = &before[i + 1];
-            assert_eq!(
-                (gold(&w, o), mana(&w, o), people(&w, o)),
-                (at.0, at.1, at.2.clone()),
-                "{name}: time moved for {o:?}"
-            );
-        }
-    }
-}
-
-#[test]
 fn a_standing_order_does_not_move_a_unit_while_another_wizard_keeps_time_stop() {
     let mut tried = 0;
     for (name, mut w, ids) in stopped() {
         let (keeper, other) = (ids[0], ids[1]);
-        let walk = |w: &mut Game, p: PlayerId| {
+        let walk = |w: &mut Table, p: PlayerId| {
             let u = w.units().player_units(p).into_iter().find(|&u| {
                 w.units().unit_max_moves(u) > HalfInt::ZERO
                     && w.units()
@@ -284,7 +223,7 @@ fn a_standing_order_does_not_move_a_unit_while_another_wizard_keeps_time_stop() 
                     && w.economy().city_at(q).is_none()
                     && w.economy().terrain_class_at(q) == Some(TerrainClass::Grassland)
             })?;
-            let events = w.command(Command::GoTo { units: vec![u], to });
+            let events = w.apply(Command::GoTo { units: vec![u], to });
             // The order takes its first step when it is given: the test starts from where that left the unit.
             let ordered = events.iter().all(|e| !matches!(e, Event::Rejected(_)));
             ordered.then(|| (u, w.units().unit_position(u).expect("a position"), to))
@@ -295,14 +234,14 @@ fn a_standing_order_does_not_move_a_unit_while_another_wizard_keeps_time_stop() 
             continue;
         };
         tried += 1;
-        w.start_round();
-        w.start_player_turn(other);
+        w.start_round(2);
+        w.start_player_turn(other, 2);
         assert_eq!(
             w.units().unit_position(theirs),
             Some(their_at),
             "{name}: a unit walked in stopped time"
         );
-        w.start_player_turn(keeper);
+        w.start_player_turn(keeper, 2);
         assert_ne!(
             w.units().unit_position(own),
             Some(own_at),
@@ -313,7 +252,7 @@ fn a_standing_order_does_not_move_a_unit_while_another_wizard_keeps_time_stop() 
 }
 
 /// Units are added for `p` on the square of their first city until the treasury cannot pay.
-fn overloaded(w: &mut Game, p: PlayerId) -> Option<()> {
+fn overloaded(w: &mut Table, p: PlayerId) -> Option<()> {
     let (_, at) = w.economy().cities_of(p).first().copied()?;
     let kind = w.units().unit_kind_id(w.units().player_units(p)[0])?;
     w.treasury_mut(p)?.gold = HalfInt::ZERO;
@@ -321,7 +260,7 @@ fn overloaded(w: &mut Game, p: PlayerId) -> Option<()> {
         if w.treasury_shortfall(p).is_some() {
             return Some(());
         }
-        let made = w.command(Command::CreateUnit {
+        let made = w.apply(Command::CreateUnit {
             owner: p,
             pos: at,
             unit: kind,
@@ -398,7 +337,7 @@ fn a_player_may_choose_who_goes_and_only_among_their_own_units() {
         tried += 1;
         let theirs = w.units().player_units(o)[0];
         let before = state(&w);
-        let events = w.command(Command::ReleaseTroops {
+        let events = w.apply(Command::ReleaseTroops {
             player: p,
             units: vec![theirs],
             scrap: Vec::new(),
@@ -417,7 +356,7 @@ fn a_player_may_choose_who_goes_and_only_among_their_own_units() {
         // The newest own unit, which the turn's end would let go of first, stays if the player says so.
         let own = w.units().player_units(p);
         let chosen = own[0];
-        let events = w.command(Command::ReleaseTroops {
+        let events = w.apply(Command::ReleaseTroops {
             player: p,
             units: vec![chosen],
             scrap: Vec::new(),

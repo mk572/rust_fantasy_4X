@@ -4,7 +4,7 @@ use f4x_core::player::MONSTERS;
 use f4x_core::world::{Event, Rejection};
 use f4x_master::{Entry, Step};
 
-use crate::support::{content, games, text};
+use crate::support::{content, games, text, wizards};
 
 #[test]
 fn a_whole_round_is_the_steps_for_every_player() {
@@ -102,4 +102,26 @@ fn a_step_for_no_player_is_refused_and_leaves_no_trace() {
         recorded
     );
     assert!(game.can_undo());
+}
+
+#[test]
+fn only_the_start_of_a_round_advances_the_round_counter() {
+    for (name, mut w) in games() {
+        let turn = w.round();
+        let p = wizards(&w)[0];
+        w.end_player_turn(p);
+        w.start_player_turn(p);
+        w.end_round();
+        assert_eq!(
+            w.round(),
+            turn,
+            "{name}: a player's turn or the round's end moved it"
+        );
+        let events = w.start_round();
+        assert_eq!(w.round(), turn + 1, "{name}");
+        assert!(
+            events.contains(&Event::TurnStarted { turn: turn + 1 }),
+            "{name}: {events:?}"
+        );
+    }
 }

@@ -5,6 +5,7 @@ use f4x_core::map::Position;
 use f4x_core::player::PlayerId;
 use f4x_core::world::testutil::{fresh, shipped, FRESH_WORLDS};
 use f4x_core::world::{Command, Event, World};
+use f4x_def::half_int::HalfInt;
 use f4x_def::rules::{UnitId, UnitKind};
 use f4x_master::Game;
 
@@ -149,5 +150,28 @@ pub fn field() -> Field {
         b,
         attackers,
         defenders,
+    }
+}
+
+/// The players that keep a treasury: the wizards.
+pub fn wizards(w: &World) -> Vec<PlayerId> {
+    w.player_ids()
+        .into_iter()
+        .filter(|&p| !w.is_neutral_player(p) && w.wizard(p).is_some())
+        .collect()
+}
+
+pub fn gold(w: &World, p: PlayerId) -> HalfInt {
+    w.player(p).expect("a player").treasury().gold
+}
+
+pub fn mana(w: &World, p: PlayerId) -> HalfInt {
+    w.player(p).expect("a player").treasury().mana
+}
+
+/// No city has anything in hand, so that no item is finished and changes the gold at a turn's end.
+pub fn idle_cities(w: &mut World) {
+    for (city, _, _) in w.economy().cities() {
+        w.scenario_clear_production(city);
     }
 }

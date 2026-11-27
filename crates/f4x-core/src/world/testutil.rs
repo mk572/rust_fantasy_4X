@@ -3,6 +3,8 @@
 //!
 //! Tests: none, because this is test support.
 
+pub mod pin;
+
 use crate::player::PlayerId;
 use crate::world::rng::GameRng;
 use crate::world::World;

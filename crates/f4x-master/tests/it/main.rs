@@ -4,6 +4,7 @@
 
 mod attack;
 mod convert;
+mod drift;
 mod end;
 mod reaction;
 mod replay;
@@ -12,6 +13,8 @@ mod save;
 mod sender;
 mod step;
 mod support;
+mod time_stop;
+mod treasury;
 mod turn;
 mod undo;
 

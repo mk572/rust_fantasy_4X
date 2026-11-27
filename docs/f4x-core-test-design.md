@@ -243,9 +243,14 @@ sweeps a range does not run every value there: two sizes of the same test.
 
 `check::digest(&world)` cuts the saved text at the fields of the snapshot and hashes each (the versions left out);
 the pins add the round, the end, the seed and the number of draws as they are.
-`tests/it/c8_drift.rs` plays short scripts on the four fresh saves (rounds of the scripted walk, bare turns, every
-command of the sweep then three turns), digests the game at the checkpoints and compares with
-`crates/f4x-core/tests/pins/core_drift.txt`. A failure names each checkpoint and the fields that moved. Regenerate
-on purpose (`F4X_REFRESH_PINS=1 cargo test -p f4x-core --features testutil --test it c8_`) and review the diff: the
+Short scripts are played on the four fresh saves, digested at the checkpoints and compared with pins
+(`f4x_core::world::testutil::pin`). There are two sets:
+
+| Plays | Test | Pins | Regenerate |
+|---|---|---|---|
+| every command of the sweep, then three turns | `f4x-core`, `tests/it/c8_drift.rs` | `crates/f4x-core/tests/pins/core_drift.txt` | `F4X_REFRESH_PINS=1 cargo test -p f4x-core --features testutil --test it c8_` |
+| rounds of the scripted walk, bare turns | `f4x-master`, `tests/it/drift.rs` | `crates/f4x-master/tests/pins/drift.txt` | `F4X_REFRESH_PINS=1 cargo test -p f4x-master --test it drift` |
+
+A failure names each checkpoint and the fields that moved. Regenerate on purpose and review the diff: the
 fields that moved should be the ones the change is about. A content change moves the pins too (after
 `F4X_REFRESH_FIXTURES=1 ...`, refresh the pins). The pins record what the game does today; they are not a rule.

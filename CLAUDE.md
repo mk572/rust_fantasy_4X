@@ -48,8 +48,9 @@ Refer to `docs/ecs-structure.md`
   `python3 scripts/ron_hashes.py --update` and commit the record with it. Never update the record to
   silence the test without knowing who changed the file.
   A change of game behaviour (content or code) also moves the pinned digests of the scripted plays
-  (`crates/f4x-core/tests/pins/core_drift.txt`): the failure names the fields that moved; if the move is meant,
-  `F4X_REFRESH_PINS=1 cargo test -p f4x-core --features testutil --test it c8_` and review the diff.
+  (`crates/f4x-core/tests/pins/core_drift.txt`, `crates/f4x-master/tests/pins/drift.txt`): the failure names
+  the fields that moved and the command that refreshes that file; if the move is meant, run it
+  (`F4X_REFRESH_PINS=1 cargo test ...`, `docs/f4x-core-test-design.md` class 8) and review the diff.
 
 - **Names are singular** for modules, files and types of an entity or a concept (`unit`, `lair`,
   `item`, `UnitView`), also in the other crates. Plural stays for `Vec` fields, registries and `.ron`
