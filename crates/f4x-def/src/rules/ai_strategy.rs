@@ -25,14 +25,7 @@ levers!(
 levers!(
     /// When the armies, parties and monsters attack.
     AttackLevers {
-        attack: f32,
-        edge_build: f32,
-        edge_secure: f32,
-        edge_win: f32,
-        edge_lead: f32,
-        sortie: f32,
-        committed: f32,
-        committed_landing: f32,
+        attack_force: f32,
         guess: f32,
         memory_turns: u32,
         march_turns: u32,
@@ -721,7 +714,10 @@ mod tests {
             levers.set("NO_SUCH_LEVER", "1"),
             Err(OverrideError::UnknownLever)
         );
-        assert_eq!(levers.set("ATTACK", "-1"), Err(OverrideError::BadValue));
+        assert_eq!(
+            levers.set("ATTACK_FORCE", "-1"),
+            Err(OverrideError::BadValue)
+        );
         assert_eq!(levers.set("CITIES", "-1"), Err(OverrideError::BadValue));
         assert_eq!(levers, shipped());
         assert_eq!(levers.set("diplo_b_war_below", "-90"), Ok(()));

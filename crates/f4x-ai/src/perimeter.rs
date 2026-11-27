@@ -5,10 +5,12 @@
 //!
 //! One turn, for each stack of enemy units, raiders or monsters in a zone:
 //!
-//! - when the soldiers within reach are strong enough (`military::attack_ratio`) they gather on a
-//!   square beside it and, once they stand there together and are enough, attack it; they do
-//!   not follow it out of the zone. Their role is `Perimeter`, `to` = the enemy's square;
+//! - when the soldiers within reach are strong enough (`attack_force` times its strength) they
+//!   gather on a square beside it; there the attack is `attack.rs`'s. They do not follow it out
+//!   of the zone. Their role is `Perimeter`, `to` = the enemy's square;
 //! - when it is the stronger nothing is done here: the city is sent soldiers by `reinforce.rs`.
+//!
+//! Units of a player not at war count only when the AI is open to war on it (`attack.rs`).
 //!
 //! A holder whose enemy is gone gives the role back. `Ai::threatened` (the cities the economy
 //! builds soldiers for) is set here from the same look. See `docs/ai-unit-registry.md`.
@@ -60,17 +62,18 @@ pub fn zone(view: &PlayerView, city: Position) -> Vec<Position> {
     squares
 }
 
-/// The enemy stacks in the zones of the own cities.
-fn threats(view: &PlayerView) -> Vec<Threat> {
+/// The stacks to be dealt with in the zones of the own cities (`attack::threat_at`).
+fn threats(ai: &Ai, game: &Game) -> Vec<Threat> {
+    let view = PlayerView::new(game, ai.player);
     let mut found: Vec<Threat> = Vec::new();
     let mut cities: Vec<Position> = view.my_cities().into_iter().map(|(_, p)| p).collect();
     cities.sort_by_key(|p| (p.plane as u8, p.y, p.x));
     for city in cities {
-        for square in zone(view, city) {
-            if found.iter().any(|t| t.square == square) || view.city_at(square).is_some() {
+        for square in zone(&view, city) {
+            if found.iter().any(|t| t.square == square) {
                 continue;
             }
-            let Some(units) = view.hostile_at(square).filter(|u| !u.is_empty()) else {
+            let Some(units) = crate::attack::threat_at(ai, game, &view, square) else {
                 continue;
             };
             found.push(Threat { square, units });
@@ -94,7 +97,7 @@ pub fn run(
         .iter()
         .map(|&(pos, _)| pos)
         .collect();
-    let threats = threats(&PlayerView::new(game, me));
+    let threats = threats(ai, game);
     // A holder whose enemy is gone (or whose city is no longer threatened) gives the role back.
     {
         let view = PlayerView::new(game, me);
@@ -139,7 +142,7 @@ pub fn run(
             }
             view.sort_by_serial(&mut pool);
             pool.dedup();
-            (their, pool, view.levers().attack.attack)
+            (their, pool, view.levers().attack.attack_force)
         };
         if pool.is_empty() {
             continue;
@@ -165,16 +168,17 @@ pub fn run(
                     .claim(s, Role::Perimeter, turn, Some(threat.square));
                 ai.roles.set_target(s, Role::Perimeter, Some(threat.square));
             }
-            attack_or_gather(ai, game, &idle, &threat, their * ratio, events);
+            gather(ai, game, &idle, &threat, their * ratio, events);
         }
         free.retain(|u| !idle.contains(u));
     }
     free
 }
 
-/// The soldiers beside the enemy attack when together they are enough; the others walk to a
-/// square beside it.
-fn attack_or_gather(
+/// The soldiers walk to a square beside the enemy. A battle is fought from one square (the game
+/// refuses attackers standing apart, `BattleStartError::BadSides`): the strongest group that
+/// shares a square beside the enemy stays where it is when it is enough, for the attack.
+fn gather(
     ai: &mut Ai,
     game: &mut Game,
     idle: &[hecs::Entity],
@@ -183,10 +187,7 @@ fn attack_or_gather(
     events: &mut Vec<Event>,
 ) {
     let me = ai.player;
-    // A battle is fought from one square (the game refuses attackers standing apart,
-    // `BattleStartError::BadSides`): the strongest group of soldiers beside the enemy that share
-    // a square attacks when it is enough; the rest, and the others when none is, gather.
-    let (beside, apart) = {
+    let walkers: Vec<hecs::Entity> = {
         let view = PlayerView::new(game, me);
         let mut groups: Vec<(Position, Vec<hecs::Entity>)> = Vec::new();
         for &u in idle {
@@ -202,32 +203,23 @@ fn attack_or_gather(
             }
         }
         groups.sort_by_key(|(p, _)| (p.plane as u8, p.y, p.x));
-        let best = groups
+        let ready = groups
             .into_iter()
             .map(|(_, list)| {
                 let band = crate::view::party(&view, &list);
-                (stack_strength(&view, &band), band, list)
+                (stack_strength(&view, &band), list)
             })
             .max_by(|a, b| a.0.total_cmp(&b.0))
-            .map(|(_, band, list)| (band, list))
+            .filter(|&(strength, _)| strength >= needed)
+            .map(|(_, list)| list)
             .unwrap_or_default();
-        let (best, square) = best;
-        // The soldiers beyond the party that stand on its square stay there.
-        let apart: Vec<hecs::Entity> = idle
-            .iter()
+        // Everyone else (all of them, when no group is enough yet) gathers on one square beside
+        // the enemy: the free square nearest to the first of them.
+        idle.iter()
             .copied()
-            .filter(|u| !best.contains(u) && !square.contains(u))
-            .collect();
-        (best, apart)
+            .filter(|u| !ready.contains(u))
+            .collect()
     };
-    let enough =
-        !beside.is_empty() && stack_strength(&PlayerView::new(game, me), &beside) >= needed;
-    if enough {
-        crate::military::engage(ai, game, beside, threat.units.clone(), events);
-    }
-    // Everyone else (and the ones beside it that are not enough yet) gathers on one square
-    // beside the enemy: the free square nearest to the first of them.
-    let walkers: Vec<hecs::Entity> = if enough { apart } else { idle.to_vec() };
     let stage = {
         let view = PlayerView::new(game, me);
         walkers.first().and_then(|&first| {
@@ -351,6 +343,7 @@ mod tests {
         let before = w.units().player_units(P1).len();
         let mut events = Vec::new();
         let _ = run(&mut ai, &mut w, beside, &mut events);
+        crate::attack::run(&mut ai, &mut w, &mut events);
         assert!(
             w.units().player_units(P1).len() < before,
             "the raider fell: {events:?}"
@@ -375,6 +368,7 @@ mod tests {
         let before = w.units().player_units(P1).len();
         let mut events = Vec::new();
         let _ = run(&mut ai, &mut w, beside, &mut events);
+        crate::attack::run(&mut ai, &mut w, &mut events);
         assert!(
             ai.refusals.borrow().is_empty(),
             "{:?}",

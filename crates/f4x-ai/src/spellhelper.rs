@@ -187,7 +187,7 @@ pub(crate) fn mana_goal(view: &PlayerView, blocked: &[Plane], round: u32) -> i32
                 && p.plane == start.plane
                 && crate::view::distance(view, start, p).is_some()
         })
-        .map(|(p, _)| crate::site::expected(view, p) * view.levers().attack.attack)
+        .map(|(p, _)| crate::site::expected(view, p) * view.levers().attack.attack_force)
         .filter(|&need| need > best_nine && need <= reachable)
         .map(|need| ((need - best_nine) / each * levers.mana_per_soldier).ceil() as i32)
         .min()

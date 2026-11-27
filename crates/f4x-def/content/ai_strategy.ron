@@ -1,6 +1,6 @@
 // The levers of the strategic AI (`f4x-ai`; `StrategyAiRules` in `f4x-def/src/rules/ai_strategy.rs`).
 // These are the AI's tuning, not rules of the game. A run may override one with the environment
-// variable `AIS_<NAME>`: the name in capitals (`AIS_ATTACK=1.6`), with the group's prefix where
+// variable `AIS_<NAME>`: the name in capitals (`AIS_ATTACK_FORCE=1.6`), with the group's prefix where
 // the head of a group gives one (`AIS_DIPLO_B_OFFER=70`).
 //
 // Strengths are the AI's measure of what units are worth in battle; distances are in squares.
@@ -20,22 +20,9 @@
     ),
     // When the armies, parties and monsters attack.
     attack: (
-        // A party or the soldiers round a city attack when this many times as strong as what they expect to meet: lairs, towers, neutral cities, the ground round a city.
-        attack: 1.4,
-        // The edge an army wants before it marches or strikes while the wizard builds up.
-        edge_build: 2.0,
-        // The same in the secure phase.
-        edge_secure: 1.5,
-        // The same in the win phase when the wizard is level with the best rival.
-        edge_win: 1.3,
-        // The same in the win phase for a wizard at three times the best rival's power; between the two it falls evenly.
-        edge_lead: 1.05,
-        // The edge an attack out of a city's garrison needs.
-        sortie: 2.5,
-        // The edge a force that has marched attacks with.
-        committed: 1.1,
-        // What a landing party wants over the expected defence before it marches on the city.
-        committed_landing: 1.2,
+        // An AI player attacks (a lair, a tower, a city, a stack) when its force is this many times
+        // as strong as the defence. The campaign gathers and the cities build towards the same.
+        attack_force: 1.2,
         // The strength guessed for a defence the AI has not seen, in average soldiers of the wizard.
         guess: 3.0,
         // How long a remembered garrison is trusted, in turns.

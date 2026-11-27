@@ -220,8 +220,9 @@ squares of it. For each stack of the enemy, a raider or a monster standing in a 
 free soldiers within 6 squares (the army's spare ones, over `garrison_wanted`) and the soldiers that
 already hold `Perimeter` for it:
 
-- if together they are `attack_ratio` times as strong, they gather on one square beside it and the
-  ones standing beside it attack when they are enough (`military::engage`); `to` = its square;
+- if together they are `attack_force` times as strong, they gather on one square beside it, where
+  `attack.rs` attacks when those standing there are enough; `to` = its square;
+- units of a player not at war count only when the AI is open to war on that player;
 - if it is the stronger they join the garrison of the city (`to` = the city);
 - a holder whose enemy is gone (or whose city is no longer threatened) gives the role back.
 
@@ -258,9 +259,8 @@ their `party` and the rally as `to`.
 
 - `MusterKind::Raid` (`raid::gather`): free soldiers spread over the empire, none of whose squares
   could take a site alone but the best nine with the wizard's spells could, go to the own city
-  nearest the easiest site they could take (a lair, a neutral city, a tower on a plane with no
-  rival city). `raid::release` ends it when all are within a square of the rally or after 20 turns;
-  `site::deploy` then sends the party from there. No new raid starts while one is mustering.
+  nearest the easiest site they could take (a lair, or a tower on a plane with no rival city). `raid::release` ends it when all are within a square of the rally or after 20 turns;
+  `raid::form` then sends the party from there. No new raid starts while one is mustering.
 - `MusterKind::Campaign` (`war::run`): the free soldiers sent to the rally city of the
   campaign (the own city nearest the target, or the far side of a tower) and those already there
   hold `Muster`. They stay the army's (`stacks` counts them). The muster ends when the march
@@ -272,10 +272,6 @@ their `party` and the rally as `to`.
 - A settler or a spirit with no escort at its side does not set out while an enemy unit is within
   4 squares (`escort::walk`); one already walking stops (`escort::run`) and goes on when the enemy
   is gone or a soldier is spare.
-- Soldiers that wait on a shore for a ship nobody sends for 40 turns attack an enemy beside them
-  when the odds are good (`military::attack_ratio`), else hold the square as `Perimeter`; the audit
-  puts them back on the waiting list when nothing threatens them (`pickup::give_up_waiting`).
-
 - A healer or a weak hero (much weaker than the average fighter) alone outside a city is given an
   escort from the nearest city (`escort::stragglers`); it ends in a city or in a stack of fighters.
 - A settler whose site (`city_site.rs`) is over the sea holds `Settle` with that site as target and the tag

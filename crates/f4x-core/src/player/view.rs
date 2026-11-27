@@ -221,6 +221,15 @@ impl<'a> PlayerView<'a> {
         self.world.treaty(self.me, other)
     }
 
+    /// Whether a peace period still runs between the player and another: it has promised not to
+    /// attack.
+    pub fn peace_period_with(&self, other: PlayerId) -> bool {
+        self.world
+            .diplomacy
+            .stance(self.me, other)
+            .is_some_and(|s| s.peace_duration > 0)
+    }
+
     /// What the player's power makes this turn: the split, the research and the mana upkeep.
     pub fn income(&self) -> crate::wizard::magic_income::Income {
         self.world.income(self.me)

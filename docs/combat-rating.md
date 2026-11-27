@@ -105,7 +105,7 @@ the combat factor in these combinations and leaves the others where they are.
 - **The scale.** The AI's thresholds were tuned to the old numbers, and mostly compare a strength with a
   strength, so `power_scale` (105 in `unit_ratings.ron` after the run of 20 November, 69.2 before it, written by the `--combine` run: the median of
   the old formula over the level 1 rating of the units that are not heroes) puts a typical unit where
-  it was and the thresholds (the levers `attack`, `sortie`, `guess`, `strength_wanted`, the
+  it was and the thresholds (the levers `attack_force`, `guess`, `strength_wanted`, the
   raid yardsticks) stay as they are. The ratings change the *ratios between* units, which is the point
   (an elite spearman is nine times a recruit; a great drake is worth 250 spearmen, the old formula
   gave about a tenth of that gap). Not soaked: the real test is whether the AI beats the reference AI.
@@ -136,7 +136,7 @@ the combat factor in these combinations and leaves the others where they are.
 | Place | Reads the measure for | Change |
 |---|---|---|
 | Raid composition: `raid.rs`, `threat/raider.rs` | how strong a raid or a monster party is against a target, the paladin and drake yardsticks | yardsticks read ratings; party strength is the group sum |
-| Attack plans: `war_plan.rs` `strength_wanted`, `military.rs` `expected_defence`, `attack_ratio`, `sortie_ratio`, `reinforce.rs` | the force wanted for a target and whether to march | thresholds rescaled (step 1), the defence of a walled city with the wall factor (step 2) |
+| Attack plans: `war_plan.rs` `strength_wanted`, `military.rs` `expected_defence`, `attack.rs`, `reinforce.rs` | the force wanted for a target and whether to march | thresholds rescaled (step 1), the defence of a walled city with the wall factor (step 2) |
 | Garrisons: `military.rs`, `crowd.rs`, `escort.rs` (the weak hero), `assault.rs` `guard_parts`, `city/neutral.rs` | who stays, who marches, the neutral and lair garrisons | ranking by rating; `neutral.rs` keeps the original's melee and ranged slots and chooses within them by rating; **a garrison also has to calm the city (a strong preference, not a ban; raids and conquest take any fighter): only normal units and heroes count as police (half a rebel each, up to one battle side, and only while the buildings and spells leave rebels), fantastic units never do, so the garrison logic keeps enough policing units in a city with unrest and picks the rest by efficiency (`unit_efficiency.ron`), where the fantastic units may fill the remaining slots** |
 | Production: `city/autobuild.rs` (`best_defender`, `raw_profiles`), `ai/builder.rs` `best_soldier` | the best soldier a city can build for its gold | rating over the square root of the lifetime cost as now, the mobility bonus kept; the ratings expose the cost-inefficient units |
 | Diplomacy: `diplomacy/trade.rs` `unit_worth`, `hero_worth`; `ai/statecraft.rs` `Power { army }`, `leader_of`, `is_straggler` | what a unit is worth in a trade offer, how strong a rival's army is | a unit's price is its rating times a price per spearman read off the cost curve, at least its cost-based price; the army strength is the sum of ratings, the thresholds rescaled (task 722) |

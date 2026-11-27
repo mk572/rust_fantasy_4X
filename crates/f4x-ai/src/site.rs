@@ -9,7 +9,7 @@ use f4x_core::player::view::PlayerView;
 
 use crate::assault::guard_strength;
 use crate::military::average_strength;
-use crate::view::{distance, fighting_strength, unit_strength};
+use crate::view::{distance, unit_strength};
 
 /// What the AI expects the site's guards to be worth.
 pub(crate) fn expected(view: &PlayerView, site: Position) -> f32 {
@@ -60,37 +60,9 @@ pub(crate) fn unarmed_share(view: &PlayerView, units: &[hecs::Entity]) -> f32 {
     normal / total * (1.0 - crate::spellhelper::arming_share(view, units.len()))
 }
 
-/// Is there a city of the neutral cities (no wizard's) on the square that it may attack? One it has a
-/// pact or an alliance with is not: the game refuses the attack until a player has broken the treaty
-/// (`World::bound_by_treaty`), and the AI breaks no treaty to raid (task 776).
-pub(crate) fn neutral_city(view: &PlayerView, p: Position) -> bool {
-    view.known_cities().iter().any(|&(_, owner, q)| {
-        q == p
-            && !view.is_rival_wizard(owner)
-            && !matches!(
-                view.treaty_with(owner),
-                f4x_core::diplomacy::Treaty::Pact | f4x_core::diplomacy::Treaty::Alliance
-            )
-    })
-}
-
-/// What a neutral city's defenders are worth (a city is stronger than the same men outside).
-/// What guards the site: a city's defence, or the guards a lair or tower is expected to have.
-pub(crate) fn defence_of(view: &PlayerView, p: Position) -> f32 {
-    if view.city_at(p).is_some() {
-        city_defence(view, p)
-    } else {
-        expected(view, p)
-    }
-}
-
-pub(crate) fn city_defence(view: &PlayerView, p: Position) -> f32 {
-    match view.hostile_at(p) {
-        Some(defenders) => {
-            fighting_strength(view, &defenders) * view.levers().shared.city_defence_factor
-        }
-        None => 2.0 * view.levers().sites.guess_guards * average_strength(view),
-    }
+/// Is a lair or an intact tower, as far as the player knows, on the square?
+pub(crate) fn live(view: &PlayerView, p: Position) -> bool {
+    view.has_lair(p) && view.towers().iter().all(|&(t, intact)| t != p || intact)
 }
 
 /// The explored, intact sites within `lair_range` of `from` (towers within `tower_range`) that a party of `strength` should
@@ -103,26 +75,20 @@ pub(crate) fn sites_near(
     blocked: &[f4x_core::map::Plane],
 ) -> Vec<Position> {
     let mut found: Vec<Position> = Vec::new();
-    let (range, edge) = (view.levers().sites.lair_range, view.levers().attack.attack);
+    let (range, edge) = (
+        view.levers().sites.lair_range,
+        view.levers().attack.attack_force,
+    );
     for dy in -range..=range {
         for dx in -range..=range {
             if let Some(p) = view.shift(from, dx, dy) {
-                if view.has_lair(p)
+                if live(view, p)
                     && strength >= expected_vs(view, p, unarmed) * edge
                     && !found.contains(&p)
                 {
                     found.push(p);
                 }
             }
-        }
-    }
-    for (_, owner, p) in view.known_cities() {
-        if !view.is_rival_wizard(owner)
-            && distance(view, from, p).is_some_and(|d| d <= range as u32)
-            && strength >= city_defence(view, p) * edge
-            && !found.contains(&p)
-        {
-            found.push(p);
         }
     }
     for (p, intact) in view.towers() {

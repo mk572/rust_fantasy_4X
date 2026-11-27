@@ -11,6 +11,7 @@
 
 mod alchemy;
 mod assault;
+mod attack;
 pub mod battle;
 mod bridge;
 mod budget;
@@ -58,7 +59,6 @@ mod shortfall;
 mod site;
 mod spellhelper;
 mod statecraft;
-mod strike;
 #[cfg(test)]
 mod testworld;
 mod trade;

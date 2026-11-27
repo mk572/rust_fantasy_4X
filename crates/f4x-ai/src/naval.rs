@@ -243,7 +243,7 @@ fn choose_plan(ai: &Ai, view: &PlayerView, round: u32) -> Option<Plan> {
         let owner = view
             .city_at(target)
             .and_then(|c| view.city_owner(c))
-            .filter(|&o| o != view.me());
+            .filter(|&o| o != view.me() && crate::attack::may_target(view, o));
         if owner.is_none() {
             continue;
         }
@@ -282,7 +282,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             } else {
                 view.city_at(plan.target)
                     .and_then(|c| view.city_owner(c))
-                    .is_some_and(|o| o != me)
+                    .is_some_and(|o| o != me && crate::attack::may_target(&view, o))
             };
             let port = view.city_at(plan.port).and_then(|c| view.city_owner(c)) == Some(me);
             if !enemy || !port {
@@ -329,15 +329,17 @@ pub(crate) fn declare_war_on_city(
         let view = PlayerView::new(game, me);
         view.city_at(target)
             .and_then(|c| view.city_owner(c))
-            .filter(|&o| view.is_rival_wizard(o))
+            .filter(|&o| view.is_diplomat(o))
     };
     let Some(owner) = owner else {
         return true;
     };
     match game.treaty(me, owner) {
         Treaty::War => true,
-        // A wizard it has not met cannot be declared war on: the landing goes on.
+        // A player it has not met cannot be declared war on: the landing goes on.
         Treaty::None if !game.have_met(me, owner) => true,
+        // No war in a peace period.
+        Treaty::None if !crate::attack::may_declare(&PlayerView::new(game, me), owner) => false,
         Treaty::None => {
             if ai
                 .send(

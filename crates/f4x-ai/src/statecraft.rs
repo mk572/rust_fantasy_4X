@@ -128,24 +128,6 @@ pub(crate) fn leader_of(world: &World, observer: PlayerId) -> Option<PlayerId> {
     (leader != observer && best * 100 >= k.leader_margin * second.max(1)).then_some(leader)
 }
 
-/// How far ahead of the best rival the observer stands, in the power the statecraft scores (army
-/// and cities, as [`leader_of`] reads them): the observer's score over the best other's, 1 when
-/// level or when it has met nobody. Above 1 the observer leads (task 697: a lead lowers the edge an
-/// army wants before it marches).
-pub(crate) fn lead_of(world: &World, observer: PlayerId) -> f32 {
-    let k = world.levers().diplomacy;
-    let scene = Scene::new(world, observer);
-    let score = |p: PlayerId| scene.power(world, p).score(&k).max(1) as f32;
-    scene
-        .others
-        .iter()
-        .map(|&p| score(observer) / score(p))
-        .fold(None, |best: Option<f32>, x| {
-            Some(best.map_or(x, |b| b.min(x)))
-        })
-        .unwrap_or(1.0)
-}
-
 /// The race of a player: a neutral player's own, a wizard's the race of its first city.
 fn race_of(world: &World, who: PlayerId) -> Option<RaceId> {
     world.race_of_player(who).or_else(|| {

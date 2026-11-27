@@ -1,15 +1,14 @@
 # AI strike forces: gather first, attack separately
 
-Plan, 27 November 2026. **Nothing here is built.** It builds on the strategic AI's settings file
-(`f4x-def/content/ai_strategy.ron`, task 831, done).
+Plan, 27 November 2026. **Step 1 (the attack module, task 836) is built; step 2 (task 837) is not.**
+It builds on the strategic AI's settings file (`f4x-def/content/ai_strategy.ron`, task 831, done).
 
 ## 1. Why
 
-The AI mixes gathering and attacking. `strike.rs`, `raid.rs` and `perimeter.rs` each attack in their
-own way, `war.rs` only walks units, and quick strikes skip war targets and leave them "to the army".
-Since commit `0d12516a` (17 November 2026) nothing therefore attacks a war target: nine swordsmen
-beside a target town held by one spearman fought no battle, and took it at once when the town was not
-marked as the target (a throwaway test of one turn; the test is not in the tree).
+Before step 1 the AI mixed gathering and attacking: `strike.rs`, `raid.rs` and `perimeter.rs` each
+attacked in their own way, `war.rs` only walked units, and the quick strikes skipped war targets and
+left them "to the army". Since commit `0d12516a` (17 November 2026) nothing therefore attacked a war
+target: nine swordsmen beside a target town held by one spearman fought no battle.
 
 The goal: the dispatcher only **builds up a force** that can take a target, and a separate logic
 **checks whether the force is enough and attacks**. The attack logic belongs to the AI only. The
@@ -30,6 +29,8 @@ gathering orders are what can later move into `f4x-core` beside the other unit o
   planning or fighting a war against its owner.
 - A preemptive strike on another player's units that come too close to a city makes sense, but only
   when the AI is open to declaring war on that player anyway (a bad relationship and the like).
+- The campaign declares war on the owner of its target itself, but never against a partner of a pact
+  or an alliance, nor in a peace period, and does not aim at such a city (decided with task 836).
 - **One** AI setting says how many times as strong a force must be to attack: **1.2**.
 - All the levers of the strategic AI belong in one settings file, those of the battle AI in another
   (tasks 831 and 832).
@@ -41,50 +42,10 @@ gathering orders are what can later move into `f4x-core` beside the other unit o
   `NotAdjacent`; a site is entered by one stack that could make the step).
 - A battle takes `max_battle_side` units a side; a square holds `max_tile`.
 
-## 4. Step 1: one attack module
+## 4. Step 1: one attack module (built)
 
-`attack.rs` replaces `strike.rs`. For each own stack it looks at the adjacent squares and attacks
-when the stack is at least `attack_force` (1.2) times as strong as the defence.
-
-| Target | Who may attack | The defence |
-|---|---|---|
-| Lair or tower | the raid force sent against **that** site | `site::expected_vs`; spell power counts for the attackers; `site::lost_before` is respected |
-| City of a player not at war (wizard or independent) | only the campaign force sent against it, which declares war first | the visible defenders, with the city factor |
-| Enemy units or city at war, roaming monsters | free, campaign muster, march, perimeter, reinforce, garrison | the visible defenders, with the city factor for a city |
-| Units of a player not at war that stand in the zone of an own city | perimeter units, only when the AI is open to war on that player; it declares war first | the visible defenders |
-
-- `attack_force: 1.2` is a new entry of `ai_strategy.ron`. It replaces these entries of its `attack`
-  group: `attack` (1.4, which is also the edge against a site), `committed` (1.1), the campaign edge by
-  phase (`edge_build` 2.0, `edge_secure` 1.5, `edge_win` 1.3 to `edge_lead` 1.05), `sortie` (2.5) and
-  `committed_landing` (1.2). There is no threshold by place, role or phase of
-  the game any more.
-- The same number says how large a force the dispatcher gathers (`war_plan` and the force of section
-  5.3) and what `economy` builds towards, so a gathered force is one that attacks.
-- Expected effect: the AI attacks earlier and with smaller armies than now, most of all early in the
-  game (2.0 becomes 1.2).
-- Other numbers keep their own entries, because they answer other questions: how much stronger a
-  party must be to retry a lost site, when a city counts as threatened, how much mana a battle gets,
-  the city factor of a defence. The monsters' own threshold (`monster.rs`, 1.0) is not an AI
-  player's and keeps its entry.
-- War targets are no longer skipped. This fixes the bug.
-- Changes from today: a raid party no longer assaults another lair or tower it happens to pass, and
-  raids no longer target cities at all (`raid::run`, `raid::gather`, `site::sites_near`;
-  `site::neutral_city` goes). Independent cities are the war plan's targets, as wizards' cities are.
-- War is declared by the AI's own decision, never by the game: `naval::declare_war_on_city` covers
-  only wizards today and gets independent players too. A pact or an alliance stops the attack.
-- **Open to war** is one test, `diplo_b_stance::open_to_war`, made of the conditions under which
-  `declare` declares today: the round is at least `from_turn`, there is no treaty and no peace period,
-  the player's enemy value (less the damping for wars already on) reaches `declare`, and the army can
-  spare another front. The perimeter takes units of a player not at war as a threat to attack only
-  then. Today it attacks any such units but those of a partner.
-- Kept as today: the best nine fight (`view::party`); a garrison lends soldiers only when its city is
-  safe without them, and they walk home; an empty city is walked into; raiders with a tired unit wait.
-- The work after an attack moves here from `raid.rs`: remembering a lost assault (`site_losses`) and
-  `restart_plan` after a cleared site.
-- `dispatch::run` calls the module twice: first, while the units have their moves, and after the last
-  job, for units that arrived with moves left.
-- `raid.rs` and `perimeter.rs` lose their attack calls. A party that stands beside a target it is
-  enough for stays there. `monster.rs` does not change.
+`attack.rs` decides and carries out every attack of the AI players at one threshold, `attack_force`.
+What it does is in [`ai-design.md`](ai-design.md), "Attacks".
 
 ## 5. Step 2: rally point and one square beside the target
 
@@ -157,36 +118,27 @@ stronger defence) gets more units this way. The attack itself is step 1's.
 
 ## 6. Open questions
 
-None that blocks step 1. Left for later: whether the squares a force gathers on are safe
+None that blocks step 2. Left for later: whether the squares a force gathers on are safe
 from other enemy units.
 
-## 7. Tests and documents
+## 7. Tests and documents (step 2)
 
 - Tests use the shipped content, units by number, and read the threshold from the content.
-- `strike.rs` tests move to `attack.rs`. The test that a war target is not struck becomes two: a
-  march beside its target attacks it, and a force that is too weak waits.
-- Raid and perimeter tests that expect an attack call the attack step.
 - New: the rally point lies on the way of the last-arriving unit and is no city; a gate changes who
   arrives last; all units for a target use one square; an overseas force is tagged for the landing
   site and attacks after landing; a force crosses by Plane Shift from a square that is no city; a
-  weak force at a target gets more units; a raid party passes a lair it was not sent against; no raid
-  or passing stack attacks the city of a player not at war; the campaign declares war before it does;
-  units near a city are struck, after a declaration, only when the AI is open to war on their owner.
+  weak force at a target gets more units.
 - The `war.rs` and `war_plan.rs` tests that expect a rally city are rewritten.
-- `docs/ai-design.md` (section 15 and "Quick strikes"), `docs/ai-unit-registry.md` (musters) and
-  `docs/ai-diplomacy-b.md` (open to war) are updated with the code, and this plan's built parts move
-  there.
+- `docs/ai-design.md` (section 15) and `docs/ai-unit-registry.md` (musters) are updated with the
+  code, and this plan's built parts move there.
 
 ## 8. Order of work and checks
 
-1. Step 1 (attack module, task 836), then step 2 (rally point, task 837). Each can be
-   reviewed and committed by itself.
-2. After each: `cargo nextest run --workspace --exclude f4x-learn`, `cargo fmt --all`,
+1. Step 1 (task 836) is done; step 2 (rally point, task 837) is next.
+2. After it: `cargo nextest run --workspace --exclude f4x-learn`, `cargo fmt --all`,
    `cargo clippy --workspace --tests --exclude f4x-learn`, and the speed guard
    (`cargo build --release -p f4x-tools`, `python3 scripts/perf_guard.py`).
-3. Known before this work: the speed guard is over its limit with five wizards (146 ms, limit
-   140).
-4. Rally points cost path searches (up to one for each member and square of a path, once for a
+3. Rally points cost path searches (up to one for each member and square of a path, once for a
    target); the speed guard shows whether that matters.
-5. A pinned scripted play that moves is reviewed field by field before it is refreshed.
-6. A soak through `scripts/cool_run.sh` would show cities taken and marches launched.
+4. A pinned scripted play that moves is reviewed field by field before it is refreshed.
+5. A soak through `scripts/cool_run.sh` would show cities taken and marches launched.

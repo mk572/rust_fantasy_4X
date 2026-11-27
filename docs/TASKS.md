@@ -173,8 +173,7 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 833 | Medium | Core / Def | Check the rules outside the battle for numbers that stand in the code, and move them into the content |
 | 834 | Low | Housekeeping | Decide what becomes of the old branch `claude/content-packs-units-buildings` |
 | 835 | Medium | AI | Move the tuning numbers written inside the strategic AI's functions into `ai_strategy.ron` |
-| 836 | High | AI | Strike forces, step 1: one attack module decides and carries out every AI attack, at one threshold |
-| 837 | High | AI | Strike forces, step 2: a force gathers at a rally point and moves to one square beside its target *Needs:* 836 |
+| 837 | High | AI | Strike forces, step 2: a force gathers at a rally point and moves to one square beside its target |
 
 ## Descriptions
 
@@ -934,16 +933,8 @@ situation is a target, not a need (Earth Lore and Raise Volcano nearly always ha
 - No change of value: the pinned scripted plays move only in the content fingerprint of their files, and soaks on the same seeds give the same logs, timings aside. Tests read the values from the content.
 *Needs:* nothing.
 
-**836. Strike forces, step 1: the attack module.** Planned 27 November 2026: [`ai-strike-force.md`](ai-strike-force.md) section 4, with the decisions of section 2. Today nothing attacks a war target.
-- `attack.rs` replaces `strike.rs`, and every attack of the AI players goes through it: who may attack which target is the table of section 4.
-- One lever, `attack_force` (1.2), replaces the attack thresholds by place, role and phase.
-- War targets are no longer skipped; war is declared by the AI's own decision before an attack on a player it is not at war with, and only when it is open to war on that player (`diplo_b_stance::open_to_war`).
-- `raid.rs` and `perimeter.rs` lose their attack calls; raids no longer target cities.
-- Tests and documents as in sections 7 and 8, as far as they concern this step.
-*Needs:* nothing.
-
 **837. Strike forces, step 2: rally point and one square beside the target.** Planned 27 November 2026: [`ai-strike-force.md`](ai-strike-force.md) section 5.
 - A new module, `assembly.rs`, used by the campaign, the raids and the walk repair: travel time with gates, one square beside each target, the force picked by who is soonest at the target, a rally point on the way of the last-arriving unit that is never a city, and the march from it.
 - The special routes of section 5.6: across the sea, raids, tower crossing, Astral Gate, Plane Shift, and where the AI casts its gates.
 - Tests and documents as in sections 7 and 8, as far as they concern this step.
-*Needs:* 836.
+*Needs:* nothing.

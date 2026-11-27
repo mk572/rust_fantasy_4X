@@ -74,18 +74,18 @@ mod tests {
     #[test]
     fn a_variable_overrides_the_strategic_lever_it_names() {
         let content = shipped().rules.ai_strategy.clone();
-        let more = content.attack.attack + 1.0;
+        let more = content.attack.attack_force + 1.0;
         let sorted = overrides::sort_out(
             &STRATEGIC,
             &content,
             StrategyAiRules::set,
-            vars(&[("AIS_ATTACK", &more.to_string())]),
+            vars(&[("AIS_ATTACK_FORCE", &more.to_string())]),
         );
         assert!(sorted.warnings(&STRATEGIC).is_empty(), "{sorted:?}");
         let played = overrides::overridden(content.clone(), StrategyAiRules::set, &sorted.taken);
-        assert_eq!(played.attack.attack, more);
+        assert_eq!(played.attack.attack_force, more);
         let mut rest = played;
-        rest.attack.attack = content.attack.attack;
+        rest.attack.attack_force = content.attack.attack_force;
         assert_eq!(rest, content, "the other levers are the content's");
     }
 
@@ -97,21 +97,21 @@ mod tests {
             &content,
             StrategyAiRules::set,
             vars(&[
-                ("AIS_ATTACK", "never"),
+                ("AIS_ATTACK_FORCE", "never"),
                 ("AIS_NO_SUCH_LEVER", "1"),
                 ("AIK_ATTACK", "1"),
-                ("ATTACK", "1"),
+                ("ATTACK_FORCE", "1"),
             ]),
         );
         assert!(sorted.taken.is_empty(), "{sorted:?}");
         assert_eq!(
             sorted.refused,
-            [("ATTACK".to_string(), "never".to_string())]
+            [("ATTACK_FORCE".to_string(), "never".to_string())]
         );
         assert_eq!(sorted.unknown, ["NO_SUCH_LEVER"]);
         let warnings = sorted.warnings(&STRATEGIC);
         assert_eq!(warnings.len(), 2, "{warnings:?}");
-        assert!(warnings[0].starts_with("AIS_ATTACK=never "));
+        assert!(warnings[0].starts_with("AIS_ATTACK_FORCE=never "));
         assert!(warnings[1].starts_with("AIS_NO_SUCH_LEVER "));
         assert!(warnings[1].contains("AIK_<NAME>"));
     }

@@ -9,8 +9,8 @@
 //! the pool by the registry's claim (a unit holds one role, so two jobs never have the same unit),
 //! and gives them back when it is done.
 //!
-//! The order of the checklist (before it, the quick strikes of `strike.rs`: a stack next to an
-//! enemy it can clearly beat fights it, before any unit has moved):
+//! The order of the checklist (before it and after it, the attacks of `attack.rs`: a stack beside
+//! something it may attack and is strong enough for fights it):
 //!
 //! 0. a city in danger (the perimeter: the free soldiers go for the enemy in its zone, or join the
 //!    garrison when it is the stronger);
@@ -63,7 +63,7 @@ pub fn pool(ai: &Ai, world: &World) -> Pool {
 }
 
 /// Whether the mission a unit holds is still worth pursuing: the lair a raid went for is still
-/// there (or the tower intact, the neutral city standing), the ground a scout went to is still
+/// there (or the tower intact), the ground a scout went to is still
 /// unexplored, the node a spirit went to is still open. Missions of other roles are checked by
 /// their own modules each turn.
 fn mission_valid(
@@ -75,16 +75,7 @@ fn mission_valid(
 ) -> bool {
     use crate::roles::Role;
     match role {
-        Role::Raid => {
-            view.has_lair(target)
-                || view
-                    .towers()
-                    .into_iter()
-                    .any(|(p, intact)| p == target && intact)
-                || view.known_cities().into_iter().any(|(_, owner, p)| {
-                    p == target && !view.is_rival_wizard(owner) && owner != ai.player
-                })
-        }
+        Role::Raid => crate::site::live(view, target),
         // A target with a city on it is dropped (a landing square of a voyage is no site: the settler
         // looks for one ashore).
         // The site must still take a city and a way lead to it (on foot or by ship); the way is
@@ -341,8 +332,8 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     // The sweep of the ship ties (and the sanity check of the passengers), before any job moves
     // one of them.
     crate::pickup::tidy_unit_registry(ai, game);
-    // Quick strikes come first: no unit has used a move or got an order yet.
-    crate::strike::run(ai, game, events);
+    // The attacks come first: no unit has used a move or got an order yet.
+    crate::attack::run(ai, game, events);
     // First the units whose mission is over, so the jobs below see them waiting.
     revalidate(ai, game, events);
     crate::recover::run(ai, game, events);
@@ -375,6 +366,8 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     crate::pickup::run(ai, game, events);
     // The orders a full square stopped go again, now that the units that could move have moved.
     ai.retry_blocked(game, events);
+    // And last, for the units that arrived with moves left.
+    crate::attack::run(ai, game, events);
     crate::roles::audit(ai, game, events);
 }
 

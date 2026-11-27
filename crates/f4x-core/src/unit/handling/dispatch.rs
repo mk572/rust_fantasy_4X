@@ -9,8 +9,7 @@
 //! the pool by the registry's claim (a unit holds one role, so two jobs never have the same unit),
 //! and gives them back when it is done.
 //!
-//! The order of the checklist (before it, the quick strikes of `strike.rs`: a stack next to an
-//! enemy it can clearly beat fights it, before any unit has moved):
+//! The order of the checklist:
 //!
 //! 0. a city in danger (the perimeter: the free soldiers go for the enemy in its zone, or join the
 //!    garrison when it is the stronger);

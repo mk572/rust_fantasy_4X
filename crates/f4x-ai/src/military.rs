@@ -1,7 +1,5 @@
-//! What the war jobs share (`war.rs`, `strike.rs`, `site.rs`, `monster.rs`): the ratios an attack
-//! is judged by, the stacks of a square, the battle and the strength a defence is expected to have.
-
-use f4x_def::rules::ai_strategy::AttackLevers;
+//! What the war jobs share (`war.rs`, `attack.rs`, `site.rs`, `monster.rs`): the stacks of a
+//! square, the battle and the strength a defence is expected to have.
 
 use crate::lever::Levered;
 use std::collections::HashMap;
@@ -13,35 +11,6 @@ use f4x_core::world::{Command, Event, World};
 use crate::view::{fighting_strength, is_fighter, unit_strength};
 use crate::Ai;
 use f4x_master::Game;
-
-/// The edge over what it expects to meet that an army wants before it marches or strikes, by the
-/// phase of the game and the lead of the wizard (task 697). The numbers come from the ratings, not
-/// from soaks: in `duel teams` the side with the larger sum of unit ratings wins 74% of the time at
-/// 1.2 times the other's, 87% at 1.5 and 95% at 2 (`docs/combat-rating.md`, task 721). While it
-/// builds up the wizard marches only for a near-sure win; in the secure phase for a good one; in
-/// the win phase it takes the odds, and the more it leads the fewer it asks, down to a near-even
-/// fight at three times the best rival's power.
-pub(crate) fn edge(levers: &AttackLevers, phase: crate::phase::Phase, lead: f32) -> f32 {
-    match phase {
-        crate::phase::Phase::Build => levers.edge_build,
-        crate::phase::Phase::Secure => levers.edge_secure,
-        crate::phase::Phase::Win => {
-            let (first, last) = (levers.edge_win, levers.edge_lead);
-            let share = ((lead - 1.0) / 2.0).clamp(0.0, 1.0);
-            first + (last - first) * share
-        }
-    }
-}
-
-/// [`edge`] for this wizard now.
-pub(crate) fn campaign_ratio(world: &World, me: f4x_core::player::PlayerId, round: u32) -> f32 {
-    let phase = crate::phase::phase(&PlayerView::new(world, me), round);
-    edge(
-        &world.levers().attack,
-        phase,
-        crate::statecraft::lead_of(world, me),
-    )
-}
 
 /// The eight squares round a square, as steps.
 pub(crate) const NEIGHBOURS: [(i32, i32); 8] = [
@@ -190,61 +159,6 @@ pub(crate) fn expected_defence(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::phase::Phase;
-
-    fn levers() -> AttackLevers {
-        crate::testworld::shipped().rules.ai_strategy.attack
-    }
-
-    /// The edge asked grows with caution: most while building up, least in the win phase.
-    #[test]
-    fn the_edge_asked_falls_from_the_build_phase_to_the_win_phase() {
-        let (build, secure, win) = (
-            edge(&levers(), Phase::Build, 1.0),
-            edge(&levers(), Phase::Secure, 1.0),
-            edge(&levers(), Phase::Win, 1.0),
-        );
-        assert!(
-            build > secure && secure > win && win > 1.0,
-            "{build} {secure} {win}"
-        );
-    }
-
-    /// In the win phase a lead lowers the edge, never below even odds; the other phases do not read it.
-    #[test]
-    fn a_lead_lowers_the_edge_in_the_win_phase_only() {
-        let (level, ahead, far_ahead, beyond) = (
-            edge(&levers(), Phase::Win, 1.0),
-            edge(&levers(), Phase::Win, 2.0),
-            edge(&levers(), Phase::Win, 3.0),
-            edge(&levers(), Phase::Win, 30.0),
-        );
-        assert!(
-            level > ahead && ahead > far_ahead,
-            "{level} {ahead} {far_ahead}"
-        );
-        assert_eq!(far_ahead, beyond, "the fall stops");
-        assert!(far_ahead > 1.0);
-        assert_eq!(
-            edge(&levers(), Phase::Secure, 3.0),
-            edge(&levers(), Phase::Secure, 1.0)
-        );
-        assert_eq!(
-            edge(&levers(), Phase::Build, 3.0),
-            edge(&levers(), Phase::Build, 1.0)
-        );
-    }
-
-    /// The same game asks a bolder edge late than early.
-    #[test]
-    fn the_same_wizard_asks_a_smaller_edge_late_in_the_game_than_early() {
-        let mut w = crate::testworld::game(crate::testworld::COAST_CITY, 8 /* high_men */);
-        w.set_round(1);
-        let early = campaign_ratio(&w, crate::testworld::P0, w.round());
-        w.set_round(400);
-        let late = campaign_ratio(&w, crate::testworld::P0, w.round());
-        assert!(late < early, "{late} against {early}");
-    }
 
     /// An attack on a pact or alliance partner is never sent (the game would refuse it); at war it is.
     #[test]

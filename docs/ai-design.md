@@ -183,7 +183,7 @@ Each is a step with its own test and soak result (section 9).
 **The levers.** Every number that tunes what the strategic AI does is in
 `crates/f4x-def/content/ai_strategy.ron` (`StrategyAiRules`), grouped by subject, each with a comment
 on what it steers. The file holds every value: one left out is an error, and the code has no default.
-The environment variable `AIS_<NAME>` overrides a lever for a run (`AIS_ATTACK=1.6`), with the
+The environment variable `AIS_<NAME>` overrides a lever for a run (`AIS_ATTACK_FORCE=1.6`), with the
 group's prefix where the head of a group in the file gives one (`AIS_DIPLO_B_OFFER`,
 `AIS_MILITARIST_STRIKE_BASE`; `AIS_CITIES` and `AIS_STRIKE` set every objective). The variables are
 read once; a value the lever cannot take, and a name that is no lever's, are reported on stderr and
@@ -999,7 +999,7 @@ route recon are task 651 and come after task 646 (the dispatcher fills the plan'
 **Party, not stack (17 November 2026).** A square holds `max_tile` units (12) but a battle holds
 `max_battle_side` (9) a side, and nobody joins a battle once it has begun. Every plan that attacks,
 gathers, marches, crosses or lands therefore counts and moves the *party* (`view::party`: the
-strongest nine of the units, strongest first), not the stack: the sorties of `strike.rs`, the
+strongest nine of the units, strongest first), not the stack: the attacks of `attack.rs`, the
 gathering and the march (a muster is full at nine, `force_wanted` is at most nine), the crossing
 by a tower, a landing (judged square by square), the perimeter, the stranded groups of `pickup.rs`
 and the neutral stacks. The soldiers beyond the party stay where they are, available. A stack of
@@ -1033,6 +1033,24 @@ wanted, a scout is chosen by it first (the autobuilder's exploration profile and
 profile read it). The war jobs of task 646 use `party_mobility` to pick a strike party.
 
 
-## Quick strikes (17 November 2026)
+## Attacks (task 836, 27 November 2026)
 
-`strike.rs` runs first in the dispatcher's turn, before any unit has used a move or received an order. A stack next to an enemy square it can clearly beat (the party of nine against what is seen there, with the levers `attack`, `committed` and, out of a city, `sortie`) fights now. Targets: units of wizards and neutral cities we are at war with, and roaming monster bands; never a lair's guards, and never a town that is a war target (the plan's goal and next target, `ai.campaign`, `ai.march_target`). The strike changes nothing in the registry; the units that fought stand on the enemy's square and the dispatcher's repair sends them on to their targets. A city's garrison may join when no other enemy is near the city; its soldiers walk home at once. The engine needs all attackers on one square, so gathering units from several squares first is a later step.
+`attack.rs` is the one place an AI player decides to attack on the map (the roaming monsters keep their own, `monster.rs`). The other jobs only walk units to a square beside the target. The module runs twice in the dispatcher's turn: first, before any unit has used a move or received an order, and after the last job, for the units that arrived with moves left. It replaces the quick strikes of 17 November, which skipped war targets and left them "to the army"; nothing else attacked them.
+
+A stack beside a target attacks when the units that may attack it are at least `attack_force` (1.2) times as strong as the defence. The best nine fight (`view::party`). The same number says how large a force the campaign gathers (`war_plan::strength_wanted`) and what the cities build towards, so a gathered force is one that attacks. There is no threshold by place, role or phase of the game.
+
+| Target | Who may attack it | The defence |
+|---|---|---|
+| Lair or intact tower | the force sent against **that** one: a raid party, or a march or campaign muster with it as target | `site::expected_vs`; the wizard's spell power counts for the attackers; a site a force as strong lost on is left alone (`site_losses`) |
+| Enemy units or city at war, roaming monsters | free soldiers, the campaign muster, the march, the perimeter, soldiers sent to a city, garrisons | the visible defenders, with the city factor for a city |
+| City of a player not at war (wizard or independent) | only the campaign force sent against it, which declares war first | the visible defenders, with the city factor |
+| Units of a player not at war in the zone of an own city | the perimeter, only when the AI is open to war on that player, which it declares first | the visible defenders |
+
+- **War is the AI's own decision.** The game declares none for an attack. `attack::may_declare` says whether the AI may: a player of diplomacy (a wizard or an independent race), no treaty and no peace period. `attack::may_target` adds the players already at war and the monsters; the war plan, the landing and the crossing aim only at cities it allows, and a campaign or landing whose target's owner becomes a partner or gets a peace period is dropped.
+- **Open to war** (`diplo_b_stance::open_to_war`) is the test under which the diplomacy declares: past `from_turn`, no treaty or peace period, the enemy value (less the damping for wars already on) at `declare`, and an army that can spare another front.
+- A raid party attacks only the site it is set on, never one it passes, and no longer goes for cities: independent cities are the war plan's targets, as wizards' cities are. A party with a unit that has no moves left waits for it.
+- A stack makes one attack in each of the two rounds; the targets its units were sent against come first.
+- A city's garrison joins only when no other enemy is near the city, and its soldiers walk home at once. An empty city is walked into.
+- The work after an assault is here: a lost one is remembered with the party's strength, a cleared site restarts the party's plan clock.
+- The attack changes no role or target. The engine needs all attackers on one square, so gathering from several squares first is the next step ([`ai-strike-force.md`](ai-strike-force.md), task 837).
+

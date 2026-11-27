@@ -1,6 +1,7 @@
 //! The war job (task 646, `docs/ai-design.md` sections 14 and 15): the target the war plan names, the
 //! rally city, the soldiers gathered by need and the march. `military.rs` keeps what the war jobs
-//! share: the ratios, the stacks, the battle and the strength a defence is expected to have.
+//! share: the stacks, the battle and the strength a defence is expected to have; the attack is
+//! `attack.rs`'s.
 
 //! The army: keep cities garrisoned, hit enemies that are weaker, gather a force and march
 //! it on the nearest enemy city, and send spare units to explore.
@@ -78,7 +79,7 @@ fn choose_target(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, capital:
         if ai.campaign.is_some_and(|c| {
             view.city_at(c)
                 .and_then(|e| view.city_owner(e))
-                .is_none_or(|o| o == me)
+                .is_none_or(|o| o == me || !crate::attack::may_target(&view, o))
         }) {
             ai.campaign = None;
         }
@@ -249,9 +250,7 @@ fn march_on(
             ai.roles.end_musters(crate::roles::MusterKind::Campaign);
             ai.march_target = Some(target);
         }
-        let edge = crate::military::campaign_ratio(game, me, game.round());
-        let wanted =
-            crate::war_plan::strength_wanted(&view, &ai.city_memory, game.round(), target, edge);
+        let wanted = crate::war_plan::strength_wanted(&view, &ai.city_memory, game.round(), target);
         // The army attacks as one stack from one square: the units on the rally square, the
         // strongest of them up to what a square holds. The rest of them stay available.
         let (mut at_rally, elsewhere): (Vec<_>, Vec<_>) = free
@@ -727,15 +726,8 @@ fn best_enemy_city(
     cities
         .into_iter()
         .filter(|(_, owner, p)| !skip.contains(p) && focus.is_none_or(|f| *owner == f))
-        // A wizard it has a pact or an alliance with is not attacked: the attack would break the
-        // treaty.
-        .filter(|&(_, owner, _)| {
-            !view.is_rival_wizard(owner)
-                || !matches!(
-                    view.treaty_with(owner),
-                    f4x_core::diplomacy::Treaty::Pact | f4x_core::diplomacy::Treaty::Alliance
-                )
-        })
+        // Not the cities it may not attack: a pact, an alliance or a peace period.
+        .filter(|&(_, owner, _)| crate::attack::may_target(view, owner))
         .filter_map(|(_, owner, p)| {
             let d = distance(view, from, p)? as f32;
             let guess = view.levers().attack.guess;
@@ -862,7 +854,7 @@ fn march_landed(
         let strong_enough = {
             let view = PlayerView::new(game, me);
             band.len() >= 2
-                && stack_strength(&view, &band) >= expected * view.levers().attack.committed_landing
+                && stack_strength(&view, &band) >= expected * view.levers().attack.attack_force
         };
         if !strong_enough {
             continue;
@@ -871,7 +863,16 @@ fn march_landed(
             let view = PlayerView::new(game, me);
             band.iter().map(|&u| view.serial_of(u)).collect()
         };
-        if crate::assault::march(ai, game, &band, target, events).is_ok() {
+        // A band already beside the city stays: it attacks from where it is (`attack.rs`).
+        let beside = {
+            let view = PlayerView::new(game, me);
+            band.iter().all(|&u| {
+                view.unit_position(u)
+                    .and_then(|p| distance(&view, p, target))
+                    .is_some_and(|d| d <= 1)
+            })
+        };
+        if beside || crate::assault::march(ai, game, &band, target, events).is_ok() {
             launched.extend(serials);
         }
     }
@@ -1203,10 +1204,7 @@ mod tests {
         let weak = HashMap::from([(target, (1.0, 1))]);
         let strong = HashMap::from([(target, (average_strength(&view) * 9.0, 1))]);
         let wanted = |m: &HashMap<_, _>| {
-            crate::war_plan::units_for(
-                &view,
-                crate::war_plan::strength_wanted(&view, m, 2, target, 1.5),
-            )
+            crate::war_plan::units_for(&view, crate::war_plan::strength_wanted(&view, m, 2, target))
         };
         assert_eq!(wanted(&weak), 3, "a march needs three at least");
         assert!(wanted(&none) >= 3);
@@ -1708,7 +1706,7 @@ mod tests {
         w.treasury_mut(P0).ok_or("a treasury")?.gold = HalfInt::from_int(1_000_000);
         spawn(&mut w, P0, port, 36 /* galley */, 1);
         let keep = crate::view::garrison_wanted(&PlayerView::new(&w, P0), port);
-        // A full battle side of paladins: a wizard that is still building up asks a wide edge.
+        // A full battle side of paladins: enough for what is guessed of the guards.
         let side = w.max_battle_side();
         spawn(
             &mut w,

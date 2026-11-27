@@ -67,6 +67,12 @@ Non-obvious findings, one rule up front in bold. General lessons (shell, tools) 
   has none. `takes_part_in_diplomacy` stays true for them, so that the rules still note that the
   others have met them. Do not add a player to a game world in a test: take one that is there.
 
+- **An independent city has a diplomatic owner, and its war can end with the capture.** The owner is
+  the race's player (`race_player_id`, made by `World::add_race_players`); `add_neutral_player` alone
+  gives no diplomat, so `DeclareWar` on it fails in a test. A race that loses its last city ends its
+  wars (`IndependenceLost`): to test that war was declared before a capture, check the order of the
+  events, not the treaty afterwards.
+
 ## An accepted order is not a unit that has moved (task 830)
 
 - Standing orders walk at the **end** of the owner's turn (27 November 2026; before, at its start). A

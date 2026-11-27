@@ -663,6 +663,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 828 | Core / AI | Army ledger: a roster of each player's units, used heavily by the AI's unit management (done) |
 | 831 | AI | A settings file for the strategic AI's levers (`ai_strategy.ron`) (done) |
 | 832 | AI | (done) A settings file for the battle AI's levers (`ai_battle.ron`), with no change of behaviour |
+| 836 | AI | Strike forces, step 1: one attack module decides and carries out every AI attack, at one threshold (done) |
 
 ## Descriptions
 
@@ -704,3 +705,11 @@ Done 27 November 2026: `ai_strategy.ron` holds 342 levers (the constants, the `k
 - The documents that name a constant that moved are updated.
 
 Done 27 November 2026: `ai_battle.ron` holds 52 levers, the constants and the tuning numbers that stood in the code of `battle/`; the game rules the AI had copied (the combat die, armour piercing, the fissure odds of Cracks Call) are in `battle.ron` now, read by the battle and the AI. Pair, team, hero and spell duels give the same results as before; the scripted plays and regression games moved only in the content fingerprint of their files.
+
+**836. (done) Strike forces, step 1: the attack module.** Planned 27 November 2026: [`ai-strike-force.md`](ai-strike-force.md) section 4, with the decisions of section 2. Today nothing attacks a war target.
+- `attack.rs` replaces `strike.rs`, and every attack of the AI players goes through it: who may attack which target is the table in [`ai-design.md`](ai-design.md), "Attacks".
+- One lever, `attack_force` (1.2), replaces the attack thresholds by place, role and phase.
+- War targets are no longer skipped; war is declared by the AI's own decision before an attack on a player it is not at war with: the campaign on the owner of its target (never a partner, nor in a peace period), the perimeter only when the AI is open to war on that player (`diplo_b_stance::open_to_war`).
+- `raid.rs` and `perimeter.rs` lose their attack calls; raids no longer target cities.
+- Tests and documents as in sections 7 and 8, as far as they concern this step.
+*Needs:* nothing.

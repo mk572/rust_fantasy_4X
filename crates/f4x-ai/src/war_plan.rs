@@ -50,17 +50,17 @@ pub(crate) struct WarPlan {
     pub recon: Vec<Position>,
 }
 
-/// What the war asks of the army to take `target`: the strength that beats what is expected
-/// there with the margin a march demands (`edge`, which follows the phase and the lead:
-/// `military::campaign_ratio`). The march waits for it, the cities build towards it.
+/// What the war asks of the army to take `target`: the strength that is `attack_force` times what
+/// is expected there, so that the force gathered is one that attacks (`attack.rs`). The march
+/// waits for it, the cities build towards it.
 pub(crate) fn strength_wanted(
     view: &PlayerView,
     memory: &HashMap<Position, (f32, u32)>,
     turn: u32,
     target: Position,
-    edge: f32,
 ) -> f32 {
-    crate::military::expected_defence(view, memory, turn, target) * edge + 1.0
+    let force = view.levers().attack.attack_force;
+    crate::military::expected_defence(view, memory, turn, target) * force + 1.0
 }
 
 /// How many average fighters a strength is, for the cities that build them: at least what a march
@@ -143,7 +143,7 @@ pub(crate) fn next_score(
 }
 
 /// The towns the AI knows of the enemy: every city of another player it has explored, but those
-/// of a wizard it has a pact or an alliance with (the attack would break the treaty), those in
+/// it may not attack (`attack::may_target`: a pact, an alliance, a peace period), those in
 /// `skip` (no march found a way to them) and, when a wizard is about to win with the Spell of
 /// Mastery and one of its towns is known, the towns of anyone else.
 pub(crate) fn towns(
@@ -173,12 +173,7 @@ pub(crate) fn towns(
             continue;
         }
         let rival = view.is_rival_wizard(owner);
-        if rival
-            && matches!(
-                view.treaty_with(owner),
-                f4x_core::diplomacy::Treaty::Pact | f4x_core::diplomacy::Treaty::Alliance
-            )
-        {
+        if !crate::attack::may_target(view, owner) {
             continue;
         }
         let Some(report) = view.city_report(city) else {
@@ -515,8 +510,8 @@ mod tests {
         let strong =
             HashMap::from([(target, (crate::military::average_strength(&view) * 30.0, 2))]);
         let (a, b) = (
-            strength_wanted(&view, &weak, 2, target, 1.5),
-            strength_wanted(&view, &strong, 2, target, 1.5),
+            strength_wanted(&view, &weak, 2, target),
+            strength_wanted(&view, &strong, 2, target),
         );
         assert!(b > a);
         assert_eq!(

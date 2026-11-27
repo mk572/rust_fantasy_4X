@@ -208,29 +208,22 @@ pub(crate) fn declare_on(ai: &Ai, game: &mut Game, events: &mut Vec<Event>, enem
     }
 }
 
-/// War on the chosen enemy, when it is time: the game is past the opening, there is no treaty, no war
-/// has just ended between the two, the value is high enough and no war is on that the army could not
-/// spare (a front at a time, but for a straggler).
-fn declare(
-    ai: &mut Ai,
-    game: &mut Game,
-    events: &mut Vec<Event>,
+/// Would the AI declare war on `other` now? The game is past the opening, there is no treaty, no
+/// war has just ended between the two, the enemy value is high enough and no war is on that the
+/// army could not spare (a front at a time, but for a straggler).
+pub(crate) fn open_to_war(
+    ai: &Ai,
+    game: &Game,
     scene: &Scene,
-    enemy: PlayerId,
+    other: PlayerId,
     reachable: bool,
-) {
+) -> bool {
     let me = ai.player;
     let k = game.levers().diplomacy_b;
-    if game.round() < k.from_turn
-        || game.treaty(me, enemy) != Treaty::None
-        || game
-            .diplomacy
-            .stance(me, enemy)
-            .is_some_and(|s| s.peace_duration > 0)
+    if game.round() < k.from_turn || !crate::attack::may_declare(&PlayerView::new(game, me), other)
     {
-        return;
+        return false;
     }
-    let sk = game.levers().diplomacy;
     let busy = scene.others.iter().any(|&p| {
         game.treaty(me, p) == Treaty::War
             && scene.power(game, me).army < k.busy_army_x * scene.power(game, p).army.max(1)
@@ -243,7 +236,7 @@ fn declare(
     let v = values(
         game,
         me,
-        enemy,
+        other,
         scene,
         &ai.memory.get(),
         reachable,
@@ -251,8 +244,20 @@ fn declare(
     )
     .enemy
         - wars * k.war_damp;
-    let _ = sk;
-    if busy || !reachable || v < k.declare {
+    !busy && reachable && v >= k.declare
+}
+
+/// War on the chosen enemy, when it is time ([`open_to_war`]).
+fn declare(
+    ai: &mut Ai,
+    game: &mut Game,
+    events: &mut Vec<Event>,
+    scene: &Scene,
+    enemy: PlayerId,
+    reachable: bool,
+) {
+    let me = ai.player;
+    if !open_to_war(ai, game, scene, enemy, reachable) {
         return;
     }
     if ai
