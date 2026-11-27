@@ -91,7 +91,6 @@ pub fn run(
     events: &mut Vec<Event>,
 ) -> Vec<hecs::Entity> {
     let me = ai.player;
-    let turn = game.round();
     // The cities the economy builds soldiers for: the enemy near is more than the garrison holds.
     ai.threatened = crate::military::threats(&PlayerView::new(game, me))
         .iter()
@@ -99,18 +98,18 @@ pub fn run(
         .collect();
     let threats = threats(ai, game);
     // A holder whose enemy is gone (or whose city is no longer threatened) gives the role back.
-    {
-        let view = PlayerView::new(game, me);
-        for serial in ai.roles.members(Role::Perimeter) {
-            let to = ai.roles.target_of(serial, Role::Perimeter);
-            let wanted = to.is_some_and(|to| threats.iter().any(|t| t.square == to));
-            let alive = view
-                .my_units()
+    let holders = ai.tasks(game).roles.members(Role::Perimeter);
+    for serial in holders {
+        let to = ai.tasks(game).roles.target_of(serial, Role::Perimeter);
+        let wanted = to.is_some_and(|to| threats.iter().any(|t| t.square == to));
+        let alive = {
+            let view = PlayerView::new(game, me);
+            view.my_units()
                 .into_iter()
-                .any(|u| view.serial_of(u) == serial);
-            if !wanted || !alive {
-                ai.roles.release(serial, Role::Perimeter);
-            }
+                .any(|u| view.serial_of(u) == serial)
+        };
+        if !wanted || !alive {
+            ai.write(game).release(serial, Role::Perimeter);
         }
     }
     free.retain(|&u| is_fighter(&PlayerView::new(game, me), u));
@@ -119,13 +118,14 @@ pub fn run(
             let view = PlayerView::new(game, me);
             let their = crate::view::fighting_strength(&view, &threat.units);
             // Soldiers that hold the role for this enemy or this city, and free ones in reach.
+            let tasks = view.tasks();
             let mut pool: Vec<hecs::Entity> = view
                 .my_units()
                 .into_iter()
                 .filter(|&u| {
                     let s = view.serial_of(u);
-                    ai.roles.is(s, Role::Perimeter)
-                        && ai
+                    tasks.roles.is(s, Role::Perimeter)
+                        && tasks
                             .roles
                             .target_of(s, Role::Perimeter)
                             .is_some_and(|to| to == threat.square)
@@ -164,9 +164,10 @@ pub fn run(
         if total >= their * ratio {
             for &s in &serials {
                 let _ = ai
-                    .roles
-                    .claim(s, Role::Perimeter, turn, Some(threat.square));
-                ai.roles.set_target(s, Role::Perimeter, Some(threat.square));
+                    .write(game)
+                    .claim(s, Role::Perimeter, Some(threat.square));
+                ai.write(game)
+                    .set_target(s, Role::Perimeter, Some(threat.square));
             }
             gather(ai, game, &idle, &threat, their * ratio, events);
         }
@@ -226,7 +227,7 @@ fn gather(
     // The square the force attacks from: the one a group that is enough stands on already, else
     // the last one on the way of the unit that arrives last (`assembly.rs`).
     if let Some(square) = standing {
-        crate::assembly::set_beside(ai, threat.square, square);
+        crate::assembly::set_beside(ai, game, threat.square, square);
     }
     // Soldiers that cannot get there now are tried again next turn.
     let _ = crate::assembly::march(ai, game, &walkers, threat.square, events);
@@ -270,7 +271,9 @@ mod tests {
         for &u in &spare {
             assert!(view.unit_has_order(u));
             assert_eq!(
-                ai.roles.target_of(view.serial_of(u), Role::Perimeter),
+                ai.tasks(&w)
+                    .roles
+                    .target_of(view.serial_of(u), Role::Perimeter),
                 Some(at(8, 6))
             );
         }
@@ -286,7 +289,7 @@ mod tests {
             w.cheat_remove_unit(u);
         }
         let _ = run(&mut ai, &mut w, Vec::new(), &mut Vec::new());
-        assert!(!ai.roles.any(Role::Perimeter));
+        assert!(!ai.tasks(&w).roles.any(Role::Perimeter));
     }
 
     /// Soldiers already beside a weak stack in the zone attack it.

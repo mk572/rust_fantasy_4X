@@ -21,6 +21,7 @@ use f4x_core::hero::Hero;
 use f4x_core::map::{Plane, Position};
 use f4x_core::world::rng::GameRng;
 use f4x_core::world::Command;
+use f4x_core::world::FIRST_ROUND;
 use f4x_def::content::Content;
 use f4x_def::names::NameBundle;
 
@@ -92,6 +93,7 @@ pub fn hero_fight(
             attackers,
             defenders,
         },
+        FIRST_ROUND,
         &mut dice,
     );
     Ok(play_out(&mut world, &mut dice)?.map(|w| (w == P0) == a_attacks))

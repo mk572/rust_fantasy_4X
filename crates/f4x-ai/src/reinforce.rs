@@ -11,7 +11,7 @@
 
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
-use f4x_core::world::{Command, Event, World};
+use f4x_core::world::{Command, Event};
 
 use crate::roles::Role;
 use crate::view::{fighting_strength, is_fighter, unit_strength, ReachCache};
@@ -24,10 +24,11 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let threatened: Vec<(Position, f32)> = crate::military::threats(&PlayerView::new(game, me));
     release(ai, game, &threatened);
-    keep_home(ai, game, &threatened, game.round());
+    keep_home(ai, game, &threatened);
     let mut pool = crate::dispatch::soldiers(ai, game, |roles, s| roles.is_free(s));
     let needs: Vec<(Position, f32)> = {
         let view = PlayerView::new(game, me);
+        let tasks = view.tasks();
         let mut cities: Vec<Position> = view.my_cities().into_iter().map(|(_, p)| p).collect();
         cities.sort_by_key(|p| (p.plane as u8, p.y, p.x));
         cities
@@ -43,7 +44,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     .my_units()
                     .into_iter()
                     .filter(|&u| {
-                        ai.roles.target_of(view.serial_of(u), Role::Reinforce) == Some(city)
+                        tasks.roles.target_of(view.serial_of(u), Role::Reinforce) == Some(city)
                             && view.unit_position(u) != Some(city)
                     })
                     .collect();
@@ -126,12 +127,11 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 }
             }
             let serial = PlayerView::new(game, me).serial_of(unit);
-            let _ = ai
-                .roles
-                .claim(serial, Role::Reinforce, game.round(), Some(city));
-            ai.roles.set_target(serial, Role::Reinforce, Some(city));
+            let _ = ai.write(game).claim(serial, Role::Reinforce, Some(city));
+            ai.write(game)
+                .set_target(serial, Role::Reinforce, Some(city));
             if sails {
-                ai.roles
+                ai.write(game)
                     .set_crossing(serial, Some(crate::roles::Crossing::Sea));
             }
             need -= strength;
@@ -146,34 +146,44 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 
 /// A soldier that stands in a city no enemy threatens, or whose city is no longer ours, has done
 /// its task.
-fn release(ai: &mut Ai, world: &World, threatened: &[(Position, f32)]) {
-    let view = PlayerView::new(world, ai.player);
-    let cities: Vec<Position> = view.my_cities().into_iter().map(|(_, p)| p).collect();
-    for u in view.my_units() {
-        let serial = view.serial_of(u);
-        let Some(to) = ai.roles.target_of(serial, Role::Reinforce) else {
-            continue;
-        };
-        let arrived = view.unit_position(u) == Some(to);
-        let danger = threatened.iter().any(|&(p, _)| p == to);
-        if !cities.contains(&to) || (arrived && !danger) {
-            ai.roles.release(serial, Role::Reinforce);
-        }
+fn release(ai: &mut Ai, game: &mut Game, threatened: &[(Position, f32)]) {
+    let done: Vec<_> = {
+        let view = PlayerView::new(game, ai.player);
+        let tasks = view.tasks();
+        let cities: Vec<Position> = view.my_cities().into_iter().map(|(_, p)| p).collect();
+        view.my_units()
+            .into_iter()
+            .filter_map(|u| {
+                let serial = view.serial_of(u);
+                let to = tasks.roles.target_of(serial, Role::Reinforce)?;
+                let arrived = view.unit_position(u) == Some(to);
+                let danger = threatened.iter().any(|&(p, _)| p == to);
+                (!cities.contains(&to) || (arrived && !danger)).then_some(serial)
+            })
+            .collect()
+    };
+    for serial in done {
+        ai.write(game).release(serial, Role::Reinforce);
     }
 }
 
 /// The free soldiers standing in a threatened city stay in it.
-fn keep_home(ai: &mut Ai, world: &World, threatened: &[(Position, f32)], round: u32) {
-    let free = crate::dispatch::soldiers(ai, world, |roles, s| roles.is_free(s));
-    let view = PlayerView::new(world, ai.player);
-    for u in free {
-        let Some(at) = view.unit_position(u) else {
-            continue;
-        };
-        if threatened.iter().any(|&(p, _)| p == at) {
-            let serial = view.serial_of(u);
-            let _ = ai.roles.claim(serial, Role::Reinforce, round, Some(at));
-        }
+fn keep_home(ai: &mut Ai, game: &mut Game, threatened: &[(Position, f32)]) {
+    let free = crate::dispatch::soldiers(ai, game, |roles, s| roles.is_free(s));
+    let staying: Vec<_> = {
+        let view = PlayerView::new(game, ai.player);
+        free.into_iter()
+            .filter_map(|u| {
+                let at = view.unit_position(u)?;
+                threatened
+                    .iter()
+                    .any(|&(p, _)| p == at)
+                    .then(|| (view.serial_of(u), at))
+            })
+            .collect()
+    };
+    for (serial, at) in staying {
+        let _ = ai.write(game).claim(serial, Role::Reinforce, Some(at));
     }
 }
 
@@ -204,7 +214,7 @@ mod tests {
             n,
         );
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         Ok((w, ai))
     }
 
@@ -213,11 +223,11 @@ mod tests {
         let (mut w, mut ai) = two_cities(4)?;
         let inland = at(INLAND_CITY.0, INLAND_CITY.1);
         run(&mut ai, &mut w, &mut Vec::new());
-        assert_eq!(ai.roles.targets(Role::Reinforce), vec![inland]);
+        assert_eq!(ai.tasks(&w).roles.targets(Role::Reinforce), vec![inland]);
         // The one on its way is counted as held: the next turn sends no more.
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         run(&mut ai, &mut w, &mut Vec::new());
-        assert_eq!(ai.roles.count(Role::Reinforce), 1);
+        assert_eq!(ai.tasks(&w).roles.count(Role::Reinforce), 1);
         Ok(())
     }
 
@@ -227,9 +237,11 @@ mod tests {
         let inland = at(INLAND_CITY.0, INLAND_CITY.1);
         let unit = spawn(&mut w, P0, inland, 104, 1)[0];
         let serial = PlayerView::new(&w, P0).serial_of(unit);
-        let _ = ai.roles.claim(serial, Role::Reinforce, 1, Some(inland));
+        let _ = ai
+            .write(&mut w)
+            .claim(serial, Role::Reinforce, Some(inland));
         run(&mut ai, &mut w, &mut Vec::new());
-        assert!(!ai.roles.is(serial, Role::Reinforce));
+        assert!(!ai.tasks(&w).roles.is(serial, Role::Reinforce));
         Ok(())
     }
 
@@ -250,13 +262,15 @@ mod tests {
     fn a_stronger_enemy_near_a_city_brings_the_spare_soldiers_into_it() {
         let (mut w, spare) = besieged();
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         run(&mut ai, &mut w, &mut Vec::new());
         let view = PlayerView::new(&w, P0);
         for &u in &spare {
             assert!(view.unit_has_order(u));
             assert_eq!(
-                ai.roles.target_of(view.serial_of(u), Role::Reinforce),
+                ai.tasks(&w)
+                    .roles
+                    .target_of(view.serial_of(u), Role::Reinforce),
                 Some(at(10, 6))
             );
         }
@@ -268,18 +282,20 @@ mod tests {
         let (mut w, _) = besieged();
         let extra = spawn(&mut w, P0, at(10, 6), 105, 2);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         run(&mut ai, &mut w, &mut Vec::new());
         let view = PlayerView::new(&w, P0);
         let held = extra
             .iter()
             .filter(|&&u| {
-                ai.roles.is(view.serial_of(u), Role::Reinforce)
-                    || ai.roles.is(view.serial_of(u), Role::Garrison)
+                ai.tasks(&w).roles.is(view.serial_of(u), Role::Reinforce)
+                    || ai.tasks(&w).roles.is(view.serial_of(u), Role::Garrison)
             })
             .count();
         assert_eq!(held, 2);
-        assert!(!extra.iter().any(|&u| ai.roles.is_free(view.serial_of(u))));
+        assert!(!extra
+            .iter()
+            .any(|&u| ai.tasks(&w).roles.is_free(view.serial_of(u))));
     }
 
     /// The empty home city and two soldiers on the far island.
@@ -304,18 +320,20 @@ mod tests {
         let (mut w, overseas) = overseas()?;
         let city = at(COAST_CITY.0, COAST_CITY.1);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         run(&mut ai, &mut w, &mut Vec::new());
         let view = PlayerView::new(&w, P0);
         let tagged: Vec<_> = overseas
             .iter()
             .filter(|&&u| {
-                ai.roles.crossing_of(view.serial_of(u)) == Some(crate::roles::Crossing::Sea)
+                ai.tasks(&w).roles.crossing_of(view.serial_of(u))
+                    == Some(crate::roles::Crossing::Sea)
             })
             .collect();
         assert_eq!(tagged.len(), 1, "one soldier is what the city wants");
         assert_eq!(
-            ai.roles
+            ai.tasks(&w)
+                .roles
                 .target_of(view.serial_of(*tagged[0]), Role::Reinforce),
             Some(city)
         );
@@ -328,17 +346,21 @@ mod tests {
         let (mut w, overseas) = overseas()?;
         let walker = spawn(&mut w, P0, at(8, 6), 104, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         run(&mut ai, &mut w, &mut Vec::new());
         let view = PlayerView::new(&w, P0);
         assert_eq!(
-            ai.roles.target_of(view.serial_of(walker), Role::Reinforce),
+            ai.tasks(&w)
+                .roles
+                .target_of(view.serial_of(walker), Role::Reinforce),
             Some(at(COAST_CITY.0, COAST_CITY.1))
         );
-        assert_eq!(ai.roles.crossing_of(view.serial_of(walker)), None);
-        assert!(overseas
-            .iter()
-            .all(|&u| ai.roles.crossing_of(view.serial_of(u)).is_none()));
+        assert_eq!(ai.tasks(&w).roles.crossing_of(view.serial_of(walker)), None);
+        assert!(overseas.iter().all(|&u| ai
+            .tasks(&w)
+            .roles
+            .crossing_of(view.serial_of(u))
+            .is_none()));
         Ok(())
     }
 }

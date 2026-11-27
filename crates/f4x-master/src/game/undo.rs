@@ -83,14 +83,18 @@ impl Game {
     /// Run a command, recording how to take it back when that is allowed.
     pub(super) fn run_undoable(&mut self, command: Command) -> Vec<Event> {
         if !self.history.on || self.world.in_battle() {
-            return self.world.apply(command, &mut self.state.rng);
+            return self
+                .world
+                .apply(command, self.state.round, &mut self.state.rng);
         }
         let ends_history = matches!(command, Command::Battle(_) | Command::EnterSite { .. });
         let label = label_of(&command);
         let state = self.state.clone();
         let snapshot = (!ends_history).then(|| self.world.snapshot());
         let (draws, explored) = (self.draws(), self.world.explored_total());
-        let events = self.world.apply(command, &mut self.state.rng);
+        let events = self
+            .world
+            .apply(command, self.state.round, &mut self.state.rng);
         // A refused command changed nothing, so it leaves the history as it is.
         if refused(&events) {
             return events;

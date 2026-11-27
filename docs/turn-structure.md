@@ -334,12 +334,13 @@ The game does not take a sender's word that something is a reaction. An event th
 | the random numbers (10.10) | |
 
 - `Master` drives a `&mut Game`: it asks the active seat's controller to play, and another seat's controller when a reaction waits for it. The `Game` does not own the controllers: they borrow the front end's state, cannot be saved, and need to change the game to send commands.
-- The save holds two parts side by side: the `Game`, and one block of plans per computer player. The `Game` does not know that AIs exist; a human or remote player has no block. The unit tasks of a computer player are not in its plans: it writes them into its army ledger, part of the world, with a command (task 830, `ecs-structure.md` 3.12).
+- The save holds two parts side by side: the `Game`, and one block of plans per computer player. The `Game` does not know that AIs exist; a human or remote player has no block. The unit tasks of a computer player are not in its plans: they are in its army ledger, part of the world, which it changes with a command for each change (task 830, `ecs-structure.md` 3.12).
 
 ### 10.6 Who knows the round (decided 26 November 2026)
 
 No command takes a round.
 
+- **A command is applied with the round:** the `Game` hands `World::apply` the current round (the changes of the unit tasks are dated with it, task 830, 28 November 2026).
 - **At a round or turn start** (and in queries) the world operation takes the round as an argument.
 - **War age:** the world stores the age of each war instead of the round it began, and `start_round` adds one, the moment the round advances, so the values stay as they are today. The saved diplomacy field changes, and with it its pinned digest.
 - **Game over:** the `Game` stamps the winning turn.

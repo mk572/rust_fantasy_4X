@@ -44,7 +44,6 @@ pub(crate) fn engineers_possible(view: &PlayerView) -> bool {
 /// One turn of the engineers: each that is idle gets a road to build, or a place to walk to.
 pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    let turn = game.round();
     let (count, engineers) = {
         let view = PlayerView::new(game, me);
         let mut engineers: Vec<hecs::Entity> = view
@@ -68,7 +67,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             )
         };
         if busy {
-            let _ = ai.roles.claim(serial, Role::Road, turn, None);
+            let _ = ai.write(game).claim(serial, Role::Road, None);
             continue;
         }
         // An engineer aboard a ship at sea has no road to build.
@@ -77,15 +76,15 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             view.unit_position(engineer)
                 .is_some_and(|p| !view.road_possible(p))
         };
-        if afloat || ai.roles.claim(serial, Role::Road, turn, None).is_err() {
+        if afloat || ai.write(game).claim(serial, Role::Road, None).is_err() {
             continue;
         }
         match work(ai, game, engineer, events) {
             Some(to) => {
-                let _ = ai.roles.claim(serial, Role::Road, turn, Some(to));
+                let _ = ai.write(game).claim(serial, Role::Road, Some(to));
             }
             None => {
-                ai.roles.release(serial, Role::Road);
+                ai.write(game).release(serial, Role::Road);
             }
         }
     }
@@ -120,7 +119,8 @@ fn work(
         // A link another engineer is on its way to or building is left to it.
         let others: Vec<Position> = {
             let serial = PlayerView::new(game, me).serial_of(engineer);
-            ai.roles
+            ai.tasks(game)
+                .roles
                 .targeted(Role::Road)
                 .into_iter()
                 .filter(|&(s, _)| s != serial)
@@ -256,6 +256,7 @@ fn frontier(
     {
         let serial = PlayerView::new(game, me).serial_of(engineer);
         if ai
+            .tasks(game)
             .roles
             .targeted(Role::Road)
             .into_iter()
@@ -458,9 +459,9 @@ mod tests {
         let view = PlayerView::new(&w, P0);
         let serial = view.serial_of(engineer);
         assert!(view.unit_builds_road(engineer));
-        assert_eq!(ai.roles.role_of(serial), Some(Role::Road));
+        assert_eq!(ai.tasks(&w).roles.role_of(serial), Some(Role::Road));
         assert_eq!(
-            ai.roles.target_of(serial, Role::Road),
+            ai.tasks(&w).roles.target_of(serial, Role::Road),
             Some(at(INLAND_CITY.0, INLAND_CITY.1))
         );
         Ok(())
@@ -515,13 +516,13 @@ mod tests {
         let serial = PlayerView::new(&w, P0).serial_of(engineer);
         for _ in 0..10 {
             run(&mut ai, &mut w, &mut Vec::new());
-            if !ai.roles.has_role(serial) {
+            if !ai.tasks(&w).roles.has_role(serial) {
                 break;
             }
             w.play_round();
         }
         let view = PlayerView::new(&w, P0);
-        assert!(!ai.roles.has_role(serial));
+        assert!(!ai.tasks(&w).roles.has_role(serial));
         assert!(!view.unit_builds_road(engineer));
         // The road between the cities is there.
         let roads = (4..=12)
@@ -595,8 +596,8 @@ mod tests {
         let view = PlayerView::new(&w, P0);
         let (a, b) = (view.serial_of(first), view.serial_of(second));
         let (ta, tb) = (
-            ai.roles.target_of(a, Role::Road),
-            ai.roles.target_of(b, Role::Road),
+            ai.tasks(&w).roles.target_of(a, Role::Road),
+            ai.tasks(&w).roles.target_of(b, Role::Road),
         );
         assert!(ta.is_some() && tb.is_some() && ta != tb, "{ta:?} {tb:?}");
         Ok(())
@@ -622,7 +623,7 @@ mod tests {
         run(&mut ai, &mut w, &mut Vec::new());
         let view = PlayerView::new(&w, P0);
         let serial = view.serial_of(engineer);
-        assert_eq!(ai.roles.role_of(serial), Some(Role::Road));
+        assert_eq!(ai.tasks(&w).roles.role_of(serial), Some(Role::Road));
         assert!(view.unit_builds_road(engineer) || view.unit_has_order(engineer));
         Ok(())
     }

@@ -1003,7 +1003,7 @@ fn trace_turn(
     rest: &[f4x_core::world::Event],
 ) {
     for ai in ais {
-        println!("  [t{}] ai {} {}", round, ai.player().0, ai.describe());
+        println!("  [t{}] ai {} {}", round, ai.player().0, ai.describe(world));
     }
     for (c, city, _) in world.economy().cities() {
         let prod = world.economy().city_production(c);
@@ -1609,7 +1609,7 @@ fn detail_lines(world: &World, round: u32, ais: &[Box<dyn Contestant>]) -> Vec<S
             explored,
             ais.iter()
                 .find(|a| a.player() == id)
-                .map_or(String::new(), |a| a.describe())
+                .map_or(String::new(), |a| a.describe(world))
         ));
         if let Some(a) = ais.iter().find(|a| a.player() == id) {
             let note = a.diplomacy_note(world, round);

@@ -13,17 +13,23 @@ with that city, a unit on its way as `MoveTo` with the square. A unit with nothi
 `AwaitingOrders`, the lowest priority but a role all the same. A routine that gives a role back puts the unit on `AwaitingOrders` at
 once (it is never removed); the next audit gives it the base role its place says.
 
-The role of a unit lives in one place, the registry `Ai::roles` (`roles::Registry`). No routine
+The role of a unit lives in one place, the registry (`roles::Registry`) in the player's army ledger. No routine
 keeps a list of its own units (`raiders`, `scouts`, `marching`, ... no longer exist). A routine asks
 the registry who holds its role, and takes or gives roles through it.
 
 ## 2. What the registry holds
 
-A map from a unit's `Serial` to one `Assignment`, ordered by serial. Its home is the player's army
-ledger (`ecs-structure.md` 3.12), with the squares of the gathering forces (`Tasks`): the AI reads
-them from there as its turn begins, works on its own copy, and writes it back with
-`Command::SetTasks` near the end of the turn, so the save and the replay have them. A save from
-before (task 830) has them in the AI's plans; they go into the ledger on the AI's first turn.
+A map from a unit's `Serial` to one `Assignment`, ordered by serial. It is kept in the player's army
+ledger (`ecs-structure.md` 3.12), with the squares of the gathering forces (`Tasks`). The AI has no
+copy of it: it reads the ledger (`Ai::tasks`, `PlayerView::tasks`) and changes it one command at a
+time (`Ai::write`, `task_writer.rs`: `Command::Task`), so the save and the replay have every change,
+dated with the round. The base roles of all units go in one command (`set_bases`) that holds only
+those that differ from the ledger, and none is sent when nothing does: most units keep their base
+role from one look to the next. The ledger takes only units that are in the army, and a unit's entry ends the
+moment it leaves; when the game is over nothing changes any more. A reference to the ledger
+(`TasksRef`) borrows the world, so a routine takes what it needs from it before it writes. A save
+whose AI plans still hold the registry (before task 830) puts it into the ledger on the AI's first
+turn.
 
 | Field | Meaning |
 |---|---|
@@ -32,6 +38,8 @@ before (task 830) has them in the AI's plans; they go into the ledger on the AI'
 | `to` | the square the role sends it to, if any (a raid site, a scout target, a settler's site, the sea square a pickup ship lies at, the city a soldier is sent to) |
 | `party` | the id of the group it acts with, if any (a raid party, a pickup ship and the units it came for) |
 | `with` | the one unit it is tied to (the ship that comes for a waiting unit; an escort's charge) |
+| `planned` | the turn its present plan began (`plan_clock.rs` drops a plan that takes too long) |
+| `crossing`, `boarding` | how it gets to `to` when it cannot walk, and the shore tile where it boards |
 | `last_pos`, `stuck` | where it stood at the last look and for how many looks in a row it has not moved, for roles that give up a target that cannot be reached |
 
 ### Groups
@@ -45,6 +53,8 @@ A group is the set of units that share a `party` id (`new_party`, `group`, `memb
   `to` = the sea square, then `Transporting` with the drop square beside the destination; the units it
   came for keep their own roles, tagged `Crossing::Sea`, with `with` = the ship and `boarding` = the
   shore tile where they board (`pickup::voyages`);
+- a **sea scout's party**: each of the party holds `SeaParty` with `with` = the ship that carries it
+  (`scout::board`);
 - an **escort**: the escort holds `Escort` with `with` = the unit it guards (`escort_of`); when the
   charge no longer holds `Settle`, `Road` or `Meld` (it founded its city, finished, or died)
   `escort::run` releases the escort.

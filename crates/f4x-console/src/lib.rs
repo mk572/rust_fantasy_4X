@@ -333,8 +333,9 @@ impl Ctx<'_> {
     /// Set the world up by hand with `command` ([`Command::is_setup`]), which no player may
     /// send, and print what happened.
     pub fn cheat(&mut self, command: Command) -> Result<(), ConsoleError> {
+        let round = self.game.round();
         let (world, rng) = self.game.world_and_rng();
-        let events = world.apply(command, rng);
+        let events = world.apply(command, round, rng);
         let mut refused = None;
         for e in &events {
             if let Event::Rejected(why) = e {
@@ -367,8 +368,9 @@ impl Ctx<'_> {
             // The game takes no such order from a player whose turn it is not: override mode
             // gives it by hand, as it does a cheat.
             if self.overriding() && events == [Event::Rejected(Rejection::NotYourTurn)] {
+                let round = self.game.round();
                 let (world, rng) = self.game.world_and_rng();
-                events = world.apply(cmd, rng);
+                events = world.apply(cmd, round, rng);
             }
             for e in &events {
                 match e {

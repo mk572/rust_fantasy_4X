@@ -32,9 +32,10 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let orders: Vec<(hecs::Entity, Position)> = {
         let view = PlayerView::new(game, me);
         let cities: Vec<Position> = view.my_cities().into_iter().map(|(_, p)| p).collect();
+        let tasks = view.tasks();
         let busy = |serial| {
-            ai.roles.is(serial, crate::roles::Role::SeaParty)
-                || ai.roles.role_of(serial).is_some_and(|r| {
+            tasks.roles.is(serial, crate::roles::Role::SeaParty)
+                || tasks.roles.role_of(serial).is_some_and(|r| {
                     !matches!(r, crate::roles::Role::Raid | crate::roles::Role::March)
                 })
         };
@@ -56,8 +57,8 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             // In a city it mends where it stands, and on its way home it is left alone (a raid or a
             // march it was on has an order too, which it gives up).
             let serial = view.serial_of(u);
-            let on_a_raid = ai.roles.is(serial, crate::roles::Role::Raid)
-                || ai.roles.is(serial, crate::roles::Role::March);
+            let on_a_raid = tasks.roles.is(serial, crate::roles::Role::Raid)
+                || tasks.roles.is(serial, crate::roles::Role::March);
             if cities.contains(&at) || (view.unit_has_order(u) && !on_a_raid) {
                 continue;
             }
@@ -83,14 +84,10 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     };
     for (unit, to) in orders {
         let serial = PlayerView::new(game, me).serial_of(unit);
-        ai.roles.retain_role(crate::roles::Role::Raid, |s| {
-            let s = &s;
-            *s != serial
-        });
-        ai.roles.retain_role(crate::roles::Role::March, |s| {
-            let s = &s;
-            *s != serial
-        });
+        ai.write(game)
+            .retain_role(crate::roles::Role::Raid, |s| s != serial);
+        ai.write(game)
+            .retain_role(crate::roles::Role::March, |s| s != serial);
         ai.order(game, Command::ClearOrders { units: vec![unit] }, events);
         ai.order(
             game,
@@ -131,10 +128,12 @@ mod tests {
         w.scenario_set_hurt(u, max * 3 / 4);
         let serial = PlayerView::new(&w, P0).serial_of(u);
         let mut ai = Ai::new(P0);
-        let _ = ai.roles.claim(serial, crate::roles::Role::Raid, 1, None);
+        let _ = ai
+            .write(&mut w)
+            .claim(serial, crate::roles::Role::Raid, None);
         run(&mut ai, &mut w, &mut Vec::new());
         assert!(
-            !ai.roles.any(crate::roles::Role::Raid),
+            !ai.tasks(&w).roles.any(crate::roles::Role::Raid),
             "the raid is dropped"
         );
         assert!(

@@ -811,7 +811,7 @@ fn resolve_paid(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         }
         let k = kind(view.spell(spell));
         if aims_at_crossers(view.spell(spell), k) {
-            cross_aim(ai, &view, spell, k)
+            cross_aim(&view, spell, k)
         } else {
             pick_target(&view, spell)
         }
@@ -1118,7 +1118,7 @@ fn earth_gate_target(ai: &Ai, view: &PlayerView, spell: SpellId) -> Option<Targe
     let positions: Vec<Position> = cities.iter().map(|&(_, p)| p).collect();
     let capital = view.fortress().or_else(|| positions.first().copied())?;
     let near = [
-        crate::assembly::rally_of(ai, campaign),
+        crate::assembly::rally_of(&view.tasks(), campaign),
         ai.crossing,
         Some(campaign),
     ]
@@ -1206,8 +1206,8 @@ fn aims_at_crossers(def: &SpellDef, k: Kind) -> bool {
 
 /// The aim of a spell for [`aims_at_crossers`]: a unit that waits for a ship comes first, for
 /// Flight as for the walking spells; Flight with none waiting goes where a buff does.
-fn cross_aim(ai: &Ai, view: &PlayerView, spell: SpellId, k: Kind) -> Option<Target> {
-    cross_target(ai, view, spell).or_else(|| {
+fn cross_aim(view: &PlayerView, spell: SpellId, k: Kind) -> Option<Target> {
+    cross_target(view, spell).or_else(|| {
         (k == Kind::UnitBuff)
             .then(|| pick_target(view, spell))
             .flatten()
@@ -1220,13 +1220,13 @@ fn cross_aim(ai: &Ai, view: &PlayerView, spell: SpellId, k: Kind) -> Option<Targ
 /// itself or in its stack. Wind Walking carries the stack it is in, so it goes to the unit with
 /// the most waiting mates on its square; Water Walking and Flight carry the one unit, the oldest
 /// of those that wait.
-fn cross_target(ai: &Ai, view: &PlayerView, spell: SpellId) -> Option<Target> {
-    let waiting = ai.roles.waiting_for_ship();
+fn cross_target(view: &PlayerView, spell: SpellId) -> Option<Target> {
+    let waiting = view.tasks().roles.waiting_for_ship();
     if waiting.is_empty() {
         return None;
     }
     if raises_island(view.spell(spell)) {
-        return island_target(ai, view, spell, &waiting);
+        return island_target(view, spell, &waiting);
     }
     let mine = view.my_units();
     let wind = grants_any(view.spell(spell), &[74 /* wind_walking */]);
@@ -1260,16 +1260,16 @@ fn cross_target(ai: &Ai, view: &PlayerView, spell: SpellId) -> Option<Target> {
 /// free or has no work yet (an island raised last turn, a galley just built): the dispatcher
 /// gives it the waiting units first.
 fn island_target(
-    ai: &Ai,
     view: &PlayerView,
     spell: SpellId,
     waiting: &[(f4x_core::world::serial::Serial, Position)],
 ) -> Option<Target> {
     let mine = view.my_units();
+    let tasks = view.tasks();
     let spare = mine.iter().any(|&u| {
         crate::view::is_ship(view, u) && {
             let s = view.serial_of(u);
-            ai.roles.is(s, crate::roles::Role::TransportFree) || !ai.roles.has_role(s)
+            tasks.roles.is(s, crate::roles::Role::TransportFree) || !tasks.roles.has_role(s)
         }
     });
     if spare {
@@ -1545,7 +1545,7 @@ fn aim_for(ai: &Ai, view: &PlayerView, spell: SpellId, k: Kind) -> Option<Target
     } else if k == Kind::EarthGate {
         earth_gate_target(ai, view, spell)
     } else if aims_at_crossers(def, k) {
-        cross_aim(ai, view, spell, k)
+        cross_aim(view, spell, k)
     } else {
         pick_target(view, spell)
     }
@@ -2451,21 +2451,18 @@ mod tests {
         }
         wizard.set_split(55, 0, 45).map_err(|e| format!("{e:?}"))?;
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         let _ = (Crossing::Sea, Role::Reinforce);
         Ok((w, ai))
     }
 
     /// `units` wait for a ship to the east shore, as the dispatcher leaves them.
-    fn wait_for_a_ship(ai: &mut Ai, w: &Game, units: &[hecs::Entity]) {
+    fn wait_for_a_ship(ai: &mut Ai, w: &mut Game, units: &[hecs::Entity]) {
         use crate::roles::{Crossing, Role};
-        let view = PlayerView::new(w, P0);
         for &u in units {
-            let s = view.serial_of(u);
-            let _ = ai
-                .roles
-                .claim(s, Role::Reinforce, w.round(), Some(at(30, 6)));
-            ai.roles.set_crossing(s, Some(Crossing::Sea));
+            let s = PlayerView::new(w, P0).serial_of(u);
+            let _ = ai.write(w).claim(s, Role::Reinforce, Some(at(30, 6)));
+            ai.write(w).set_crossing(s, Some(Crossing::Sea));
         }
     }
 
@@ -2483,14 +2480,14 @@ mod tests {
         let (mut w, mut ai) = strait_wizard(&[8 /* water_walking */])?;
         let ship = spawn(&mut w, P0, at(25, 1), 36 /* galley */, 1)[0];
         let walkers = spawn(&mut w, P0, at(9, 6), 104 /* spearmen */, 3);
-        crate::roles::register(&mut ai, &w, w.round());
-        wait_for_a_ship(&mut ai, &w, &walkers);
+        crate::roles::register(&mut ai, &mut w);
+        wait_for_a_ship(&mut ai, &mut w, &walkers);
         // One has a ship coming: it is not the one.
-        {
+        let (rider, carrier) = {
             let view = PlayerView::new(&w, P0);
-            ai.roles
-                .board_at(view.serial_of(walkers[0]), view.serial_of(ship), at(9, 6));
-        }
+            (view.serial_of(walkers[0]), view.serial_of(ship))
+        };
+        ai.write(&mut w).board_at(rider, carrier, at(9, 6));
         cast(&ai, &mut w, &mut Vec::new());
         assert!(!has(&w, walkers[0], 8)?, "its ship is coming");
         assert!(has(&w, walkers[1], 8)?, "the first that waits with no ship");
@@ -2507,14 +2504,14 @@ mod tests {
             strait_wizard(&[8 /* water_walking */, 63 /* wind_walking */])?;
         let walkers = spawn(&mut w, P0, at(9, 6), 104 /* spearmen */, 2);
         let flier = spawn(&mut w, P0, at(9, 6), 164 /* great_drake */, 1)[0];
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         // Nobody waits for a ship.
         cast(&ai, &mut w, &mut Vec::new());
         for &u in &walkers {
             assert!(!has(&w, u, 8)? && !has(&w, u, 63)?);
         }
         // A flier that carries the sea tag is no walker: it is not aimed at.
-        wait_for_a_ship(&mut ai, &w, &[flier]);
+        wait_for_a_ship(&mut ai, &mut w, &[flier]);
         cast(&ai, &mut w, &mut Vec::new());
         assert!(!has(&w, flier, 8)? && !has(&w, flier, 63)?);
         Ok(())
@@ -2528,8 +2525,8 @@ mod tests {
         let (mut w, mut ai) = strait_wizard(&[63 /* wind_walking */])?;
         let lone = spawn(&mut w, P0, at(8, 6), 104 /* spearmen */, 1);
         let stack = spawn(&mut w, P0, at(9, 6), 104 /* spearmen */, 3);
-        crate::roles::register(&mut ai, &w, w.round());
-        wait_for_a_ship(&mut ai, &w, &[lone[0], stack[0], stack[1], stack[2]]);
+        crate::roles::register(&mut ai, &mut w);
+        wait_for_a_ship(&mut ai, &mut w, &[lone[0], stack[0], stack[1], stack[2]]);
         cast(&ai, &mut w, &mut Vec::new());
         let carriers: Vec<_> = stack
             .iter()
@@ -2553,8 +2550,8 @@ mod tests {
         let (mut w, mut ai) =
             strait_wizard(&[63 /* wind_walking */, 8 /* water_walking */])?;
         let units = spawn(&mut w, P0, at(9, 6), 104 /* spearmen */, 2);
-        crate::roles::register(&mut ai, &w, w.round());
-        wait_for_a_ship(&mut ai, &w, &units);
+        crate::roles::register(&mut ai, &mut w);
+        wait_for_a_ship(&mut ai, &mut w, &units);
         cast(&ai, &mut w, &mut Vec::new());
         assert!(units.iter().any(|&u| has(&w, u, 8) == Ok(true)));
         assert!(units.iter().all(|&u| has(&w, u, 63) == Ok(false)));
@@ -2567,9 +2564,9 @@ mod tests {
     fn flight_goes_to_the_walker_that_waits_for_a_ship() -> TestResult {
         let (mut w, mut ai) = strait_wizard(&[56 /* flight */])?;
         let units = spawn(&mut w, P0, at(9, 6), 104 /* spearmen */, 3);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         // The last one waits: by serial order the buff would go to the first.
-        wait_for_a_ship(&mut ai, &w, &units[2..]);
+        wait_for_a_ship(&mut ai, &mut w, &units[2..]);
         cast(&ai, &mut w, &mut Vec::new());
         assert!(has(&w, units[2], 56)?);
         assert!(!has(&w, units[0], 56)? && !has(&w, units[1], 56)?);
@@ -2582,7 +2579,7 @@ mod tests {
     fn a_floating_island_is_raised_in_the_strait_for_units_that_wait_for_a_ship() -> TestResult {
         let (mut w, mut ai) = strait_wizard(&[43 /* floating_island */])?;
         let units = spawn(&mut w, P0, at(9, 6), 104 /* spearmen */, 2);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         let islands = |w: &World| {
             let view = PlayerView::new(w, P0);
             view.my_units()
@@ -2593,12 +2590,12 @@ mod tests {
         // Nobody waits: no island.
         cast(&ai, &mut w, &mut Vec::new());
         assert_eq!(islands(&w), 0, "nobody waits for a ship");
-        wait_for_a_ship(&mut ai, &w, &units);
+        wait_for_a_ship(&mut ai, &mut w, &units);
         cast(&ai, &mut w, &mut Vec::new());
         assert_eq!(islands(&w), 1, "an island for the waiting units");
         // It has no work yet: no second one is raised.
-        crate::roles::register(&mut ai, &w, w.round());
-        wait_for_a_ship(&mut ai, &w, &units);
+        crate::roles::register(&mut ai, &mut w);
+        wait_for_a_ship(&mut ai, &mut w, &units);
         cast(&ai, &mut w, &mut Vec::new());
         assert_eq!(islands(&w), 1, "one island at a time");
         Ok(())

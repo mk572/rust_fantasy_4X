@@ -120,8 +120,9 @@ fn a_replay_of_a_game_between_ais_writes_their_unit_tasks_again() {
         play_round(&mut w, &mut ais);
     }
     for player in [PlayerId(0), PlayerId(1)] {
-        assert!(
-            w.player_tasks(player).is_some(),
+        assert_ne!(
+            *w.player_tasks(player),
+            Default::default(),
             "{player:?} wrote its tasks into its ledger"
         );
     }

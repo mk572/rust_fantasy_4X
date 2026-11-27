@@ -402,13 +402,17 @@ of everyone's.
   sides). The save keeps each unit's order (and what it has seen) with the unit's record, and the
   loader gives it to the ledger; the road work of an older save is read as an order. The core carries
   the orders out (`game-flow.md` 3.2).
-- It holds the **unit tasks** the player has set (`unit::task::Tasks`: each unit's role and target,
-  the parties being assembled, and the square a gathering force rallies on and attacks from). The
-  computer players write them, with `Command::SetTasks`, which replaces what was there and orders no
-  unit about; nothing in the rules acts on them. `World::player_tasks` and `PlayerView::my_tasks`
-  read them. They speak of living units only: writing leaves out the others, and a unit's task ends
-  with its place in the ledger. Saved with each player (`PlayerSave::tasks`, left out when the
-  player has written none).
+- It holds the **unit tasks** the player has set (`unit::task::Tasks`: each unit's role, the target
+  of its own job, the turns its role and plan began, the ship that carries it, the musters, and the
+  square each gathering force rallies on and attacks from). The computer players change them with
+  `Command::Task`, one change (`task::Change`) a command, dated with the round the world is given; a
+  change orders no unit about, nothing in the rules acts on the tasks, and core runs none of its
+  after-command checks for it (`World::execute`). `World::player_tasks` and
+  `PlayerView::tasks` read them, by reference (`ledger::TasksRef`). They speak of living units only:
+  a change says nothing of another unit, and a unit's task ends with its place in the ledger. Plans
+  that are no unit's own job (a campaign's target, a landing, a plane crossing's square) are not
+  here: they stay with the computer player. Saved with each player (`PlayerSave::tasks`, left out
+  when empty).
 - A serving hero is in it, like any unit. A hero that is not serving is not: **heroes stay in the hero
   list** (the hero entities, `all_heroes`, 3.5) whatever happens to them. A hero that leaves has the
   parts of its body taken off its entry (`unit::strip_body`, which lists every component a unit can

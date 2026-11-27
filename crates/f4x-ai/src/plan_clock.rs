@@ -10,6 +10,7 @@ use f4x_core::map::Position;
 use f4x_def::rules::ai_strategy::PlanningLevers;
 
 use crate::Ai;
+use f4x_master::Game;
 
 /// Turns a dropped target stays on the AI's list of failures before it may be tried again:
 /// `forgive_plans` times the time of a plan.
@@ -158,9 +159,9 @@ pub(crate) struct Dropped {
 impl Ai {
     /// Drop every plan that has stood for its time (`plan_timeout_turns`, or less for a scout); its target goes on the list of failures, to be tried again later, and the AI
     /// chooses anew. Called at the start of a turn.
-    pub(crate) fn drop_stale_plans(&mut self, levers: &PlanningLevers, turn: u32) -> Dropped {
+    pub(crate) fn drop_stale_plans(&mut self, game: &mut Game, levers: &PlanningLevers) -> Dropped {
+        let turn = game.round();
         let mut out = Dropped::default();
-        self.roles.tick(turn);
         let mut clock = std::mem::take(&mut self.clock);
         if turn.saturating_sub(clock.forgiven) >= forgive_turns(levers) {
             clock.forgiven = turn;
@@ -176,7 +177,7 @@ impl Ai {
                 self.campaign = None;
                 self.crossing = None;
                 self.march_target = None;
-                self.roles.release_role(crate::roles::Role::March);
+                self.write(game).release_role(crate::roles::Role::March);
                 self.unreachable.push(target);
                 self.unreachable_since = turn;
             }
@@ -189,21 +190,17 @@ impl Ai {
             }
         }
         // The plans of single units: each unit's registry entry says when its plan began.
-        for (serial, ..) in
-            self.expired_plans(levers, crate::roles::Role::Raid, PlanKind::Raid, turn)
-        {
-            self.roles
+        let raids = self.expired_plans(game, levers, crate::roles::Role::Raid, PlanKind::Raid);
+        for (serial, ..) in raids {
+            self.write(game)
                 .retain_role(crate::roles::Role::Raid, |s| s != serial);
             clock.count(PlanKind::Raid);
         }
-        for (serial, target) in self
-            .expired_plans(levers, crate::roles::Role::Scout, PlanKind::Scout, turn)
-            .into_iter()
-            .filter(|(_, to)| to.is_some())
-        {
-            self.roles
+        let scouts = self.expired_plans(game, levers, crate::roles::Role::Scout, PlanKind::Scout);
+        for (serial, target) in scouts.into_iter().filter(|(_, to)| to.is_some()) {
+            self.write(game)
                 .set_target(serial, crate::roles::Role::Scout, None);
-            self.roles.clear_track(serial);
+            self.write(game).clear_track(serial);
             if let Some(target) = target {
                 self.bad_scout_targets.push(target);
             }
@@ -223,16 +220,18 @@ impl Ai {
             self.sea_done = true;
             self.sea_gave_up = true;
             self.sea_port = None;
-            self.roles.release_role(crate::roles::Role::SeaParty);
+            self.write(game).release_role(crate::roles::Role::SeaParty);
             out.sea = true;
         }
-        for (serial, ..) in self.expired_plans(
+        let planar = self.expired_plans(
+            game,
             levers,
             crate::roles::Role::PlanarScout,
             PlanKind::Planar,
-            turn,
-        ) {
-            self.roles.release(serial, crate::roles::Role::PlanarScout);
+        );
+        for (serial, ..) in planar {
+            self.write(game)
+                .release(serial, crate::roles::Role::PlanarScout);
             if let Some(tower) = self.planar_tower.take() {
                 self.bad_scout_targets.push(tower);
             }
@@ -246,12 +245,14 @@ impl Ai {
     /// The units holding `role` whose plan has stood for the time of `kind`, with their target.
     fn expired_plans(
         &self,
+        game: &Game,
         levers: &PlanningLevers,
         role: crate::roles::Role,
         kind: PlanKind,
-        now: u32,
     ) -> Vec<(crate::Serial, Option<Position>)> {
-        self.roles
+        let now = game.round();
+        self.tasks(game)
+            .roles
             .plans(role)
             .into_iter()
             .filter(|&(_, planned, _)| now.saturating_sub(planned) >= kind.timeout(levers))
@@ -271,27 +272,45 @@ impl Ai {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::roles::Role;
+    use crate::testworld::{at, game, spawn, COAST_CITY, P0};
+    use f4x_core::player::view::PlayerView;
+    use f4x_core::world::serial::Serial;
 
     fn planning() -> PlanningLevers {
         crate::testworld::levers().planning
     }
-    use crate::testworld::{at, game, spawn, COAST_CITY, P0};
 
-    fn ai_at(turn: u32) -> (Ai, u32) {
-        (Ai::new(P0), turn)
+    fn ai_at(turn: u32) -> (Game, Ai, u32) {
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.set_round(turn);
+        (w, Ai::new(P0), turn)
+    }
+
+    /// The clock run in the round `round`.
+    fn run_in(ai: &mut Ai, w: &mut Game, round: u32) -> Dropped {
+        w.set_round(round);
+        ai.drop_stale_plans(w, &planning())
+    }
+
+    /// The numbers of `count` new units.
+    fn soldiers(w: &mut Game, count: usize) -> Vec<Serial> {
+        let units = spawn(w, P0, at(6, 3), 105 /* high_men_swordsmen */, count);
+        let view = PlayerView::new(w, P0);
+        units.iter().map(|&u| view.serial_of(u)).collect()
     }
 
     #[test]
     fn a_campaign_is_dropped_after_the_time_and_its_target_is_set_aside() {
-        let (mut ai, turn) = ai_at(10);
+        let (mut w, mut ai, turn) = ai_at(10);
         let target = at(9, 9);
         ai.campaign = Some(target);
         ai.crossing = Some(at(1, 1));
         for t in turn..turn + planning().plan_timeout_turns {
-            ai.drop_stale_plans(&planning(), t);
+            run_in(&mut ai, &mut w, t);
             assert_eq!(ai.campaign, Some(target), "turn {t}");
         }
-        ai.drop_stale_plans(&planning(), turn + planning().plan_timeout_turns);
+        run_in(&mut ai, &mut w, turn + planning().plan_timeout_turns);
         assert_eq!(ai.campaign, None);
         assert_eq!(ai.crossing, None);
         assert!(ai.unreachable.contains(&target));
@@ -300,13 +319,13 @@ mod tests {
 
     #[test]
     fn a_new_plan_starts_its_own_clock() {
-        let (mut ai, turn) = ai_at(10);
+        let (mut w, mut ai, turn) = ai_at(10);
         ai.campaign = Some(at(9, 9));
-        ai.drop_stale_plans(&planning(), turn);
-        ai.drop_stale_plans(&planning(), turn + 60);
+        run_in(&mut ai, &mut w, turn);
+        run_in(&mut ai, &mut w, turn + 60);
         ai.campaign = Some(at(8, 8));
-        ai.drop_stale_plans(&planning(), turn + 61);
-        ai.drop_stale_plans(&planning(), turn + planning().plan_timeout_turns + 20);
+        run_in(&mut ai, &mut w, turn + 61);
+        run_in(&mut ai, &mut w, turn + planning().plan_timeout_turns + 20);
         assert_eq!(
             ai.campaign,
             Some(at(8, 8)),
@@ -317,7 +336,7 @@ mod tests {
 
     #[test]
     fn a_landing_is_dropped_and_its_target_goes_on_the_failure_list() {
-        let (mut ai, turn) = ai_at(10);
+        let (mut w, mut ai, turn) = ai_at(10);
         let plan = crate::naval::Plan {
             target: at(9, 9),
             land: at(8, 9),
@@ -325,8 +344,8 @@ mod tests {
             port: at(COAST_CITY.0, COAST_CITY.1),
         };
         ai.naval = Some(plan);
-        ai.drop_stale_plans(&planning(), turn);
-        ai.drop_stale_plans(&planning(), turn + planning().plan_timeout_turns);
+        run_in(&mut ai, &mut w, turn);
+        run_in(&mut ai, &mut w, turn + planning().plan_timeout_turns);
         assert_eq!(ai.naval, None);
         assert_eq!(ai.naval_bad, vec![plan.target]);
         assert_eq!(ai.clock.dropped(PlanKind::Landing), 1);
@@ -334,92 +353,74 @@ mod tests {
 
     #[test]
     fn a_raider_out_for_the_time_is_called_back_and_a_fresh_one_is_not() {
-        let mut w = game(COAST_CITY, 8);
-        let units = spawn(&mut w, P0, at(6, 3), 105, 2);
-        let mut ai = Ai::new(P0);
-        let view = f4x_core::player::view::PlayerView::new(&w, P0);
-        let old = view.serial_of(units[0]);
-        let _ = ai.roles.claim(old, crate::roles::Role::Raid, 10, None);
-        ai.drop_stale_plans(&planning(), 10);
-        let fresh = view.serial_of(units[1]);
-        let _ = ai.roles.claim(
-            fresh,
-            crate::roles::Role::Raid,
-            10 + planning().plan_timeout_turns - 1,
-            None,
-        );
-        ai.drop_stale_plans(&planning(), 10 + planning().plan_timeout_turns - 1);
-        assert_eq!(ai.roles.members(crate::roles::Role::Raid), vec![old, fresh]);
-        ai.drop_stale_plans(&planning(), 10 + planning().plan_timeout_turns);
-        assert_eq!(ai.roles.members(crate::roles::Role::Raid), vec![fresh]);
+        let (mut w, mut ai, turn) = ai_at(10);
+        let units = soldiers(&mut w, 2);
+        let (old, fresh) = (units[0], units[1]);
+        let _ = ai.write(&mut w).claim(old, Role::Raid, None);
+        run_in(&mut ai, &mut w, turn);
+        let late = turn + planning().plan_timeout_turns - 1;
+        w.set_round(late);
+        let _ = ai.write(&mut w).claim(fresh, Role::Raid, None);
+        run_in(&mut ai, &mut w, late);
+        assert_eq!(ai.tasks(&w).roles.members(Role::Raid), vec![old, fresh]);
+        run_in(&mut ai, &mut w, late + 1);
+        assert_eq!(ai.tasks(&w).roles.members(Role::Raid), vec![fresh]);
         assert_eq!(ai.clock.dropped(PlanKind::Raid), 1);
     }
 
     #[test]
     fn a_campaign_dropped_also_ends_its_march() {
-        let (mut ai, turn) = ai_at(10);
+        let (mut w, mut ai, turn) = ai_at(10);
+        let marcher = soldiers(&mut w, 1)[0];
         ai.campaign = Some(at(9, 9));
         ai.march_target = Some(at(9, 9));
-        let _ = ai
-            .roles
-            .claim(crate::Serial(7), crate::roles::Role::March, 1, None);
-        ai.drop_stale_plans(&planning(), turn);
-        ai.drop_stale_plans(&planning(), turn + planning().plan_timeout_turns);
-        assert!(!ai.roles.any(crate::roles::Role::March) && ai.march_target.is_none());
+        let _ = ai.write(&mut w).claim(marcher, Role::March, None);
+        run_in(&mut ai, &mut w, turn);
+        run_in(&mut ai, &mut w, turn + planning().plan_timeout_turns);
+        assert!(!ai.tasks(&w).roles.any(Role::March) && ai.march_target.is_none());
     }
 
     #[test]
     fn a_scout_walking_to_one_target_too_long_gives_it_up_but_one_with_new_targets_does_not() {
-        let (mut ai, turn) = ai_at(10);
-        let (walker, finder) = (crate::Serial(1), crate::Serial(2));
-        let _ = ai
-            .roles
-            .claim(walker, crate::roles::Role::Scout, turn, Some(at(9, 9)));
-        let _ = ai
-            .roles
-            .claim(finder, crate::roles::Role::Scout, turn, None);
+        let (mut w, mut ai, turn) = ai_at(10);
+        let units = soldiers(&mut w, 2);
+        let (walker, finder) = (units[0], units[1]);
+        let _ = ai.write(&mut w).claim(walker, Role::Scout, Some(at(9, 9)));
+        let _ = ai.write(&mut w).claim(finder, Role::Scout, None);
         let mut released = Vec::new();
         for t in 0..=planning().scout_timeout_turns {
-            ai.roles
-                .set_target(finder, crate::roles::Role::Scout, Some(at(2 + t / 10, 3)));
-            released.extend(ai.drop_stale_plans(&planning(), turn + t).release);
+            w.set_round(turn + t);
+            ai.write(&mut w)
+                .set_target(finder, Role::Scout, Some(at(2 + t / 10, 3)));
+            released.extend(run_in(&mut ai, &mut w, turn + t).release);
         }
         assert_eq!(released, vec![walker]);
         assert_eq!(ai.bad_scout_targets, vec![at(9, 9)]);
-        assert!(ai
-            .roles
-            .target_of(finder, crate::roles::Role::Scout)
-            .is_some());
+        assert!(ai.tasks(&w).roles.target_of(finder, Role::Scout).is_some());
         assert_eq!(ai.clock.dropped(PlanKind::Scout), 1);
     }
 
     #[test]
     fn a_sea_scouting_that_never_ends_is_called_off_and_tried_again_later() {
-        let (mut ai, turn) = ai_at(10);
+        let (mut w, mut ai, turn) = ai_at(10);
+        let rider = soldiers(&mut w, 1)[0];
         ai.sea_scouting = true;
         ai.sea_port = Some(at(1, 1));
-        let _ = ai
-            .roles
-            .claim(crate::Serial(3), crate::roles::Role::SeaParty, 1, None);
-        ai.drop_stale_plans(&planning(), turn);
-        assert!(
-            !ai.drop_stale_plans(&planning(), turn + planning().plan_timeout_turns - 1)
-                .sea
-        );
-        assert!(
-            ai.drop_stale_plans(&planning(), turn + planning().plan_timeout_turns)
-                .sea
-        );
+        let _ = ai.write(&mut w).claim(rider, Role::SeaParty, None);
+        run_in(&mut ai, &mut w, turn);
+        assert!(!run_in(&mut ai, &mut w, turn + planning().plan_timeout_turns - 1).sea);
+        assert!(run_in(&mut ai, &mut w, turn + planning().plan_timeout_turns).sea);
         assert!(
             !ai.sea_scouting
                 && ai.sea_done
                 && ai.sea_port.is_none()
-                && !ai.roles.any(crate::roles::Role::SeaParty)
+                && !ai.tasks(&w).roles.any(Role::SeaParty)
         );
         assert_eq!(ai.clock.dropped(PlanKind::SeaScout), 1);
         // The failure lists are forgiven after a while, and with them this.
-        ai.drop_stale_plans(
-            &planning(),
+        run_in(
+            &mut ai,
+            &mut w,
             turn + planning().plan_timeout_turns + forgive_turns(&planning()),
         );
         assert!(!ai.sea_done);
@@ -427,34 +428,34 @@ mod tests {
 
     #[test]
     fn a_sea_scouting_that_found_nothing_stays_over_when_the_lists_are_forgiven() {
-        let (mut ai, turn) = ai_at(10);
+        let (mut w, mut ai, turn) = ai_at(10);
         ai.sea_done = true;
-        ai.drop_stale_plans(&planning(), turn);
-        ai.drop_stale_plans(&planning(), turn + forgive_turns(&planning()));
+        run_in(&mut ai, &mut w, turn);
+        run_in(&mut ai, &mut w, turn + forgive_turns(&planning()));
         assert!(ai.sea_done);
     }
 
     #[test]
     fn a_planar_scout_that_never_reaches_the_tower_is_let_go_and_the_tower_set_aside() {
-        let (mut ai, turn) = ai_at(10);
-        let s = crate::Serial(4);
-        let _ = ai.roles.claim(s, crate::roles::Role::PlanarScout, 1, None);
+        let (mut w, mut ai, turn) = ai_at(10);
+        let s = soldiers(&mut w, 1)[0];
+        let _ = ai.write(&mut w).claim(s, Role::PlanarScout, None);
         ai.planar_tower = Some(at(5, 5));
-        ai.drop_stale_plans(&planning(), turn);
-        let out = ai.drop_stale_plans(&planning(), turn + planning().plan_timeout_turns);
+        run_in(&mut ai, &mut w, turn);
+        let out = run_in(&mut ai, &mut w, turn + planning().plan_timeout_turns);
         assert_eq!(out.release, vec![s]);
-        assert!(ai.roles.planar().is_none() && ai.roles.scouting().is_empty());
+        assert!(ai.tasks(&w).roles.planar().is_none() && ai.tasks(&w).roles.scouting().is_empty());
         assert_eq!(ai.bad_scout_targets, vec![at(5, 5)]);
         assert_eq!(ai.clock.dropped(PlanKind::Planar), 1);
     }
 
     #[test]
     fn the_failure_lists_are_forgiven_after_a_while() {
-        let (mut ai, _) = ai_at(10);
+        let (mut w, mut ai, turn) = ai_at(10);
         ai.naval_bad.push(at(9, 9));
-        ai.drop_stale_plans(&planning(), 10);
+        run_in(&mut ai, &mut w, turn);
         assert!(!ai.naval_bad.is_empty());
-        ai.drop_stale_plans(&planning(), 10 + forgive_turns(&planning()));
+        run_in(&mut ai, &mut w, turn + forgive_turns(&planning()));
         assert!(ai.naval_bad.is_empty());
     }
 }

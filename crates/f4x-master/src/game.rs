@@ -183,7 +183,9 @@ impl Game {
     /// world when it sets the world up ([`Command::is_setup`]).
     pub fn command(&mut self, command: Command) -> Vec<Event> {
         if command.is_setup() {
-            let mut events = self.world.apply(command, &mut self.state.rng);
+            let mut events = self
+                .world
+                .apply(command, self.state.round, &mut self.state.rng);
             events.extend(self.check_end());
             return events;
         }

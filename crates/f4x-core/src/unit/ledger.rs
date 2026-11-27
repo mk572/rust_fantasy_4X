@@ -9,7 +9,7 @@ use crate::hero::{Fate, Hero};
 use crate::map::Position;
 use crate::player::{Owner, PlayerId, MONSTERS};
 use crate::rules::UnitId;
-use crate::unit::task::Tasks;
+use crate::unit::task::{Change, Tasks};
 use crate::unit::{Experience, Order, Unit};
 use crate::world::serial::Serial;
 
@@ -76,8 +76,8 @@ pub struct ArmyLedger {
     /// Of living units only: a unit that leaves or changes sides loses its order.
     orders: BTreeMap<Serial, Standing>,
     departed: Vec<DepartedUnit>,
-    /// What the player has set its units to do; `None` until it writes it.
-    tasks: Option<Box<Tasks>>,
+    /// What the player has set its units to do (`Command::Task`).
+    tasks: Tasks,
 }
 
 impl ArmyLedger {
@@ -112,9 +112,9 @@ impl ArmyLedger {
         self.living.get(&serial).copied()
     }
 
-    /// What the player has set its units to do, as it last wrote it.
-    pub fn tasks(&self) -> Option<&Tasks> {
-        self.tasks.as_deref()
+    /// What the player has set its units to do.
+    pub fn tasks(&self) -> &Tasks {
+        &self.tasks
     }
 
     /// The units that left, in the order they did.
@@ -123,17 +123,35 @@ impl ArmyLedger {
     }
 }
 
-/// Keep `tasks` in the ledger of the player entity `owner`, in place of what it held. What they
-/// say of units that are not in the army is left out.
-pub(crate) fn set_tasks(ecs: &hecs::World, owner: hecs::Entity, tasks: Option<Box<Tasks>>) {
+/// Make a change of the tasks in the ledger of the player entity `owner`, in the round `round`.
+pub(crate) fn change_tasks(ecs: &hecs::World, owner: hecs::Entity, change: Change, round: u32) {
     let ledger = ecs.get::<&mut ArmyLedger>(owner);
     debug_assert!(ledger.is_ok(), "every player has a ledger");
     if let Ok(mut ledger) = ledger {
         let ledger = &mut *ledger;
-        ledger.tasks = tasks.map(|mut tasks| {
-            tasks.roles.keep_living(|s| ledger.living.contains_key(&s));
-            tasks
-        });
+        let living = &ledger.living;
+        ledger
+            .tasks
+            .apply(change, round, |s| living.contains_key(&s));
+    }
+}
+
+/// The tasks of a player, borrowed from its army ledger: nothing in the world changes while it is
+/// held.
+pub enum TasksRef<'a> {
+    Held(hecs::Ref<'a, ArmyLedger>),
+    /// Of a player that is not there.
+    Nobody(Tasks),
+}
+
+impl std::ops::Deref for TasksRef<'_> {
+    type Target = Tasks;
+
+    fn deref(&self) -> &Tasks {
+        match self {
+            TasksRef::Held(ledger) => ledger.tasks(),
+            TasksRef::Nobody(none) => none,
+        }
     }
 }
 
@@ -172,9 +190,7 @@ pub(crate) fn strike(ecs: &hecs::World, thing: hecs::Entity) {
     if let Ok(mut ledger) = ecs.get::<&mut ArmyLedger>(owner) {
         ledger.living.remove(&serial);
         ledger.orders.remove(&serial);
-        if let Some(tasks) = &mut ledger.tasks {
-            tasks.roles.keep_living(|s| s != serial);
-        }
+        ledger.tasks.roles.keep_living(|s| s != serial);
     }
 }
 

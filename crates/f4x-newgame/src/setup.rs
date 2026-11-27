@@ -19,6 +19,7 @@ use f4x_core::player::PlayerId;
 use f4x_core::rules::RealmId;
 use f4x_core::world::rng::GameRng;
 use f4x_core::world::setting::GameSettings;
+use f4x_core::world::FIRST_ROUND;
 use f4x_def::content::Content;
 
 use f4x_core::wizard::magic::Retort;
@@ -651,6 +652,7 @@ fn start_player(
                     race: race_id,
                     population: world.content().rules.config.wizard.capital_figures,
                 },
+                FIRST_ROUND,
                 rng,
             );
             let Some(city) = events.iter().find_map(|e| match e {
@@ -665,6 +667,7 @@ fn start_player(
                     city,
                     farmers: world.content().rules.config.wizard.capital_farmers,
                 },
+                FIRST_ROUND,
                 rng,
             );
             for building in buildings {
@@ -677,6 +680,7 @@ fn start_player(
                         pos,
                         unit,
                     },
+                    FIRST_ROUND,
                     rng,
                 );
             }

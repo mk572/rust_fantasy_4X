@@ -18,6 +18,7 @@ use f4x_core::map::{Grid, Map, Plane, Position};
 use f4x_core::player::PlayerId;
 use f4x_core::rules::UnitKind;
 use f4x_core::world::rng::GameRng;
+use f4x_core::world::FIRST_ROUND;
 use f4x_core::world::{Command, Event, World};
 use f4x_def::content::Content;
 use f4x_def::names::NameBundle;
@@ -151,6 +152,7 @@ pub fn base_game(content: &Arc<Content>, seed: u64) -> Result<(World, GameRng), 
                 race: Some(race),
                 population: 8,
             },
+            FIRST_ROUND,
             &mut rng,
         );
     }
@@ -207,6 +209,7 @@ pub fn fight(
             attackers,
             defenders,
         },
+        FIRST_ROUND,
         &mut rng,
     );
     play_out(&mut world, &mut rng).map(|winner| match winner {
@@ -247,7 +250,7 @@ pub fn play_out(world: &mut World, rng: &mut GameRng) -> Result<Option<PlayerId>
         let Some(command) = next_command(world) else {
             break;
         };
-        let events = world.apply(Command::Battle(command.clone()), rng);
+        let events = world.apply(Command::Battle(command.clone()), FIRST_ROUND, rng);
         for event in &events {
             match event {
                 Event::Rejected(why) => return Err(format!("{command:?} refused: {why:?}")),

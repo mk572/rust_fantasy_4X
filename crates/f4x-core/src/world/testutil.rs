@@ -107,19 +107,26 @@ pub fn fresh(wizards: u8, seed: u64) -> Result<Table, String> {
     let dice =
         std::fs::read_to_string(path.with_extension("rng")).map_err(|e| failed(e.to_string()))?;
     let rng = ron::from_str(&dice).map_err(|e| failed(e.to_string()))?;
-    Ok(Table { world, rng })
+    Ok(Table::new(world, rng))
 }
 
-/// A world and the generator its tests draw from: what a game holds, without the flow of the
-/// game. It reads and changes like its [`World`]; what draws is given the generator.
+/// A world, the generator its tests draw from and the round: what a game holds, without the flow
+/// of the game. It reads and changes like its [`World`]; what draws is given the generator, and a
+/// command the round.
 pub struct Table {
     pub world: World,
     pub rng: GameRng,
+    pub round: u32,
 }
 
 impl Table {
+    /// In the first round.
     pub fn new(world: World, rng: GameRng) -> Self {
-        Self { world, rng }
+        Self {
+            world,
+            rng,
+            round: crate::world::FIRST_ROUND,
+        }
     }
 
     /// A world with nothing in it, with dice from `seed`.
@@ -141,7 +148,7 @@ impl Table {
     }
 
     pub fn apply(&mut self, command: Command) -> Vec<Event> {
-        self.world.apply(command, &mut self.rng)
+        self.world.apply(command, self.round, &mut self.rng)
     }
 
     pub fn start_round(&mut self, round: u32) -> Vec<Event> {

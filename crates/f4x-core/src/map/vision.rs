@@ -301,7 +301,7 @@ impl VisionEffect {
             | C::BuyProduction { .. }
             | C::SetFarmers { .. }
             | C::BalanceFarmers { .. }
-            | C::SetTasks { .. }
+            | C::Task { .. }
             | C::SetAutoBuild { .. }
             | C::RenameCity { .. }
             | C::SetTaxRate { .. }

@@ -34,7 +34,7 @@ pub trait Contestant {
     fn record_refusals(&mut self, on: bool);
     fn take_refusals(&self) -> Vec<Refused>;
     /// The AI's own state for the soak's detail lines: the tail of the player's line.
-    fn describe(&self) -> String;
+    fn describe(&self, world: &World) -> String;
     /// The diplomacy system the wizard plays and its state, for the detail lines (empty for a version
     /// without systems).
     fn diplomacy_note(&self, _world: &World, _round: u32) -> String {
@@ -96,7 +96,7 @@ macro_rules! contestant {
                     })
                     .collect()
             }
-            fn describe(&self) -> String {
+            fn describe(&self, world: &World) -> String {
                 format!(
                     "{}, scouts {:?}, campaign {:?}, landing {:?}",
                     if self.frontier_closed() {
@@ -104,12 +104,12 @@ macro_rules! contestant {
                     } else {
                         ""
                     },
-                    self.scout_targets()
+                    self.scout_targets(world)
                         .into_iter()
                         .map(|(_, p)| (p.x, p.y))
                         .collect::<Vec<_>>(),
                     self.campaign().map(|c| (c.x, c.y)),
-                    self.landing()
+                    self.landing(world)
                         .map(|(t, port, f)| ((t.x, t.y), (port.x, port.y), f))
                 )
             }

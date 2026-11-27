@@ -20,7 +20,7 @@ use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::world::serial::Serial;
-use f4x_core::world::{Command, Event};
+use f4x_core::world::{Command, Event, World};
 use f4x_master::Game;
 use std::collections::{HashMap, HashSet, VecDeque};
 
@@ -113,6 +113,7 @@ fn keep_posts(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let turn = game.round();
     let ships: Vec<Ship> = {
         let view = PlayerView::new(game, me);
+        let tasks = view.tasks();
         view.my_units()
             .into_iter()
             .filter(|&u| is_ship(&view, u))
@@ -122,7 +123,7 @@ fn keep_posts(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     unit: u,
                     serial: s,
                     at: view.unit_position(u),
-                    post: ai.roles.target_of(s, Role::Bridge),
+                    post: tasks.roles.target_of(s, Role::Bridge),
                     parked: game.economy().is_bridge(u),
                     ordered: view.unit_has_order(u),
                 }
@@ -138,7 +139,7 @@ fn keep_posts(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         ordered,
     } in ships
     {
-        let held = ai.roles.is(serial, Role::Bridge);
+        let held = ai.tasks(game).roles.is(serial, Role::Bridge);
         if !held {
             if parked {
                 ai.order(
@@ -152,13 +153,13 @@ fn keep_posts(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             }
             continue;
         }
-        let asked = ai.roles.get(serial).map_or(turn, |a| a.planned);
+        let asked = ai.tasks(game).roles.get(serial).map_or(turn, |a| a.planned);
         let Some(post) = post else {
-            ai.roles.release_any(serial);
+            ai.write(game).release_any(serial);
             continue;
         };
         if turn.saturating_sub(asked) > game.levers().engineers.bridge_keep_turns {
-            ai.roles.release_any(serial);
+            ai.write(game).release_any(serial);
             if parked {
                 ai.order(
                     game,
@@ -201,7 +202,6 @@ fn keep_posts(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 /// walk (their tag is cleared); those whose strait is gone go back to waiting for a ferry.
 fn serve(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    let turn = game.round();
     let units: HashMap<Serial, hecs::Entity> = {
         let view = PlayerView::new(game, me);
         view.my_units()
@@ -210,7 +210,8 @@ fn serve(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             .collect()
     };
     // The units that wait for a bridge: let walk when a way leads over, else check the strait.
-    for (s, to) in ai.roles.needing(Crossing::Bridge) {
+    let needing = ai.tasks(game).roles.needing(Crossing::Bridge);
+    for (s, to) in needing {
         let Some(&u) = units.get(&s) else {
             continue;
         };
@@ -223,15 +224,16 @@ fn serve(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             )
         };
         if walks {
-            ai.roles.set_crossing(s, None);
-        } else if !strait.is_some_and(|p| posted_at(ai, p)) {
-            ai.roles.set_crossing(s, Some(Crossing::Sea));
+            ai.write(game).set_crossing(s, None);
+        } else if !strait.is_some_and(|p| posted_at(ai, game, p)) {
+            ai.write(game).set_crossing(s, Some(Crossing::Sea));
         } else if let Some(p) = strait {
-            renew(ai, p, turn);
+            renew(ai, game, p);
         }
     }
     // The units that wait for a ship and could do with a bridge.
-    for (s, to) in ai.roles.waiting_for_ship() {
+    let waiting = ai.tasks(game).roles.waiting_for_ship();
+    for (s, to) in waiting {
         let Some(&u) = units.get(&s) else {
             continue;
         };
@@ -243,26 +245,29 @@ fn serve(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let Some(strait) = strait else {
             continue;
         };
-        if posted_at(ai, strait) || send_a_ship(ai, game, strait, events) {
-            renew(ai, strait, turn);
-            ai.roles.set_crossing(s, Some(Crossing::Bridge));
+        if posted_at(ai, game, strait) || send_a_ship(ai, game, strait, events) {
+            renew(ai, game, strait);
+            ai.write(game).set_crossing(s, Some(Crossing::Bridge));
         }
     }
 }
 
 /// Whether a ship holds the post of a bridge at `square`.
-fn posted_at(ai: &Ai, square: Position) -> bool {
-    ai.roles
+fn posted_at(ai: &Ai, world: &World, square: Position) -> bool {
+    let tasks = ai.tasks(world);
+    tasks
+        .roles
         .members(Role::Bridge)
         .into_iter()
-        .any(|s| ai.roles.target_of(s, Role::Bridge) == Some(square))
+        .any(|s| tasks.roles.target_of(s, Role::Bridge) == Some(square))
 }
 
 /// Somebody asked for the bridge at `square` again: it is kept for another `bridge_keep_turns` turns.
-fn renew(ai: &mut Ai, square: Position, turn: u32) {
-    for s in ai.roles.members(Role::Bridge) {
-        if ai.roles.target_of(s, Role::Bridge) == Some(square) {
-            ai.roles.touch(s, turn);
+fn renew(ai: &Ai, game: &mut Game, square: Position) {
+    let ships = ai.tasks(game).roles.members(Role::Bridge);
+    for s in ships {
+        if ai.tasks(game).roles.target_of(s, Role::Bridge) == Some(square) {
+            ai.write(game).restart_plan(s);
         }
     }
 }
@@ -272,11 +277,12 @@ fn send_a_ship(ai: &mut Ai, game: &mut Game, square: Position, events: &mut Vec<
     let me = ai.player;
     let ship = {
         let view = PlayerView::new(game, me);
+        let tasks = view.tasks();
         let mut free: Vec<(u32, hecs::Entity)> = view
             .my_units()
             .into_iter()
             .filter(|&u| is_ship(&view, u))
-            .filter(|&u| ai.roles.is(view.serial_of(u), Role::TransportFree))
+            .filter(|&u| tasks.roles.is(view.serial_of(u), Role::TransportFree))
             .filter(|&u| view.passengers_of(u).is_empty())
             .filter_map(|u| {
                 let d = crate::view::distance(&view, view.unit_position(u)?, square)?;
@@ -293,10 +299,9 @@ fn send_a_ship(ai: &mut Ai, game: &mut Game, square: Position, events: &mut Vec<
         return false;
     }
     let serial = PlayerView::new(game, me).serial_of(ship);
-    let turn = game.round();
     if ai
-        .roles
-        .claim(serial, Role::Bridge, turn, Some(square))
+        .write(game)
+        .claim(serial, Role::Bridge, Some(square))
         .is_err()
     {
         return false;
@@ -314,7 +319,7 @@ fn send_a_ship(ai: &mut Ai, game: &mut Game, square: Position, events: &mut Vec<
             )
             .is_err()
     {
-        ai.roles.release_any(serial);
+        ai.write(game).release_any(serial);
         return false;
     }
     true
@@ -339,12 +344,10 @@ mod tests {
         let walker = spawn(&mut w, P0, at(9, 6), 104 /* spearmen */, 1)[0];
         let ship = spawn(&mut w, P0, at(25, 1), 36 /* galley */, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         let s = PlayerView::new(&w, P0).serial_of(walker);
-        let _ = ai
-            .roles
-            .claim(s, Role::Reinforce, w.round(), Some(at(30, 6)));
-        ai.roles.set_crossing(s, Some(Crossing::Sea));
+        let _ = ai.write(&mut w).claim(s, Role::Reinforce, Some(at(30, 6)));
+        ai.write(&mut w).set_crossing(s, Some(Crossing::Sea));
         Ok((w, ai, walker, ship))
     }
 
@@ -378,13 +381,14 @@ mod tests {
         run(&mut ai, &mut w, &mut events);
         let view = PlayerView::new(&w, P0);
         let (s, ship_serial) = (view.serial_of(walker), view.serial_of(ship));
-        assert!(ai.roles.is(ship_serial, Role::Bridge));
-        assert_eq!(ai.roles.crossing_of(s), Some(Crossing::Bridge));
+        assert!(ai.tasks(&w).roles.is(ship_serial, Role::Bridge));
+        assert_eq!(ai.tasks(&w).roles.crossing_of(s), Some(Crossing::Bridge));
         assert!(
-            ai.roles.waiting_for_ship().is_empty(),
+            ai.tasks(&w).roles.waiting_for_ship().is_empty(),
             "no ferry is sent for it"
         );
         let post = ai
+            .tasks(&w)
             .roles
             .target_of(ship_serial, Role::Bridge)
             .ok_or("a post")?;
@@ -396,7 +400,7 @@ mod tests {
         assert!(w.find_path(&[walker], at(30, 6)).is_some());
         // Next turn the tag is cleared: its job walks it on.
         run(&mut ai, &mut w, &mut events);
-        assert_eq!(ai.roles.crossing_of(s), None);
+        assert_eq!(ai.tasks(&w).roles.crossing_of(s), None);
         Ok(())
     }
 
@@ -426,11 +430,11 @@ mod tests {
     fn with_no_free_ship_the_unit_keeps_waiting_for_a_ferry() -> TestResult {
         let (mut w, mut ai, walker, ship) = waiting()?;
         let ship_serial = PlayerView::new(&w, P0).serial_of(ship);
-        let _ = ai.roles.claim(ship_serial, Role::Scout, w.round(), None);
+        let _ = ai.write(&mut w).claim(ship_serial, Role::Scout, None);
         run(&mut ai, &mut w, &mut Vec::new());
         let s = PlayerView::new(&w, P0).serial_of(walker);
-        assert_eq!(ai.roles.crossing_of(s), Some(Crossing::Sea));
-        assert!(!ai.roles.any(Role::Bridge));
+        assert_eq!(ai.tasks(&w).roles.crossing_of(s), Some(Crossing::Sea));
+        assert!(!ai.tasks(&w).roles.any(Role::Bridge));
         Ok(())
     }
 
@@ -441,6 +445,7 @@ mod tests {
         run(&mut ai, &mut w, &mut events);
         let ship_serial = PlayerView::new(&w, P0).serial_of(ship);
         let post = ai
+            .tasks(&w)
             .roles
             .target_of(ship_serial, Role::Bridge)
             .ok_or("a post")?;
@@ -451,7 +456,7 @@ mod tests {
         w.command(Command::DismissUnit { unit: walker });
         w.set_round(w.round() + w.levers().engineers.bridge_keep_turns + 2);
         run(&mut ai, &mut w, &mut events);
-        assert!(!ai.roles.is(ship_serial, Role::Bridge));
+        assert!(!ai.tasks(&w).roles.is(ship_serial, Role::Bridge));
         run(&mut ai, &mut w, &mut events);
         assert!(!w.economy().is_bridge(ship));
         Ok(())

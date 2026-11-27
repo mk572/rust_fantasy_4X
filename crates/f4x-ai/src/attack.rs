@@ -256,6 +256,7 @@ pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         // sent against first.
         let mut plans: Vec<(bool, Target, Vec<hecs::Entity>)> = {
             let view = PlayerView::new(game, me);
+            let tasks = view.tasks();
             neighbours(&view, pos)
                 .into_iter()
                 .filter_map(|square| {
@@ -272,14 +273,14 @@ pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     let allowed: Vec<hecs::Entity> = units
                         .iter()
                         .copied()
-                        .filter(|&u| may_attack(&ai.roles, view.serial_of(u), &target))
+                        .filter(|&u| may_attack(&tasks.roles, view.serial_of(u), &target))
                         .collect();
                     if allowed.is_empty() {
                         return None;
                     }
                     let passing = !allowed
                         .iter()
-                        .any(|&u| sent_against(&ai.roles, view.serial_of(u), square));
+                        .any(|&u| sent_against(&tasks.roles, view.serial_of(u), square));
                     Some((passing, target, allowed))
                 })
                 .collect()
@@ -367,7 +368,7 @@ fn assault_site(
     // (`plan_clock.rs`).
     if cleared {
         for serial in serials {
-            ai.roles.restart_plan(serial);
+            ai.write(game).restart_plan(serial);
         }
     }
     true
@@ -384,11 +385,12 @@ fn walk_in(
     let me = ai.player;
     let walkers: Vec<hecs::Entity> = {
         let view = PlayerView::new(game, me);
+        let tasks = view.tasks();
         units
             .iter()
             .copied()
             .filter(|&u| {
-                view.unit_moves_left(u) > 0 && !ai.roles.is(view.serial_of(u), Role::Garrison)
+                view.unit_moves_left(u) > 0 && !tasks.roles.is(view.serial_of(u), Role::Garrison)
             })
             .collect()
     };
@@ -409,7 +411,7 @@ fn walk_in(
     // The units are off the ship, or off its boarding tile: its pickup plan must not count them
     // any more.
     for serial in serials {
-        ai.roles.unboard(serial);
+        ai.write(game).unboard(serial);
     }
     true
 }
@@ -435,6 +437,7 @@ fn fight(
     // A city's garrison goes out only when the city is safe without it.
     let (band, lent) = {
         let view = PlayerView::new(game, me);
+        let tasks = view.tasks();
         let lend = force.at_city && city_safe_without(&view, force.from, target.square);
         let fit: Vec<hecs::Entity> = force
             .units
@@ -442,7 +445,7 @@ fn fight(
             .copied()
             .filter(|&u| {
                 view.unit_moves_left(u) > 0
-                    && (lend || !ai.roles.is(view.serial_of(u), Role::Garrison))
+                    && (lend || !tasks.roles.is(view.serial_of(u), Role::Garrison))
             })
             .collect();
         let band = party(&view, &fit);
@@ -453,7 +456,7 @@ fn fight(
         let lent: Vec<hecs::Entity> = band
             .iter()
             .copied()
-            .filter(|&u| ai.roles.is(view.serial_of(u), Role::Garrison))
+            .filter(|&u| tasks.roles.is(view.serial_of(u), Role::Garrison))
             .collect();
         (band, lent)
     };
@@ -506,13 +509,10 @@ mod tests {
     }
 
     /// Give the units a role with a target.
-    fn tag(ai: &mut Ai, w: &Game, units: &[hecs::Entity], role: Role, to: Position) {
-        let view = PlayerView::new(w, ai.player);
+    fn tag(ai: &mut Ai, w: &mut Game, units: &[hecs::Entity], role: Role, to: Position) {
         for &u in units {
-            assert!(ai
-                .roles
-                .claim(view.serial_of(u), role, w.round(), Some(to))
-                .is_ok());
+            let serial = PlayerView::new(w, ai.player).serial_of(u);
+            assert!(ai.write(w).claim(serial, role, Some(to)).is_ok());
         }
     }
 
@@ -605,7 +605,7 @@ mod tests {
         let mut ai = Ai::new(P0);
         let target = at(7, 3);
         ai.campaign = Some(target);
-        tag(&mut ai, &w, &ours, Role::March, target);
+        tag(&mut ai, &mut w, &ours, Role::March, target);
         strike(&mut w, &mut ai);
         assert!(!whole(&w, &theirs));
     }
@@ -643,7 +643,7 @@ mod tests {
         w.reveal_map(P0);
         let mut ai = Ai::new(P0);
         // A raid party sent against another site passes this one.
-        tag(&mut ai, &w, &passing, Role::Raid, at(3, 3));
+        tag(&mut ai, &mut w, &passing, Role::Raid, at(3, 3));
         let events = strike(&mut w, &mut ai);
         assert!(!whole(&w, &band), "the band fell: {events:?}");
         assert!(w.economy().lair_at(at(7, 8)).is_some(), "the lair stands");
@@ -659,21 +659,25 @@ mod tests {
         spawn_site(&mut w, site, zombies(1), Vec::new())?;
         w.reveal_map(P0);
         let mut ai = Ai::new(P0);
-        tag(&mut ai, &w, &party, Role::Raid, site);
+        tag(&mut ai, &mut w, &party, Role::Raid, site);
         // The party has been out for 90 turns when it clears the site.
-        ai.drop_stale_plans(&w.levers().planning, w.round());
+        let planning = w.levers().planning;
+        ai.drop_stale_plans(&mut w, &planning);
         w.set_round(w.round() + 90);
-        ai.drop_stale_plans(&w.levers().planning, w.round());
+        let planning = w.levers().planning;
+        ai.drop_stale_plans(&mut w, &planning);
         let events = strike(&mut w, &mut ai);
         assert!(events
             .iter()
             .any(|e| matches!(e, Event::SiteCleared { player, .. } if *player == P0)));
         // Twenty turns later it would be 110 turns out, but the clear started the time again.
         w.set_round(w.round() + 20);
-        ai.drop_stale_plans(&w.levers().planning, w.round());
+        let planning = w.levers().planning;
+        ai.drop_stale_plans(&mut w, &planning);
         w.set_round(w.round() + 20);
-        ai.drop_stale_plans(&w.levers().planning, w.round());
-        assert!(ai.roles.any(Role::Raid), "not dropped");
+        let planning = w.levers().planning;
+        ai.drop_stale_plans(&mut w, &planning);
+        assert!(ai.tasks(&w).roles.any(Role::Raid), "not dropped");
         assert_eq!(ai.plans_dropped().iter().map(|(_, n)| n).sum::<u32>(), 0);
         Ok(())
     }
@@ -690,7 +694,7 @@ mod tests {
         w.scenario_set_moves_left(party[0], HalfInt::ZERO);
         let mut ai = Ai::new(P0);
         ai.record_refusals(true);
-        tag(&mut ai, &w, &party, Role::Raid, site);
+        tag(&mut ai, &mut w, &party, Role::Raid, site);
         strike(&mut w, &mut ai);
         assert!(w.economy().lair_at(site).is_some(), "it waits");
         assert!(ai.take_refusals().is_empty(), "no refused order");
@@ -716,7 +720,7 @@ mod tests {
         )?;
         w.reveal_map(P0);
         let mut ai = Ai::new(P0);
-        tag(&mut ai, &w, &party, Role::Raid, site);
+        tag(&mut ai, &mut w, &party, Role::Raid, site);
         strike(&mut w, &mut ai);
         assert_eq!(ai.site_losses.len(), 1, "{:?}", ai.site_losses);
         assert_eq!(ai.site_losses[0].0, site);
@@ -752,7 +756,7 @@ mod tests {
         let raiders = spawn(&mut w, P0, at(32, 6), 113 /* high_men_paladins */, 3);
         spawn(&mut w, P0, at(32, 7), 113 /* high_men_paladins */, 3);
         let mut ai = Ai::new(P0);
-        tag(&mut ai, &w, &raiders, Role::Raid, town);
+        tag(&mut ai, &mut w, &raiders, Role::Raid, town);
         let events = strike(&mut w, &mut ai);
         assert_eq!(w.treaty(P0, independent()), Treaty::None, "{events:?}");
         let view = PlayerView::new(&w, P0);
@@ -766,7 +770,7 @@ mod tests {
         let mut w = independent_city(town);
         let army = spawn(&mut w, P0, at(32, 6), 113 /* high_men_paladins */, 3);
         let mut ai = Ai::new(P0);
-        tag(&mut ai, &w, &army, Role::March, town);
+        tag(&mut ai, &mut w, &army, Role::March, town);
         let events = strike(&mut w, &mut ai);
         // The independent loses its last city, and with it the war: the events tell both.
         let position = |wanted: fn(&Event) -> bool| events.iter().position(wanted);
@@ -802,7 +806,7 @@ mod tests {
             }
             let before = w.treaty(P0, P1);
             let mut ai = Ai::new(P0);
-            tag(&mut ai, &w, &army, Role::March, town);
+            tag(&mut ai, &mut w, &army, Role::March, town);
             let events = strike(&mut w, &mut ai);
             assert!(events.is_empty(), "{treaty:?}: {events:?}");
             assert_eq!(w.treaty(P0, P1), before, "{treaty:?}");
@@ -820,7 +824,7 @@ mod tests {
         w.make_contact(P0, P1);
         w.set_round(turn);
         let mut ai = Ai::new(P0);
-        tag(&mut ai, &w, &guard, Role::Perimeter, at(8, 6));
+        tag(&mut ai, &mut w, &guard, Role::Perimeter, at(8, 6));
         (w, ai, theirs)
     }
 
@@ -858,19 +862,32 @@ mod tests {
         let mut w = game(COAST_CITY, 8 /* high_men */);
         let beside = at(ENEMY_CITY.0 - 1, ENEMY_CITY.1);
         let soldier = spawn(&mut w, P0, beside, 105 /* high_men_swordsmen */, 1);
+        // A second city, so that taking this one does not end the game (a game that is over
+        // takes no command, none that changes a task either).
+        w.command(Command::FoundCity {
+            owner: P1,
+            pos: at(ENEMY_CITY.0, ENEMY_CITY.1 + 4),
+            name: "Eastholm".into(),
+            race: w.content().rules.races.id_numbered(8),
+            population: 6,
+        });
         w.make_contact(P0, P1);
         w.declare_war(P0, P1);
         let mut ai = Ai::new(P0);
-        tag(&mut ai, &w, &soldier, Role::Reinforce, beside);
+        tag(&mut ai, &mut w, &soldier, Role::Reinforce, beside);
         let serial = PlayerView::new(&w, P0).serial_of(soldier[0]);
-        ai.roles.board_at(serial, serial, beside);
-        assert!(ai.roles.boarding_of(serial).is_some());
+        ai.write(&mut w).board_at(serial, serial, beside);
+        assert!(ai.tasks(&w).roles.boarding_of(serial).is_some());
         strike(&mut w, &mut ai);
         assert_eq!(
             w.units().unit_position(soldier[0]),
             Some(at(ENEMY_CITY.0, ENEMY_CITY.1)),
             "it walked into the city"
         );
-        assert_eq!(ai.roles.boarding_of(serial), None, "off the passenger list");
+        assert_eq!(
+            ai.tasks(&w).roles.boarding_of(serial),
+            None,
+            "off the passenger list"
+        );
     }
 }

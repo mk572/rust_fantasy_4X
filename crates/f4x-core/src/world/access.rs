@@ -142,14 +142,13 @@ impl World {
         matches!(self.unit_order(unit), Some(Order::Road(_)))
     }
 
-    /// What `player` has set its units to do, as it last wrote it into its army ledger.
-    pub fn player_tasks(&self, player: PlayerId) -> Option<crate::unit::task::Tasks> {
-        let owner = self.player_entity(player)?;
-        let ledger = self
-            .ecs
-            .get::<&crate::unit::ledger::ArmyLedger>(owner)
-            .ok()?;
-        ledger.tasks().cloned()
+    /// What `player` has set its units to do, as its army ledger holds it (nothing for a player
+    /// that is not there).
+    pub fn player_tasks(&self, player: PlayerId) -> crate::unit::ledger::TasksRef<'_> {
+        use crate::unit::ledger::{ArmyLedger, TasksRef};
+        self.player_entity(player)
+            .and_then(|owner| self.ecs.get::<&ArmyLedger>(owner).ok())
+            .map_or_else(|| TasksRef::Nobody(Default::default()), TasksRef::Held)
     }
 
     /// Is the unit waiting for orders: moves left, and neither on standby nor under an order?

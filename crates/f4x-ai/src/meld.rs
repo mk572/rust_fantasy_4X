@@ -46,11 +46,11 @@ pub(crate) fn spirit_wanted(ai: &Ai, view: &PlayerView, round: u32) -> bool {
     // cross, and it is cheap (`scout.rs` recruits it).
     if crate::phase::phase(view, round) == crate::phase::Phase::Build
         && !ai.frontier_closed
-        && ai.roles.scouting().is_empty()
+        && view.tasks().roles.scouting().is_empty()
     {
         return true;
     }
-    let raided = ai.roles.targets(Role::Raid);
+    let raided = view.tasks().roles.targets(Role::Raid);
     view.nodes()
         .into_iter()
         .any(|n| n.owner != Some(ai.player) && !n.warped && raided.contains(&n.pos))
@@ -59,7 +59,6 @@ pub(crate) fn spirit_wanted(ai: &Ai, view: &PlayerView, round: u32) -> bool {
 /// One turn of the spirits.
 pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    let turn = game.round();
     let spirits: Vec<hecs::Entity> = {
         let view = PlayerView::new(game, me);
         let mut spirits: Vec<hecs::Entity> = view
@@ -82,10 +81,10 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         };
         let Some(here) = here else { continue };
         // With no node to go to the spirit is left to the others (a scout, say).
-        if nodes.is_empty() && !ai.roles.is(serial, Role::Meld) {
+        if nodes.is_empty() && !ai.tasks(game).roles.is(serial, Role::Meld) {
             continue;
         }
-        if ai.roles.claim(serial, Role::Meld, turn, None).is_err() {
+        if ai.write(game).claim(serial, Role::Meld, None).is_err() {
             continue;
         }
         // On an open node: meld.
@@ -97,14 +96,14 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 },
                 events,
             );
-            ai.roles.release(serial, Role::Meld);
+            ai.write(game).release(serial, Role::Meld);
             continue;
         }
-        let target = ai.roles.target_of(serial, Role::Meld);
+        let target = ai.tasks(game).roles.target_of(serial, Role::Meld);
         // A spirit that has stood still on its order for too long is not getting there: the order
         // is dropped, the refused-order log gets the cause, and another node is chosen this turn.
         // Nothing is remembered against the node (a node that is taken or guarded is not open).
-        let stuck = ai.roles.track(serial, here, ordered);
+        let stuck = ai.write(game).track(serial, here, ordered);
         let mut skip = None;
         if let (Some(t), true) = (target, stuck >= game.levers().care.meld_patience) {
             ai.note_failure(
@@ -123,13 +122,13 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 },
                 events,
             );
-            ai.roles.clear_track(serial);
-            ai.roles.release(serial, Role::Meld);
+            ai.write(game).clear_track(serial);
+            ai.write(game).release(serial, Role::Meld);
             skip = Some(t);
         } else if ordered && target.is_some_and(|t| nodes.contains(&t)) {
             continue;
         }
-        let taken = ai.roles.targets(Role::Meld);
+        let taken = ai.tasks(game).roles.targets(Role::Meld);
         // The nodes it can walk to, nearest first; the first one the walk planner takes an order for.
         let candidates: Vec<Position> = {
             let view = PlayerView::new(game, me);
@@ -148,10 +147,10 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             .find(|&node| crate::escort::walk(ai, game, spirit, node, events));
         match chosen {
             Some(node) => {
-                let _ = ai.roles.claim(serial, Role::Meld, turn, Some(node));
+                let _ = ai.write(game).claim(serial, Role::Meld, Some(node));
             }
             None => {
-                ai.roles.release(serial, Role::Meld);
+                ai.write(game).release(serial, Role::Meld);
             }
         }
     }
@@ -209,8 +208,11 @@ mod tests {
         let mut ai = Ai::new(P0);
         run(&mut ai, &mut w, &mut Vec::new());
         let serial = PlayerView::new(&w, P0).serial_of(spirit);
-        assert_eq!(ai.roles.role_of(serial), Some(Role::Meld));
-        assert_eq!(ai.roles.target_of(serial, Role::Meld), Some(at(6, 6)));
+        assert_eq!(ai.tasks(&w).roles.role_of(serial), Some(Role::Meld));
+        assert_eq!(
+            ai.tasks(&w).roles.target_of(serial, Role::Meld),
+            Some(at(6, 6))
+        );
         assert!(PlayerView::new(&w, P0).unit_has_order(spirit));
         // Once on the node it melds and is used up (the spirit is put there: the test wizard has
         // no mana to keep it through a turn).
@@ -218,7 +220,7 @@ mod tests {
         run(&mut ai, &mut w, &mut Vec::new());
         let node = w.economy().node_at(at(6, 6)).ok_or("the node")?;
         assert_eq!(node.owner, Some(P0), "the node is the wizard's");
-        assert!(!ai.roles.any(Role::Meld));
+        assert!(!ai.tasks(&w).roles.any(Role::Meld));
         Ok(())
     }
 
@@ -232,6 +234,7 @@ mod tests {
         run(&mut ai, &mut w, &mut Vec::new());
         let serial = PlayerView::new(&w, P0).serial_of(spirit);
         let first = ai
+            .tasks(&w)
             .roles
             .target_of(serial, Role::Meld)
             .ok_or("it has a node")?;
@@ -240,6 +243,7 @@ mod tests {
             run(&mut ai, &mut w, &mut Vec::new());
         }
         let now = ai
+            .tasks(&w)
             .roles
             .target_of(serial, Role::Meld)
             .ok_or("it has a node again")?;
@@ -261,7 +265,7 @@ mod tests {
         let mut ai = Ai::new(P0);
         run(&mut ai, &mut w, &mut Vec::new());
         let serial = PlayerView::new(&w, P0).serial_of(spirit);
-        assert!(!ai.roles.has_role(serial));
+        assert!(!ai.tasks(&w).roles.has_role(serial));
         Ok(())
     }
 }

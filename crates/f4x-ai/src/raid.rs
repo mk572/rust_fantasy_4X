@@ -21,16 +21,20 @@ use f4x_master::Game;
 pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     // The parties out already: stay beside a site, walk to one, or end the raid.
-    let out = {
+    let alive: Vec<Serial> = {
         let view = PlayerView::new(game, me);
-        let alive: Vec<Serial> = view.my_units().iter().map(|&u| view.serial_of(u)).collect();
-        ai.roles
-            .retain_role(crate::roles::Role::Raid, |s| alive.contains(&s));
+        view.my_units().iter().map(|&u| view.serial_of(u)).collect()
+    };
+    ai.write(game)
+        .retain_role(crate::roles::Role::Raid, |s| alive.contains(&s));
+    let (mut out, home) = {
+        let view = PlayerView::new(game, me);
+        let tasks = view.tasks();
         let mut out: Vec<(Position, Vec<hecs::Entity>)> = Vec::new();
         let mut home: Vec<Serial> = Vec::new();
         for u in view.my_units() {
             let serial = view.serial_of(u);
-            if !ai.roles.is(serial, crate::roles::Role::Raid) {
+            if !tasks.roles.is(serial, crate::roles::Role::Raid) {
                 continue;
             }
             match view.unit_position(u) {
@@ -43,13 +47,11 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 _ => home.push(serial),
             }
         }
-        ai.roles.retain_role(crate::roles::Role::Raid, |s| {
-            let s = &s;
-            !home.contains(s)
-        });
-        out.sort_by_key(|(p, _)| (p.plane as u8, p.y, p.x));
-        out
+        (out, home)
     };
+    ai.write(game)
+        .retain_role(crate::roles::Role::Raid, |s| !home.contains(&s));
+    out.sort_by_key(|(p, _)| (p.plane as u8, p.y, p.x));
     for (pos, units) in out {
         if game.game_over().is_some() {
             return;
@@ -69,7 +71,8 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             let kept = units
                 .iter()
                 .find_map(|&u| {
-                    ai.roles
+                    view.tasks()
+                        .roles
                         .target_of(view.serial_of(u), crate::roles::Role::Raid)
                 })
                 .filter(|t| sites.contains(t));
@@ -107,7 +110,8 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         });
         if let Some(site) = chosen {
             for &s in &serials {
-                ai.roles.set_target(s, crate::roles::Role::Raid, Some(site));
+                ai.write(game)
+                    .set_target(s, crate::roles::Role::Raid, Some(site));
             }
         } else {
             // No candidate could be walked to, or there was none: the raid is over where the
@@ -133,12 +137,10 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 );
             }
             for &s in &serials {
-                ai.roles.set_target(s, crate::roles::Role::Raid, None);
+                ai.write(game).set_target(s, crate::roles::Role::Raid, None);
             }
-            ai.roles.retain_role(crate::roles::Role::Raid, |s| {
-                let s = &s;
-                !serials.contains(s)
-            });
+            ai.write(game)
+                .retain_role(crate::roles::Role::Raid, |s| !serials.contains(&s));
         }
     }
     form(ai, game, events);
@@ -190,14 +192,12 @@ pub fn form(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
                 {
                     let view = PlayerView::new(game, me);
                     let serials: Vec<Serial> = party.iter().map(|&u| view.serial_of(u)).collect();
-                    ai.roles.claim_all(
-                        serials.iter().copied(),
-                        crate::roles::Role::Raid,
-                        game.round(),
-                    );
+                    ai.write(game)
+                        .claim_all(serials.iter().copied(), crate::roles::Role::Raid);
                     // The party attacks only the site it is sent against (`attack.rs`).
                     for s in serials {
-                        ai.roles.set_target(s, crate::roles::Role::Raid, Some(site));
+                        ai.write(game)
+                            .set_target(s, crate::roles::Role::Raid, Some(site));
                     }
                     left = true;
                     break;
@@ -216,11 +216,12 @@ pub fn form(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
 /// stands is sent on when it has no order.
 pub(crate) fn release(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     use crate::roles::MusterKind;
-    if !ai.roles.any_muster(MusterKind::Raid) {
+    if !ai.tasks(game).roles.any_muster(MusterKind::Raid) {
         return;
     }
     let me = ai.player;
-    for (party, muster, members) in ai.roles.musters() {
+    let musters = ai.tasks(game).roles.musters();
+    for (party, muster, members) in musters {
         if muster.kind != MusterKind::Raid {
             continue;
         }
@@ -238,7 +239,7 @@ pub(crate) fn release(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 || arrived
                 || game.round().saturating_sub(muster.since) > view.levers().sites.muster_turns
             {
-                ai.roles.end_muster(party);
+                ai.write(game).end_muster(party);
                 continue;
             }
             alive
@@ -264,7 +265,11 @@ pub(crate) fn gather(
     events: &mut Vec<f4x_core::world::Event>,
 ) {
     let me = ai.player;
-    if ai.roles.any_muster(crate::roles::MusterKind::Raid) {
+    if ai
+        .tasks(game)
+        .roles
+        .any_muster(crate::roles::MusterKind::Raid)
+    {
         return;
     }
     let (objective, best) = {
@@ -272,14 +277,15 @@ pub(crate) fn gather(
         if crate::phase::phase(&view, game.round()) == crate::phase::Phase::Build {
             return;
         }
+        let tasks = view.tasks();
         let mut best: Vec<_> = free
             .iter()
             .copied()
             .filter(|&u| {
                 is_fighter(&view, u)
                     && !crate::recover::needs_rest(&view, u)
-                    && !ai.roles.is(view.serial_of(u), crate::roles::Role::Raid)
-                    && !ai.roles.is_scouting(view.serial_of(u))
+                    && !tasks.roles.is(view.serial_of(u), crate::roles::Role::Raid)
+                    && !tasks.roles.is_scouting(view.serial_of(u))
                     && view.unit_position(u).is_some()
             })
             .collect();
@@ -351,12 +357,11 @@ pub(crate) fn gather(
             gathering.push(serial);
         }
     }
-    ai.roles.begin_muster(
+    ai.write(game).begin_muster(
         crate::roles::MusterKind::Raid,
         rally,
         Some(objective),
         &gathering,
-        game.round(),
     );
 }
 
@@ -467,15 +472,15 @@ mod tests {
         w.reveal_map(P0);
         let party = spawn(&mut w, P0, at(6, 7), 113 /* high_men_paladins */, 5);
         let mut ai = Ai::new(P0);
-        let view = PlayerView::new(&w, P0);
-        ai.roles.assign(
-            crate::roles::Role::Raid,
-            party.iter().map(|&u| view.serial_of(u)),
-            1,
-        );
+        let members: Vec<Serial> = {
+            let view = PlayerView::new(&w, P0);
+            party.iter().map(|&u| view.serial_of(u)).collect()
+        };
+        ai.write(&mut w).assign(crate::roles::Role::Raid, members);
         // The party is set on the far site (4, 4) though (4, 9) is nearer to where it stands.
-        for s in ai.roles.members(crate::roles::Role::Raid) {
-            ai.roles
+        let raiders = ai.tasks(&w).roles.members(crate::roles::Role::Raid);
+        for s in raiders {
+            ai.write(&mut w)
                 .set_target(s, crate::roles::Role::Raid, Some(at(4, 4)));
         }
         let mut events = Vec::new();
@@ -486,6 +491,7 @@ mod tests {
             .ok_or("the party is on the map")?;
         assert!(here.y < 7, "it went towards (4, 4), not (4, 9): {here:?}");
         assert!(ai
+            .tasks(&w)
             .roles
             .targets(crate::roles::Role::Raid)
             .iter()
@@ -501,25 +507,27 @@ mod tests {
         w.reveal_map(P0);
         let party = spawn(&mut w, P0, at(5, 8), 113 /* high_men_paladins */, 5);
         let mut ai = Ai::new(P0);
-        let view = PlayerView::new(&w, P0);
-        ai.roles.assign(
-            crate::roles::Role::Raid,
-            party.iter().map(|&u| view.serial_of(u)),
-            1,
-        );
+        let members: Vec<Serial> = {
+            let view = PlayerView::new(&w, P0);
+            party.iter().map(|&u| view.serial_of(u)).collect()
+        };
+        ai.write(&mut w).assign(crate::roles::Role::Raid, members);
         let mut events = Vec::new();
         for _ in 0..4 {
             run(&mut ai, &mut w, &mut events);
             w.play_round();
         }
         assert!(
-            ai.roles.targets(crate::roles::Role::Raid).is_empty(),
+            ai.tasks(&w)
+                .roles
+                .targets(crate::roles::Role::Raid)
+                .is_empty(),
             "no target it can walk to"
         );
         assert!(
-            !ai.roles.any(crate::roles::Role::Raid),
+            !ai.tasks(&w).roles.any(crate::roles::Role::Raid),
             "the raid ended at the city: {:?}",
-            ai.roles
+            ai.tasks(&w).roles
         );
         Ok(())
     }
@@ -534,15 +542,17 @@ mod tests {
             let party = spawn(&mut w, P0, spot, 113 /* high_men_paladins */, 4);
             let mut ai = Ai::new(P0);
             ai.record_refusals(true);
-            let view = PlayerView::new(&w, P0);
-            ai.roles.assign(
-                crate::roles::Role::Raid,
-                party.iter().map(|&u| view.serial_of(u)),
-                1,
-            );
+            let members: Vec<Serial> = {
+                let view = PlayerView::new(&w, P0);
+                party.iter().map(|&u| view.serial_of(u)).collect()
+            };
+            ai.write(&mut w).assign(crate::roles::Role::Raid, members);
             let mut events = Vec::new();
             run(&mut ai, &mut w, &mut events);
-            assert!(!ai.roles.any(crate::roles::Role::Raid), "{plane:?}");
+            assert!(
+                !ai.tasks(&w).roles.any(crate::roles::Role::Raid),
+                "{plane:?}"
+            );
             assert!(ai.take_refusals().is_empty(), "{plane:?}: no refused order");
             assert!(
                 party
@@ -601,7 +611,7 @@ mod tests {
         let mut w = world(PARTY, vec![(drake, guards)], true)?;
         let mut ai = Ai::new(P0);
         turns(&mut w, &mut ai, 4);
-        assert!(!ai.roles.any(crate::roles::Role::Raid));
+        assert!(!ai.tasks(&w).roles.any(crate::roles::Role::Raid));
         assert!(w.economy().lair_at(at(8, 6)).is_some());
         assert!(all_home(&w));
         Ok(())
@@ -617,14 +627,14 @@ mod tests {
         let mut ai = Ai::new(P0);
         turns(&mut w, &mut ai, 1);
         assert!(
-            ai.roles.any(crate::roles::Role::Raid),
+            ai.tasks(&w).roles.any(crate::roles::Role::Raid),
             "the party goes when nothing is held against the site"
         );
         let mut w = world(4, guards.clone(), true)?;
         let mut ai = Ai::new(P0);
         ai.site_losses.push((at(8, 6), f32::MAX / 2.0));
         turns(&mut w, &mut ai, 4);
-        assert!(!ai.roles.any(crate::roles::Role::Raid));
+        assert!(!ai.tasks(&w).roles.any(crate::roles::Role::Raid));
         assert!(w.economy().lair_at(at(8, 6)).is_some());
         assert!(all_home(&w));
         Ok(())
@@ -667,7 +677,7 @@ mod tests {
         let mut ai = Ai::new(P0);
         turns(&mut w, &mut ai, 4);
         assert!(
-            !ai.roles.any(crate::roles::Role::Raid),
+            !ai.tasks(&w).roles.any(crate::roles::Role::Raid),
             "paladins with normal weapons go against guards they cannot hurt"
         );
         // With Flame Blade known and the casting skill and mana for four casts, the same party goes.
@@ -685,10 +695,15 @@ mod tests {
             .points = 1000;
         w.treasury_mut(P0).ok_or("no treasury")?.mana = f4x_def::half_int::HalfInt::from_int(400);
         let mut ai = Ai::new(P0);
-        turns(&mut w, &mut ai, 1);
+        let said = turns(&mut w, &mut ai, 1);
+        // Whoever falls there takes the task along: that the party went shows in the battle.
         assert!(
-            ai.roles.any(crate::roles::Role::Raid),
-            "the party goes when a spell can arm it"
+            said.iter().any(|e| matches!(
+                e,
+                Event::BattleStarted { attacker, site, .. }
+                    if *attacker == P0 && *site == at(8, 6)
+            )),
+            "the party goes when a spell can arm it: {said:?}"
         );
         Ok(())
     }
@@ -703,7 +718,7 @@ mod tests {
         )?;
         let mut ai = Ai::new(P0);
         turns(&mut w, &mut ai, 4);
-        assert!(!ai.roles.any(crate::roles::Role::Raid));
+        assert!(!ai.tasks(&w).roles.any(crate::roles::Role::Raid));
         assert!(w.economy().lair_at(at(8, 6)).is_some());
         Ok(())
     }
@@ -725,26 +740,32 @@ mod tests {
         // Control: free, they raid.
         let mut w = world(6, guards.clone(), false)?;
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         run(&mut ai, &mut w, &mut Vec::new());
-        assert!(ai.roles.any(crate::roles::Role::Raid), "free soldiers raid");
+        assert!(
+            ai.tasks(&w).roles.any(crate::roles::Role::Raid),
+            "free soldiers raid"
+        );
         // Mustering for the campaign, they stay out of it.
         let mut w = world(6, guards, false)?;
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         let members = serials(&w);
         assert!(ai
-            .roles
+            .write(&mut w)
             .begin_muster(
                 crate::roles::MusterKind::Campaign,
                 city,
                 Some(at(4, 4)),
                 &members,
-                w.round(),
             )
             .is_some());
         run(&mut ai, &mut w, &mut Vec::new());
-        assert!(!ai.roles.any(crate::roles::Role::Raid), "{:?}", ai.roles);
+        assert!(
+            !ai.tasks(&w).roles.any(crate::roles::Role::Raid),
+            "{:?}",
+            ai.tasks(&w).roles
+        );
         Ok(())
     }
 
@@ -761,14 +782,18 @@ mod tests {
             w.economy().lair_at(at(8, 6)).is_none(),
             "the site is cleared"
         );
-        assert!(!ai.roles.any(crate::roles::Role::Raid), "{:?}", ai.roles);
+        assert!(
+            !ai.tasks(&w).roles.any(crate::roles::Role::Raid),
+            "{:?}",
+            ai.tasks(&w).roles
+        );
         // No walk home is ordered: the soldiers stand free for the jobs that need them.
         let view = PlayerView::new(&w, P0);
         assert!(w
             .units()
             .player_units(P0)
             .into_iter()
-            .all(|u| ai.roles.is_free(view.serial_of(u))));
+            .all(|u| ai.tasks(&w).roles.is_free(view.serial_of(u))));
         Ok(())
     }
 
@@ -781,7 +806,7 @@ mod tests {
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();
         assert!(form(&mut ai, &mut w, &mut events), "{events:?}");
-        assert_eq!(ai.roles.count(crate::roles::Role::Raid), 6);
+        assert_eq!(ai.tasks(&w).roles.count(crate::roles::Role::Raid), 6);
         Ok(())
     }
 }

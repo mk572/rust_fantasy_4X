@@ -340,8 +340,12 @@ pub struct PlayerSave {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub departed: Vec<DepartedSave>,
     /// What the player has set its units to do (`unit::task`).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tasks: Option<Box<crate::unit::task::Tasks>>,
+    #[serde(default, skip_serializing_if = "is_default_tasks")]
+    pub tasks: crate::unit::task::Tasks,
+}
+
+fn is_default_tasks(tasks: &crate::unit::task::Tasks) -> bool {
+    *tasks == Default::default()
 }
 
 /// One record of a unit that left an army.
@@ -1066,7 +1070,7 @@ impl World {
                 defeated: self.player(*id).is_some_and(|p| p.is_defeated()),
                 defeated_by: self.player(*id).and_then(|p| p.defeated_by()).map(|d| d.0),
                 departed: self.departed_saves(*id),
-                tasks: self.player_tasks(*id).map(Box::new),
+                tasks: self.player_tasks(*id).clone(),
             })
             .collect();
         let wizards = self
@@ -1780,7 +1784,9 @@ impl Snapshot {
             }
         }
         for (player, tasks) in tasks {
-            crate::unit::ledger::set_tasks(&world.ecs, player, tasks);
+            // What the save says of units that are not there is left out. No turn is recorded.
+            let change = crate::unit::task::Change::Import(Box::new(tasks));
+            crate::unit::ledger::change_tasks(&world.ecs, player, change, 0);
         }
         for (player, records) in departed {
             for record in records {

@@ -28,13 +28,14 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             ai.sites.refreshed(&view, game.round());
             ai.sites.rebuilt_on(game.round())
         };
+        let tasks = view.tasks();
         let free: Vec<Free> = mine
             .iter()
             .filter(|&&u| {
                 let serial = view.serial_of(u);
-                !ai.roles.has_role(serial)
+                !tasks.roles.has_role(serial)
                     && (due
-                        || ai
+                        || tasks
                             .roles
                             .get(serial)
                             .is_some_and(|a| a.since == game.round()))
@@ -48,7 +49,7 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             })
             .collect();
         let list = ai.sites.refreshed(&view, game.round()).to_vec();
-        let taken = ai.roles.targets(Role::Settle);
+        let taken = tasks.roles.targets(Role::Settle);
         (
             mine,
             crate::city_site::assign(&view, &list, &free, &taken, &[]),
@@ -58,8 +59,8 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     for &(unit, site, ship) in &plan {
         let serial = PlayerView::new(game, me).serial_of(unit);
         if ai
-            .roles
-            .claim(serial, Role::Settle, game.round(), Some(site))
+            .write(game)
+            .claim(serial, Role::Settle, Some(site))
             .is_err()
         {
             continue;
@@ -67,7 +68,7 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         // A site over the sea: the settler waits for a ship like any unit tagged so (the ship is
         // built by the general rule, `economy.rs`).
         if ship {
-            ai.roles
+            ai.write(game)
                 .set_crossing(serial, Some(crate::roles::Crossing::Sea));
         }
     }
@@ -80,16 +81,17 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             };
             (pos, view.serial_of(unit))
         };
-        let Some(target) = ai.roles.target_of(serial, Role::Settle) else {
+        let wanted = ai.tasks(game).roles.target_of(serial, Role::Settle);
+        let Some(target) = wanted else {
             // Awaiting orders: no site, no role.
-            if !ai.roles.has_role(serial) {
+            if !ai.tasks(game).roles.has_role(serial) {
                 ai.settler_fates
                     .note(crate::settler_fate::SettlerFate::NoSite);
             }
             continue;
         };
         // Waiting for the transport that `pickup.rs` sends.
-        if ai.roles.crossing_of(serial).is_some() {
+        if ai.tasks(game).roles.crossing_of(serial).is_some() {
             continue;
         }
         if target == pos {
@@ -102,7 +104,7 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     .send(game, Command::SettleOutpost { unit, name }, events)
                     .is_ok()
             {
-                ai.roles.release(serial, Role::Settle);
+                ai.write(game).release(serial, Role::Settle);
                 continue;
             }
             // Blocked on arrival: the site is no place for a city after all.
@@ -112,7 +114,7 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             continue;
         }
         let walking = PlayerView::new(game, me).unit_has_order(unit);
-        if walking && ai.roles.track(serial, pos, true) < 1 {
+        if walking && ai.write(game).track(serial, pos, true) < 1 {
             continue; // still walking
         }
         if walking || !crate::escort::walk(ai, game, unit, target, events) {
@@ -133,8 +135,8 @@ fn give_up(
     serial: crate::Serial,
     events: &mut Vec<Event>,
 ) {
-    ai.roles.release(serial, crate::roles::Role::Settle);
-    ai.roles.clear_track(serial);
+    ai.write(game).release(serial, crate::roles::Role::Settle);
+    ai.write(game).clear_track(serial);
     ai.order(game, Command::ClearOrders { units: vec![unit] }, events);
 }
 
@@ -225,7 +227,10 @@ mod tests {
             "the settlers are used up by founding"
         );
         assert!(
-            ai.roles.targets(crate::roles::Role::Settle).is_empty(),
+            ai.tasks(&w)
+                .roles
+                .targets(crate::roles::Role::Settle)
+                .is_empty(),
             "the target is forgotten"
         );
         Ok(())
@@ -236,7 +241,7 @@ mod tests {
         let (mut w, _) = island_with_settlers(2);
         let mut ai = Ai::new(P0);
         settlers(&mut ai, &mut w, &mut Vec::new());
-        let sites: Vec<Position> = ai.roles.targets(crate::roles::Role::Settle);
+        let sites: Vec<Position> = ai.tasks(&w).roles.targets(crate::roles::Role::Settle);
         assert_eq!(sites.len(), 2, "each settler has a site");
         let view = PlayerView::new(&w, P0);
         let apart = distance(&view, sites[0], sites[1]).ok_or("the sites are on one plane")?;
@@ -252,17 +257,18 @@ mod tests {
         use crate::roles::Role;
         let (mut w, units) = island_with_settlers(1);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         settlers(&mut ai, &mut w, &mut Vec::new());
         let serial = PlayerView::new(&w, P0).serial_of(units[0]);
-        ai.roles
+        ai.tasks(&w)
+            .roles
             .target_of(serial, Role::Settle)
             .ok_or("the settler chose a site")?;
         // A whole turn went by without the settler leaving its square: the last look equals now.
         let here = PlayerView::new(&w, P0)
             .unit_position(units[0])
             .ok_or("the settler is on the map")?;
-        ai.roles.track(serial, here, false);
+        ai.write(&mut w).track(serial, here, false);
         settlers(&mut ai, &mut w, &mut Vec::new());
         assert!(
             ai.settler_failures()
@@ -270,8 +276,11 @@ mod tests {
             "{:?}",
             ai.settler_failures()
         );
-        assert_eq!(ai.roles.role_of(serial), Some(Role::AwaitingOrders));
-        assert!(ai.roles.targets(Role::Settle).is_empty());
+        assert_eq!(
+            ai.tasks(&w).roles.role_of(serial),
+            Some(Role::AwaitingOrders)
+        );
+        assert!(ai.tasks(&w).roles.targets(Role::Settle).is_empty());
         Ok(())
     }
     #[test]
@@ -287,12 +296,19 @@ mod tests {
         );
         let serial = PlayerView::new(&w, P0).serial_of(units[0]);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         settlers(&mut ai, &mut w, &mut Vec::new());
-        assert!(!ai.roles.has_role(serial), "no site, no settle role");
-        assert!(ai.roles.targets(crate::roles::Role::Settle).is_empty());
+        assert!(
+            !ai.tasks(&w).roles.has_role(serial),
+            "no site, no settle role"
+        );
+        assert!(ai
+            .tasks(&w)
+            .roles
+            .targets(crate::roles::Role::Settle)
+            .is_empty());
         assert_eq!(
-            ai.roles.role_of(serial),
+            ai.tasks(&w).roles.role_of(serial),
             Some(crate::roles::Role::AwaitingOrders)
         );
         Ok(())
@@ -342,7 +358,7 @@ mod tests {
         let before = PlayerView::new(&w, P0).my_cities().len();
         for _ in 0..40 {
             let mut events = Vec::new();
-            crate::roles::register(&mut ai, &w, w.round());
+            crate::roles::register(&mut ai, &mut w);
             crate::dispatch::revalidate(&mut ai, &mut w, &mut events);
             settlers(&mut ai, &mut w, &mut events);
             crate::pickup::run(&mut ai, &mut w, &mut events);
@@ -374,11 +390,12 @@ mod tests {
         let mut ai = Ai::new(P0);
         settlers(&mut ai, &mut w, &mut Vec::new());
         let site = ai
+            .tasks(&w)
             .roles
             .target_of(serial, Role::Settle)
             .ok_or("the settler has a site")?;
         assert!(site.x >= 28, "over the sea: {site:?}");
-        assert_eq!(ai.roles.crossing_of(serial), Some(Crossing::Sea));
+        assert_eq!(ai.tasks(&w).roles.crossing_of(serial), Some(Crossing::Sea));
         Ok(())
     }
 }

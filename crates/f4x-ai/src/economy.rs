@@ -80,26 +80,27 @@ struct Roster {
 }
 
 impl Roster {
-    fn of(ai: &Ai, view: &PlayerView) -> Roster {
+    fn of(view: &PlayerView) -> Roster {
         use crate::roles::Role;
         let units = view.my_units();
+        let tasks = view.tasks();
         let idle_fighters = units
             .iter()
             .filter(|&&u| {
-                is_fighter(view, u) && ai.roles.is(view.serial_of(u), Role::AwaitingOrders)
+                is_fighter(view, u) && tasks.roles.is(view.serial_of(u), Role::AwaitingOrders)
             })
             .count();
-        let waiting = ai.roles.waiting_for_ship().len();
+        let waiting = tasks.roles.waiting_for_ship().len();
         Roster {
             idle_fighters,
-            marching: ai.roles.count(Role::March),
+            marching: tasks.roles.count(Role::March),
             free_places: units
                 .iter()
-                .filter(|&&u| ai.roles.is(view.serial_of(u), Role::TransportFree))
+                .filter(|&&u| tasks.roles.is(view.serial_of(u), Role::TransportFree))
                 .map(|&u| view.unit_stat(u, f4x_def::rules::Stat::Transport).max(0) as usize)
                 .sum(),
             waiting,
-            scouts: ai.roles.scouting().len(),
+            scouts: tasks.roles.scouting().len(),
         }
     }
 
@@ -195,7 +196,7 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     // The list of sites: its length is the room for more cities (`phase::width` leans wide with it).
     let (free_sites, room) = {
         let view = PlayerView::new(game, me);
-        let taken = ai.roles.targets(crate::roles::Role::Settle);
+        let taken = view.tasks().roles.targets(crate::roles::Role::Settle);
         let list = ai.sites.refreshed(&view, game.round());
         (
             crate::city_site::free_sites(list, &taken, &view),
@@ -210,7 +211,7 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         crate::war_plan::units_for(&view, strength)
     });
     let empire = Empire::of(&PlayerView::new(game, me), game.round());
-    let roster = Roster::of(ai, &PlayerView::new(game, me));
+    let roster = Roster::of(&PlayerView::new(game, me));
     // Fewer scouts than a wizard that builds up wants (`scout::wanted`) and no soldier spare: one
     // city builds the unit that scouts (the first that is not full, so that the others go on with
     // their plans).
@@ -280,7 +281,7 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             // Units awaiting transport and no ship free to take them: the nearest port builds one.
             let rescue_port = (roster.waiting > 0
                 && roster.short_of_ships(false, view.levers().transport.min_load))
-            .then(|| rescue_port(ai, &view))
+            .then(|| rescue_port(&view))
             .flatten();
             let port = ai.naval.map(|p| p.port).or(ai.sea_port).or(rescue_port);
             let broke = empire.broke();
@@ -426,8 +427,9 @@ fn quiet_cap(view: &PlayerView, pos: Position, round: u32) -> u32 {
 
 /// The own coastal city nearest to the units awaiting transport: it builds the ship that fetches
 /// them.
-fn rescue_port(ai: &Ai, view: &PlayerView) -> Option<Position> {
-    let waiting = ai
+fn rescue_port(view: &PlayerView) -> Option<Position> {
+    let waiting = view
+        .tasks()
         .roles
         .waiting_for_ship()
         .into_iter()
@@ -733,13 +735,13 @@ mod tests {
             Pressure {
                 threatened: false,
                 war_force: None,
-                roster: Roster::of(ai, &view),
+                roster: Roster::of(&view),
             },
             &mut planned,
             Growth {
                 free_sites: crate::city_site::free_sites(
                     &crate::city_site::scan(&view),
-                    &ai.roles.targets(crate::roles::Role::Settle),
+                    &ai.tasks(w).roles.targets(crate::roles::Role::Settle),
                     &view,
                 ),
                 wide: crate::phase::width(&view, crate::city_site::has_sites(&view), w.round()),
@@ -860,9 +862,10 @@ mod tests {
         };
         for s in &serials {
             let _ = ai
-                .roles
-                .claim(*s, crate::roles::Role::Reinforce, 1, Some(port));
-            ai.roles.set_crossing(*s, Some(crate::roles::Crossing::Sea));
+                .write(&mut w)
+                .claim(*s, crate::roles::Role::Reinforce, Some(port));
+            ai.write(&mut w)
+                .set_crossing(*s, Some(crate::roles::Crossing::Sea));
         }
         cities(&mut ai, &mut w, &mut Vec::new());
         let item = w.economy().city_production(capital(&w)?).item;
@@ -901,16 +904,17 @@ mod tests {
             );
             let mut ai = Ai::new(P0);
             ai.frontier_closed = true;
-            crate::roles::register(&mut ai, &w, w.round());
+            crate::roles::register(&mut ai, &mut w);
             let serials: Vec<_> = {
                 let view = PlayerView::new(&w, P0);
                 stranded.iter().map(|&u| view.serial_of(u)).collect()
             };
             for s in &serials {
                 let _ = ai
-                    .roles
-                    .claim(*s, crate::roles::Role::Reinforce, 1, Some(port));
-                ai.roles.set_crossing(*s, Some(crate::roles::Crossing::Sea));
+                    .write(&mut w)
+                    .claim(*s, crate::roles::Role::Reinforce, Some(port));
+                ai.write(&mut w)
+                    .set_crossing(*s, Some(crate::roles::Crossing::Sea));
             }
             cities(&mut ai, &mut w, &mut Vec::new());
             let item = w.economy().city_production(capital(&w)?).item;
@@ -929,8 +933,8 @@ mod tests {
         spawn(&mut w, P0, at(9, 9), 104 /* high_men_spearmen */, 6);
         let mut ai = Ai::new(P0);
         ai.frontier_closed = true;
-        crate::roles::register(&mut ai, &w, w.round());
-        let roster = Roster::of(&ai, &PlayerView::new(&w, P0));
+        crate::roles::register(&mut ai, &mut w);
+        let roster = Roster::of(&PlayerView::new(&w, P0));
         assert!(
             roster.idle_army(w.levers().economy.idle_surplus),
             "{}",
@@ -963,7 +967,6 @@ mod tests {
     fn a_wizard_that_builds_up_still_has_one_settler_on_the_way_while_there_is_room() -> TestResult
     {
         let w = game(COAST_CITY, 8 /* high_men */);
-        let ai = Ai::new(P0);
         let city = capital(&w)?;
         let view = PlayerView::new(&w, P0);
         let pos = w.city_position(city).ok_or("the city has a position")?;
@@ -980,7 +983,7 @@ mod tests {
                 Pressure {
                     threatened: false,
                     war_force: None,
-                    roster: Roster::of(&ai, &view),
+                    roster: Roster::of(&view),
                 },
                 &mut planned,
                 Growth {
@@ -1001,7 +1004,6 @@ mod tests {
         planned: usize,
     ) -> Result<BuildPlan, Box<dyn std::error::Error>> {
         let w = game(COAST_CITY, 8 /* high_men */);
-        let ai = Ai::new(P0);
         let city = capital(&w)?;
         let view = PlayerView::new(&w, P0);
         let pos = w.city_position(city).ok_or("the city has a position")?;
@@ -1016,7 +1018,7 @@ mod tests {
             Pressure {
                 threatened: false,
                 war_force: None,
-                roster: Roster::of(&ai, &view),
+                roster: Roster::of(&view),
             },
             &mut planned,
             Growth {
@@ -1105,7 +1107,7 @@ mod tests {
         });
         let mut ai = Ai::new(P0);
         ai.frontier_closed = true;
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         cities(&mut ai, &mut w, &mut Vec::new());
         // It looks at every building it can build: a library or a temple is chosen over trade goods.
         let item = w.economy().city_production(city).item;

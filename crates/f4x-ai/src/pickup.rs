@@ -44,26 +44,28 @@ pub struct Pickup {
 }
 
 /// The ships on their way to fetch units, with the units each came for.
-pub fn voyages(ai: &Ai) -> Vec<Pickup> {
-    let mut ships = ai.roles.members(Role::TransportSpace);
-    ships.extend(ai.roles.members(Role::TransportReady));
-    ships.extend(ai.roles.members(Role::Transporting));
+pub fn voyages(ai: &Ai, world: &World) -> Vec<Pickup> {
+    let tasks = ai.tasks(world);
+    let roles = &tasks.roles;
+    let mut ships = roles.members(Role::TransportSpace);
+    ships.extend(roles.members(Role::TransportReady));
+    ships.extend(roles.members(Role::Transporting));
     ships.sort();
     ships
         .into_iter()
         .filter_map(|ship| {
-            let sea = ai.roles.get(ship).and_then(|a| a.to)?;
-            let group = tied_to(ai, ship);
+            let sea = roles.get(ship).and_then(|a| a.to)?;
+            let group = tied_to(roles, ship);
             let first = *group.first()?;
             Some(Pickup {
                 ship,
-                tile: ai.roles.boarding_of(first)?,
+                tile: roles.boarding_of(first)?,
                 sea,
-                dest: ai.roles.destination_of(
+                dest: roles.destination_of(
                     group
                         .iter()
                         .copied()
-                        .find(|&s| ai.roles.is(s, Role::Settle))
+                        .find(|&s| roles.is(s, Role::Settle))
                         .unwrap_or(first),
                 )?,
                 group,
@@ -73,11 +75,11 @@ pub fn voyages(ai: &Ai) -> Vec<Pickup> {
 }
 
 /// The units a ship comes for, in serial order.
-fn tied_to(ai: &Ai, ship: Serial) -> Vec<Serial> {
-    ai.roles
+fn tied_to(roles: &Registry, ship: Serial) -> Vec<Serial> {
+    roles
         .tied_with(ship)
         .into_iter()
-        .filter(|&s| ai.roles.boarding_of(s).is_some())
+        .filter(|&s| roles.boarding_of(s).is_some())
         .collect()
 }
 
@@ -300,14 +302,14 @@ fn plan_group(
 /// One turn of the waiting units and the ships that fetch them.
 pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     tidy_unit_registry(ai, game);
-    if ai.roles.waiting_for_ship().is_empty() && voyages(ai).is_empty() {
+    if ai.tasks(game).roles.waiting_for_ship().is_empty() && voyages(ai, game).is_empty() {
         return;
     }
     call_off_a_scout_ship(ai, game, events);
     adopt_passengers(ai, game);
     assign_ships(ai, game);
     walk_to_shore(ai, game, events);
-    for pickup in voyages(ai) {
+    for pickup in voyages(ai, game) {
         advance(ai, game, &pickup, events);
     }
 }
@@ -316,12 +318,13 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 /// (none is free and none is already on its way to them), the first scouting ship with nobody
 /// aboard is called off and takes the job. The search by sea goes on when a ship is free again.
 fn call_off_a_scout_ship(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
-    if ai.roles.waiting_for_ship().is_empty() || !voyages(ai).is_empty() {
+    if ai.tasks(game).roles.waiting_for_ship().is_empty() || !voyages(ai, game).is_empty() {
         return;
     }
     let me = ai.player;
     let ship = {
         let view = PlayerView::new(game, me);
+        let tasks = view.tasks();
         let mut ships: Vec<hecs::Entity> = view
             .my_units()
             .into_iter()
@@ -331,19 +334,19 @@ fn call_off_a_scout_ship(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) 
         // A free ship takes the job as it is.
         if ships
             .iter()
-            .any(|&u| !ai.roles.has_role(view.serial_of(u)) && view.passengers_of(u).is_empty())
+            .any(|&u| !tasks.roles.has_role(view.serial_of(u)) && view.passengers_of(u).is_empty())
         {
             return;
         }
         ships.into_iter().find(|&u| {
-            ai.roles.is(view.serial_of(u), Role::Scout) && view.passengers_of(u).is_empty()
+            tasks.roles.is(view.serial_of(u), Role::Scout) && view.passengers_of(u).is_empty()
         })
     };
     let Some(ship) = ship else {
         return;
     };
     let serial = PlayerView::new(game, me).serial_of(ship);
-    ai.roles.release(serial, Role::Scout);
+    ai.write(game).release(serial, Role::Scout);
     ai.order(game, Command::ClearOrders { units: vec![ship] }, events);
 }
 
@@ -376,21 +379,22 @@ fn needs_the_sea(world: &World, unit: hecs::Entity, to: Position) -> bool {
 /// (`BadPassenger`), so a soak shows the job that left a passenger behind (the strike that walked
 /// one into a city) instead of a ship that waits for it for hundreds of turns. Last, the ships
 /// that have nobody left to fetch are released.
-pub(crate) fn tidy_unit_registry(ai: &mut Ai, game: &Game) {
+pub(crate) fn tidy_unit_registry(ai: &mut Ai, game: &mut Game) {
     let world: &World = game;
     // (unit, whether to clear its sea tag, what to say about it)
     let mut broken: Vec<(Serial, bool, Option<String>)> = Vec::new();
     {
         let view = PlayerView::new(world, ai.player);
+        let tasks = view.tasks();
         let mine = view.my_units();
         for &u in &mine {
             let s = view.serial_of(u);
-            let tagged = ai.roles.crossing_of(s) == Some(Crossing::Sea);
-            let booking = ai.roles.boarding_of(s).zip(ai.roles.with_of(s));
+            let tagged = tasks.roles.crossing_of(s) == Some(Crossing::Sea);
+            let booking = tasks.roles.boarding_of(s).zip(tasks.roles.with_of(s));
             if !tagged && booking.is_none() {
                 continue;
             }
-            let to = ai.roles.destination_of(s);
+            let to = tasks.roles.destination_of(s);
             // The plan is over: no tag, or no target to cross to and no ship under the unit.
             let on_ship = world.economy().carrier_of(u).is_some();
             if to.is_none() && !on_ship {
@@ -425,7 +429,7 @@ pub(crate) fn tidy_unit_registry(ai: &mut Ai, game: &Game) {
                         let on_its_way = || {
                             pos == Some(tile)
                                 || view.unit_has_order(u)
-                                || places_at(&ai.roles, &view, world, tile) == 0
+                                || places_at(&tasks.roles, &view, world, tile) == 0
                                 || behind_full_squares(world, &[u], tile)
                         };
                         if !aboard && !can_walk_onto(&view, tile) {
@@ -454,18 +458,26 @@ pub(crate) fn tidy_unit_registry(ai: &mut Ai, game: &Game) {
                 crate::with_detail("BadPassenger".to_string(), Some(why)),
             );
         }
-        ai.roles.unboard(s);
+        ai.write(game).unboard(s);
         if clear_tag {
-            ai.roles.set_crossing(s, None);
+            ai.write(game).set_crossing(s, None);
         }
     }
-    let mut planned = ai.roles.members(Role::TransportSpace);
-    planned.extend(ai.roles.members(Role::TransportReady));
-    planned.extend(ai.roles.members(Role::Transporting));
+    let planned = {
+        let tasks = ai.tasks(game);
+        let mut planned = tasks.roles.members(Role::TransportSpace);
+        planned.extend(tasks.roles.members(Role::TransportReady));
+        planned.extend(tasks.roles.members(Role::Transporting));
+        planned
+    };
     for ship in planned {
         // A ship of the campaign has no party; one of a pickup has, and it needs its units.
-        if ai.roles.party_of(ship).is_some() && tied_to(ai, ship).is_empty() {
-            ai.roles.release_any(ship);
+        let empty = {
+            let tasks = ai.tasks(game);
+            tasks.roles.party_of(ship).is_some() && tied_to(&tasks.roles, ship).is_empty()
+        };
+        if empty {
+            ai.write(game).release_any(ship);
         }
     }
 }
@@ -500,9 +512,10 @@ fn walk_to_shore(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let mut sends: Vec<(Position, Position, Vec<hecs::Entity>)> = Vec::new();
     {
         let view = PlayerView::new(game, me);
+        let tasks = view.tasks();
         for u in view.my_units() {
             let serial = view.serial_of(u);
-            let Some(tile) = ai.roles.boarding_of(serial) else {
+            let Some(tile) = tasks.roles.boarding_of(serial) else {
                 continue;
             };
             let Some(pos) = view.unit_position(u) else {
@@ -522,7 +535,12 @@ fn walk_to_shore(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         // The largest part of the stack that has room on the tile and a way to it goes, then the
         // largest of the rest. Who is left waits for room, as `tidy_unit_registry` expects.
         loop {
-            let free = places_at(&ai.roles, &PlayerView::new(game, me), game, tile);
+            let free = places_at(
+                &ai.tasks(game).roles,
+                &PlayerView::new(game, me),
+                game,
+                tile,
+            );
             let Some(count) = (1..=free.min(waiting.len()))
                 .rev()
                 .find(|&n| game.find_path(&waiting[..n], tile).is_some())
@@ -543,7 +561,13 @@ fn walk_to_shore(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         // No way to the tile, and not for full squares: the units were grouped by what one of them
         // reaches and cannot walk there. They are let off the plan, which is made again, and the
         // log says why.
-        if places_at(&ai.roles, &PlayerView::new(game, me), game, tile) == 0
+        let places = places_at(
+            &ai.tasks(game).roles,
+            &PlayerView::new(game, me),
+            game,
+            tile,
+        );
+        if places == 0
             || game.find_path(&[first], tile).is_some()
             || behind_full_squares(game, &[first], tile)
         {
@@ -560,7 +584,7 @@ fn walk_to_shore(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             format!("NoPath({}){}{why}", why.name(), crate::DETAIL_SEPARATOR),
         );
         for s in serials {
-            ai.roles.unboard(s);
+            ai.write(game).unboard(s);
         }
     }
 }
@@ -587,11 +611,12 @@ fn adopt_passengers(ai: &mut Ai, game: &mut Game) {
     let mut plans: Vec<(Serial, Position, Position, Vec<Serial>)> = Vec::new();
     {
         let view = PlayerView::new(game, me);
-        let waiting = ai.roles.waiting_for_ship();
+        let tasks = view.tasks();
+        let waiting = tasks.roles.waiting_for_ship();
         let mut ships: Vec<hecs::Entity> = view
             .my_units()
             .into_iter()
-            .filter(|&u| is_ship(&view, u) && !ai.roles.has_role(view.serial_of(u)))
+            .filter(|&u| is_ship(&view, u) && !tasks.roles.has_role(view.serial_of(u)))
             .collect();
         view.sort_by_serial(&mut ships);
         for ship in ships {
@@ -624,17 +649,7 @@ fn adopt_passengers(ai: &mut Ai, game: &mut Game) {
                 .find(|&u| view.serial_of(u) == ship)
                 .map_or(1, |u| game.economy().ship_room(u) as usize + serials.len())
         };
-        if ai
-            .roles
-            .plan_ship(ship, serials.len(), capacity, game.round(), at)
-        {
-            let party = ai.roles.new_party();
-            let role = ai.roles.role_of(ship).unwrap_or(Role::TransportSpace);
-            ai.roles.group(&[ship], role, party, None);
-            for s in serials {
-                ai.roles.board_at(s, ship, shore);
-            }
-        }
+        book(ai, game, ship, &serials, capacity, at, shore);
     }
 }
 
@@ -644,13 +659,14 @@ fn assign_ships(ai: &mut Ai, game: &mut Game) {
     let mut plans: Vec<(Plan, Position)> = Vec::new();
     {
         let view = PlayerView::new(game, me);
+        let tasks = view.tasks();
         let mut free: Vec<(hecs::Entity, usize)> = view
             .my_units()
             .into_iter()
             .filter(|&u| is_ship(&view, u))
             .filter(|&u| {
                 let s = view.serial_of(u);
-                !ai.roles.has_role(s) && view.passengers_of(u).is_empty()
+                !tasks.roles.has_role(s) && view.passengers_of(u).is_empty()
             })
             .map(|u| (u, game.economy().ship_room(u) as usize))
             .collect();
@@ -663,7 +679,7 @@ fn assign_ships(ai: &mut Ai, game: &mut Game) {
                 if !view.is_walker(u) {
                     return None;
                 }
-                let to = ai
+                let to = tasks
                     .roles
                     .waiting_for_ship()
                     .into_iter()
@@ -735,15 +751,32 @@ fn assign_ships(ai: &mut Ai, game: &mut Game) {
             )
         };
         let room = (game.economy().ship_room(plan.ship) as usize).max(1);
-        let turn = game.round();
-        if ai.roles.plan_ship(ship, units.len(), room, turn, plan.sea) {
-            let party = ai.roles.new_party();
-            let role = ai.roles.role_of(ship).unwrap_or(Role::TransportSpace);
-            ai.roles.group(&[ship], role, party, None);
-            for s in units {
-                ai.roles.board_at(s, ship, plan.tile);
-            }
-        }
+        book(ai, game, ship, &units, room, plan.sea, plan.tile);
+    }
+}
+
+/// Plan the voyage of a ship that waits at `sea` and book the units on it, to board at `tile`.
+/// Nothing is booked when the ship has a task that comes first.
+fn book(
+    ai: &Ai,
+    game: &mut Game,
+    ship: Serial,
+    units: &[Serial],
+    capacity: usize,
+    sea: Position,
+    tile: Position,
+) {
+    if !ai.write(game).plan_ship(ship, units.len(), capacity, sea) {
+        return;
+    }
+    let (party, role) = {
+        let tasks = ai.tasks(game);
+        let role = tasks.roles.role_of(ship).unwrap_or(Role::TransportSpace);
+        (tasks.roles.new_party(), role)
+    };
+    ai.write(game).group(&[ship], role, party, None);
+    for &s in units {
+        ai.write(game).board_at(s, ship, tile);
     }
 }
 
@@ -826,13 +859,13 @@ fn advance(ai: &mut Ai, game: &mut Game, pickup: &Pickup, events: &mut Vec<Event
             // In a port the units are in their city; at sea they step ashore first.
             if in_port || step_ashore(ai, game, &pickup.group, ship_pos, pickup.dest, events) {
                 for s in &pickup.group {
-                    ai.roles.set_crossing(*s, None);
-                    ai.roles.unboard(*s);
+                    ai.write(game).set_crossing(*s, None);
+                    ai.write(game).unboard(*s);
                     // A unit that was on the march is free again once ashore: the war job judges
                     // it where it stands (`war.rs`). The other roles walk on to their target.
-                    ai.roles.release(*s, Role::March);
+                    ai.write(game).release(*s, Role::March);
                 }
-                ai.roles.release_any(pickup.ship);
+                ai.write(game).release_any(pickup.ship);
             }
             return;
         }
@@ -848,7 +881,7 @@ fn advance(ai: &mut Ai, game: &mut Game, pickup: &Pickup, events: &mut Vec<Event
                 )
                 .is_ok();
             if sailed {
-                ai.roles.depart(pickup.ship, drop);
+                ai.write(game).depart(pickup.ship, drop);
             }
         }
         return;
@@ -869,7 +902,7 @@ fn advance(ai: &mut Ai, game: &mut Game, pickup: &Pickup, events: &mut Vec<Event
                 on_land.iter().map(|&u| view.serial_of(u)).collect()
             };
             for s in left {
-                ai.roles.unboard(s);
+                ai.write(game).unboard(s);
             }
             return;
         }
@@ -911,12 +944,11 @@ mod tests {
 
     /// Send the units to `dest` with no way to walk there: their job's target and the tag the
     /// dispatcher puts on them.
-    fn strand(ai: &mut Ai, w: &Game, units: &[hecs::Entity], dest: Position) {
-        let view = PlayerView::new(w, P0);
+    fn strand(ai: &mut Ai, w: &mut Game, units: &[hecs::Entity], dest: Position) {
         for &u in units {
-            let s = view.serial_of(u);
-            let _ = ai.roles.claim(s, Role::Reinforce, w.round(), Some(dest));
-            ai.roles.set_crossing(s, Some(Crossing::Sea));
+            let s = PlayerView::new(w, P0).serial_of(u);
+            let _ = ai.write(w).claim(s, Role::Reinforce, Some(dest));
+            ai.write(w).set_crossing(s, Some(Crossing::Sea));
         }
     }
 
@@ -977,13 +1009,13 @@ mod tests {
         spawn(&mut w, P0, port(), 36 /* galley */, 1);
         w.balance_farmers(P0);
         let mut ai = Ai::new(P0);
-        strand(&mut ai, &w, &soldiers, port());
+        strand(&mut ai, &mut w, &soldiers, port());
         for _ in 0..60 {
             run_turns(&mut ai, &mut w, 1);
             let view = PlayerView::new(&w, P0);
             if soldiers
                 .iter()
-                .all(|&u| ai.roles.crossing_of(view.serial_of(u)).is_none())
+                .all(|&u| ai.tasks(&w).roles.crossing_of(view.serial_of(u)).is_none())
             {
                 break;
             }
@@ -991,11 +1023,16 @@ mod tests {
         let view = PlayerView::new(&w, P0);
         for &u in &soldiers {
             let s = view.serial_of(u);
-            assert_eq!(ai.roles.crossing_of(s), None, "{:?}", ai.roles);
+            assert_eq!(
+                ai.tasks(&w).roles.crossing_of(s),
+                None,
+                "{:?}",
+                ai.tasks(&w).roles
+            );
             assert_eq!(view.unit_position(u), Some(port()), "in the port");
-            assert_eq!(ai.roles.boarding_of(s), None);
+            assert_eq!(ai.tasks(&w).roles.boarding_of(s), None);
         }
-        assert!(voyages(&ai).is_empty(), "{:?}", ai.roles);
+        assert!(voyages(&ai, &w).is_empty(), "{:?}", ai.tasks(&w).roles);
         Ok(())
     }
 
@@ -1020,12 +1057,12 @@ mod tests {
         spawn(&mut w, P0, port(), 36 /* galley */, 1);
         w.balance_farmers(P0);
         let mut ai = Ai::new(P0);
-        strand(&mut ai, &w, &soldiers, port());
+        strand(&mut ai, &mut w, &soldiers, port());
         assign_ships(&mut ai, &mut w);
         let view = PlayerView::new(&w, P0);
         let tiles: Vec<Position> = soldiers
             .iter()
-            .filter_map(|&u| ai.roles.boarding_of(view.serial_of(u)))
+            .filter_map(|&u| ai.tasks(&w).roles.boarding_of(view.serial_of(u)))
             .collect();
         assert!(!tiles.is_empty(), "a ship was assigned");
         let tile = tiles[0];
@@ -1040,7 +1077,7 @@ mod tests {
         let boarded: Vec<hecs::Entity> = soldiers
             .iter()
             .copied()
-            .filter(|&u| ai.roles.boarding_of(view.serial_of(u)).is_some())
+            .filter(|&u| ai.tasks(&w).roles.boarding_of(view.serial_of(u)).is_some())
             .collect();
         let cost = |t: Position| -> Option<u32> {
             let last = boarded
@@ -1080,20 +1117,25 @@ mod tests {
         assert_eq!(w.economy().carrier_of(soldiers[0]), Some(ship), "aboard");
         w.balance_farmers(P0);
         let mut ai = Ai::new(P0);
-        strand(&mut ai, &w, &soldiers, port());
+        strand(&mut ai, &mut w, &soldiers, port());
         for _ in 0..40 {
             run_turns(&mut ai, &mut w, 1);
             let view = PlayerView::new(&w, P0);
             if soldiers
                 .iter()
-                .all(|&u| ai.roles.crossing_of(view.serial_of(u)).is_none())
+                .all(|&u| ai.tasks(&w).roles.crossing_of(view.serial_of(u)).is_none())
             {
                 break;
             }
         }
         let view = PlayerView::new(&w, P0);
         for &u in &soldiers {
-            assert_eq!(view.unit_position(u), Some(port()), "{:?}", ai.roles);
+            assert_eq!(
+                view.unit_position(u),
+                Some(port()),
+                "{:?}",
+                ai.tasks(&w).roles
+            );
         }
         Ok(())
     }
@@ -1111,22 +1153,23 @@ mod tests {
         let soldiers = spawn(&mut w, P0, land, 104 /* spearmen */, room + 1);
         w.balance_farmers(P0);
         let mut ai = Ai::new(P0);
-        strand(&mut ai, &w, &soldiers, port());
+        strand(&mut ai, &mut w, &soldiers, port());
         // The plan holds more units than the ship has room for.
         assign_ships(&mut ai, &mut w);
         let (ship_serial, tile) = {
             let view = PlayerView::new(&w, P0);
             let first = view.serial_of(soldiers[0]);
             (
-                ai.roles.with_of(first).ok_or("a ship was sent")?,
-                ai.roles.boarding_of(first).ok_or("a tile was chosen")?,
+                ai.tasks(&w).roles.with_of(first).ok_or("a ship was sent")?,
+                ai.tasks(&w)
+                    .roles
+                    .boarding_of(first)
+                    .ok_or("a tile was chosen")?,
             )
         };
-        {
-            let view = PlayerView::new(&w, P0);
-            for &u in &soldiers {
-                ai.roles.board_at(view.serial_of(u), ship_serial, tile);
-            }
+        for &u in &soldiers {
+            let serial = PlayerView::new(&w, P0).serial_of(u);
+            ai.write(&mut w).board_at(serial, ship_serial, tile);
         }
         // The turn the ship has put what it holds ashore in the port (it is free again then and
         // fetches the one left behind on a later voyage).
@@ -1145,7 +1188,7 @@ mod tests {
         }
         let view = PlayerView::new(&w, P0);
         // The ship took what it holds to the port.
-        assert_eq!(at_port(&w), room, "{:?}", ai.roles);
+        assert_eq!(at_port(&w), room, "{:?}", ai.tasks(&w).roles);
         // The one left on the shore is let off the plan, not asked to board a full ship.
         let left = soldiers
             .iter()
@@ -1153,9 +1196,9 @@ mod tests {
             .find(|&u| view.unit_position(u) != Some(port()))
             .ok_or("a unit stayed on the shore")?;
         let s = view.serial_of(left);
-        assert_eq!(ai.roles.boarding_of(s), None);
-        assert_eq!(ai.roles.with_of(s), None);
-        assert_eq!(ai.roles.crossing_of(s), Some(Crossing::Sea));
+        assert_eq!(ai.tasks(&w).roles.boarding_of(s), None);
+        assert_eq!(ai.tasks(&w).roles.with_of(s), None);
+        assert_eq!(ai.tasks(&w).roles.crossing_of(s), Some(Crossing::Sea));
         Ok(())
     }
 
@@ -1181,12 +1224,12 @@ mod tests {
         w.balance_farmers(P0);
         let mut ai = Ai::new(P0);
         let all: Vec<hecs::Entity> = near.iter().chain(&laggard).copied().collect();
-        strand(&mut ai, &w, &all, port());
+        strand(&mut ai, &mut w, &all, port());
         assign_ships(&mut ai, &mut w);
         let view = PlayerView::new(&w, P0);
         let tile = all
             .iter()
-            .find_map(|&u| ai.roles.boarding_of(view.serial_of(u)))
+            .find_map(|&u| ai.tasks(&w).roles.boarding_of(view.serial_of(u)))
             .ok_or("a plan was made")?;
         let walks: Vec<(hecs::Entity, u32)> = all
             .iter()
@@ -1194,7 +1237,7 @@ mod tests {
             .collect::<Result<_, Box<dyn std::error::Error>>>()?;
         let fastest = walks.iter().map(|&(_, t)| t).min().unwrap_or(0);
         for (u, t) in walks {
-            let aboard = ai.roles.boarding_of(view.serial_of(u)).is_some();
+            let aboard = ai.tasks(&w).roles.boarding_of(view.serial_of(u)).is_some();
             assert_eq!(
                 aboard,
                 t <= fastest + levers().transport.straggler_turns,
@@ -1216,23 +1259,31 @@ mod tests {
         w.balance_farmers(P0);
         let mut ai = Ai::new(P0);
         let ship = PlayerView::new(&w, P0).serial_of(boat);
-        let _ = ai.roles.claim(ship, Role::Scout, 1, None);
-        strand(&mut ai, &w, &soldiers, port());
+        let _ = ai.write(&mut w).claim(ship, Role::Scout, None);
+        strand(&mut ai, &mut w, &soldiers, port());
         for _ in 0..60 {
             run_turns(&mut ai, &mut w, 1);
             let view = PlayerView::new(&w, P0);
             if soldiers
                 .iter()
-                .all(|&u| ai.roles.crossing_of(view.serial_of(u)).is_none())
+                .all(|&u| ai.tasks(&w).roles.crossing_of(view.serial_of(u)).is_none())
             {
                 break;
             }
         }
         let view = PlayerView::new(&w, P0);
         for &u in &soldiers {
-            assert_eq!(view.unit_position(u), Some(port()), "{:?}", ai.roles);
+            assert_eq!(
+                view.unit_position(u),
+                Some(port()),
+                "{:?}",
+                ai.tasks(&w).roles
+            );
         }
-        assert!(!ai.roles.is(ship, Role::Scout), "no longer scouting");
+        assert!(
+            !ai.tasks(&w).roles.is(ship, Role::Scout),
+            "no longer scouting"
+        );
         Ok(())
     }
 
@@ -1251,11 +1302,15 @@ mod tests {
         let mut ai = Ai::new(P0);
         let mut all = soldiers.clone();
         all.push(flier);
-        strand(&mut ai, &w, &all, port());
+        strand(&mut ai, &mut w, &all, port());
         run_turns(&mut ai, &mut w, 6);
         let view = PlayerView::new(&w, P0);
-        let boarded = |u| ai.roles.boarding_of(view.serial_of(u)).is_some();
-        assert!(soldiers.iter().any(|&u| boarded(u)), "{:?}", ai.roles);
+        let boarded = |u| ai.tasks(&w).roles.boarding_of(view.serial_of(u)).is_some();
+        assert!(
+            soldiers.iter().any(|&u| boarded(u)),
+            "{:?}",
+            ai.tasks(&w).roles
+        );
         assert!(!boarded(flier), "the flier is not a passenger");
         Ok(())
     }
@@ -1269,13 +1324,16 @@ mod tests {
         let soldiers = spawn(&mut w, P0, land, 104, 2);
         w.balance_farmers(P0);
         let mut ai = Ai::new(P0);
-        strand(&mut ai, &w, &soldiers, port());
+        strand(&mut ai, &mut w, &soldiers, port());
         run_turns(&mut ai, &mut w, 3);
-        assert!(voyages(&ai).is_empty());
+        assert!(voyages(&ai, &w).is_empty());
         let view = PlayerView::new(&w, P0);
         for &u in &soldiers {
             assert_eq!(view.unit_position(u), Some(land));
-            assert_eq!(ai.roles.crossing_of(view.serial_of(u)), Some(Crossing::Sea));
+            assert_eq!(
+                ai.tasks(&w).roles.crossing_of(view.serial_of(u)),
+                Some(Crossing::Sea)
+            );
         }
         Ok(())
     }
@@ -1321,11 +1379,11 @@ mod tests {
         spawn(&mut w, P0, port(), 36 /* galley */, 2);
         w.balance_farmers(P0);
         let mut ai = Ai::new(P0);
-        strand(&mut ai, &w, &first, a);
-        strand(&mut ai, &w, &second, b);
+        strand(&mut ai, &mut w, &first, a);
+        strand(&mut ai, &mut w, &second, b);
         run_turns(&mut ai, &mut w, 1);
-        let trips = voyages(&ai);
-        assert_eq!(trips.len(), 1, "one ship: {:?}", ai.roles);
+        let trips = voyages(&ai, &w);
+        assert_eq!(trips.len(), 1, "one ship: {:?}", ai.tasks(&w).roles);
         assert_eq!(trips[0].group.len(), 3);
         Ok(())
     }
@@ -1351,15 +1409,13 @@ mod tests {
         spawn(&mut w, P0, port(), 36 /* galley */, 1);
         w.balance_farmers(P0);
         let mut ai = Ai::new(P0);
-        strand(&mut ai, &w, &soldiers, a);
-        let view = PlayerView::new(&w, P0);
-        let s = view.serial_of(settler[0]);
-        let _ = ai.roles.claim(s, Role::Settle, w.round(), Some(b));
-        ai.roles.set_crossing(s, Some(Crossing::Sea));
-        drop(view);
+        strand(&mut ai, &mut w, &soldiers, a);
+        let s = PlayerView::new(&w, P0).serial_of(settler[0]);
+        let _ = ai.write(&mut w).claim(s, Role::Settle, Some(b));
+        ai.write(&mut w).set_crossing(s, Some(Crossing::Sea));
         run_turns(&mut ai, &mut w, 1);
-        let trips = voyages(&ai);
-        assert_eq!(trips.len(), 1, "{:?}", ai.roles);
+        let trips = voyages(&ai, &w);
+        assert_eq!(trips.len(), 1, "{:?}", ai.tasks(&w).roles);
         assert_eq!(trips[0].dest, b, "the settler's site is the drop");
         assert!(trips[0].group.contains(&s));
         Ok(())
@@ -1423,15 +1479,15 @@ mod tests {
                 .collect()
         };
         for &(_, s, to) in &serials {
-            let _ = ai.roles.claim(s, Role::Settle, w.round(), Some(to));
-            ai.roles.set_crossing(s, Some(Crossing::Sea));
+            let _ = ai.write(&mut w).claim(s, Role::Settle, Some(to));
+            ai.write(&mut w).set_crossing(s, Some(Crossing::Sea));
         }
         crate::pickup::run(&mut ai, &mut w, &mut Vec::new());
         let boards = |u: hecs::Entity| {
             serials
                 .iter()
                 .find(|&&(e, _, _)| e == u)
-                .and_then(|&(_, s, _)| ai.roles.boarding_of(s))
+                .and_then(|&(_, s, _)| ai.tasks(&w).roles.boarding_of(s))
         };
         assert!(boards(settler).is_some(), "the settler has the ship");
         assert!(soldiers.iter().all(|&u| boards(u).is_none()));
@@ -1444,9 +1500,9 @@ mod tests {
         let ship = spawn(w, P0, port(), 36 /* galley */, 1)[0];
         let view = PlayerView::new(w, P0);
         let (s, ship_serial) = (view.serial_of(soldier), view.serial_of(ship));
-        let _ = ai.roles.claim(s, Role::Reinforce, w.round(), Some(port()));
-        ai.roles.set_crossing(s, Some(Crossing::Sea));
-        ai.roles.board_at(s, ship_serial, tile);
+        let _ = ai.write(w).claim(s, Role::Reinforce, Some(port()));
+        ai.write(w).set_crossing(s, Some(Crossing::Sea));
+        ai.write(w).board_at(s, ship_serial, tile);
         soldier
     }
 
@@ -1462,10 +1518,10 @@ mod tests {
         let mut ai = Ai::new(P0);
         ai.record_refusals(true);
         let soldier = booked(&mut w, &mut ai, land, land);
-        tidy_unit_registry(&mut ai, &w);
+        tidy_unit_registry(&mut ai, &mut w);
         let s = PlayerView::new(&w, P0).serial_of(soldier);
         assert!(said(&ai).is_empty());
-        assert!(ai.roles.boarding_of(s).is_some(), "still booked");
+        assert!(ai.tasks(&w).roles.boarding_of(s).is_some(), "still booked");
         Ok(())
     }
 
@@ -1486,17 +1542,22 @@ mod tests {
             .into_iter()
             .last()
             .ok_or("another square on the island")?;
-        let ship = ai.roles.with_of(s).ok_or("a ship")?;
-        ai.roles.board_at(s, ship, elsewhere);
-        tidy_unit_registry(&mut ai, &w);
+        let ship = ai.tasks(&w).roles.with_of(s).ok_or("a ship")?;
+        ai.write(&mut w).board_at(s, ship, elsewhere);
+        tidy_unit_registry(&mut ai, &mut w);
         let said = said(&ai);
         assert!(
             said.iter().any(|r| r.contains("not aboard ship")),
             "{said:?}"
         );
-        assert_eq!(ai.roles.boarding_of(s), None);
-        assert_eq!(ai.roles.crossing_of(s), Some(Crossing::Sea), "still waits");
+        assert_eq!(ai.tasks(&w).roles.boarding_of(s), None);
+        assert_eq!(
+            ai.tasks(&w).roles.crossing_of(s),
+            Some(Crossing::Sea),
+            "still waits"
+        );
         assert!(ai
+            .tasks(&w)
             .roles
             .waiting_for_ship()
             .iter()
@@ -1521,11 +1582,11 @@ mod tests {
             .into_iter()
             .last()
             .ok_or("another square on the island")?;
-        ai.roles.set_target(s, Role::Reinforce, Some(near));
-        tidy_unit_registry(&mut ai, &w);
+        ai.write(&mut w).set_target(s, Role::Reinforce, Some(near));
+        tidy_unit_registry(&mut ai, &mut w);
         assert!(said(&ai).is_empty());
-        assert_eq!(ai.roles.boarding_of(s), None);
-        assert_eq!(ai.roles.crossing_of(s), None, "no tag");
+        assert_eq!(ai.tasks(&w).roles.boarding_of(s), None);
+        assert_eq!(ai.tasks(&w).roles.crossing_of(s), None, "no tag");
         Ok(())
     }
 
@@ -1543,18 +1604,18 @@ mod tests {
             .into_iter()
             .last()
             .ok_or("another square on the island")?;
-        let _ = ai.roles.claim(s, Role::Reinforce, w.round(), Some(near));
-        ai.roles.set_crossing(s, Some(Crossing::Sea));
-        tidy_unit_registry(&mut ai, &w);
+        let _ = ai.write(&mut w).claim(s, Role::Reinforce, Some(near));
+        ai.write(&mut w).set_crossing(s, Some(Crossing::Sea));
+        tidy_unit_registry(&mut ai, &mut w);
         assert!(said(&ai).is_empty());
-        assert_eq!(ai.roles.crossing_of(s), None);
+        assert_eq!(ai.tasks(&w).roles.crossing_of(s), None);
         // One whose target is over the sea keeps it.
         let far = spawn(&mut w, P0, land, 104 /* spearmen */, 1)[0];
         let f = PlayerView::new(&w, P0).serial_of(far);
-        let _ = ai.roles.claim(f, Role::Reinforce, w.round(), Some(port()));
-        ai.roles.set_crossing(f, Some(Crossing::Sea));
-        tidy_unit_registry(&mut ai, &w);
-        assert_eq!(ai.roles.crossing_of(f), Some(Crossing::Sea));
+        let _ = ai.write(&mut w).claim(f, Role::Reinforce, Some(port()));
+        ai.write(&mut w).set_crossing(f, Some(Crossing::Sea));
+        tidy_unit_registry(&mut ai, &mut w);
+        assert_eq!(ai.tasks(&w).roles.crossing_of(f), Some(Crossing::Sea));
         Ok(())
     }
 
@@ -1569,13 +1630,13 @@ mod tests {
         ai.record_refusals(true);
         let soldier = booked(&mut w, &mut ai, land, land);
         let s = PlayerView::new(&w, P0).serial_of(soldier);
-        ai.roles.set_crossing(s, None);
-        let _ = ai.roles.claim(s, Role::Reinforce, w.round(), None);
-        ai.roles.set_target(s, Role::Reinforce, None);
-        tidy_unit_registry(&mut ai, &w);
+        ai.write(&mut w).set_crossing(s, None);
+        let _ = ai.write(&mut w).claim(s, Role::Reinforce, None);
+        ai.write(&mut w).set_target(s, Role::Reinforce, None);
+        tidy_unit_registry(&mut ai, &mut w);
         assert!(said(&ai).is_empty());
-        assert_eq!(ai.roles.boarding_of(s), None);
-        assert_eq!(ai.roles.crossing_of(s), None);
+        assert_eq!(ai.tasks(&w).roles.boarding_of(s), None);
+        assert_eq!(ai.tasks(&w).roles.crossing_of(s), None);
         Ok(())
     }
 
@@ -1588,15 +1649,19 @@ mod tests {
         ai.record_refusals(true);
         let flier = booked(&mut w, &mut ai, land, land);
         w.scenario_enchant_unit(flier, f4x_def::rules::SpellId::new(56 /* flight */), P0);
-        tidy_unit_registry(&mut ai, &w);
+        tidy_unit_registry(&mut ai, &mut w);
         let said_flier = said(&ai);
         assert!(
             said_flier.iter().any(|r| r.contains("no walker")),
             "{said_flier:?}"
         );
         let s = PlayerView::new(&w, P0).serial_of(flier);
-        assert_eq!(ai.roles.boarding_of(s), None);
-        assert_eq!(ai.roles.crossing_of(s), None, "a flier waits for no ship");
+        assert_eq!(ai.tasks(&w).roles.boarding_of(s), None);
+        assert_eq!(
+            ai.tasks(&w).roles.crossing_of(s),
+            None,
+            "a flier waits for no ship"
+        );
         Ok(())
     }
 
@@ -1611,7 +1676,7 @@ mod tests {
         ai.record_refusals(true);
         let soldier = booked(&mut w, &mut ai, land, land);
         let s = PlayerView::new(&w, P0).serial_of(soldier);
-        let ship = ai.roles.with_of(s).ok_or("a ship")?;
+        let ship = ai.tasks(&w).roles.with_of(s).ok_or("a ship")?;
         let ship = {
             let view = PlayerView::new(&w, P0);
             view.my_units()
@@ -1620,10 +1685,14 @@ mod tests {
                 .ok_or("the ship")?
         };
         w.apply(P0, Command::DismissUnit { unit: ship });
-        tidy_unit_registry(&mut ai, &w);
+        tidy_unit_registry(&mut ai, &mut w);
         assert!(said(&ai).is_empty());
-        assert_eq!(ai.roles.boarding_of(s), None);
-        assert_eq!(ai.roles.crossing_of(s), Some(Crossing::Sea), "still waits");
+        assert_eq!(ai.tasks(&w).roles.boarding_of(s), None);
+        assert_eq!(
+            ai.tasks(&w).roles.crossing_of(s),
+            Some(Crossing::Sea),
+            "still waits"
+        );
         Ok(())
     }
 
@@ -1648,12 +1717,16 @@ mod tests {
             vec![(UnitId::new(174 /* zombies */), 1)],
             Vec::new(),
         )?;
-        let ship = ai.roles.with_of(s).ok_or("a ship")?;
-        ai.roles.board_at(s, ship, tile);
-        tidy_unit_registry(&mut ai, &w);
+        let ship = ai.tasks(&w).roles.with_of(s).ok_or("a ship")?;
+        ai.write(&mut w).board_at(s, ship, tile);
+        tidy_unit_registry(&mut ai, &mut w);
         assert!(said(&ai).is_empty());
-        assert_eq!(ai.roles.boarding_of(s), None);
-        assert_eq!(ai.roles.crossing_of(s), Some(Crossing::Sea), "still waits");
+        assert_eq!(ai.tasks(&w).roles.boarding_of(s), None);
+        assert_eq!(
+            ai.tasks(&w).roles.crossing_of(s),
+            Some(Crossing::Sea),
+            "still waits"
+        );
         Ok(())
     }
 
@@ -1676,10 +1749,13 @@ mod tests {
         // The beach the plan would take.
         let best = {
             let mut ai = Ai::new(P0);
-            strand(&mut ai, &w, &soldiers, port());
+            strand(&mut ai, &mut w, &soldiers, port());
             assign_ships(&mut ai, &mut w);
             let s = PlayerView::new(&w, P0).serial_of(soldiers[0]);
-            ai.roles.boarding_of(s).ok_or("a tile was chosen")?
+            ai.tasks(&w)
+                .roles
+                .boarding_of(s)
+                .ok_or("a tile was chosen")?
         };
         assert_ne!(best, start, "the units have to walk to the beach");
         spawn_site(
@@ -1689,7 +1765,7 @@ mod tests {
             Vec::new(),
         )?;
         let mut ai = Ai::new(P0);
-        strand(&mut ai, &w, &soldiers, port());
+        strand(&mut ai, &mut w, &soldiers, port());
         for _ in 0..60 {
             run_turns(&mut ai, &mut w, 1);
             let view = PlayerView::new(&w, P0);
@@ -1702,7 +1778,12 @@ mod tests {
         }
         let view = PlayerView::new(&w, P0);
         for &u in &soldiers {
-            assert_eq!(view.unit_position(u), Some(port()), "{:?}", ai.roles);
+            assert_eq!(
+                view.unit_position(u),
+                Some(port()),
+                "{:?}",
+                ai.tasks(&w).roles
+            );
         }
         Ok(())
     }
@@ -1765,14 +1846,14 @@ mod tests {
         w.balance_farmers(P0);
         let mut ai = Ai::new(P0);
         ai.record_refusals(true);
-        strand(&mut ai, &w, &soldiers, port());
+        strand(&mut ai, &mut w, &soldiers, port());
         let serials: Vec<_> = {
             let view = PlayerView::new(&w, P0);
             soldiers.iter().map(|&u| view.serial_of(u)).collect()
         };
         let ship = PlayerView::new(&w, P0).serial_of(ship);
         for &s in &serials {
-            ai.roles.board_at(s, ship, land);
+            ai.write(&mut w).board_at(s, ship, land);
         }
         walk_to_shore(&mut ai, &mut w, &mut Vec::new());
         let view = PlayerView::new(&w, P0);
@@ -1781,10 +1862,14 @@ mod tests {
             .filter(|&&u| view.unit_position(u) == Some(land) || view.unit_has_order(u))
             .count();
         assert_eq!(sent, 1, "the one place is taken");
-        tidy_unit_registry(&mut ai, &w);
+        tidy_unit_registry(&mut ai, &mut w);
         assert!(said(&ai).is_empty());
         for &s in &serials {
-            assert_eq!(ai.roles.boarding_of(s), Some(land), "still booked");
+            assert_eq!(
+                ai.tasks(&w).roles.boarding_of(s),
+                Some(land),
+                "still booked"
+            );
         }
         Ok(())
     }

@@ -168,13 +168,15 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 825 | Low | Options | Setting: console cheats off, so that a game started with it can never unlock them |
 | 826 | Low | Combat / Options | Optional setting: broken city walls stay broken until repaired from the build menu |
 | 827 | Low | Core / Options | Optional setting: refugees of a razed city move to cities of their race or settle nearby |
-| 829 | Medium | Core / Lairs | Lair monsters are lasting units of the monsters' player, listed in its army ledger |
+| 829 | Medium | Core / AI / Lairs | The monster player: played like any computer player, its lair monsters lasting units, and cities it can conquer |
 | 830 | Medium | Core / AI | The computer player's unit tasks are kept in its army ledger and core does their movement |
 | 833 | Medium | Core / Def | Check the rules outside the battle for numbers that stand in the code, and move them into the content |
 | 834 | Low | Housekeeping | Decide what becomes of the old branch `claude/content-packs-units-buildings` |
 | 835 | Medium | AI | Move the tuning numbers written inside the strategic AI's functions into `ai_strategy.ron` |
 | 838 | Low | Core / Client | The players' own unit orders move onto the movement helper of task 830 |
 | 839 | Medium | AI | Treaty partners: no penalty for units in a partner's territory, a penalty for melding a node near a partner's city, no walk repeated onto a partner's square |
+| 840 | Low | Core / Lairs | Special events in the cities monsters hold (zombies make more zombies, dragons pile up gold) |
+| 841 | Medium | Core | A save can be written that does not load: a city with more farmers than population figures |
 
 ## Descriptions
 
@@ -908,16 +910,67 @@ situation is a target, not a need (Earth Lore and Raise Volcano nearly always ha
 
 **827. Refugees.** Asked for by the user, 26 November 2026. An optional game setting (off: as today). With it, when a city is razed, its people may flee: cities of the same race have a chance to grow in population, or settlers or outposts of that race appear nearby. Decide: which ways a city is razed count (the taker's choice, monsters, spells), the chances and how many people flee (in content), how near "nearby" is, who owns new settlers and outposts (the independent player of the race?), and what the wizards are told. The rolls come from the game's random numbers. Text keys; `docs/game-settings.md`; tests under both values. *Needs:* nothing.
 
-**829. Lair monsters in the army ledger.** Asked for by the user, 27 November 2026, as a follow-up to task 828. Today a lair's guards are counts on its `Lair` component (`guards`, with `hurt` for wounds kept between assaults): `feature/lair.rs` makes the units for the monsters' player when the site is assaulted and removes them after the fight. Make them units that last, under the monsters' player and in its ledger, from the time a lair gets them (map generation, a monster stack taking over a site) until they die or leave; the lair finds its guards through them and no longer holds counts or wounds. To settle when it is built: what keeps the roaming monsters' AI from walking guards away; whether spells and random events that reach every unit now reach guards; that a player still learns the guards only by fighting for the site or seeing the square (`docs/lairs.md`); whether the monsters' ledger records its losses; how older saves are read. **Two faults to end with it** (found by reading the code on 27 November 2026, no test run yet): (a) generation puts up to `max_guards` (9) in a lair whatever the `max_battle_side` setting says; an assault fields only the first of them, and beating those clears the site, so the rest never fight. All guards stay on the square, those that do not fit wait as a reserve like other defenders, and the site is cleared only when none is left. `docs/game-settings.md` says lair guards follow the setting, which holds only for the monster stacks made in play. (b) Clearing a node or tower leaves its guard list in place, and `vacant_zone` (`threat/monster.rs`) wants it empty, so monsters never move back in, although `docs/lairs.md` says they can. Check every reader of `Lair::guards` (AI, client, surveyor, `threat/monster.rs`, the save, the map generator, `f4x-learn` aside). The drift pins move. Docs: `docs/lairs.md`, `docs/ecs-structure.md`.
+**829. The monster player and its lair monsters.** Asked for by the user, 27 November 2026: first as lair monsters in the army ledger (a follow-up to task 828), then with the user's design of the monster player.
+
+**Today:** the monsters' player already has one fixed number (`MONSTERS`), the last turn of a round and an army ledger. It is not played by the computer player's logic but by code of its own (`f4x-ai/src/monster.rs`). A lair's guards are counts on its `Lair` component (`guards`, with `hurt` for wounds kept between assaults), made into units for an assault and removed after it (`feature/lair.rs`). Monsters that beat a city wreck it and never hold it (`rampage_city`).
+
+**The monster player** (the user's design):
+- It always has the same player number, and its own turn, as the last player.
+- It is played by the same logic as the other computer players.
+- It has no diplomacy and no magic; its units still cast their spells.
+- It is always at war with everyone.
+- It pays no upkeep for its units.
+- It uses the army ledger.
+
+**Lair monsters:**
+- Whenever a lair is created, its monsters are created as units and added to the monster player's ledger.
+- They get a new role, **hiding**: other players do not see them until they try to enter the lair, and they take no action.
+- After a lair is attacked, the monsters that survive in it are set to "awaiting orders".
+- The monster player garrisons lairs with units to defend them: any lair that has no hiding monsters.
+
+**Raids:**
+- A monster raid adds units to the monster player, which decides what to do with them: scout, garrison, try to conquer.
+
+**Cities:**
+- The monster player can conquer cities. It decides what to do with a city it wins: conquer it, rampage through it, ruin it or raze it.
+- A city it holds produces nothing: no gold, food, mana, research or production, and no growth.
+- Its taxes are zero. Its unhappiness is 40 %, in place of the shares of the tax and of racial relations (the monster player has no race and no fortress city); the other causes of unrest and what calms it apply as in any city.
+
+**For the build:**
+- `Lair::guards` and `Lair::hurt` go: a lair's guards are the units. Check every reader (AI, client, surveyor, `threat/monster.rs`, the save, the map generator; `f4x-learn` aside).
+- Only the game puts a unit into hiding: no command can, so no player hides units of its own.
+- The monsters' own playing code goes, with what the design replaces of `rampage_city` and `occupy_zone` (rampage and ruin stay, as choices of the monster player).
+- The 40 % is a number of the content.
+- The monster player's ledger records the units that leave it, like any other (today it keeps none, because guards come and go with each fight).
+- Older saves load: guard counts become hiding units, with their wounds.
+- Two faults to end with it (found by reading the code on 27 November 2026, no test run yet): (a) generation puts up to `max_guards` (9) in a lair whatever the `max_battle_side` setting says; an assault fields only the first of them, and beating those clears the site, so the rest never fight. All guards stay on the square, those that do not fit wait as a reserve like other defenders, and the site is cleared only when none is left. `docs/game-settings.md` says lair guards follow the setting, which holds only for the monster stacks made in play. (b) Clearing a node or tower leaves its guard list in place, and `vacant_zone` (`threat/monster.rs`) wants it empty, so monsters never move back in, although `docs/lairs.md` says they can.
+- Tests on the shipped rules; the drift pins move.
+
+**Settled** (the user, 28 November 2026):
+1. The setting `lair_full_heal` goes: the dead stay dead, and wounds heal as any unit's.
+2. A raid's units appear at a lair, chosen as today, awaiting orders; no guard is driven out; the clock and the budget stay. The raiding parties of neutral cities are not monster raids and stay.
+3. A city the monsters win: see **Cities**.
+4. The 40 % unhappiness: see **Cities**.
+5. "Produces nothing": see **Cities**.
+6. A hiding unit cannot be targeted unless it is revealed (spells can reveal it). A spell that targets its square, or otherwise does not target it directly, can affect it. The monster player itself cannot be targeted by spells.
+7. A lair's treasure goes to whoever beats the last monster on its square, a garrison included; a lair its monsters have left pays out on arrival.
+8. Random events pass hiding units by.
+
+Rampage and ruin work as they do today (`rampage_city`), what becomes of the attacking monsters included.
+
+Docs: `docs/lairs.md`, `docs/ecs-structure.md`, `docs/design.md` section 8 (the monster player's own rules are exceptions to "no special rules for neutral units"), `docs/game-settings.md`, `docs/turn-structure.md`, `docs/ai-design.md`. *Needs:* nothing.
 
 **830. The computer player's unit tasks in the army ledger.** Asked for by the user, 27 November 2026, first as unit orders for players that use the computer player's unit automation. An order or task uses only what its owner knows and does only what the player could do by commands (`docs/design.md` section 8; path finding by the player's knowledge is task 649), and never changes diplomacy by itself.
 
 **Built (player orders):** the army ledger holds the orders (`unit/ledger.rs`), core walks them at the end of the turn, and the client's Order button offers Go to, Patrol, scout, meld, settle, build a road, escort, reinforce and Cancel orders (`docs/game-flow.md` 3.2). The computer player orders its own units itself: of these it uses only Go to and road building.
 
-**Built (stage 1, 27 November 2026):** the computer player's unit tasks and the squares of its gathering forces are in its army ledger (`unit/task.rs`, `Command::SetTasks`); it reads them as its turn begins and writes them near the end of it, and the unused copy of its unit handling is gone. It still moves each unit itself.
+**Built (stage 1, 27 and 28 November 2026):** the computer player's unit tasks, the musters and the squares of its gathering forces are in its army ledger (`unit/task.rs`). It has no copy of them: it reads the ledger and changes it with a command for each change (`Command::Task`), and the ledger records which ship carries which unit, a sea scout's party included. The turns a role and a plan began stay in the ledger; the game hands the world the current round. The base roles of all units go into the ledger in one command, and only those that changed; core runs none of its after-command checks for a task command. The unused copy of its unit handling is gone. It still moves each unit itself.
 
 **To be built** (the user's design, 27 November 2026; it covers the war tasks too):
-- The computer player registers its unit tasks, all of them, the war tasks and their target squares included, in the army ledger its player owns (built), and no longer orders each unit by itself. The tasks themselves are unchanged.
+- The computer player registers its unit tasks, all of them, the war tasks and their target squares included, in the army ledger its player owns, and no longer orders each unit by itself. The tasks themselves are unchanged.
+- It uses the ledger itself: it reads and changes the tasks there, with no copy of its own (stage 1 as built keeps a copy and writes it once a turn: to be changed).
+- Of target squares the ledger records only those of each unit's own job. Plans such as the campaign's target, the plan of a landing and the square of a plane crossing stay with the computer player.
+- The ledger records the transport assignments: which unit is to be carried by which ship.
 - It calls a helper in core that does the movement part of the tasks: the helper checks that the targets are legal, ends the orders that have no target any more, moves the units that can move, and loads units on ships or lands them ashore. It may return a unit with an invalid order to "awaiting orders"; it changes nothing else about a task, and it calls no attack.
 - The computer player calls the helper twice in its turn: at the start, and again after its jobs have given out tasks, so that a new task still moves its unit in the same turn.
 - Decisions stay with the computer player (targets, rally points, which ship takes whom, spells, war), as does what a unit does on arrival (meld, found a city, start a road).
@@ -957,3 +1010,11 @@ Docs: `docs/ecs-structure.md`, `docs/ai-design.md`, `docs/ai-unit-registry.md`, 
 - **Nodes:** melding with a node that is closer to a partner's city (read here as: closer than to any city of the one who melds) does carry a diplomatic penalty. There is none today. Its size is a number of `ai_strategy.ron`, decided with the user.
 - **Walks:** a square a partner's units stand on cannot be entered (sharing a square is task 777), and the computer player sends a unit there again every turn: in the soak of task 837, seed 8 had 59 orders refused by a treaty, those traced being spirits on their way to a node. A computer player picks another target or waits instead; the soak counter `refused by a treaty` is zero.
 - Tests on the shipped rules; `docs/diplomacy.md` (its paragraph on trespass is out of date: the game no longer does this once a turn in `diplomacy/mod.rs`). *Needs:* nothing.
+
+**840. Special events in monster-held cities.** Asked for by the user, 27 November 2026. A city the monster player holds does something by the monsters that hold it, for example: zombies make more zombies; dragons amass a pile of gold. Which monsters do what, how often, and what becomes of the result (such as the gold when the city is taken back) is decided with the user first. The events and their numbers are content; their messages are text keys. *Needs:* 829.
+
+**841. A save that does not load.** Found on 28 November 2026 while task 830 was measured; the user asked for the task. A snapshot the soak writes at turn 409 of the 2-wizard speed benchmark's game cannot be loaded: "the save is inconsistent: city barbarian_city_07 has impossible population figures". The saved city (an independent one) has 9 population figures and 10 farmers; the loader refuses more farmers than figures (`world/save.rs`). Seen with the build of stage 1 of task 830 (`fcc8adae`) and with that of 28 November 2026.
+- Reproduce (the snapshot `soak-out/bench/p2/seed25/t0400.f4x` is local, made by `scripts/perf_guard.py --make-bench`): `f4x-tools soak --from soak-out/bench/p2/seed25/t0400.f4x --players 2 --turns 410 --snapshots-every 409 --out DIR`, then load `DIR/seed25/t0409.f4x` with `soak --from`.
+- Find what leaves a city with more farmers than figures and mend it there, with a test that fails without the fix. Check whether saved games of players are affected, and whether such a save is then to load.
+- The loader's other checks may have the same kind of gap: a test that saves and loads in the course of a long game would find them.
+*Needs:* nothing.

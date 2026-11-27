@@ -1,7 +1,8 @@
 //! Unit tasks: what a player has set each of its units to do, the parties being assembled and
-//! the squares a force gathers on. The player keeps them in its army ledger and writes them there
-//! with `Command::SetTasks`; the computer player chooses them (`docs/ai-unit-registry.md`).
-//! A task orders no unit about by itself.
+//! the squares a force gathers on. The player keeps them in its army ledger, reads them there and
+//! changes them with `Command::Task`, one [`Change`] at a time; the computer player chooses them
+//! (`docs/ai-unit-registry.md`). A task orders no unit about by itself. The turns an entry
+//! records are the round the game gives the world with the command.
 //!
 //! The ledger holds tasks of its living units only: writing them leaves out the others, and a
 //! unit that leaves the army loses its task as it loses its order.
@@ -20,6 +21,216 @@ pub struct Tasks {
     /// The gathering against each target.
     #[serde(default)]
     pub assemblies: Vec<Assembly>,
+}
+
+/// One change of a player's tasks (`Command::Task`). Each does what the method of [`Registry`]
+/// of its name does.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum Change {
+    Claim {
+        serial: Serial,
+        role: Role,
+        to: Option<Position>,
+    },
+    ClaimAll {
+        serials: Vec<Serial>,
+        role: Role,
+    },
+    Assign {
+        role: Role,
+        serials: Vec<Serial>,
+    },
+    Release {
+        serial: Serial,
+        role: Role,
+    },
+    ReleaseAny {
+        serial: Serial,
+    },
+    ReleaseRole {
+        role: Role,
+    },
+    ReleaseMany {
+        serials: Vec<Serial>,
+        role: Role,
+    },
+    /// [`Registry::set_base`] for each of the units: the role, and where it sends the unit.
+    SetBases {
+        bases: Vec<(Serial, Role, Option<Position>)>,
+    },
+    SetTarget {
+        serial: Serial,
+        role: Role,
+        to: Option<Position>,
+    },
+    SetCrossing {
+        serial: Serial,
+        crossing: Option<Crossing>,
+    },
+    BoardAt {
+        serial: Serial,
+        ship: Serial,
+        tile: Position,
+    },
+    Unboard {
+        serial: Serial,
+    },
+    /// Record the ship that carries the unit, or the unit it is tied to, with no boarding square.
+    Tie {
+        serial: Serial,
+        with: Serial,
+    },
+    Group {
+        serials: Vec<Serial>,
+        role: Role,
+        party: u32,
+        with: Option<Serial>,
+    },
+    PlanShip {
+        ship: Serial,
+        planned: u32,
+        capacity: u32,
+        to: Position,
+    },
+    Depart {
+        ship: Serial,
+        to: Position,
+    },
+    Track {
+        serial: Serial,
+        at: Position,
+        ordered: bool,
+    },
+    ClearTrack {
+        serial: Serial,
+    },
+    RestartPlan {
+        serial: Serial,
+    },
+    BeginMuster {
+        kind: MusterKind,
+        rally: Position,
+        objective: Option<Position>,
+        serials: Vec<Serial>,
+    },
+    JoinMuster {
+        party: u32,
+        serials: Vec<Serial>,
+    },
+    EndMuster {
+        party: u32,
+    },
+    EndMusters {
+        kind: MusterKind,
+    },
+    /// Forget the musters that have no member left.
+    TidyMusters,
+    /// Keep the gathering against its target, in place of the one kept for that target.
+    SetAssembly(Assembly),
+    /// Forget the gatherings against these targets.
+    DropAssemblies {
+        targets: Vec<Position>,
+    },
+    /// Take these tasks in place of all that is held: what an older save kept elsewhere.
+    Import(Box<Tasks>),
+}
+
+impl Tasks {
+    /// Make `change` in the round `round`. `lives` says which units are in the army: a task is
+    /// given to no other.
+    pub(crate) fn apply(&mut self, change: Change, round: u32, lives: impl Fn(Serial) -> bool) {
+        let living = |serials: Vec<Serial>| -> Vec<Serial> {
+            serials.into_iter().filter(|&s| lives(s)).collect()
+        };
+        let roles = &mut self.roles;
+        match change {
+            Change::Claim { serial, role, to } => {
+                if lives(serial) {
+                    // A refused claim leaves the unit the role it holds: the claimer looks.
+                    let _ = roles.claim(serial, role, round, to);
+                }
+            }
+            Change::ClaimAll { serials, role } => {
+                roles.claim_all(living(serials), role, round);
+            }
+            Change::Assign { role, serials } => roles.assign(role, living(serials), round),
+            Change::Release { serial, role } => {
+                roles.release(serial, role, round);
+            }
+            Change::ReleaseAny { serial } => roles.release_any(serial, round),
+            Change::ReleaseRole { role } => roles.release_role(role, round),
+            Change::ReleaseMany { serials, role } => roles.release_many(&serials, role, round),
+            Change::SetBases { bases } => {
+                for (serial, role, to) in bases {
+                    if lives(serial) {
+                        roles.set_base(serial, role, to, round);
+                    }
+                }
+            }
+            Change::SetTarget { serial, role, to } => roles.set_target(serial, role, to, round),
+            Change::SetCrossing { serial, crossing } => roles.set_crossing(serial, crossing),
+            Change::BoardAt { serial, ship, tile } => roles.board_at(serial, ship, tile),
+            Change::Unboard { serial } => roles.unboard(serial),
+            Change::Tie { serial, with } => roles.tie(serial, with),
+            Change::Group {
+                serials,
+                role,
+                party,
+                with,
+            } => roles.group(&serials, role, party, with),
+            Change::PlanShip {
+                ship,
+                planned,
+                capacity,
+                to,
+            } => {
+                if lives(ship) {
+                    roles.plan_ship(ship, planned as usize, capacity as usize, round, to);
+                }
+            }
+            Change::Depart { ship, to } => roles.depart(ship, to),
+            Change::Track {
+                serial,
+                at,
+                ordered,
+            } => {
+                roles.track(serial, at, ordered);
+            }
+            Change::ClearTrack { serial } => roles.clear_track(serial),
+            Change::RestartPlan { serial } => roles.restart_plan(serial, round),
+            Change::BeginMuster {
+                kind,
+                rally,
+                objective,
+                serials,
+            } => {
+                roles.begin_muster(kind, rally, objective, &living(serials), round);
+            }
+            Change::JoinMuster { party, serials } => {
+                roles.join_muster(party, &living(serials), round);
+            }
+            Change::EndMuster { party } => roles.end_muster(party, round),
+            Change::EndMusters { kind } => roles.end_musters(kind, round),
+            Change::TidyMusters => roles.tidy_musters(),
+            Change::SetAssembly(assembly) => {
+                match self
+                    .assemblies
+                    .iter_mut()
+                    .find(|a| a.target == assembly.target)
+                {
+                    Some(held) => *held = assembly,
+                    None => self.assemblies.push(assembly),
+                }
+            }
+            Change::DropAssemblies { targets } => {
+                self.assemblies.retain(|a| !targets.contains(&a.target));
+            }
+            Change::Import(tasks) => {
+                *self = *tasks;
+                self.roles.keep_living(lives);
+            }
+        }
+    }
 }
 
 /// The force gathering against one target.
@@ -178,9 +389,6 @@ pub struct Muster {
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Registry {
     map: std::collections::BTreeMap<Serial, Assignment>,
-    /// The latest turn the registry was told of (by a claim or a sync).
-    #[serde(default)]
-    now: u32,
     /// The parties being assembled, by party id (`Muster`).
     #[serde(default)]
     musters: std::collections::BTreeMap<u32, Muster>,
@@ -312,12 +520,6 @@ impl Registry {
         self.tidy_musters();
     }
 
-    /// Drop the units that are not in `alive` (dead, or gone) from the registry.
-    pub fn prune(&mut self, alive: &[Serial]) {
-        self.map.retain(|s, _| alive.contains(s));
-        self.tidy_musters();
-    }
-
     /// Count the turns the unit has stood still on an order: a unit that moved, or has no order
     /// (`moving` false), starts again. Returns the count.
     pub fn track(&mut self, serial: Serial, at: Position, ordered: bool) -> u32 {
@@ -367,41 +569,28 @@ impl Registry {
 
     /// The units that hold `role` become exactly `serials` (the ones with a better role excepted).
     pub fn assign(&mut self, role: Role, serials: impl IntoIterator<Item = Serial>, turn: u32) {
-        self.release_role(role);
+        self.release_role(role, turn);
         self.claim_all(serials, role, turn);
     }
 
     /// Hand back `role` from every unit that holds it.
-    pub fn release_role(&mut self, role: Role) {
-        self.retain(|_, a| a.role != role);
+    pub fn release_role(&mut self, role: Role, turn: u32) {
+        self.retain(turn, |_, a| a.role != role);
     }
 
     /// Hand back `role` from each of the units that hold it.
-    pub fn release_many(&mut self, serials: &[Serial], role: Role) {
-        self.retain(|s, a| a.role != role || !serials.contains(&s));
-    }
-
-    /// Keep `role` only on the units `keep` says so.
-    pub fn retain_role(&mut self, role: Role, mut keep: impl FnMut(Serial) -> bool) {
-        self.retain(|s, a| a.role != role || keep(s));
+    pub fn release_many(&mut self, serials: &[Serial], role: Role, turn: u32) {
+        self.retain(turn, |s, a| a.role != role || !serials.contains(&s));
     }
 
     /// Change where the unit's role sends it, if it holds `role`.
-    pub fn set_target(&mut self, serial: Serial, role: Role, to: Option<Position>) {
-        let now = self.now;
+    pub fn set_target(&mut self, serial: Serial, role: Role, to: Option<Position>, turn: u32) {
         if let Some(a) = self.map.get_mut(&serial).filter(|a| a.role == role) {
             if a.to != to {
-                a.planned = now;
+                a.planned = turn;
                 a.crossing = None;
             }
             a.to = to;
-        }
-    }
-
-    /// The role's plan was asked for again this turn (a bridge that is still wanted).
-    pub fn touch(&mut self, serial: Serial, turn: u32) {
-        if let Some(a) = self.map.get_mut(&serial) {
-            a.planned = turn;
         }
     }
 
@@ -418,6 +607,13 @@ impl Registry {
         if let Some(a) = self.map.get_mut(&serial) {
             a.with = Some(ship);
             a.boarding = Some(tile);
+        }
+    }
+
+    /// Record the unit this one is tied to (the ship that carries it), whatever its role.
+    pub fn tie(&mut self, serial: Serial, with: Serial) {
+        if let Some(a) = self.map.get_mut(&serial) {
+            a.with = Some(with);
         }
     }
 
@@ -473,16 +669,11 @@ impl Registry {
         found
     }
 
-    /// Tell the registry the turn (it dates the roles handed back and the plans re-targeted).
-    pub fn tick(&mut self, turn: u32) {
-        self.now = self.now.max(turn);
-    }
-
-    /// The plan of the unit begins again now (it did something that counts).
-    pub fn restart_plan(&mut self, serial: Serial) {
-        let now = self.now;
+    /// The plan of the unit begins again now (it did something that counts, or its plan was asked
+    /// for again).
+    pub fn restart_plan(&mut self, serial: Serial, turn: u32) {
         if let Some(a) = self.map.get_mut(&serial) {
-            a.planned = now;
+            a.planned = turn;
         }
     }
 
@@ -597,13 +788,15 @@ impl Registry {
     }
 
     /// End a muster: its members await orders and the record goes.
-    pub fn end_muster(&mut self, party: u32) {
+    pub fn end_muster(&mut self, party: u32, turn: u32) {
         self.musters.remove(&party);
-        self.retain(|_, a| !(a.role == Role::Muster && a.party == Some(party)));
+        self.retain(turn, |_, a| {
+            !(a.role == Role::Muster && a.party == Some(party))
+        });
     }
 
     /// End every muster of `kind`.
-    pub fn end_musters(&mut self, kind: MusterKind) {
+    pub fn end_musters(&mut self, kind: MusterKind, turn: u32) {
         let ids: Vec<u32> = self
             .musters
             .iter()
@@ -611,7 +804,7 @@ impl Registry {
             .map(|(&id, _)| id)
             .collect();
         for id in ids {
-            self.end_muster(id);
+            self.end_muster(id, turn);
         }
     }
 
@@ -621,7 +814,7 @@ impl Registry {
     }
 
     /// Forget the musters that have no member left.
-    fn tidy_musters(&mut self) {
+    pub fn tidy_musters(&mut self) {
         let live: Vec<u32> = self
             .map
             .values()
@@ -678,10 +871,17 @@ impl Registry {
             .collect()
     }
 
+    /// Whether [`Registry::set_base`] with these would change what is kept of the unit.
+    pub fn base_differs(&self, serial: Serial, role: Role, to: Option<Position>) -> bool {
+        self.map
+            .get(&serial)
+            .is_none_or(|a| a.role.is_base() && (a.role != role || a.to != to))
+    }
+
     /// Give the unit a base role from where it stands (`to` = its post, the city it garrisons, the
     /// end of its path), unless a routine has a task for it. The audit does this for every unit.
     pub fn set_base(&mut self, serial: Serial, role: Role, to: Option<Position>, turn: u32) {
-        if self.has_role(serial) {
+        if !self.base_differs(serial, role, to) {
             return;
         }
         match self.map.get_mut(&serial) {
@@ -709,7 +909,6 @@ impl Registry {
         turn: u32,
         to: Option<Position>,
     ) -> Result<(), Role> {
-        self.now = self.now.max(turn);
         match self.map.get_mut(&serial) {
             // The same role again renews it; a target given is kept when none is.
             Some(held) if held.role == role => {
@@ -743,9 +942,9 @@ impl Registry {
     }
 
     /// Hand back the role, if the unit holds it. Whether it did.
-    pub fn release(&mut self, serial: Serial, role: Role) -> bool {
+    pub fn release(&mut self, serial: Serial, role: Role, turn: u32) -> bool {
         if self.is(serial, role) {
-            self.map.insert(serial, Assignment::awaiting(self.now));
+            self.map.insert(serial, Assignment::awaiting(turn));
             true
         } else {
             false
@@ -753,18 +952,17 @@ impl Registry {
     }
 
     /// Hand back whatever role the unit holds.
-    pub fn release_any(&mut self, serial: Serial) {
+    pub fn release_any(&mut self, serial: Serial, turn: u32) {
         if self.map.contains_key(&serial) {
-            self.map.insert(serial, Assignment::awaiting(self.now));
+            self.map.insert(serial, Assignment::awaiting(turn));
         }
     }
 
     /// Keep only the units `keep` says are still around and doing it.
-    pub fn retain(&mut self, mut keep: impl FnMut(Serial, &Assignment) -> bool) {
-        let now = self.now;
+    pub fn retain(&mut self, turn: u32, mut keep: impl FnMut(Serial, &Assignment) -> bool) {
         for (s, a) in self.map.iter_mut() {
             if !keep(*s, a) {
-                *a = Assignment::awaiting(now);
+                *a = Assignment::awaiting(turn);
             }
         }
     }

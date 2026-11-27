@@ -28,6 +28,7 @@ use f4x_battle::battlemagic::caster::SpellAim;
 use f4x_battle::map::BattleMap;
 use f4x_battle::Side;
 use f4x_core::player::PlayerId;
+use f4x_core::world::FIRST_ROUND;
 use f4x_core::world::{Command, Event, World};
 use f4x_def::content::Content;
 use f4x_def::rules::{CastContext, SpellId, SpellTarget};
@@ -197,6 +198,7 @@ fn fight(
             attackers,
             defenders,
         },
+        FIRST_ROUND,
         &mut rng,
     );
     if world.battle().is_none() {
@@ -237,6 +239,7 @@ fn fight(
                         aim: SpellAim::Unit(index),
                         mana: 0,
                     }),
+                    FIRST_ROUND,
                     &mut rng,
                 );
                 if events.iter().any(|e| matches!(e, Event::Rejected(_))) {
@@ -248,7 +251,7 @@ fn fight(
         let Some(command) = next_command(&world) else {
             break;
         };
-        let events = world.apply(Command::Battle(command.clone()), &mut rng);
+        let events = world.apply(Command::Battle(command.clone()), FIRST_ROUND, &mut rng);
         if TRACE.load(Ordering::Relaxed) == usize::from(other) {
             println!("{command:?} -> {events:?}");
         }

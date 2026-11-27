@@ -59,7 +59,7 @@ impl GameState {
     pub fn first_round(rng: GameRng, players: Vec<PlayerId>) -> Self {
         Self {
             rng,
-            round: 1,
+            round: f4x_core::world::FIRST_ROUND,
             phase: None,
             game_over: None,
             players,

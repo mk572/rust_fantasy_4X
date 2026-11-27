@@ -836,7 +836,7 @@ of 42, within the noise of this sample.
 ## 13. Unit roles
 
 Every unit has exactly one role, and none has an empty one. The roles live in one place, the
-registry `Ai::roles` (`roles.rs`), which the player's army ledger keeps between turns; the whole
+registry in the player's army ledger (`roles.rs` fills it); the whole
 subsystem (data, where it is kept, groups, claim rules, the audit, how to add a role) is in
 [`ai-unit-registry.md`](ai-unit-registry.md).
 
@@ -1060,7 +1060,7 @@ The jobs only **build up a force** that can take a target; whether it attacks is
 
 **The force** is picked by need: until the strength wanted (`war_plan::strength_wanted`) and `min_march` units are there, at most what a battle holds a side; in the win phase every free soldier up to that. The members of the campaign's muster come first (they are not swapped for others every turn), then the soldiers who are at the target soonest. With fewer than `min_march` soldiers free and marching, nothing is gathered.
 
-**The rally point** is the first square on the way of the unit that arrives last that every unit of the force stands on no later than that unit (a way that begins with a door starts at its exit), so the gathering does not slow the army. It is never a city, a lair, a tower, a square with an enemy or without room, or one beside the target. With no such square the force goes straight to the square beside the target. It is chosen once for a target, kept while it can be used, and saved with the AI (`Ai::assemblies`, dropped when nothing is bound for the target).
+**The rally point** is the first square on the way of the unit that arrives last that every unit of the force stands on no later than that unit (a way that begins with a door starts at its exit), so the gathering does not slow the army. It is never a city, a lair, a tower, a square with an enemy or without room, or one beside the target. With no such square the force goes straight to the square beside the target. It is chosen once for a target, kept while it can be used, and kept in the army ledger (`task::Assembly`, dropped when nothing is bound for the target).
 
 **The march.** When what stands on the rally point, together with what stands beside the target or marches to it, is enough, the units on the rally point march (`Role::March`). A force at the target that has become too weak (losses, a stronger defence) gets more units the same way. A march that takes longer than `march_turns` and the walk, or whose target changes, is called off.
 

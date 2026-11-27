@@ -52,8 +52,9 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         // the other plane.
         // A march whose target has fallen is over: its units are available again where they
         // stand, for the dispatcher to garrison or send on.
-        ai.roles.end_musters(crate::roles::MusterKind::Campaign);
-        ai.roles.release_role(crate::roles::Role::March);
+        ai.write(game)
+            .end_musters(crate::roles::MusterKind::Campaign);
+        ai.write(game).release_role(crate::roles::Role::March);
         ai.march_target = None;
         return;
     };
@@ -221,10 +222,10 @@ fn march_on(
     // a turn), or the stack would turn back before it arrived.
     let trip = {
         let view = PlayerView::new(game, me);
-        let from = assembly::rally_of(ai, target).unwrap_or(capital);
+        let from = assembly::rally_of(&view.tasks(), target).unwrap_or(capital);
         distance(&view, from, target).unwrap_or(0)
     };
-    let too_long = ai.roles.any(Role::March)
+    let too_long = ai.tasks(game).roles.any(Role::March)
         && march_called_off(
             game.round(),
             ai.march_started,
@@ -232,17 +233,18 @@ fn march_on(
             game.levers().attack.march_turns,
         );
     if too_long || ai.march_target != Some(target) {
-        if ai.roles.any(Role::March) {
+        let marching = ai.tasks(game).roles.count(Role::March);
+        if marching > 0 {
             events.push(Event::MarchCalledOff {
                 player: me,
                 target: ai.march_target.unwrap_or(target),
-                units: ai.roles.count(Role::March) as u32,
+                units: marching as u32,
                 turns: game.round().saturating_sub(ai.march_started),
                 target_changed: !too_long,
             });
         }
-        ai.roles.release_role(Role::March);
-        ai.roles.end_musters(MusterKind::Campaign);
+        ai.write(game).release_role(Role::March);
+        ai.write(game).end_musters(MusterKind::Campaign);
         ai.march_target = Some(target);
     }
     match ai.naval.filter(|p| p.target == target) {
@@ -264,10 +266,11 @@ struct Need {
 
 impl Need {
     fn of(ai: &Ai, view: &PlayerView, round: u32, target: Position) -> Self {
+        let tasks = view.tasks();
         let marching: Vec<hecs::Entity> = view
             .my_units()
             .into_iter()
-            .filter(|&u| ai.roles.target_of(view.serial_of(u), Role::March) == Some(target))
+            .filter(|&u| tasks.roles.target_of(view.serial_of(u), Role::March) == Some(target))
             .collect();
         let wanted = crate::war_plan::strength_wanted(view, &ai.city_memory, round, target);
         // In the win phase the wizard sends every free soldier it has, up to a full party:
@@ -313,14 +316,11 @@ impl Need {
 
 /// The soldiers of the campaign's muster come first (they are not swapped for others every turn),
 /// then those that are there soonest.
-fn by_arrival(
-    ai: &Ai,
-    view: &PlayerView,
-    mut timed: Vec<(u32, hecs::Entity)>,
-) -> Vec<hecs::Entity> {
+fn by_arrival(view: &PlayerView, mut timed: Vec<(u32, hecs::Entity)>) -> Vec<hecs::Entity> {
+    let tasks = view.tasks();
     timed.sort_by_key(|&(turns, u)| {
         let serial = view.serial_of(u);
-        let member = ai.roles.in_muster(serial, MusterKind::Campaign);
+        let member = tasks.roles.in_muster(serial, MusterKind::Campaign);
         (!member, turns, serial)
     });
     timed.into_iter().map(|(_, u)| u).collect()
@@ -339,9 +339,10 @@ fn gather(
     // The units on the march that came beside the target on another square join the others.
     let stragglers: Vec<hecs::Entity> = {
         let view = PlayerView::new(game, me);
+        let tasks = view.tasks();
         view.my_units()
             .into_iter()
-            .filter(|&u| ai.roles.target_of(view.serial_of(u), Role::March) == Some(target))
+            .filter(|&u| tasks.roles.target_of(view.serial_of(u), Role::March) == Some(target))
             .filter(|&u| !view.unit_has_order(u))
             .filter(|&u| {
                 view.unit_position(u)
@@ -355,9 +356,10 @@ fn gather(
     }
     let mut candidates: Vec<hecs::Entity> = {
         let view = PlayerView::new(game, me);
+        let tasks = view.tasks();
         free.iter()
             .copied()
-            .filter(|&u| !ai.roles.is(view.serial_of(u), Role::March))
+            .filter(|&u| !tasks.roles.is(view.serial_of(u), Role::March))
             .collect()
     };
     let crossing = ai.crossing.filter(|c| c.plane != target.plane);
@@ -378,7 +380,7 @@ fn gather(
         let force = if timed.len() + need.units < min {
             Vec::new()
         } else {
-            need.pick(&view, &by_arrival(ai, &view, timed))
+            need.pick(&view, &by_arrival(&view, timed))
         };
         (need, force, none_gets_there)
     };
@@ -421,7 +423,7 @@ fn gather(
         }
     }
     let rallies: Vec<Position> = [Some(point), crossing].into_iter().flatten().collect();
-    assembly::campaign_muster(ai, target, point, &rallies, &members, game.round());
+    assembly::campaign_muster(ai, game, target, point, &rallies, &members);
     let ready: Vec<hecs::Entity> = {
         let view = PlayerView::new(game, me);
         let mut ready: Vec<hecs::Entity> = force
@@ -466,11 +468,10 @@ fn set_out(
         target,
         units: serials.len() as u32,
     });
-    ai.roles.end_musters(MusterKind::Campaign);
-    ai.roles
-        .assign(Role::March, serials.iter().copied(), game.round());
+    ai.write(game).end_musters(MusterKind::Campaign);
+    ai.write(game).assign(Role::March, serials.iter().copied());
     for &s in &serials {
-        ai.roles.set_target(s, Role::March, Some(target));
+        ai.write(game).set_target(s, Role::March, Some(target));
     }
     ai.march_started = game.round();
 }
@@ -534,7 +535,7 @@ fn cross(
             there.push(u);
             members.push(serial);
         } else if ordered {
-            if ai.roles.in_muster(serial, MusterKind::Campaign) {
+            if ai.tasks(game).roles.in_muster(serial, MusterKind::Campaign) {
                 members.push(serial);
             }
         } else if !full && members.len() < side && Ai::room_at(game, square, 1) {
@@ -549,9 +550,9 @@ fn cross(
             }
         }
     }
-    let point = assembly::rally_of(ai, target);
+    let point = assembly::rally_of(&ai.tasks(game), target);
     let rallies: Vec<Position> = [Some(square), point].into_iter().flatten().collect();
-    assembly::campaign_muster(ai, target, square, &rallies, &members, game.round());
+    assembly::campaign_muster(ai, game, target, square, &rallies, &members);
     // The troops cross in stacks of what a battle holds.
     let min = game.levers().attack.min_crossing.min(near.len());
     for chunk in there.chunks(side) {
@@ -593,18 +594,19 @@ fn land_on(
     let (need, force, begun) = {
         let view = PlayerView::new(game, me);
         let need = Need::of(ai, &view, game.round(), target);
+        let tasks = view.tasks();
         let timed: Vec<(u32, hecs::Entity)> = free
             .iter()
             .copied()
-            .filter(|&u| !ai.roles.is(view.serial_of(u), Role::March))
+            .filter(|&u| !tasks.roles.is(view.serial_of(u), Role::March))
             .filter_map(|u| {
                 let p = view.unit_position(u)?;
                 Some((distance(&view, p, land)?, u))
             })
             .collect();
-        let force = need.pick(&view, &by_arrival(ai, &view, timed));
+        let force = need.pick(&view, &by_arrival(&view, timed));
         let begun = need.units > 0
-            || ai.roles.musters().iter().any(|(_, m, _)| {
+            || tasks.roles.musters().iter().any(|(_, m, _)| {
                 m.kind == MusterKind::Campaign && m.objective == Some(target) && m.rally == land
             });
         let strength = need.strength + stack_strength(&view, &force);
@@ -621,13 +623,13 @@ fn land_on(
     }
     let beside_target = distance(&PlayerView::new(game, me), land, target) == Some(1);
     if beside_target {
-        assembly::set_beside(ai, target, land);
+        assembly::set_beside(ai, game, target, land);
     }
     let members: Vec<Serial> = {
         let view = PlayerView::new(game, me);
         force.iter().map(|&u| view.serial_of(u)).collect()
     };
-    assembly::campaign_muster(ai, target, land, &[land], &members, game.round());
+    assembly::campaign_muster(ai, game, target, land, &[land], &members);
     if !begun {
         events.push(Event::MarchLaunched {
             player: me,
@@ -647,10 +649,10 @@ fn land_on(
             )
         };
         if at == Some(land) {
-            ai.roles.set_crossing(serial, None);
+            ai.write(game).set_crossing(serial, None);
         } else if !walks && walker {
             // Only walkers wait for the ships; the fliers and swimmers cross by themselves.
-            ai.roles
+            ai.write(game)
                 .set_crossing(serial, Some(crate::roles::Crossing::Sea));
         } else if !ordered {
             // A square that is full for now: the next turn tries again.
@@ -892,7 +894,7 @@ mod tests {
             .iter()
             .filter(|&&u| {
                 let s = view.serial_of(u);
-                ai.roles.is(s, Role::Muster) || ai.roles.is(s, Role::March)
+                ai.tasks(w).roles.is(s, Role::Muster) || ai.tasks(w).roles.is(s, Role::March)
             })
             .count()
     }
@@ -907,7 +909,7 @@ mod tests {
             let troops = spawn(&mut w, P0, at(5, 9), 113 /* high_men_paladins */, 9);
             w.reveal_map(P0);
             let mut ai = Ai::new(P0);
-            crate::roles::register(&mut ai, &w, w.round());
+            crate::roles::register(&mut ai, &mut w);
             run(&mut ai, &mut w, &mut Vec::new());
             Ok(taken(&ai, &w, &troops))
         };
@@ -929,17 +931,17 @@ mod tests {
         }
         w.reveal_map(P0);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         run(&mut ai, &mut w, &mut Vec::new());
         assert_eq!(ai.campaign, Some(target));
-        let musters = ai.roles.musters();
+        let musters = ai.tasks(&w).roles.musters();
         assert_eq!(musters.len(), 1, "one muster");
         let (_, muster, members) = &musters[0];
         assert_eq!(muster.kind, MusterKind::Campaign);
         assert_eq!(muster.objective, Some(target));
         assert_eq!(
             Some(muster.rally),
-            crate::assembly::rally_of(&ai, target),
+            crate::assembly::rally_of(&ai.tasks(&w), target),
             "the rally point"
         );
         // Only the units the march needs are taken; the others stay where they are, available.
@@ -949,7 +951,7 @@ mod tests {
         let (sent, left): (Vec<_>, Vec<_>) = troops
             .iter()
             .copied()
-            .partition(|&u| ai.roles.is(view.serial_of(u), Role::Muster));
+            .partition(|&u| ai.tasks(&w).roles.is(view.serial_of(u), Role::Muster));
         assert_eq!(sent.len(), min_march());
         for u in left {
             assert!(!view.unit_has_order(u), "left alone");
@@ -959,15 +961,15 @@ mod tests {
         for &u in &sent {
             w.cheat_move_unit(u, rally);
         }
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         run(&mut ai, &mut w, &mut Vec::new());
         assert!(
-            ai.roles.musters().is_empty(),
+            ai.tasks(&w).roles.musters().is_empty(),
             "the muster ended: {:?} {:?}",
-            ai.roles.musters(),
+            ai.tasks(&w).roles.musters(),
             ai.campaign
         );
-        assert!(ai.roles.any(Role::March), "the march left");
+        assert!(ai.tasks(&w).roles.any(Role::March), "the march left");
         Ok(())
     }
 
@@ -979,14 +981,14 @@ mod tests {
         let troops = spawn(&mut w, P0, at(8, 9), 113 /* high_men_paladins */, 3);
         w.reveal_map(P0);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         let mut events = Vec::new();
         run(&mut ai, &mut w, &mut events);
         let view = PlayerView::new(&w, P0);
         assert!(
-            troops
-                .iter()
-                .all(|&u| ai.roles.target_of(view.serial_of(u), Role::March) == Some(at(4, 4))),
+            troops.iter().all(
+                |&u| ai.tasks(&w).roles.target_of(view.serial_of(u), Role::March) == Some(at(4, 4))
+            ),
             "{events:?}"
         );
         Ok(())
@@ -1003,24 +1005,24 @@ mod tests {
         let weak = spawn(&mut w, P0, front, 104 /* high_men_spearmen */, 1);
         w.reveal_map(P0);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         let marching = PlayerView::new(&w, P0).serial_of(weak[0]);
-        let _ = ai
-            .roles
-            .claim(marching, Role::March, w.round(), Some(target));
+        let _ = ai.write(&mut w).claim(marching, Role::March, Some(target));
         ai.march_target = Some(target);
         ai.march_started = w.round();
-        crate::assembly::set_beside(&mut ai, target, front);
+        crate::assembly::set_beside(&ai, &mut w, target, front);
         let more = spawn(&mut w, P0, at(8, 9), 113 /* high_men_paladins */, 8);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         let mut events = Vec::new();
         run(&mut ai, &mut w, &mut events);
         let view = PlayerView::new(&w, P0);
         let sent = more
             .iter()
-            .filter(|&&u| ai.roles.target_of(view.serial_of(u), Role::March) == Some(target))
+            .filter(|&&u| {
+                ai.tasks(&w).roles.target_of(view.serial_of(u), Role::March) == Some(target)
+            })
             .count();
-        assert!(sent > 0, "{events:?} {:?}", ai.roles);
+        assert!(sent > 0, "{events:?} {:?}", ai.tasks(&w).roles);
         assert!(sent < w.max_battle_side(), "one battle party");
         Ok(())
     }
@@ -1039,17 +1041,17 @@ mod tests {
         }
         w.reveal_map(P0);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         run(&mut ai, &mut w, &mut Vec::new());
         let view = PlayerView::new(&w, P0);
         for &u in hurt {
             assert!(crate::recover::needs_rest(&view, u));
             assert!(
-                !ai.roles.is(view.serial_of(u), Role::Muster),
+                !ai.tasks(&w).roles.is(view.serial_of(u), Role::Muster),
                 "hurt unit mustered"
             );
             assert!(
-                !ai.roles.is(view.serial_of(u), Role::March),
+                !ai.tasks(&w).roles.is(view.serial_of(u), Role::March),
                 "hurt unit marched"
             );
         }
@@ -1088,10 +1090,10 @@ mod tests {
         let tile = w.max_tile();
         let troops = spawn(&mut w, P0, capital, 113 /* high_men_paladins */, tile);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         run(&mut ai, &mut w, &mut Vec::new());
         assert_eq!(ai.campaign, Some(town));
-        assert!(ai.roles.any(Role::March), "the march left");
+        assert!(ai.tasks(&w).roles.any(Role::March), "the march left");
         let city = w
             .economy()
             .cities_of(P1)
@@ -1105,20 +1107,20 @@ mod tests {
             let view = PlayerView::new(&w, P0);
             troops.iter().map(|&u| view.unit_position(u)).collect()
         };
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         run(&mut ai, &mut w, &mut Vec::new());
         assert_ne!(ai.campaign, Some(town), "the taken town is no target");
-        assert!(!ai.roles.any(Role::March), "the march is over");
-        assert!(ai.roles.musters().is_empty());
+        assert!(!ai.tasks(&w).roles.any(Role::March), "the march is over");
+        assert!(ai.tasks(&w).roles.musters().is_empty());
         // Nothing sends the soldiers anywhere: they stay where they are with no task, for the
         // dispatcher to keep as a garrison or give a new target.
         let view = PlayerView::new(&w, P0);
         for (&u, was) in troops.iter().zip(before) {
             assert_eq!(view.unit_position(u), was, "stays where it stands");
             assert!(
-                !ai.roles.has_role(view.serial_of(u)),
+                !ai.tasks(&w).roles.has_role(view.serial_of(u)),
                 "no task: {:?}",
-                ai.roles.role_of(view.serial_of(u))
+                ai.tasks(&w).roles.role_of(view.serial_of(u))
             );
         }
         Ok(())
@@ -1164,7 +1166,8 @@ mod tests {
         // soldiers outside a city go home, which is no relief either.)
         let _ = spare;
         assert!(
-            !ai.roles.any(crate::roles::Role::March) && !ai.roles.any(crate::roles::Role::Raid)
+            !ai.tasks(&w).roles.any(crate::roles::Role::March)
+                && !ai.tasks(&w).roles.any(crate::roles::Role::Raid)
         );
     }
 
@@ -1212,24 +1215,26 @@ mod tests {
         let beside = spawn(&mut w, P0, at(COAST_CITY.0 - 1, COAST_CITY.1), 113, 2);
         w.reveal_map(P0);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         run(&mut ai, &mut w, &mut Vec::new());
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         let view = PlayerView::new(&w, P0);
         let marching: Vec<_> = stack
             .iter()
             .chain(&beside)
             .copied()
-            .filter(|&u| ai.roles.is(view.serial_of(u), Role::March))
+            .filter(|&u| ai.tasks(&w).roles.is(view.serial_of(u), Role::March))
             .collect();
         assert!(!marching.is_empty(), "the march left");
         assert!(marching.len() <= max);
         // The registry knows where the march goes, so a lost walk can be given again.
         let ahead = ai.campaign;
         assert!(ahead.is_some());
-        assert!(marching
-            .iter()
-            .all(|&u| ai.roles.target_of(view.serial_of(u), Role::March) == ahead));
+        assert!(marching.iter().all(|&u| ai
+            .tasks(&w)
+            .roles
+            .target_of(view.serial_of(u), Role::March)
+            == ahead));
         let squares: std::collections::HashSet<_> = marching
             .iter()
             .filter_map(|&u| view.unit_destination(u))
@@ -1361,7 +1366,7 @@ mod tests {
         let troops = spawn(&mut w, P0, at(COAST_CITY.0, COAST_CITY.1), 104, 6);
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         run(&mut ai, &mut w, &mut events);
         assert_eq!(
             ai.crossing,
@@ -1500,9 +1505,9 @@ mod tests {
         spawn(&mut w, P0, capital, 113 /* high_men_paladins */, tile);
         w.reveal_map(P0);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         run(&mut ai, &mut w, &mut Vec::new());
-        assert!(ai.roles.any(Role::March), "the march left");
+        assert!(ai.tasks(&w).roles.any(Role::March), "the march left");
         let target = ai.campaign.ok_or("a campaign")?;
         let trip = distance(&PlayerView::new(&w, P0), capital, target).ok_or("a way")?;
         assert!(trip > 3, "the target is far from the rally: {trip}");
@@ -1602,18 +1607,18 @@ mod tests {
         let (mut w, mut ai) = landing_world(6)?;
         assert_ne!(w.treaty(P0, P1), f4x_core::diplomacy::Treaty::War);
         for _ in 0..3 {
-            crate::roles::register(&mut ai, &w, w.round());
+            crate::roles::register(&mut ai, &mut w);
             crate::naval::run(&mut ai, &mut w, &mut Vec::new());
             run(&mut ai, &mut w, &mut Vec::new());
         }
         assert_eq!(w.treaty(P0, P1), f4x_core::diplomacy::Treaty::War);
-        let tagged = ai.roles.needing(Crossing::Sea);
-        assert!(tagged.len() >= min_march(), "{:?}", ai.roles);
+        let tagged = ai.tasks(&w).roles.needing(Crossing::Sea);
+        assert!(tagged.len() >= min_march(), "{:?}", ai.tasks(&w).roles);
         // Their muster is the landing site, which they are bound for.
         let land = ai.naval.ok_or("a landing")?.land;
         assert!(tagged
             .iter()
-            .all(|&(s, to)| to == land && ai.roles.in_muster(s, MusterKind::Campaign)));
+            .all(|&(s, to)| to == land && ai.tasks(&w).roles.in_muster(s, MusterKind::Campaign)));
         Ok(())
     }
 
@@ -1624,11 +1629,11 @@ mod tests {
         let (mut w, mut ai) = landing_world(6)?;
         w.start_treaty(P0, P1, f4x_core::diplomacy::Treaty::Pact);
         for _ in 0..3 {
-            crate::roles::register(&mut ai, &w, w.round());
+            crate::roles::register(&mut ai, &mut w);
             crate::naval::run(&mut ai, &mut w, &mut Vec::new());
             run(&mut ai, &mut w, &mut Vec::new());
         }
-        assert!(ai.roles.needing(Crossing::Sea).is_empty());
+        assert!(ai.tasks(&w).roles.needing(Crossing::Sea).is_empty());
         assert_eq!(w.treaty(P0, P1), f4x_core::diplomacy::Treaty::Pact);
         Ok(())
     }
@@ -1650,7 +1655,7 @@ mod tests {
         for _ in 0..60 {
             let mut events = Vec::new();
             w.balance_farmers(P0);
-            crate::roles::register(&mut ai, &w, w.round());
+            crate::roles::register(&mut ai, &mut w);
             crate::dispatch::revalidate(&mut ai, &mut w, &mut events);
             crate::naval::run(&mut ai, &mut w, &mut events);
             run(&mut ai, &mut w, &mut events);
@@ -1670,7 +1675,7 @@ mod tests {
         assert!(
             landed,
             "no soldier came ashore near the enemy city: {:?}",
-            ai.roles
+            ai.tasks(&w).roles
         );
         for _ in 0..20 {
             if w.economy().city_owner(theirs) != Some(P1) {
@@ -1685,7 +1690,7 @@ mod tests {
             w.economy().city_owner(theirs),
             Some(P1),
             "the army ashore did not attack: {:?}",
-            ai.roles
+            ai.tasks(&w).roles
         );
         Ok(())
     }
@@ -1718,7 +1723,7 @@ mod tests {
         for _ in 0..60 {
             let mut events = Vec::new();
             w.balance_farmers(P0);
-            crate::roles::register(&mut ai, &w, w.round());
+            crate::roles::register(&mut ai, &mut w);
             crate::dispatch::revalidate(&mut ai, &mut w, &mut events);
             crate::naval::run(&mut ai, &mut w, &mut events);
             run(&mut ai, &mut w, &mut events);
@@ -1738,7 +1743,7 @@ mod tests {
         assert!(
             landed,
             "no soldier came ashore at the tower: {:?}",
-            ai.roles
+            ai.tasks(&w).roles
         );
         Ok(())
     }

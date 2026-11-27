@@ -60,6 +60,7 @@ mod shortfall;
 mod site;
 mod spellhelper;
 mod statecraft;
+mod task_writer;
 #[cfg(test)]
 mod testworld;
 mod trade;
@@ -288,11 +289,8 @@ pub struct Ai {
     /// an Astral Gate city or the square a Plane Shift is cast on (`war.rs`).
     #[serde(default)]
     crossing: Option<Position>,
-    /// The gathering against each target: the square the force attacks from and its rally point
-    /// (`assembly.rs`). Kept in the army ledger with `roles`.
-    #[serde(skip)]
-    assemblies: Vec<Assembly>,
-    /// `assemblies` as the plans of an older save have them, until they go into the ledger.
+    /// The gatherings (`Tasks::assemblies`) as the plans of an older save have them, until they go
+    /// into the army ledger.
     #[serde(default, rename = "assemblies", skip_serializing_if = "Vec::is_empty")]
     old_assemblies: Vec<Assembly>,
     /// Own cities the engineers found no road to build at, and how many cities there were then
@@ -345,12 +343,11 @@ pub struct Ai {
     /// Set while the blocked orders are being sent again, so that one still blocked is not kept twice.
     #[serde(skip)]
     retrying: std::cell::Cell<bool>,
-    /// The one place a unit's role lives (`roles.rs`). It holds each unit's role, its
-    /// target and, for a unit that cannot walk there, what it needs (`Crossing`). Its home is
-    /// the army ledger: it is read from there as the turn begins and written back as it ends.
+    /// What the commands that changed the unit tasks raised this turn (`task_writer.rs`).
     #[serde(skip)]
-    roles: roles::Registry,
-    /// `roles` as the plans of an older save have them, until they go into the ledger.
+    task_events: RefCell<Vec<Event>>,
+    /// The unit roles (`Tasks::roles`) as the plans of an older save have them, until they go into
+    /// the army ledger.
     #[serde(default, rename = "roles", skip_serializing_if = "is_default")]
     old_roles: roles::Registry,
     /// When each plan began, for the time limit on all of them (`plan_clock.rs`).
@@ -503,7 +500,6 @@ impl Ai {
             planar_tower: None,
             tower_blocked: Vec::new(),
             crossing: None,
-            assemblies: Vec::new(),
             old_assemblies: Vec::new(),
             site_losses: Vec::new(),
             road_checked: Vec::new(),
@@ -523,7 +519,7 @@ impl Ai {
             refusals: RefCell::new(Vec::new()),
             blocked: RefCell::new(Vec::new()),
             retrying: std::cell::Cell::new(false),
-            roles: roles::Registry::default(),
+            task_events: RefCell::new(Vec::new()),
             old_roles: roles::Registry::default(),
             clock: plan_clock::PlanClock::default(),
             unmet_spells: RefCell::default(),
@@ -561,8 +557,9 @@ impl Ai {
     }
 
     /// How many units are out scouting and where each is heading.
-    pub fn scout_targets(&self) -> Vec<(u64, Position)> {
-        self.roles
+    pub fn scout_targets(&self, world: &World) -> Vec<(u64, Position)> {
+        self.tasks(world)
+            .roles
             .targeted(roles::Role::Scout)
             .into_iter()
             .map(|(s, p)| (s.0, p))
@@ -571,9 +568,11 @@ impl Ai {
 
     /// The landing the AI is preparing against a city on another land mass, as (target, port),
     /// and whether a ship is on a voyage.
-    pub fn landing(&self) -> Option<(Position, Position, bool)> {
-        self.naval
-            .map(|p| (p.target, p.port, !pickup::voyages(self).is_empty()))
+    pub fn landing(&self, world: &World) -> Option<(Position, Position, bool)> {
+        self.naval.map(|p| {
+            let sailing = !pickup::voyages(self, world).is_empty();
+            (p.target, p.port, sailing)
+        })
     }
 
     /// Whether scouting by land is over: nothing the AI can walk to shows anything new.
@@ -599,7 +598,8 @@ impl Ai {
         // Every change in the game during the turn is a command this wizard sends, so what it
         // sees is counted once and patched (`World::keep_for_turn`).
         game.keep_for_turn(self.player);
-        let events = self.play_kept(game);
+        let mut events = self.play_kept(game);
+        events.append(&mut self.task_events.borrow_mut());
         game.drop_kept();
         events
     }
@@ -614,11 +614,11 @@ impl Ai {
                 return events;
             }
         }
-        self.read_tasks(game);
+        self.import_old_tasks(game);
         // Units built or hired since the last turn await orders from the first moment.
-        roles::register(self, game, game.round());
+        roles::register(self, game);
         let planning = game.levers().planning;
-        let dropped = self.drop_stale_plans(&planning, game.round());
+        let dropped = self.drop_stale_plans(game, &planning);
         if dropped.sea {
             naval::release_scouts(self, game, &mut events);
         }
@@ -668,50 +668,21 @@ impl Ai {
         economy::cities(self, game, &mut events);
         road::build_engineer(self, game, &mut events);
         shortfall::run(self, game, &mut events);
-        self.write_tasks(game, &mut events);
         // What it has to say to the human comes last: a war declared here leaves the human a
         // turn before the first attack, and the turn waits for the answer to a proposal.
         diplo_b_talk::approach_human(self, game, &mut events);
         events
     }
 
-    /// Take up the unit tasks the army ledger holds. A save from before they were kept there
-    /// has them in the plans.
-    fn read_tasks(&mut self, world: &World) {
-        let old_roles = std::mem::take(&mut self.old_roles);
-        let old_assemblies = std::mem::take(&mut self.old_assemblies);
-        match PlayerView::new(world, self.player).my_tasks() {
-            Some(tasks) => {
-                self.roles = tasks.roles;
-                self.assemblies = tasks.assemblies;
-            }
-            None => {
-                if !is_default(&old_roles) {
-                    self.roles = old_roles;
-                }
-                if !old_assemblies.is_empty() {
-                    self.assemblies = old_assemblies;
-                }
-            }
-        }
-    }
-
-    /// Write the unit tasks into the army ledger, where the save and the replay have them.
-    fn write_tasks(&self, game: &mut Game, events: &mut Vec<Event>) {
-        if game.game_over().is_some() {
-            return;
-        }
-        let tasks = Tasks {
-            roles: self.roles.clone(),
-            assemblies: self.assemblies.clone(),
+    /// A save from before the unit tasks were kept in the army ledger has them in the plans:
+    /// they go into the ledger.
+    fn import_old_tasks(&mut self, game: &mut Game) {
+        let old = Tasks {
+            roles: std::mem::take(&mut self.old_roles),
+            assemblies: std::mem::take(&mut self.old_assemblies),
         };
-        if PlayerView::new(game, self.player).my_tasks().as_ref() != Some(&tasks) {
-            // Not through `send`: it orders no unit, and the refused-order log would copy it.
-            let command = Command::SetTasks {
-                player: self.player,
-                tasks: Box::new(tasks),
-            };
-            events.extend(game.apply(self.player, command));
+        if old != Tasks::default() && *self.tasks(game) == Tasks::default() {
+            self.write(game).import(old);
         }
     }
 
@@ -1078,17 +1049,14 @@ mod send_tests {
         };
 
         let mut loaded = Ai::from_text(&older.to_text()?)?;
-        let mut events = Vec::new();
-        loaded.read_tasks(&w);
-        loaded.write_tasks(&mut w, &mut events);
-        assert!(events.is_empty(), "{events:?}");
-        assert_eq!(w.player_tasks(P0), Some(expected.clone()));
+        loaded.import_old_tasks(&mut w);
+        assert!(loaded.task_events.borrow().is_empty());
+        assert_eq!(*w.player_tasks(P0), expected);
         // From then on the ledger is their home: the plans no longer carry them.
         let mut next = Ai::from_text(&loaded.to_text()?)?;
         assert!(next.old_roles == roles::Registry::default() && next.old_assemblies.is_empty());
-        next.read_tasks(&w);
-        assert_eq!(next.roles, expected.roles);
-        assert_eq!(next.assemblies, expected.assemblies);
+        next.import_old_tasks(&mut w);
+        assert_eq!(*w.player_tasks(P0), expected);
         Ok(())
     }
 

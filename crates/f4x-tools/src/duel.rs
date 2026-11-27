@@ -25,6 +25,7 @@ use f4x_core::map::{Grid, Map, Plane, Position};
 use f4x_core::player::PlayerId;
 use f4x_core::rules::damage_type::{DamageType, DamageTypes};
 use f4x_core::world::rng::GameRng;
+use f4x_core::world::FIRST_ROUND;
 use f4x_core::world::{Command, World};
 use f4x_def::content::Content;
 use f4x_def::rules::immunity::Immunities;
@@ -215,6 +216,7 @@ pub fn make_battle(
                 race: Some(race),
                 population: 8,
             },
+            FIRST_ROUND,
             &mut rng,
         );
     }
@@ -245,6 +247,7 @@ pub fn make_battle(
             attackers,
             defenders,
         },
+        FIRST_ROUND,
         &mut rng,
     );
     let mut b = world.battle().ok_or("no battle began")?.clone();

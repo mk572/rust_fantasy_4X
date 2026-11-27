@@ -27,6 +27,9 @@ use f4x_def::half_int::HalfInt;
 pub use command::Command;
 pub use event::{DispelSite, Event, LossCause, Rejection, Shortage};
 
+/// The number of the round a game begins in.
+pub const FIRST_ROUND: u32 = 1;
+
 fn reject(r: Result<(), wizard::magic::MagicError>) -> Vec<Event> {
     match r {
         Ok(()) => Vec::new(),
@@ -516,9 +519,10 @@ impl World {
         ids
     }
 
-    /// Run a command. Whether the game still takes commands is the game's to say (`f4x-master`).
-    pub fn apply(&mut self, command: Command, rng: &mut GameRng) -> Vec<Event> {
-        self.execute(command, rng)
+    /// Run a command in the round `round`. Whether the game still takes commands is the game's
+    /// to say (`f4x-master`), and so is the round.
+    pub fn apply(&mut self, command: Command, round: u32, rng: &mut GameRng) -> Vec<Event> {
+        self.execute(command, round, rng)
     }
 
     /// Everything the players have explored, summed: it only ever grows.
@@ -533,7 +537,7 @@ impl World {
             .sum()
     }
 
-    fn execute(&mut self, cmd: Command, rng: &mut GameRng) -> Vec<Event> {
+    fn execute(&mut self, cmd: Command, round: u32, rng: &mut GameRng) -> Vec<Event> {
         // A command for a player the game does not have is refused before anything runs.
         if self
             .command_actor(&cmd)
@@ -558,9 +562,15 @@ impl World {
                 unit::movement::MoveError::OffMap,
             ))];
         }
+        // A change of a player's unit tasks writes those records only, which none of the checks
+        // after a command reads, and the change before it has had its checks. A computer player
+        // sends hundreds a turn.
+        if matches!(cmd, Command::Task { .. }) {
+            return self.execute_command(cmd, round, rng);
+        }
         let vision = map::vision::VisionEffect::of(&cmd);
         let _paused = unit::kept::pause();
-        let mut events = self.execute_command(cmd, rng);
+        let mut events = self.execute_command(cmd, round, rng);
         self.settle(vision, &mut events);
         events
     }
@@ -595,7 +605,7 @@ impl World {
         );
     }
 
-    fn execute_command(&mut self, cmd: Command, rng: &mut GameRng) -> Vec<Event> {
+    fn execute_command(&mut self, cmd: Command, round: u32, rng: &mut GameRng) -> Vec<Event> {
         match cmd {
             Command::CreateUnit { owner, pos, unit } => {
                 let unit = self.spawn_unit(owner, pos, unit);
@@ -705,7 +715,7 @@ impl World {
                 .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Site(e))]),
             Command::Anyway(inner) => {
                 self.confirmed = true;
-                let events = self.execute_command(*inner, rng);
+                let events = self.execute_command(*inner, round, rng);
                 self.confirmed = false;
                 events
             }
@@ -846,9 +856,9 @@ impl World {
                     .insert_one(city, city::economy::Farmers(farmers.clamp(min, figures)));
                 Vec::new()
             }
-            Command::SetTasks { player, tasks } => match self.player_entity(player) {
+            Command::Task { player, change } => match self.player_entity(player) {
                 Some(owner) => {
-                    unit::ledger::set_tasks(&self.ecs, owner, Some(tasks));
+                    unit::ledger::change_tasks(&self.ecs, owner, change, round);
                     Vec::new()
                 }
                 None => vec![Event::Rejected(Rejection::NoSuchPlayer)],

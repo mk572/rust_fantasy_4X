@@ -22,7 +22,7 @@ use f4x_master::Game;
 use crate::roles::{MusterKind, Role};
 use crate::view::distance;
 use crate::{Ai, SendError};
-use f4x_core::unit::task::Assembly;
+use f4x_core::unit::task::{Assembly, Tasks};
 
 /// The squares of a way, each with the turn the units stand on it.
 type Way = Vec<(Position, u32)>;
@@ -320,19 +320,15 @@ pub(crate) fn by_square(
 }
 
 /// `units` and the units the registry has bound for `target` already.
-fn force_for(
-    ai: &Ai,
-    view: &PlayerView,
-    target: Position,
-    units: &[hecs::Entity],
-) -> Vec<hecs::Entity> {
+fn force_for(view: &PlayerView, target: Position, units: &[hecs::Entity]) -> Vec<hecs::Entity> {
     let mut force = units.to_vec();
+    let tasks = view.tasks();
     for u in view.my_units() {
         let s = view.serial_of(u);
         let bound = [Role::March, Role::Raid, Role::Perimeter]
             .into_iter()
-            .any(|r| ai.roles.target_of(s, r) == Some(target))
-            || ai
+            .any(|r| tasks.roles.target_of(s, r) == Some(target))
+            || tasks
                 .roles
                 .muster_of(s)
                 .is_some_and(|(_, m)| m.objective == Some(target));
@@ -362,44 +358,60 @@ fn open(world: &World, view: &PlayerView, square: Position, force: &[hecs::Entit
     others + force.len().min(world.max_tile()) <= world.max_tile()
 }
 
-/// The record of the target, made when there is none.
-fn record(ai: &mut Ai, target: Position) -> &mut Assembly {
-    let at = ai
+/// Change the gathering kept against the target, which is made when there is none.
+fn record(ai: &Ai, game: &mut Game, target: Position, change: impl FnOnce(&mut Assembly)) {
+    let mut assembly = ai
+        .tasks(game)
         .assemblies
         .iter()
-        .position(|a| a.target == target)
-        .unwrap_or_else(|| {
-            ai.assemblies.push(Assembly {
-                target,
-                beside: None,
-                rally: None,
-            });
-            ai.assemblies.len() - 1
+        .find(|a| a.target == target)
+        .copied()
+        .unwrap_or(Assembly {
+            target,
+            beside: None,
+            rally: None,
         });
-    &mut ai.assemblies[at]
+    change(&mut assembly);
+    ai.write(game).set_assembly(assembly);
 }
 
 /// The rally point of the force against `target`, when one is chosen.
-pub(crate) fn rally_of(ai: &Ai, target: Position) -> Option<Position> {
-    ai.assemblies
+pub(crate) fn rally_of(tasks: &Tasks, target: Position) -> Option<Position> {
+    tasks
+        .assemblies
         .iter()
         .find(|a| a.target == target)
         .and_then(|a| a.rally)
 }
 
 /// Make `square` the one the force against `target` attacks from (a landing).
-pub(crate) fn set_beside(ai: &mut Ai, target: Position, square: Position) {
-    record(ai, target).beside = Some(square);
+pub(crate) fn set_beside(ai: &Ai, game: &mut Game, target: Position, square: Position) {
+    record(ai, game, target, |a| a.beside = Some(square));
 }
 
 /// Forget the targets nothing is bound for any more.
-pub(crate) fn tidy(ai: &mut Ai) {
-    let mut live: Vec<Position> = ai.campaign.into_iter().collect();
-    for role in [Role::March, Role::Raid, Role::Perimeter] {
-        live.extend(ai.roles.targeted(role).into_iter().map(|(_, p)| p));
-    }
-    live.extend(ai.roles.musters().into_iter().filter_map(|m| m.1.objective));
-    ai.assemblies.retain(|a| live.contains(&a.target));
+pub(crate) fn tidy(ai: &Ai, game: &mut Game) {
+    let gone: Vec<Position> = {
+        let tasks = ai.tasks(game);
+        let mut live: Vec<Position> = ai.campaign.into_iter().collect();
+        for role in [Role::March, Role::Raid, Role::Perimeter] {
+            live.extend(tasks.roles.targeted(role).into_iter().map(|(_, p)| p));
+        }
+        live.extend(
+            tasks
+                .roles
+                .musters()
+                .into_iter()
+                .filter_map(|m| m.1.objective),
+        );
+        tasks
+            .assemblies
+            .iter()
+            .map(|a| a.target)
+            .filter(|t| !live.contains(t))
+            .collect()
+    };
+    ai.write(game).drop_assemblies(gone);
 }
 
 /// The square beside `target` that everything sent against it goes to: the one chosen before,
@@ -407,7 +419,7 @@ pub(crate) fn tidy(ai: &mut Ai) {
 /// arrives last, or the open square nearest to that (to the one chosen before).
 pub(crate) fn beside(
     ai: &mut Ai,
-    world: &World,
+    game: &mut Game,
     travel: &mut Travel,
     target: Position,
     units: &[hecs::Entity],
@@ -417,12 +429,14 @@ pub(crate) fn beside(
     }
     let me = ai.player;
     let stored = ai
+        .tasks(game)
         .assemblies
         .iter()
         .find(|a| a.target == target)
         .and_then(|a| a.beside);
+    let world: &World = game;
     let view = PlayerView::new(world, me);
-    let force = force_for(ai, &view, target, units);
+    let force = force_for(&view, target, units);
     if let Some(square) = stored.filter(|&s| open(world, &view, s, &force)) {
         return Ok(square);
     }
@@ -476,7 +490,7 @@ pub(crate) fn beside(
         }
     }
     let square = chosen.or(some).ok_or(MarchError::Unreachable)?;
-    record(ai, target).beside = Some(square);
+    record(ai, game, target, |a| a.beside = Some(square));
     Ok(square)
 }
 
@@ -487,16 +501,17 @@ pub(crate) fn beside(
 /// serves: the force then goes straight to `beside`.
 pub(crate) fn rally(
     ai: &mut Ai,
-    world: &World,
+    game: &mut Game,
     travel: &mut Travel,
     target: Position,
     beside: Position,
     units: &[hecs::Entity],
 ) -> Option<Position> {
     let me = ai.player;
-    let stored = rally_of(ai, target);
+    let stored = rally_of(&ai.tasks(game), target);
+    let world: &World = game;
     let view = PlayerView::new(world, me);
-    let force = force_for(ai, &view, target, units);
+    let force = force_for(&view, target, units);
     let usable = |view: &PlayerView, p: Position| {
         distance(view, p, target).is_none_or(|d| d > 1) && open(world, view, p, &force)
     };
@@ -520,7 +535,7 @@ pub(crate) fn rally(
             });
         all_there.then_some(square)
     });
-    record(ai, target).rally = point;
+    record(ai, game, target, |a| a.rally = point);
     point
 }
 
@@ -592,31 +607,32 @@ pub(crate) fn march_detail(
 /// The muster of the campaign against `target` on `rally`: begun, or joined by the units. Musters
 /// for other targets, or on squares not in `rallies`, end.
 pub(crate) fn campaign_muster(
-    ai: &mut Ai,
+    ai: &Ai,
+    game: &mut Game,
     target: Position,
     rally: Position,
     rallies: &[Position],
     members: &[f4x_core::world::serial::Serial],
-    turn: u32,
 ) {
     let mut standing = None;
-    for (id, muster, _) in ai.roles.musters() {
+    let musters = ai.tasks(game).roles.musters();
+    for (id, muster, _) in musters {
         if muster.kind != MusterKind::Campaign {
             continue;
         }
         if muster.objective != Some(target) || !rallies.contains(&muster.rally) {
-            ai.roles.end_muster(id);
+            ai.write(game).end_muster(id);
         } else if muster.rally == rally {
             standing = Some(id);
         }
     }
     match standing {
         Some(id) => {
-            ai.roles.join_muster(id, members, turn);
+            ai.write(game).join_muster(id, members);
         }
         None => {
-            ai.roles
-                .begin_muster(MusterKind::Campaign, rally, Some(target), members, turn);
+            ai.write(game)
+                .begin_muster(MusterKind::Campaign, rally, Some(target), members);
         }
     }
 }
@@ -670,8 +686,9 @@ mod tests {
         let mut ai = Ai::new(P0);
         let mut travel = Travel::new(&ai, &w);
         let square =
-            beside(&mut ai, &w, &mut travel, target(), &units).map_err(|e| format!("{e:?}"))?;
-        let point = rally(&mut ai, &w, &mut travel, target(), square, &units).ok_or("a point")?;
+            beside(&mut ai, &mut w, &mut travel, target(), &units).map_err(|e| format!("{e:?}"))?;
+        let point =
+            rally(&mut ai, &mut w, &mut travel, target(), square, &units).ok_or("a point")?;
         let view = PlayerView::new(&w, P0);
         let slowest = units
             .iter()
@@ -692,12 +709,12 @@ mod tests {
         }
         assert!(view.city_at(point).is_none());
         assert!(distance(&view, point, target()).is_some_and(|d| d > 1));
-        assert_eq!(rally_of(&ai, target()), Some(point), "it is kept");
+        assert_eq!(rally_of(&ai.tasks(&w), target()), Some(point), "it is kept");
         // Other units do not move it while it can be used.
         let more = spawn(&mut w, P0, at(3, 9), PALADINS, 1);
         let mut travel = Travel::new(&ai, &w);
         assert_eq!(
-            rally(&mut ai, &w, &mut travel, target(), square, &more),
+            rally(&mut ai, &mut w, &mut travel, target(), square, &more),
             Some(point)
         );
         // No room on it: another is chosen.
@@ -705,7 +722,7 @@ mod tests {
         spawn(&mut w, P0, point, SPEARMEN, full);
         let mut travel = Travel::new(&ai, &w);
         assert_ne!(
-            rally(&mut ai, &w, &mut travel, target(), square, &units),
+            rally(&mut ai, &mut w, &mut travel, target(), square, &units),
             Some(point)
         );
         Ok(())
@@ -723,14 +740,17 @@ mod tests {
         march(&mut ai, &mut w, &south, target(), &mut events).map_err(|e| format!("{e:?}"))?;
         let mut travel = Travel::new(&ai, &w);
         let first =
-            beside(&mut ai, &w, &mut travel, target(), &south).map_err(|e| format!("{e:?}"))?;
+            beside(&mut ai, &mut w, &mut travel, target(), &south).map_err(|e| format!("{e:?}"))?;
         assert_eq!(PlayerView::new(&w, P0).distance(first, target()), Some(1));
-        assert_eq!(beside(&mut ai, &w, &mut travel, target(), &east), Ok(first));
+        assert_eq!(
+            beside(&mut ai, &mut w, &mut travel, target(), &east),
+            Ok(first)
+        );
         let full = w.max_tile();
         spawn(&mut w, P0, first, SPEARMEN, full);
         let mut travel = Travel::new(&ai, &w);
         let next =
-            beside(&mut ai, &w, &mut travel, target(), &east).map_err(|e| format!("{e:?}"))?;
+            beside(&mut ai, &mut w, &mut travel, target(), &east).map_err(|e| format!("{e:?}"))?;
         let view = PlayerView::new(&w, P0);
         assert_ne!(next, first);
         assert_eq!(view.distance(next, target()), Some(1));
@@ -785,9 +805,9 @@ mod tests {
         let mut ai = Ai::new(P0);
         let mut travel = Travel::new(&ai, &w);
         let square =
-            beside(&mut ai, &w, &mut travel, target(), &units).map_err(|e| format!("{e:?}"))?;
+            beside(&mut ai, &mut w, &mut travel, target(), &units).map_err(|e| format!("{e:?}"))?;
         assert_eq!(
-            rally(&mut ai, &w, &mut travel, target(), square, &units),
+            rally(&mut ai, &mut w, &mut travel, target(), square, &units),
             None
         );
         Ok(())

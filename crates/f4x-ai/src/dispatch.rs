@@ -50,8 +50,12 @@ pub fn pool(ai: &Ai, world: &World) -> Pool {
     for unit in view.my_units() {
         let serial = view.serial_of(unit);
         if is_ship(&view, unit) {
-            pool.ships += usize::from(ai.roles.is(serial, crate::roles::Role::TransportFree));
-        } else if ai.roles.is_free(serial) {
+            pool.ships += usize::from(
+                ai.tasks(world)
+                    .roles
+                    .is(serial, crate::roles::Role::TransportFree),
+            );
+        } else if ai.tasks(world).roles.is_free(serial) {
             if is_fighter(&view, unit) {
                 pool.soldiers += 1;
             } else {
@@ -144,7 +148,7 @@ fn resend(
         };
         match here {
             Some(h) if h.plane != target.plane => {
-                ai.roles
+                ai.write(game)
                     .set_crossing(serial, Some(crate::roles::Crossing::Plane));
             }
             // Only a walker waits for a ship; a flier or a swimmer crosses the water itself.
@@ -152,7 +156,7 @@ fn resend(
                 if unreachable
                     && f4x_core::player::view::PlayerView::new(game, ai.player).is_walker(unit) =>
             {
-                ai.roles
+                ai.write(game)
                     .set_crossing(serial, Some(crate::roles::Crossing::Sea));
             }
             _ => refused.push((unit, role)),
@@ -200,12 +204,14 @@ pub fn repair_escorts(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 .into_iter()
                 .find(|&u| view.serial_of(u) == s)
         };
-        ai.roles
+        let tasks = view.tasks();
+        tasks
+            .roles
             .members(Role::Escort)
             .into_iter()
-            .filter(|&e| ai.roles.crossing_of(e).is_none())
+            .filter(|&e| tasks.roles.crossing_of(e).is_none())
             .filter_map(|e| {
-                let charge = find(ai.roles.with_of(e)?)?;
+                let charge = find(tasks.roles.with_of(e)?)?;
                 let unit = find(e)?;
                 let (there, here) = (view.unit_position(charge)?, view.unit_position(unit)?);
                 (there != here && !view.unit_has_order(unit)).then_some((unit, Role::Escort, there))
@@ -227,6 +233,7 @@ pub fn revalidate(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> u32 
     let mut lost: Vec<(hecs::Entity, crate::roles::Role, f4x_core::map::Position)> = Vec::new();
     {
         let view = f4x_core::player::view::PlayerView::new(game, me);
+        let tasks = view.tasks();
         for unit in view.my_units() {
             let serial = view.serial_of(unit);
             for role in [
@@ -238,10 +245,10 @@ pub fn revalidate(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> u32 
                 Role::Road,
                 Role::Reinforce,
             ] {
-                if !ai.roles.is(serial, role) {
+                if !tasks.roles.is(serial, role) {
                     continue;
                 }
-                let Some(target) = ai.roles.target_of(serial, role) else {
+                let Some(target) = tasks.roles.target_of(serial, role) else {
                     continue;
                 };
                 let here = view.unit_position(unit);
@@ -271,7 +278,7 @@ pub fn revalidate(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> u32 
                 } else if !view.unit_has_order(unit)
                     && !view.unit_builds_road(unit)
                     && !arrived
-                    && ai.roles.crossing_of(serial).is_none()
+                    && tasks.roles.crossing_of(serial).is_none()
                 {
                     // A unit can lose its walk for many reasons (a strike moved it, a battle,
                     // a refused step): the registry still knows where it goes.
@@ -282,13 +289,10 @@ pub fn revalidate(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> u32 
     }
     reset.extend(resend(ai, game, lost, events));
     let mut serials = Vec::new();
-    {
-        let view = f4x_core::player::view::PlayerView::new(game, me);
-        for &(unit, role) in &reset {
-            let serial = view.serial_of(unit);
-            ai.roles.release(serial, role);
-            serials.push(unit);
-        }
+    for &(unit, role) in &reset {
+        let serial = f4x_core::player::view::PlayerView::new(game, me).serial_of(unit);
+        ai.write(game).release(serial, role);
+        serials.push(unit);
     }
     let count = serials.len() as u32;
     if !serials.is_empty() {
@@ -309,11 +313,12 @@ pub(crate) fn soldiers(
     role_ok: impl Fn(&crate::roles::Registry, f4x_core::world::serial::Serial) -> bool,
 ) -> Vec<hecs::Entity> {
     let view = f4x_core::player::view::PlayerView::new(world, ai.player);
+    let tasks = view.tasks();
     view.my_units()
         .into_iter()
         .filter(|&u| crate::view::is_fighter(&view, u) && view.unit_position(u).is_some())
         .filter(|&u| !crate::recover::needs_rest(&view, u))
-        .filter(|&u| role_ok(&ai.roles, view.serial_of(u)))
+        .filter(|&u| role_ok(&tasks.roles, view.serial_of(u)))
         .collect()
 }
 
@@ -328,11 +333,11 @@ fn free_soldiers(ai: &Ai, world: &World) -> Vec<hecs::Entity> {
 
 /// One turn of the jobs, in the order of the checklist.
 pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
-    crate::roles::register(ai, game, game.round());
+    crate::roles::register(ai, game);
     // The sweep of the ship ties (and the sanity check of the passengers), before any job moves
     // one of them.
     crate::pickup::tidy_unit_registry(ai, game);
-    crate::assembly::tidy(ai);
+    crate::assembly::tidy(ai, game);
     // The attacks come first: no unit has used a move or got an order yet.
     crate::attack::run(ai, game, events);
     // First the units whose mission is over, so the jobs below see them waiting.
@@ -388,7 +393,7 @@ mod tests {
         spawn(&mut w, P0, at(8, 6), 104, 1);
         spawn(&mut w, P0, at(9, 6), 111 /* high_men_settlers */, 1);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         let wanted =
             crate::view::garrison_wanted(&f4x_core::player::view::PlayerView::new(&w, P0), city);
         let counted = pool(&ai, &w);
@@ -461,9 +466,9 @@ mod tests {
             for _ in 0..turns_run {
                 w.balance_farmers(P0);
                 run(ai, w, &mut Vec::new());
-                raided |= ai.roles.any(Role::Raid);
-                campaigned |=
-                    ai.roles.any_muster(MusterKind::Campaign) || ai.roles.any(Role::March);
+                raided |= ai.tasks(w).roles.any(Role::Raid);
+                campaigned |= ai.tasks(w).roles.any_muster(MusterKind::Campaign)
+                    || ai.tasks(w).roles.any(Role::March);
                 w.play_round();
             }
             (raided, campaigned)
@@ -476,8 +481,8 @@ mod tests {
         assert!(!raided, "at war the lair is a distraction");
         assert!(campaigned, "at war the campaign holds them");
         let view = f4x_core::player::view::PlayerView::new(&w, P0);
-        for s in ai.roles.members(Role::Raid) {
-            assert!(!ai.roles.in_muster(s, MusterKind::Campaign));
+        for s in ai.tasks(&w).roles.members(Role::Raid) {
+            assert!(!ai.tasks(&w).roles.in_muster(s, MusterKind::Campaign));
             let _ = &view;
         }
         Ok(())
@@ -494,12 +499,12 @@ mod tests {
         let walker = spawn(&mut w, P0, at(9, 6), 104, 1)[0];
         let stopped = spawn(&mut w, P0, at(9, 7), 104, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         let view = f4x_core::player::view::PlayerView::new(&w, P0);
         let (a, b) = (view.serial_of(walker), view.serial_of(stopped));
         assert!(!view.explored(target), "unexplored ground to scout");
         for s in [a, b] {
-            let _ = ai.roles.claim(s, Role::Scout, 1, Some(target));
+            let _ = ai.write(&mut w).claim(s, Role::Scout, Some(target));
         }
         let mut events = Vec::new();
         ai.send(
@@ -514,16 +519,19 @@ mod tests {
         // `walker` has an order and valid ground; `stopped` has no order and no walk leads to
         // its target (across the sea): it keeps its mission and waits for a ship.
         assert_eq!(revalidate(&mut ai, &mut w, &mut events), 0);
-        assert!(ai.roles.is(a, Role::Scout));
-        assert!(ai.roles.is(b, Role::Scout));
-        assert_eq!(ai.roles.crossing_of(b), Some(crate::roles::Crossing::Sea));
-        assert_eq!(ai.roles.crossing_of(a), None);
+        assert!(ai.tasks(&w).roles.is(a, Role::Scout));
+        assert!(ai.tasks(&w).roles.is(b, Role::Scout));
+        assert_eq!(
+            ai.tasks(&w).roles.crossing_of(b),
+            Some(crate::roles::Crossing::Sea)
+        );
+        assert_eq!(ai.tasks(&w).roles.crossing_of(a), None);
         // The ground becomes known: both missions are over, the flag goes with the role.
         w.reveal_map(P0);
         assert_eq!(revalidate(&mut ai, &mut w, &mut events), 2);
-        assert!(!ai.roles.is(a, Role::Scout));
-        assert!(!ai.roles.is(b, Role::Scout));
-        assert_eq!(ai.roles.crossing_of(b), None);
+        assert!(!ai.tasks(&w).roles.is(a, Role::Scout));
+        assert!(!ai.tasks(&w).roles.is(b, Role::Scout));
+        assert_eq!(ai.tasks(&w).roles.crossing_of(b), None);
         let view = f4x_core::player::view::PlayerView::new(&w, P0);
         assert!(!view.unit_has_order(walker));
         assert_eq!(ai.missions_reset, 2);
@@ -538,15 +546,18 @@ mod tests {
         let target = at(5, 9);
         let scout = spawn(&mut w, P0, at(9, 7), 104, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
+        let serial = f4x_core::player::view::PlayerView::new(&w, P0).serial_of(scout);
+        assert!(
+            !f4x_core::player::view::PlayerView::new(&w, P0).explored(target),
+            "unexplored ground to scout"
+        );
+        let _ = ai.write(&mut w).claim(serial, Role::Scout, Some(target));
         let view = f4x_core::player::view::PlayerView::new(&w, P0);
-        let serial = view.serial_of(scout);
-        assert!(!view.explored(target), "unexplored ground to scout");
-        let _ = ai.roles.claim(serial, Role::Scout, 1, Some(target));
         assert!(!view.unit_has_order(scout), "no walk");
         let mut events = Vec::new();
         assert_eq!(revalidate(&mut ai, &mut w, &mut events), 0, "not given up");
-        assert!(ai.roles.is(serial, Role::Scout));
+        assert!(ai.tasks(&w).roles.is(serial, Role::Scout));
         let view = f4x_core::player::view::PlayerView::new(&w, P0);
         assert!(
             view.unit_has_order(scout) || view.unit_position(scout) != Some(at(9, 7)),
@@ -568,17 +579,23 @@ mod tests {
         let walker = spawn(&mut w, P0, sea, 104 /* high_men_spearmen */, 1)[0];
         w.explore(P0, sea, HalfInt::from_raw(3));
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         let view = f4x_core::player::view::PlayerView::new(&w, P0);
         let (ship, rider) = (view.serial_of(boat), view.serial_of(walker));
         assert!(view.explored(sea), "arriving explored the target");
-        let _ = ai.roles.claim(ship, Role::Scout, 1, Some(sea));
-        let _ = ai.roles.claim(rider, Role::SeaParty, 1, None);
+        let _ = ai.write(&mut w).claim(ship, Role::Scout, Some(sea));
+        let _ = ai.write(&mut w).claim(rider, Role::SeaParty, None);
         ai.sea_scouting = true;
         assert_eq!(revalidate(&mut ai, &mut w, &mut Vec::new()), 0);
-        assert!(ai.roles.is(ship, Role::Scout), "the ship goes on scouting");
+        assert!(
+            ai.tasks(&w).roles.is(ship, Role::Scout),
+            "the ship goes on scouting"
+        );
         crate::scout::scout(&mut ai, &mut w, &mut Vec::new());
-        assert!(!ai.roles.is(rider, Role::SeaParty), "the rider went ashore");
+        assert!(
+            !ai.tasks(&w).roles.is(rider, Role::SeaParty),
+            "the rider went ashore"
+        );
         assert_ne!(w.units().unit_position(walker), Some(sea));
     }
 
@@ -592,18 +609,25 @@ mod tests {
         target.plane = f4x_core::map::Plane::Myrror;
         let scout = spawn(&mut w, P0, at(9, 7), 104, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         let view = f4x_core::player::view::PlayerView::new(&w, P0);
         let serial = view.serial_of(scout);
         assert!(!view.explored(target));
-        let _ = ai.roles.claim(serial, Role::Scout, 1, Some(target));
+        let _ = ai.write(&mut w).claim(serial, Role::Scout, Some(target));
         let mut events = Vec::new();
         assert_eq!(revalidate(&mut ai, &mut w, &mut events), 0);
-        assert_eq!(ai.roles.crossing_of(serial), Some(Crossing::Plane));
-        assert_eq!(ai.roles.needing(Crossing::Plane), vec![(serial, target)]);
+        assert_eq!(
+            ai.tasks(&w).roles.crossing_of(serial),
+            Some(Crossing::Plane)
+        );
+        assert_eq!(
+            ai.tasks(&w).roles.needing(Crossing::Plane),
+            vec![(serial, target)]
+        );
         // A new target clears the tag.
-        ai.roles.set_target(serial, Role::Scout, Some(at(5, 9)));
-        assert_eq!(ai.roles.crossing_of(serial), None);
+        ai.write(&mut w)
+            .set_target(serial, Role::Scout, Some(at(5, 9)));
+        assert_eq!(ai.tasks(&w).roles.crossing_of(serial), None);
     }
 
     /// A unit that travels between the planes by itself shifts and walks on: it is not tagged.
@@ -615,13 +639,13 @@ mod tests {
         target.plane = f4x_core::map::Plane::Myrror;
         let demon = spawn(&mut w, P0, at(9, 7), 171 /* shadow_demons */, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         let serial = f4x_core::player::view::PlayerView::new(&w, P0).serial_of(demon);
-        let _ = ai.roles.claim(serial, Role::Scout, 1, Some(target));
+        let _ = ai.write(&mut w).claim(serial, Role::Scout, Some(target));
         let mut events = Vec::new();
         revalidate(&mut ai, &mut w, &mut events);
         assert_eq!(
-            ai.roles.crossing_of(serial),
+            ai.tasks(&w).roles.crossing_of(serial),
             None,
             "no crossing to wait for"
         );
@@ -647,19 +671,22 @@ mod tests {
             .at;
         let settler = spawn(&mut w, P0, at(9, 7), 111 /* high_men_settlers */, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         let serial = f4x_core::player::view::PlayerView::new(&w, P0).serial_of(settler);
-        let _ = ai.roles.claim(serial, Role::Settle, 1, Some(site));
+        let _ = ai.write(&mut w).claim(serial, Role::Settle, Some(site));
         let mut events = Vec::new();
         assert_eq!(revalidate(&mut ai, &mut w, &mut events), 0);
-        assert_eq!(ai.roles.crossing_of(serial), Some(Crossing::Sea));
+        assert_eq!(ai.tasks(&w).roles.crossing_of(serial), Some(Crossing::Sea));
         crate::expand::settlers(&mut ai, &mut w, &mut events);
         assert_eq!(
-            ai.roles.target_of(serial, Role::Settle),
+            ai.tasks(&w).roles.target_of(serial, Role::Settle),
             Some(site),
             "{events:?}"
         );
-        assert_eq!(ai.roles.needing(Crossing::Sea), vec![(serial, site)]);
+        assert_eq!(
+            ai.tasks(&w).roles.needing(Crossing::Sea),
+            vec![(serial, site)]
+        );
     }
 
     /// A settler whose site now holds a city (a rival settled first) is given up, and the soak
@@ -672,9 +699,9 @@ mod tests {
         let site = at(ENEMY_CITY.0, ENEMY_CITY.1);
         let settler = spawn(&mut w, P0, at(9, 7), 111 /* high_men_settlers */, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         let serial = f4x_core::player::view::PlayerView::new(&w, P0).serial_of(settler);
-        let _ = ai.roles.claim(serial, Role::Settle, 1, Some(site));
+        let _ = ai.write(&mut w).claim(serial, Role::Settle, Some(site));
         assert_eq!(revalidate(&mut ai, &mut w, &mut Vec::new()), 1);
         let said: Vec<_> = ai
             .settler_failures()
@@ -694,12 +721,15 @@ mod tests {
         let site = at(COAST_CITY.0 + 1, COAST_CITY.1);
         let settler = spawn(&mut w, P0, at(9, 7), 111 /* high_men_settlers */, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         let serial = f4x_core::player::view::PlayerView::new(&w, P0).serial_of(settler);
-        let _ = ai.roles.claim(serial, Role::Settle, 1, Some(site));
+        let _ = ai.write(&mut w).claim(serial, Role::Settle, Some(site));
         assert_eq!(revalidate(&mut ai, &mut w, &mut Vec::new()), 1);
-        assert_eq!(ai.roles.role_of(serial), Some(Role::AwaitingOrders));
-        assert!(ai.roles.targets(Role::Settle).is_empty());
+        assert_eq!(
+            ai.tasks(&w).roles.role_of(serial),
+            Some(Role::AwaitingOrders)
+        );
+        assert!(ai.tasks(&w).roles.targets(Role::Settle).is_empty());
     }
 
     /// An engineer that is not building and has no walk goes on to its square, one that is
@@ -717,17 +747,17 @@ mod tests {
         let charge = spawn(&mut w, P0, at(9, 6), 104, 1)[0];
         let escort = spawn(&mut w, P0, at(7, 6), 104, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         let view = f4x_core::player::view::PlayerView::new(&w, P0);
         let (e, c, s) = (
             view.serial_of(engineer),
             view.serial_of(charge),
             view.serial_of(escort),
         );
-        let _ = ai.roles.claim(e, Role::Road, 1, Some(at(5, 9)));
-        let _ = ai.roles.claim(c, Role::Settle, 1, Some(site));
-        let _ = ai.roles.claim(s, Role::Escort, 1, None);
-        ai.roles.group(&[s], Role::Escort, 1, Some(c));
+        let _ = ai.write(&mut w).claim(e, Role::Road, Some(at(5, 9)));
+        let _ = ai.write(&mut w).claim(c, Role::Settle, Some(site));
+        let _ = ai.write(&mut w).claim(s, Role::Escort, None);
+        ai.write(&mut w).group(&[s], Role::Escort, 1, Some(c));
         let mut events = Vec::new();
         assert_eq!(revalidate(&mut ai, &mut w, &mut events), 0);
         let view = f4x_core::player::view::PlayerView::new(&w, P0);
@@ -740,6 +770,6 @@ mod tests {
             view.unit_has_order(escort) || view.unit_position(escort) != Some(at(7, 6)),
             "the escort follows its charge"
         );
-        assert!(ai.roles.is(s, Role::Escort));
+        assert!(ai.tasks(&w).roles.is(s, Role::Escort));
     }
 }

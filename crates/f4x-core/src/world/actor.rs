@@ -55,7 +55,7 @@ impl World {
             | Command::Resign { player }
             | Command::RazeCity { player, .. }
             | Command::BalanceFarmers { player }
-            | Command::SetTasks { player, .. }
+            | Command::Task { player, .. }
             | Command::SetTaxRate { player, .. }
             | Command::SetGrandVizier { player, .. }
             | Command::SetPowerSplit { player, .. }

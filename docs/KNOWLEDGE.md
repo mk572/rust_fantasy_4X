@@ -95,9 +95,22 @@ A new `Command` variant is not enough in `command.rs`, `actor.rs` and `World::ex
 
 - `VisionEffect::of` (`map/vision.rs`) ends in `_ => Recount`, so a command that moves nothing
   compiles without being listed and silently costs a computer player a recount of its sight. List it.
+- `World::execute` runs the after-command checks for every command but `Command::Task`, which
+  touches nothing they read. A command that changes more than the task records needs them.
 - The refusal sweep (`world/testutil/sweep.rs`) must make it, or `c1_refusal` fails.
 - What the ledger keeps of units is restored after the units are loaded (`save.rs`): set earlier,
   it is filtered away, since the ledger takes nothing about a unit it does not list yet.
+
+## The unit tasks are the world's, not a copy (task 830)
+
+- **A unit that dies loses its task at once.** While the computer player worked on a copy, a dead
+  unit stayed listed until the next audit, so, for example, a settler whose escort had just fallen
+  got no new one that turn. To compare two builds across such a change, switch the one difference off
+  for a run and check that the games are then the same line for line.
+- **Read, drop, write.** `Ai::tasks` borrows the world. A value read from it in the head of a `for`
+  or an `if let` keeps the borrow alive through the body: bind it with `let` first.
+- **A game that is over takes no command**, so a test that ends the game cannot look for a task
+  change made after that.
 
 ## Orders that stop (tasks 515, 555)
 
@@ -112,6 +125,12 @@ A new `Command` variant is not enough in `command.rs`, `actor.rs` and `World::ex
 
 ## Speed and caches (tasks 428, 512, 514)
 
+- **A write that cost nothing on a copy costs a command in the world.** When the computer player's
+  task records moved from its own memory into the army ledger, one command a change, the 5-wizard
+  speed benchmark doubled: 2,800 commands a turn, 2,400 of them base roles of which under 100 changed
+  anything. The ledger writes took 0.4 ms a turn, the after-command checks about 160. Send only what
+  changes, in one command where there are many, and run no check that cannot find anything (task 830).
+  To find such a cost, count the commands by kind and time the command and its checks apart.
 - **What follows every command is on the hot path.** `World::settle` runs the check of what orders
   and patrols see after each command, with the kept unit values paused, so every `unit_sight` there
   is worked out anew. The first version of it for orders cost the 5-wizard speed benchmark about 30 ms

@@ -29,25 +29,22 @@ pub fn walk(
     events: &mut Vec<Event>,
 ) -> bool {
     let me = ai.player;
-    let turn = game.round();
     let (charge, at) = {
         let view = PlayerView::new(game, me);
         (view.serial_of(settler), view.unit_position(settler))
     };
     let mut units = vec![settler];
     if let Some(at) = at {
-        if ai.roles.escort_of(charge).is_none() {
+        if ai.tasks(game).roles.escort_of(charge).is_none() {
             if let Some(escort) = spare_soldier(ai, game, at) {
                 let serial = PlayerView::new(game, me).serial_of(escort);
-                if ai.roles.claim(serial, Role::Escort, turn, None).is_ok() {
-                    let party = ai.roles.new_party();
-                    ai.roles.group(&[serial], Role::Escort, party, Some(charge));
-                }
+                join(ai, game, serial, charge);
             }
         }
         // The escort goes along when it stands with its charge.
         let view = PlayerView::new(game, me);
-        if let Some(escort) = ai.roles.escort_of(charge).and_then(|e| {
+        let guard = ai.tasks(game).roles.escort_of(charge);
+        if let Some(escort) = guard.and_then(|e| {
             view.my_units()
                 .into_iter()
                 .find(|&u| view.serial_of(u) == e && view.unit_position(u) == Some(at))
@@ -58,8 +55,9 @@ pub fn walk(
     // A charge that can cross what its escort cannot (a swimming settler, a walking soldier) goes
     // alone: a stack moves like its slowest member, and one that has no way is no escort.
     if units.len() > 1 && !game.reaches_any(&units, &[to]) && game.reaches_any(&units[..1], &[to]) {
-        if let Some(escort) = ai.roles.escort_of(charge) {
-            ai.roles.release_many(&[escort], Role::Escort);
+        let guard = ai.tasks(game).roles.escort_of(charge);
+        if let Some(escort) = guard {
+            ai.write(game).release_many(&[escort], Role::Escort);
         }
         units.truncate(1);
     }
@@ -69,6 +67,15 @@ pub fn walk(
         return true;
     }
     ai.send(game, Command::GoTo { units, to }, events).is_ok()
+}
+
+/// Make the unit `escort` the guard of `charge`, if it may take the job.
+fn join(ai: &Ai, game: &mut Game, escort: Serial, charge: Serial) {
+    if ai.write(game).claim(escort, Role::Escort, None).is_ok() {
+        let party = ai.tasks(game).roles.new_party();
+        ai.write(game)
+            .group(&[escort], Role::Escort, party, Some(charge));
+    }
 }
 
 /// Whether an enemy unit the wizard sees stands within `escort_enemy_near` squares of `at`.
@@ -85,16 +92,17 @@ fn enemy_near(view: &PlayerView, at: Position) -> bool {
 
 /// Whether the unit holds a role whose bearer is escorted: a settler on its way, an engineer on
 /// the road, a spirit bound for a node.
-fn guarded(ai: &Ai, view: &PlayerView, charge: Serial) -> bool {
+fn guarded(view: &PlayerView, charge: Serial) -> bool {
+    let tasks = view.tasks();
     if [Role::Settle, Role::Road, Role::Meld]
         .into_iter()
-        .any(|r| ai.roles.is(charge, r))
+        .any(|r| tasks.roles.is(charge, r))
     {
         return true;
     }
     // A healer or a weak hero alone in the field (`stragglers`) keeps its guard on the way home.
     matches!(
-        ai.roles.role_of(charge),
+        tasks.roles.role_of(charge),
         Some(Role::MoveTo | Role::AwaitingOrders)
     ) && view
         .my_units()
@@ -141,6 +149,7 @@ fn needs_escort(view: &PlayerView, unit: hecs::Entity) -> bool {
 /// The healers and weak heroes that stand alone outside a city.
 fn stragglers(ai: &Ai, world: &World) -> Vec<hecs::Entity> {
     let view = PlayerView::new(world, ai.player);
+    let tasks = view.tasks();
     let mut out: Vec<hecs::Entity> = view
         .my_units()
         .into_iter()
@@ -149,7 +158,7 @@ fn stragglers(ai: &Ai, world: &World) -> Vec<hecs::Entity> {
             let s = view.serial_of(u);
             // A unit with a task of its own travels with the party of that task.
             matches!(
-                ai.roles.role_of(s),
+                tasks.roles.role_of(s),
                 Some(Role::MoveTo | Role::AwaitingOrders)
             )
         })
@@ -172,7 +181,6 @@ fn stragglers(ai: &Ai, world: &World) -> Vec<hecs::Entity> {
 /// sent to it. Whether the escort is with its charge now.
 pub fn guard(ai: &mut Ai, game: &mut Game, charge: hecs::Entity, events: &mut Vec<Event>) -> bool {
     let me = ai.player;
-    let turn = game.round();
     let (serial, at) = {
         let view = PlayerView::new(game, me);
         let Some(at) = view.unit_position(charge) else {
@@ -180,7 +188,7 @@ pub fn guard(ai: &mut Ai, game: &mut Game, charge: hecs::Entity, events: &mut Ve
         };
         (view.serial_of(charge), at)
     };
-    if ai.roles.escort_of(serial).is_none() {
+    if ai.tasks(game).roles.escort_of(serial).is_none() {
         let spare = {
             let view = PlayerView::new(game, me);
             let mut cities: Vec<Position> = view.my_cities().into_iter().map(|(_, p)| p).collect();
@@ -192,13 +200,10 @@ pub fn guard(ai: &mut Ai, game: &mut Game, charge: hecs::Entity, events: &mut Ve
         };
         if let Some(soldier) = spare {
             let escort = PlayerView::new(game, me).serial_of(soldier);
-            if ai.roles.claim(escort, Role::Escort, turn, None).is_ok() {
-                let party = ai.roles.new_party();
-                ai.roles.group(&[escort], Role::Escort, party, Some(serial));
-            }
+            join(ai, game, escort, serial);
         }
     }
-    let Some(escort) = ai.roles.escort_of(serial) else {
+    let Some(escort) = ai.tasks(game).roles.escort_of(serial) else {
         return false;
     };
     let (unit, there) = {
@@ -233,10 +238,11 @@ pub fn guard(ai: &mut Ai, game: &mut Game, charge: hecs::Entity, events: &mut Ve
 fn spare_soldier(ai: &Ai, world: &World, at: Position) -> Option<hecs::Entity> {
     let view = PlayerView::new(world, ai.player);
     view.city_at(at)?;
+    let tasks = view.tasks();
     let mut free: Vec<hecs::Entity> = view
         .garrison(at)
         .into_iter()
-        .filter(|&u| is_fighter(&view, u) && ai.roles.is_free(view.serial_of(u)))
+        .filter(|&u| is_fighter(&view, u) && tasks.roles.is_free(view.serial_of(u)))
         .collect();
     free.sort_by(|&a, &b| {
         unit_strength(&view, b)
@@ -253,42 +259,44 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     // A charge that no longer settles (founded its city, died, was taken over by a voyage) frees
     // its escort.
-    {
+    let gone: Vec<Serial> = {
         let view = PlayerView::new(game, me);
+        let tasks = view.tasks();
         let live: Vec<Serial> = view
             .my_units()
             .into_iter()
             .map(|u| view.serial_of(u))
             .collect();
-        let gone: Vec<Serial> = ai
+        tasks
             .roles
             .members(Role::Escort)
             .into_iter()
             .filter(|&e| {
-                !ai.roles
+                !tasks
+                    .roles
                     .with_of(e)
-                    .is_some_and(|c| live.contains(&c) && guarded(ai, &view, c))
+                    .is_some_and(|c| live.contains(&c) && guarded(&view, c))
             })
-            .collect();
-        ai.roles.release_many(&gone, Role::Escort);
-    }
+            .collect()
+    };
+    ai.write(game).release_many(&gone, Role::Escort);
     // A settler or a spirit walking with no escort stops when an enemy comes near.
-    {
+    let stop: Vec<hecs::Entity> = {
         let view = PlayerView::new(game, me);
-        let stop: Vec<hecs::Entity> = view
-            .my_units()
+        let tasks = view.tasks();
+        view.my_units()
             .into_iter()
             .filter(|&u| {
                 let s = view.serial_of(u);
-                (ai.roles.is(s, Role::Settle) || ai.roles.is(s, Role::Meld))
-                    && ai.roles.escort_of(s).is_none()
+                (tasks.roles.is(s, Role::Settle) || tasks.roles.is(s, Role::Meld))
+                    && tasks.roles.escort_of(s).is_none()
                     && view.unit_has_order(u)
                     && view.unit_position(u).is_some_and(|p| enemy_near(&view, p))
             })
-            .collect();
-        if !stop.is_empty() {
-            ai.order(game, Command::ClearOrders { units: stop }, events);
-        }
+            .collect()
+    };
+    if !stop.is_empty() {
+        ai.order(game, Command::ClearOrders { units: stop }, events);
     }
     // A healer or a weak hero alone in the field is given a soldier.
     for unit in stragglers(ai, game) {
@@ -325,11 +333,12 @@ mod tests {
         let view = PlayerView::new(&w, P0);
         let charge = view.serial_of(settler);
         let escort = ai
+            .tasks(&w)
             .roles
             .escort_of(charge)
             .ok_or("the settler has an escort")?;
-        assert_eq!(ai.roles.role_of(escort), Some(Role::Escort));
-        assert_eq!(ai.roles.with_of(escort), Some(charge));
+        assert_eq!(ai.tasks(&w).roles.role_of(escort), Some(Role::Escort));
+        assert_eq!(ai.tasks(&w).roles.with_of(escort), Some(charge));
         let escort_unit = view
             .my_units()
             .into_iter()
@@ -360,7 +369,7 @@ mod tests {
         crate::expand::settlers(&mut ai, &mut w, &mut Vec::new());
         run(&mut ai, &mut w, &mut Vec::new());
         let charge = PlayerView::new(&w, P0).serial_of(settler);
-        assert_eq!(ai.roles.escort_of(charge), None);
+        assert_eq!(ai.tasks(&w).roles.escort_of(charge), None);
         Ok(())
     }
 
@@ -383,7 +392,11 @@ mod tests {
             .min_by_key(|p| (p.y, p.x))
             .ok_or("the swimmer reaches the east island")?;
         assert!(walk(&mut ai, &mut w, settler, far, &mut Vec::new()));
-        assert_eq!(ai.roles.escort_of(charge), None, "no walking escort");
+        assert_eq!(
+            ai.tasks(&w).roles.escort_of(charge),
+            None,
+            "no walking escort"
+        );
         Ok(())
     }
 
@@ -397,17 +410,21 @@ mod tests {
             let view = PlayerView::new(&w, P0);
             (view.serial_of(settler), view.serial_of(soldiers[0]))
         };
-        let _ = ai.roles.claim(charge, Role::Settle, 1, Some(at(9, 9)));
-        let _ = ai.roles.claim(escort, Role::Escort, 1, None);
-        ai.roles.group(&[escort], Role::Escort, 1, Some(charge));
+        let _ = ai.write(&mut w).claim(charge, Role::Settle, Some(at(9, 9)));
+        let _ = ai.write(&mut w).claim(escort, Role::Escort, None);
+        ai.write(&mut w)
+            .group(&[escort], Role::Escort, 1, Some(charge));
         // The charge steps away: the escort is sent after it.
         w.cheat_move_unit(settler, at(7, 6));
         crate::dispatch::repair_escorts(&mut ai, &mut w, &mut Vec::new());
         assert!(PlayerView::new(&w, P0).unit_has_order(soldiers[0]));
         // The charge founds its city (is gone): the escort is a free soldier again.
-        ai.roles.release(charge, Role::Settle);
+        ai.write(&mut w).release(charge, Role::Settle);
         run(&mut ai, &mut w, &mut Vec::new());
-        assert_eq!(ai.roles.role_of(escort), Some(Role::AwaitingOrders));
+        assert_eq!(
+            ai.tasks(&w).roles.role_of(escort),
+            Some(Role::AwaitingOrders)
+        );
         Ok(())
     }
 
@@ -422,7 +439,11 @@ mod tests {
         assert!(!with_it, "the escort is still on its way");
         let view = PlayerView::new(&w, P0);
         let charge = view.serial_of(engineer);
-        let escort = ai.roles.escort_of(charge).ok_or("an escort was chosen")?;
+        let escort = ai
+            .tasks(&w)
+            .roles
+            .escort_of(charge)
+            .ok_or("an escort was chosen")?;
         assert!(soldiers.iter().any(|&s| view.serial_of(s) == escort));
         // Once it stands with the engineer the engineer may work.
         let escort_unit = soldiers
@@ -442,20 +463,24 @@ mod tests {
         let (mut w, _, soldiers) = world();
         let healer = spawn(&mut w, P0, at(7, 6), 7 /* healer */, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         run(&mut ai, &mut w, &mut Vec::new());
         let view = PlayerView::new(&w, P0);
         let charge = view.serial_of(healer);
-        let escort = ai.roles.escort_of(charge).ok_or("an escort was chosen")?;
+        let escort = ai
+            .tasks(&w)
+            .roles
+            .escort_of(charge)
+            .ok_or("an escort was chosen")?;
         assert!(soldiers.iter().any(|&s| view.serial_of(s) == escort));
         // In a city it needs none.
         let mut w = world().0;
         let in_city = spawn(&mut w, P0, at(COAST_CITY.0, COAST_CITY.1), 7, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
+        crate::roles::register(&mut ai, &mut w);
         run(&mut ai, &mut w, &mut Vec::new());
         let charge = PlayerView::new(&w, P0).serial_of(in_city);
-        assert_eq!(ai.roles.escort_of(charge), None);
+        assert_eq!(ai.tasks(&w).roles.escort_of(charge), None);
         Ok(())
     }
 
@@ -475,13 +500,13 @@ mod tests {
         let mut ai = Ai::new(P0);
         crate::expand::settlers(&mut ai, &mut w, &mut Vec::new());
         let serial = PlayerView::new(&w, P0).serial_of(settler);
-        assert!(ai.roles.is(serial, Role::Settle));
+        assert!(ai.tasks(&w).roles.is(serial, Role::Settle));
         assert!(
             !PlayerView::new(&w, P0).unit_has_order(settler),
             "the settler waits"
         );
         assert!(
-            ai.roles.target_of(serial, Role::Settle).is_some(),
+            ai.tasks(&w).roles.target_of(serial, Role::Settle).is_some(),
             "keeps its site"
         );
         Ok(())

@@ -155,16 +155,17 @@ pub fn thin_out(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     .then(view.serial_of(a).cmp(&view.serial_of(b)))
             });
             let spare = fighters.len() - keep;
+            let tasks = view.tasks();
             out.extend(
                 fighters
                     .into_iter()
                     .filter(|&u| {
                         let serial = view.serial_of(u);
                         crate::forge::low_tier(&view, u)
-                            && !ai.roles.is_scouting(serial)
-                            && !ai.roles.is(serial, crate::roles::Role::Raid)
-                            && !ai.roles.is(serial, crate::roles::Role::March)
-                            && !ai.roles.is(serial, crate::roles::Role::SeaParty)
+                            && !tasks.roles.is_scouting(serial)
+                            && !tasks.roles.is(serial, crate::roles::Role::Raid)
+                            && !tasks.roles.is(serial, crate::roles::Role::March)
+                            && !tasks.roles.is(serial, crate::roles::Role::SeaParty)
                     })
                     .take(spare),
             );
