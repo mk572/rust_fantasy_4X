@@ -432,8 +432,7 @@ impl World {
 
     /// The nearest sea square from which `passengers` can step ashore, by the way over open sea
     /// (breadth first, so ties fall in a fixed order): the squares to sail through, and the land
-    /// square they will land on. Land is free when nobody else stands on it, no lair guards it,
-    /// every passenger can enter it and the stack there stays within the limit.
+    /// square they will land on ([`Self::free_landing`]).
     pub(crate) fn nearest_landing(
         &self,
         ship: hecs::Entity,
@@ -472,6 +471,9 @@ impl World {
         None
     }
 
+    /// Whether units the game forces off their square can be put on `land`: nobody hostile
+    /// stands on it, no lair is on it and every one of them can enter it. A full square is no bar:
+    /// the stack limit is for units that walk there.
     pub(crate) fn free_landing(
         &self,
         land: Position,
@@ -481,10 +483,6 @@ impl World {
     ) -> bool {
         let e = self.economy();
         if e.hostile_at(land, owner).is_some() || e.lair_at(land).is_some() {
-            return false;
-        }
-        let there = self.units().units_at(land).len();
-        if there + passengers.len() > self.tile_limit(land) {
             return false;
         }
         let traits = crate::unit::movement::StackTraits::default();

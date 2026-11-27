@@ -4,7 +4,8 @@
 
 use crate::support::{around, worlds};
 use f4x_core::map::terrain::TerrainClass;
-use f4x_core::map::Position;
+use f4x_core::map::{Plane, Position};
+use f4x_core::player::{PlayerId, MONSTERS};
 use f4x_core::rules::unit_flag::UnitFlag;
 use f4x_core::rules::UnitId;
 use f4x_core::unit::movement::MoveError;
@@ -361,4 +362,125 @@ fn a_step_between_two_river_squares_costs_half_a_move_with_the_river_roads_setti
         checked >= 2,
         "only {checked} worlds had a line of open land"
     );
+}
+
+/// A loaded galley of `owner` on a sea square, and every land square beside it filled to the limit
+/// with the owner's units, so that whoever comes ashore comes to a full square.
+struct ShipByAFullShore {
+    ship: hecs::Entity,
+    owner: PlayerId,
+    aboard: Vec<hecs::Entity>,
+    shore: Vec<Position>,
+}
+
+fn ships_by_a_full_shore(w: &mut Table) -> Option<ShipByAFullShore> {
+    let owner = w.wizards()[0];
+    let (width, height) = {
+        let map = w.map().expect("a map");
+        (map.width(), map.height())
+    };
+    let empty = |w: &World, at: Position| {
+        w.units().units_at(at).is_empty()
+            && w.economy().city_at(at).is_none()
+            && w.economy().feature_entity_at(at).is_none()
+    };
+    let squares = (0..height).flat_map(|y| {
+        (0..width).map(move |x| Position {
+            x,
+            y,
+            plane: Plane::Arcanus,
+        })
+    });
+    for sea in squares {
+        let ocean = |w: &World, at| w.economy().terrain_class_at(at) == Some(TerrainClass::Ocean);
+        if !ocean(w, sea) || !empty(w, sea) {
+            continue;
+        }
+        let near = around(w, sea);
+        if !near.iter().all(|&p| empty(w, p)) {
+            continue;
+        }
+        let shore: Vec<Position> = near.into_iter().filter(|&p| !ocean(w, p)).collect();
+        let Some(&start) = shore.first() else {
+            continue;
+        };
+        let create = |w: &mut Table, pos, unit: u16| {
+            w.apply(Command::CreateUnit {
+                owner,
+                pos,
+                unit: UnitId::new(unit),
+            });
+            *w.units().all_units().last().expect("the new unit")
+        };
+        let ship = create(w, sea, 36 /* galley */);
+        let room = w.economy().ship_room(ship) as usize;
+        let aboard: Vec<hecs::Entity> = (0..room)
+            .map(|_| create(w, start, 104 /* high_men_spearmen */))
+            .collect();
+        let events = w.apply(Command::MoveStack {
+            units: aboard.clone(),
+            to: sea,
+        });
+        if refusal(&events).is_some() {
+            return None;
+        }
+        for &p in &shore {
+            for _ in w.units().units_at(p).len()..w.tile_limit(p) {
+                create(w, p, 104);
+            }
+        }
+        return Some(ShipByAFullShore {
+            ship,
+            owner,
+            aboard,
+            shore,
+        });
+    }
+    None
+}
+
+#[test]
+fn units_whose_ship_is_lost_scramble_ashore_onto_a_full_square() {
+    let mut landed = 0;
+    for (name, mut w) in worlds() {
+        let Some(case) = ships_by_a_full_shore(&mut w) else {
+            continue;
+        };
+        w.scenario_remove_unit(case.ship);
+        w.start_player_turn(case.owner, 2);
+        for &u in &case.aboard {
+            // Some drown on the way (the fleeing odds); the rest are on the shore.
+            if let Some(at) = w.units().unit_position(u) {
+                assert!(case.shore.contains(&at), "{name}: left at {at:?}");
+                assert!(w.units().units_at(at).len() > w.tile_limit(at), "{name}");
+                landed += 1;
+            }
+        }
+    }
+    assert!(landed > 0, "nobody came ashore in any world");
+}
+
+#[test]
+fn a_ship_let_go_at_sea_drifts_ashore_and_lands_everyone_on_a_full_square() {
+    let mut tried = 0;
+    for (name, mut w) in worlds() {
+        let Some(case) = ships_by_a_full_shore(&mut w) else {
+            continue;
+        };
+        // Let go for lack of pay: a loaded ship at sea turns neutral and makes for the shore.
+        let events = w.apply(Command::ReleaseTroops {
+            player: case.owner,
+            units: vec![case.ship],
+            scrap: Vec::new(),
+        });
+        assert_eq!(refusal(&events), None, "{name}");
+        w.start_player_turn(MONSTERS, 2);
+        for &u in &case.aboard {
+            let at = w.units().unit_position(u).expect("nobody is lost");
+            assert!(case.shore.contains(&at), "{name}: left at {at:?}");
+            assert!(w.units().units_at(at).len() > w.tile_limit(at), "{name}");
+        }
+        tried += 1;
+    }
+    assert!(tried > 0, "no world had a shore to try");
 }

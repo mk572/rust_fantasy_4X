@@ -1166,3 +1166,110 @@ fn defenders_beyond_the_nine_sit_the_fight_out_and_flee_when_it_is_lost() {
         );
     }
 }
+
+#[test]
+fn defenders_that_flee_may_run_onto_a_full_square() {
+    let mut ran = 0;
+    for mut f in faceoffs() {
+        let side = f.w.max_battle_side();
+        let site = f.w.units().unit_position(f.defender).expect("a position");
+        let attacked_from = f.w.units().unit_position(f.attacker).expect("a position");
+        let owner = f.b;
+        let kind = f.w.units().unit_kind_id(f.defender).expect("a kind");
+        // Every square the benched defenders could run to is filled to the limit.
+        let near: Vec<_> = around(&f.w, site)
+            .into_iter()
+            .filter(|&p| {
+                p != attacked_from
+                    && f.w.economy().city_at(p).is_none()
+                    && f.w.economy().feature_entity_at(p).is_none()
+                    && f.w.economy().terrain_class_at(p) != Some(TerrainClass::Ocean)
+                    && f.w.units().units_at(p).is_empty()
+            })
+            .collect();
+        for &p in &near {
+            for _ in 0..f.w.tile_limit(p) {
+                f.w.apply(Command::CreateUnit {
+                    owner,
+                    pos: p,
+                    unit: kind,
+                });
+            }
+        }
+        let stack = crowd(&mut f, owner, 2 * side);
+        f.w.apply(Command::BeginBattle {
+            attackers: vec![f.attacker],
+            defenders: stack.clone(),
+        });
+        let events = wipe_out(&mut f.w, Side::Defender);
+        // The benched defenders that got away stand on a full square, now over the limit.
+        for &u in &stack {
+            if let Some(at) = f.w.units().unit_position(u) {
+                assert!(near.contains(&at), "{}: at {at:?}: {events:?}", f.name);
+                assert!(
+                    f.w.units().units_at(at).len() > f.w.tile_limit(at),
+                    "{}",
+                    f.name
+                );
+                ran += 1;
+            }
+        }
+    }
+    assert!(ran > 0, "no defender got away in any world");
+}
+
+#[test]
+fn all_the_drained_dead_rise_on_the_winners_square_however_full_it_is() {
+    let mut tried = 0;
+    for mut f in faceoffs() {
+        let side = f.w.max_battle_side();
+        let site = f.w.units().unit_position(f.defender).expect("a position");
+        let from = f.w.units().unit_position(f.attacker).expect("a position");
+        let (a, owner) = (f.a, f.b);
+        let kind = f.w.units().unit_kind_id(f.attacker).expect("a kind");
+        // The defenders fill their square to the limit; a full side attacks them.
+        let held = f.w.tile_limit(site) - 1;
+        let defenders = crowd(&mut f, owner, held);
+        for _ in f.w.units().units_at(from).len()..side {
+            f.w.apply(Command::CreateUnit {
+                owner: a,
+                pos: from,
+                unit: kind,
+            });
+        }
+        let attackers: Vec<_> = f.w.units().units_at(from);
+        f.w.apply(Command::BeginBattle {
+            attackers: attackers.clone(),
+            defenders: defenders.clone(),
+        });
+        // Every attacker dies drained of life.
+        f.w.scenario_edit_battle(|b| {
+            for u in b.units.iter_mut().filter(|u| u.side == Side::Attacker) {
+                u.kill();
+                u.status = f4x_battle::unit::Status::Dead;
+                u.damage_kinds = [0, 1, 0];
+            }
+        });
+        let events = f.w.apply(Command::Battle(BattleCommand::EndTurn));
+        assert!(
+            told(
+                &events,
+                |e| matches!(e, Event::UndeadRaised { player, units, .. }
+                if *player == owner && *units as usize == attackers.len())
+            ),
+            "{}: {events:?}",
+            f.name
+        );
+        for &u in &attackers {
+            assert_eq!(f.w.units().unit_owner(u), Some(owner), "{}", f.name);
+            assert_eq!(f.w.units().unit_position(u), Some(site), "{}", f.name);
+        }
+        assert!(
+            f.w.units().units_at(site).len() > f.w.tile_limit(site),
+            "{}",
+            f.name
+        );
+        tried += 1;
+    }
+    assert!(tried > 0, "no world had room for a battle");
+}

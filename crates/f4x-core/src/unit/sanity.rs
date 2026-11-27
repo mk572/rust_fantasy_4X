@@ -1,7 +1,7 @@
 //! The ceiling on the units of one square. The rules limit the units that walk onto a square
 //! ([`Economy::tile_limit`](crate::city::economy::Economy::tile_limit)), but a unit can also be put
-//! there without walking: hired, summoned, built, freed, raised, recalled. Those are never refused
-//! for a full square, so a square can hold more than the rules allow, and the player sorts it out
+//! there without walking: hired, summoned, built, freed, raised (as undead too), recalled, or forced
+//! there (fled from a lost battle, scrambled or drifted ashore). Those are never refused for a full square, so a square can hold more than the rules allow, and the player sorts it out
 //! by moving units off it. This is the one hard limit, [`TILE_SANITY_LIMIT`]: past it the game
 //! disbands the cheapest unit of the square (a cheat, or a computer wizard looping, is the only way
 //! to get there) and tells the player (`LossCause::Crowded`).

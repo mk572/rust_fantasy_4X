@@ -1153,7 +1153,8 @@ impl World {
         Some(self.ecs.get::<&crate::unit::Unit>(sources[index]).ok()?.0)
     }
 
-    /// Put the drained dead on the winner's square as undead units, as many as it has room for.
+    /// Put the drained dead on the winner's square as undead units. All of them rise: they are
+    /// forced there, so a full square is no bar.
     fn raise_drained(
         &mut self,
         battle: &Battle,
@@ -1162,32 +1163,22 @@ impl World {
         sources: &[hecs::Entity],
     ) -> Vec<Event> {
         let creator = self.undead_creator(battle, sources);
-        let winner = battle.winner.map(|side| (side, battle.player_of(side)));
-        let heir = winner.map(|(_, player)| player);
-        let (Some((side, player)), Some(pos)) = (winner, battle.site) else {
+        let winner = battle.winner.map(|side| battle.player_of(side));
+        let (Some(player), Some(pos)) = (winner, battle.site) else {
             for u in dead {
-                self.remove_unit_to(u, crate::hero::Fate::Slain, heir);
+                self.remove_unit_to(u, crate::hero::Fate::Slain, winner);
             }
             return Vec::new();
         };
         self.units().sort_by_serial(&mut dead);
-        // The winner's units that stand count against the stack's nine.
-        let side_room = battle
-            .max_side
-            .saturating_sub(battle.active_units(side).count());
-        let mut room = side_room;
         let (mut raised, mut zombies) = (0, 0);
         for unit in dead {
-            if room == 0 {
-                self.remove_unit_to(unit, crate::hero::Fate::Slain, heir);
-                continue;
-            }
-            room -= 1;
             self.make_undead(unit);
             self.strip::<Hurt>(unit);
             self.strip::<crate::unit::Order>(unit);
             self.set_owner(unit, player);
-            self.put_bundle(unit, (pos, crate::unit::MovesLeft(HalfInt::ZERO)));
+            self.put(unit, pos);
+            self.put(unit, crate::unit::MovesLeft(HalfInt::ZERO));
             if zombified.contains(&unit) {
                 zombies += 1;
             } else {

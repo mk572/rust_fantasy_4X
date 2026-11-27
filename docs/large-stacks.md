@@ -17,7 +17,6 @@ What is checked and what is not is marked. Where a line says "to check", I have 
 | `unit/transport.rs` | to check: boarding and landing |
 | `city/neutral.rs` | the garrison of a neutral city (`population / 4`, at most nine) |
 | `feature/lair.rs` | the defenders of a lair |
-| `battle/world.rs` | how many raised dead a winner can keep (`room = MAX_STACK - standing units`) |
 | `battle/casting.rs` | `MAX_SIDE_UNITS = 9`, a **second copy** of the same number: summons, Possession, Creature Binding, Raise Dead, Animate Dead |
 | `f4x-ai` `military.rs`, `naval.rs` | gathering in chunks of nine, boat loads of two to five |
 

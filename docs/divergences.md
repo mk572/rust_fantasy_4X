@@ -34,7 +34,12 @@ Decided October 2026, `design.md` section 8.
   the core only as ordinary commands.
   The core asks nothing of the AI. It once asked **which unit steps off a full square** (17 November
   2026, `unit/crowding.rs`, removed 22 November 2026): a unit that is put on a square (finished,
-  summoned, hired, freed, raised, recalled) is now never refused for a full one. Three limits meet
+  summoned, hired, freed, raised, recalled) is now never refused for a full one. Neither is a unit
+  the game forces off its square (27 November 2026): a defender that sat out a lost battle and flees,
+  a unit that scrambles ashore when its ship is lost, and the passengers of a ship drifting ashore.
+  They still need a neighbouring land square with nobody hostile and no lair that they can enter.
+  The dead a winner raises as undead all rise too (the same day; until then only as many as the
+  battle side had room for). Three limits meet
   on a square instead: the battle side (`max_battle_side`, met when a battle starts), the walking
   limit (`max_tile`, met when units walk in, twice as high on a tower: `Economy::tile_limit`) and
   the sanity limit (`TILE_SANITY_LIMIT`, 100: past it `World::enforce_tile_sanity` disbands the

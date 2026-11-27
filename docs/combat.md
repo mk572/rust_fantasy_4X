@@ -212,7 +212,7 @@ Damage is sorted by what dealt it (`Damage::drained` and `gone`, kept per unit i
 `BattleUnit::damage_kinds`). A unit that dies mostly of life steal, or of the blows and poison of a
 creator of undead (a victim with magic immunity is spared), has fallen `Fate::Drained`: the
 winner takes it after the battle as an undead unit, full strength, unless it was a
-creature of the Death realm or a hero (`raise_drained`, `battle/world.rs`); this holds for a fight at a lair too, and the winner's standing units count against the stack of nine. If the guards or monsters win, the drained attackers are raised for the shared neutral owner `unit::NEUTRAL` and stay on the site as permanent neutral units: the guards made for the fight go, those units do not (`finish_site_battle` removes only the fight's guards), and a later stack that walks in meets them as an enemy stack. What a destruction
+creature of the Death realm or a hero (`raise_drained`, `battle/world.rs`); this holds for a fight at a lair too. All of them rise, however many units the square then holds (they are forced there, so neither the stack limit nor the battle side stops them). If the guards or monsters win, the drained attackers are raised for the shared neutral owner `unit::NEUTRAL` and stay on the site as permanent neutral units: the guards made for the fight go, those units do not (`finish_site_battle` removes only the fight's guards), and a later stack that walks in meets them as an enemy stack. What a destruction
 attack or a severing spell (Disintegrate, Dispel Evil, Petrify and the other slaying spells)
 kills is `Fate::Gone`. Animate Dead raises one of the casting wizard's own dead (not a hero,
 not summoned in the battle, not gone) on a free square of their half of the field, undead for
@@ -340,7 +340,8 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
   **A ship lost** in a fight, or removed or dispelled at any time, leaves its passengers at sea:
   beside free land each scrambles ashore on the fleeing odds (half of the troops, three in four of
   the heroes make it, `World::drown_stranded`), anywhere else they drown; fliers, swimmers and
-  water walkers never needed a ship. Attacking from a ship follows ReMoM: nothing bars the
+  water walkers never needed a ship. The land square may be full: a unit the game forces there
+  ignores the stack limit (so do fleeing defenders, `World::free_landing`). Attacking from a ship follows ReMoM: nothing bars the
   passengers of a ship from attacking a land square, and in the original only a coastal city is
   fought with ships in the stack (they sit out). The nine-unit limit counts passengers as before
   (a separate fix of the limit is planned).
