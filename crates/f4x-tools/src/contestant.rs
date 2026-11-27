@@ -62,10 +62,14 @@ pub trait Contestant {
     /// Take back the plans a loaded game carries for this player; a version that cannot read them
     /// starts afresh.
     fn recall(&mut self, _plans: &[(PlayerId, String)]) {}
-    /// Join the game's table of memories (`f4x_ai::Diplomats`), and hear the events of the turns, as
-    /// the live AI does; the reference copy has neither.
+    /// Join the game's table of memories (`f4x_ai::Diplomats`), hear the events of the turns and
+    /// answer proposals on another player's turn, as the live AI does; the reference copy does
+    /// none of these.
     fn join(&mut self, _diplomats: &f4x_ai::Diplomats) {}
     fn notice(&mut self, _game: &Game, _events: &[Event]) {}
+    fn react(&mut self, _game: &mut Game) -> Vec<Event> {
+        Vec::new()
+    }
 }
 
 macro_rules! contestant {
@@ -130,6 +134,9 @@ macro_rules! contestant {
                 }
                 fn notice(&mut self, game: &Game, events: &[Event]) {
                     $krate::Ai::notice(self, game, events);
+                }
+                fn react(&mut self, game: &mut Game) -> Vec<Event> {
+                    $krate::Ai::react(self, game)
                 }
                 fn diplomacy_note(&self, world: &World, round: u32) -> String {
                     $krate::Ai::diplomacy_note(self, world, round)
@@ -266,6 +273,12 @@ impl Neutrals {
         }
     }
 
+    fn react(&mut self, game: &mut Game, player: PlayerId, events: &mut Vec<Event>) {
+        if self.version == Version::New {
+            Controller::react(&mut self.new, game, player, events);
+        }
+    }
+
     fn play(&mut self, game: &mut Game, player: PlayerId, events: &mut Vec<Event>) {
         match self.version {
             Version::New => self.new.play_turn(game, player, events),
@@ -317,6 +330,11 @@ impl Controller for ContestantSeat<'_> {
         Status::Done
     }
 
+    fn react(&mut self, game: &mut Game, _: PlayerId, events: &mut Vec<Event>) -> Status {
+        events.extend(self.contestant.react(game));
+        Status::Done
+    }
+
     fn notice(&mut self, game: &Game, events: &[Event]) {
         self.contestant.notice(game, events);
     }
@@ -330,6 +348,11 @@ impl Controller for NeutralTurns<'_> {
         let started = std::time::Instant::now();
         self.0.play(game, player, events);
         self.1.borrow_mut().neutrals += started.elapsed();
+        Status::Done
+    }
+
+    fn react(&mut self, game: &mut Game, player: PlayerId, events: &mut Vec<Event>) -> Status {
+        self.0.react(game, player, events);
         Status::Done
     }
 

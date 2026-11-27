@@ -131,4 +131,47 @@ mod tests {
         }
         Ok(())
     }
+
+    #[test]
+    fn a_rivals_proposal_is_asked_in_the_middle_of_the_round_and_holds_the_rivals_turn(
+    ) -> TestResult {
+        let mut app = App::for_test();
+        let rival = app.ais.first().ok_or("no rival")?.player;
+        let round = app.game.round();
+        app.game.make_contact(rival, HUMAN);
+        app.game.apply(
+            rival,
+            Command::Diplomacy(DiplomacyCommand::Propose {
+                from: rival,
+                to: HUMAN,
+                kind: ProposalKind::Pact,
+            }),
+        );
+        // The rival has played and its turn is about to end.
+        let held = f4x_master::Phase::TurnEnd(rival);
+        app.master_state = f4x_master::State { phase: held };
+        app.turn_events = Some(Vec::new());
+        app.resume_turn();
+        assert_eq!(
+            app.master_state.phase, held,
+            "the turn waits for the answer"
+        );
+        assert!(app.turn_events.is_some(), "the round goes on later");
+        app.queue_proposal();
+        assert!(app.modals.has(kind::PROPOSAL), "the human is asked at once");
+
+        app.game.apply(
+            HUMAN,
+            Command::Diplomacy(DiplomacyCommand::Answer {
+                player: HUMAN,
+                from: rival,
+                accept: false,
+            }),
+        );
+        app.modals.remove(kind::PROPOSAL);
+        app.resume_turn();
+        assert_ne!(app.master_state.phase, held, "the turn has ended");
+        assert!(app.game.round() >= round);
+        Ok(())
+    }
 }

@@ -590,12 +590,10 @@ impl Ai {
         self.frontier_closed
     }
 
-    /// What this wizard has to say to the human at the start of the human's turn: offers,
-    /// warnings of war and requests (`diplomacy::approach_human`). The client calls it for each
-    /// rival after the turn has changed, so the proposals wait for the human's answer in that turn.
-    pub fn approach_human(&mut self, game: &mut Game) -> Vec<Event> {
+    /// Answer what other players have proposed to this one, on a turn of theirs.
+    pub fn react(&mut self, game: &mut Game) -> Vec<Event> {
         let mut events = Vec::new();
-        diplo_b_talk::approach_human(self, game, &mut events);
+        diplomacy::answer(self, game, &mut events);
         events
     }
 
@@ -671,6 +669,9 @@ impl Ai {
         economy::cities(self, game, &mut events);
         road::build_engineer(self, game, &mut events);
         shortfall::run(self, game, &mut events);
+        // What it has to say to the human comes last: a war declared here leaves the human a
+        // turn before the first attack, and the turn waits for the answer to a proposal.
+        diplo_b_talk::approach_human(self, game, &mut events);
         events
     }
 

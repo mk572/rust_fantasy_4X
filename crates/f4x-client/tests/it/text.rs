@@ -179,6 +179,8 @@ const EXEMPT_FRAGMENTS: &[&str] = &[
     "+{gold}%",
     "{first}: {r}",
     "saves/slot",
+    // test_app.rs, compiled for tests only: where a test's autosave goes.
+    "tests/saves",
     "{year:04}",
     // first_run.rs: a file name, a folder and the AppleScript that shows the (texted) question.
     "Fantasy 4X Setup.app",

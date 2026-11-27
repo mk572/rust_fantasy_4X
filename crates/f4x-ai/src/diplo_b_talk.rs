@@ -133,9 +133,9 @@ fn yields_to_threat(
     false
 }
 
-/// What an AI wizard says to the human at the start of the human's turn, as commands a human could send:
-/// peace, courting, gifts, demands, warnings, a treaty broken, war. The proposals wait for the human's
-/// answer in that turn. The client calls it for each rival after the turn has changed.
+/// What an AI player says to the human at the end of its own turn, as commands a human could send:
+/// peace, courting, gifts, demands, warnings, a treaty broken, war. Its turn waits for the human's
+/// answer to a proposal (`f4x-master`).
 pub(crate) fn approach_human(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let Some(human) = game.human().filter(|&h| h != me) else {
@@ -509,5 +509,23 @@ mod tests {
             2,
             "no second warning after the cool-down"
         );
+    }
+
+    #[test]
+    fn a_wizard_says_what_it_has_to_say_to_the_human_in_its_own_turn() {
+        let mut ai = Ai::new(P0);
+        let mut w = with_human(pair(8, 8, 100));
+        w.start_treaty(P0, P1, Treaty::Pact);
+        // Half way between the marks, so that what the turn does to the feeling stays between them.
+        let k = Knobs::current();
+        feel(&mut w, &ai, (k.warn_below + k.break_below) / 2);
+        let events = ai.play_turn(&mut w);
+        let warned = events.iter().any(|e| {
+            matches!(
+                e,
+                Event::Diplomacy(f4x_core::diplomacy::DiplomacyEvent::Warned { .. })
+            )
+        });
+        assert!(warned, "no warning in the turn: {events:?}");
     }
 }

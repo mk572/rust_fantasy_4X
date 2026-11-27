@@ -17,6 +17,10 @@ impl Controller for Shared<'_> {
         self.0.borrow_mut().play(game, player, events)
     }
 
+    fn react(&mut self, game: &mut Game, player: PlayerId, events: &mut Vec<Event>) -> Status {
+        Controller::react(&mut *self.0.borrow_mut(), game, player, events)
+    }
+
     fn plans(&self) -> Vec<(PlayerId, String)> {
         self.0.borrow().plans()
     }

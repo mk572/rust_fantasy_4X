@@ -153,6 +153,8 @@ pub struct App {
     /// The turn change is under way: the rivals take their turns one after another and the
     /// human may be defending against one (this holds what happened so far).
     pub(crate) turn_events: Option<Vec<Event>>,
+    /// The file each round is saved to, which Continue loads: [`AUTOSAVE`], except in tests.
+    pub(crate) autosave: std::path::PathBuf,
     /// Where `f4x-master` is in the round (the human's turn, or a rival's, waiting for a defence).
     pub(crate) master_state: f4x_master::State,
     /// What the seats remember between calls into the master.
@@ -391,6 +393,7 @@ impl App {
             cache: Default::default(),
             defences: Default::default(),
             turn_events: None,
+            autosave: std::path::PathBuf::from(AUTOSAVE),
             master_state: f4x_master::State {
                 phase: f4x_master::Phase::Acting(HUMAN),
             },
@@ -1410,8 +1413,9 @@ impl App {
     }
 
     /// Let the master go on from where it stopped: a rival's attack on the human has been
-    /// fought, or the turn was just ended. Stops again at the next attack on the human, or at
-    /// the human's next turn, when it reports what the rivals and the turn did.
+    /// fought, what a rival proposes has been answered, or the turn was just ended. Stops again
+    /// at the next attack on the human or proposal to them, or at the human's next turn, when it
+    /// reports what the rivals and the turn did.
     pub(crate) fn resume_turn(&mut self) {
         if self.modals.has(crate::modal::kind::ATTACK) || self.game.in_battle() {
             return;
@@ -1437,16 +1441,12 @@ impl App {
                 self.resume_turn();
                 return;
             }
-        }
-        if self.game.game_over().is_none() {
-            // The rivals now say what they have to say to the human: offers, requests, war.
-            let undo = self.game.undo_enabled();
-            self.game.set_undo(false);
-            for ai in &mut self.ais {
-                events.extend(ai.approach_human(&mut self.game));
+            if self.master_state.phase != f4x_master::Phase::Acting(HUMAN) {
+                // A turn waits for the human's answer to a proposal (`queue_proposal` asks);
+                // the frame loop goes on once it has one.
+                self.turn_events = Some(events);
+                return;
             }
-            events.extend(self.neutral_ai.approach_human(&mut self.game));
-            self.game.set_undo(undo);
         }
         // What the rivals did out of sight is not shown: only what touches the human.
         let events: Vec<Event> = events
@@ -1503,9 +1503,7 @@ impl App {
                         stopped: progress.stopped,
                     };
                 }
-                if let Err(e) =
-                    f4x_master::save_game(Path::new(AUTOSAVE), &self.game, master.plans())
-                {
+                if let Err(e) = f4x_master::save_game(&self.autosave, &self.game, master.plans()) {
                     autosave_failed = Some(e.to_string());
                 }
             };
@@ -1590,6 +1588,7 @@ impl App {
 
     /// Pass turns without playing them (for screenshots and smoke tests).
     pub fn end_turns(&mut self, turns: u32) {
+        self.seating.absent = true;
         for _ in 0..turns {
             self.end_turn();
             // No one defends in person here: the computer fights the attacks on the human.
@@ -1615,6 +1614,7 @@ impl App {
             }
         }
         self.modals.remove(crate::modal::kind::CHANCELLOR);
+        self.seating.absent = false;
     }
 
     pub fn select_first_stack(&mut self) {

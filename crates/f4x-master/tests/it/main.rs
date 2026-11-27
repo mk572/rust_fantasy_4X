@@ -5,6 +5,7 @@
 mod convert;
 mod end;
 mod replay;
+mod request;
 mod save;
 mod sender;
 mod step;

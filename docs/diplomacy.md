@@ -333,9 +333,8 @@ loss `-Random(5)` and a warning, a second step of nothing, and a third step `-5`
 
 **System A is removed (23 November 2026, task 779).** What follows describes the original's AI and the first design of this game's (*system A*), kept as the record of where the numbers came from; the code is gone. The AI plays *system B* only (friendship, fear and strategy, one peace score, no dice): [`ai-diplomacy-b.md`](ai-diplomacy-b.md), `crates/f4x-ai/src/diplo_b*.rs`. Rating a proposal and talking to the human are `diplo_b_talk.rs`; the human is treated like any wizard.
 
-**What the AI does today (tasks 361, 384 and 385).** Towards the human, at the start of the human's turn
-(`Ai::approach_human`, called by the client after the turn change; proposals wait in a yes-or-no box and lapse when
-that turn ends):
+**What the AI did (tasks 361, 384 and 385).** Towards the human, at the start of the human's turn
+(today at the end of the AI's own turn, `ai-diplomacy-b.md`):
 - *At war:* peace is offered one turn in eight when `hidden + visible + personality_mod + peace_patience` beats
   `30 + Random(100)`.
 - *Hate:* relation -75 or worse with no treaty is war; -50 or worse breaks a pact or alliance.
@@ -484,8 +483,9 @@ the original's rating of a proposal (`Diplomacy_Test`, §4) lives in `f4x-ai` (`
 uses that function and the §8 rules as its starting logic, kept as AI code with its numbers in
 data, not as rules of the game. **The game never changes a treaty or starts or ends a war by itself** (rule restated 23 November 2026, after copies of the original's code broke it: war on taking a city, `G_DIPL_PickSides`, the break after trespassing, removed). Treaties and war change only by a player's command (`DeclareWar`, `BreakTreaty`, an answered proposal) and by nothing else, except that those of a player who is gone end: a defeated wizard's, and a race's when it loses its last city ("Neutral players"). The game puts a limit where the original had none: a player cannot attack a pact or alliance partner until they have broken the treaty (the original lets them attack and breaks it for them). **Direction (23 November 2026, task 775):** the core only sends the event of what happened to a wizard; the AI (`f4x-ai`) keeps and adjusts its own ratings. The relation numbers the core still moves below are to move into the AI. Until that is done, the core's own automatic parts remain rules: relation changes from
 events (§5), drift and growth (§7), and the effects of an accepted treaty or declared war (§6).
-Pending proposals are saved with the game; if the receiver does not answer in the same turn the
-proposal lapses as refused.
+Pending proposals are saved with the game. The turn a proposal is made in does not end before its
+receiver has been asked to answer (`turn-structure.md` 10.4); one still unanswered lapses as refused at
+the end of the round.
 
 **9.3 Hooks into existing code:**
 - contact: in exploration and the per-turn unit sweep (the fog and visibility code);

@@ -28,6 +28,11 @@ impl Controller for AiSeat<'_> {
             .collect()
     }
 
+    fn react(&mut self, game: &mut Game, _: PlayerId, events: &mut Vec<Event>) -> Status {
+        events.extend(self.0.react(game));
+        Status::Done
+    }
+
     fn notice(&mut self, game: &Game, events: &[Event]) {
         self.0.notice(game, events);
     }
@@ -105,22 +110,6 @@ impl NeutralAi {
             .collect()
     }
 
-    /// What the neutral players have to say to the human at the start of the human's turn
-    /// (`Ai::approach_human`): offers, warnings of war, requests.
-    pub fn approach_human(&mut self, game: &mut Game) -> Vec<Event> {
-        let mut events = Vec::new();
-        let ids: Vec<PlayerId> = self.ais.keys().copied().collect();
-        for id in ids {
-            if game.race_of_player(id).is_none() {
-                continue;
-            }
-            if let Some(ai) = self.ais.get_mut(&id) {
-                events.extend(ai.approach_human(game));
-            }
-        }
-        events
-    }
-
     /// The AI of a race player, made now if it has none.
     fn ai_of(&mut self, id: PlayerId) -> &mut Ai {
         let (defended_by, record) = (self.defended_by.clone(), self.record_refusals);
@@ -153,6 +142,13 @@ impl NeutralAi {
 impl Controller for NeutralAi {
     fn play(&mut self, game: &mut Game, player: PlayerId, events: &mut Vec<Event>) -> Status {
         self.play_turn(game, player, events);
+        Status::Done
+    }
+
+    fn react(&mut self, game: &mut Game, player: PlayerId, events: &mut Vec<Event>) -> Status {
+        if game.race_of_player(player).is_some() {
+            events.extend(self.ai_of(player).react(game));
+        }
         Status::Done
     }
 

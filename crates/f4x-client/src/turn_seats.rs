@@ -1,6 +1,7 @@
-//! The client's seats for `f4x-master`: the human's seat waits until the player ends the turn;
-//! a computer player's turn is played at once and then waits while an attack on the human is
-//! fought, so the next one plays on the board the battle left.
+//! The client's seats for `f4x-master`: the human's seat waits until the player ends the turn,
+//! and holds another player's turn while a proposal waits for the human's answer; a computer
+//! player's turn is played at once and then waits while an attack on the human is fought, so the
+//! next one plays on the board the battle left.
 //!
 //! Tests: none of its own; `tests/` plays turns through the client's `end_turns`.
 
@@ -20,6 +21,8 @@ pub(crate) struct Seating {
     pub human_done: bool,
     /// The computer player that is acting has played and now waits for the defences.
     pub played: bool,
+    /// Nobody sits at the screen (`App::end_turns`): what is proposed to the human is left.
+    pub absent: bool,
 }
 
 /// The human: waiting until the turn is ended.
@@ -30,6 +33,15 @@ pub(crate) struct HumanSeat<'a> {
 impl Controller for HumanSeat<'_> {
     fn play(&mut self, _: &mut Game, _: PlayerId, _: &mut Vec<Event>) -> Status {
         if std::mem::take(&mut self.seating.borrow_mut().human_done) {
+            Status::Done
+        } else {
+            Status::Waiting
+        }
+    }
+
+    /// The map asks the player (`App::queue_proposal`).
+    fn react(&mut self, _: &mut Game, _: PlayerId, _: &mut Vec<Event>) -> Status {
+        if self.seating.borrow().absent {
             Status::Done
         } else {
             Status::Waiting
@@ -74,6 +86,11 @@ impl Controller for RivalSeat<'_> {
         finished(self.seating, self.defences)
     }
 
+    fn react(&mut self, game: &mut Game, _: PlayerId, events: &mut Vec<Event>) -> Status {
+        events.extend(self.ai.react(game));
+        Status::Done
+    }
+
     fn plans(&self) -> Vec<(PlayerId, String)> {
         self.ai
             .to_text()
@@ -103,6 +120,10 @@ impl Controller for NeutralTurns<'_> {
             self.seating.borrow_mut().played = true;
         }
         finished(self.seating, self.defences)
+    }
+
+    fn react(&mut self, game: &mut Game, player: PlayerId, events: &mut Vec<Event>) -> Status {
+        Controller::react(&mut *self.inner, game, player, events)
     }
 
     fn plans(&self) -> Vec<(PlayerId, String)> {

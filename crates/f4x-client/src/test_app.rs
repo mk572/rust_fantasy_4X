@@ -92,7 +92,8 @@ pub(crate) mod shipped {
 }
 
 impl App {
-    /// A new game on the shipped content, silent, with an art folder that is not there.
+    /// A new game on the shipped content, silent, with an art folder that is not there; its
+    /// autosave goes to the tests' folder.
     pub(crate) fn for_test() -> App {
         let art = Art::load(
             PathBuf::from("no-art-in-tests"),
@@ -101,14 +102,16 @@ impl App {
             shipped::wizard_art().clone(),
             shipped::icon_art().clone(),
         );
-        App::new(
+        let mut app = App::new(
             shipped::content().clone(),
             shipped::names().clone(),
             shipped::texts().clone(),
             art,
             1,
         )
-        .expect("a new game starts on the shipped content")
+        .expect("a new game starts on the shipped content");
+        app.autosave = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/saves/autosave.save");
+        app
     }
 }
 

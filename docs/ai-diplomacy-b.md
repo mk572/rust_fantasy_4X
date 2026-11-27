@@ -130,7 +130,8 @@ chance (24 seeds at 3 wizards, 400 turns, is the first run).
 * **A threat**: a wizard that fears the asker (`YIELD_FEAR`) pays and yields, one clearly stronger than the asker declares war,
   else it refuses. **A demand** is yielded to by one that fears the asker. **A trade** is by worth (`trade.rs`).
 * **Peace** is the peace score (`peace_wish`). Nothing is rolled.
-* **To the human** (`approach_human`, at the start of the human's turn): peace by `offer_due`; war on someone it hates
+* **To the human** (`approach_human`, at the end of the wizard's own turn, which waits for the human's answer to a
+  proposal): peace by `offer_due`; war on someone it hates
   (`WAR_BELOW`) with no treaty; a warning to a partner whose friendship fell to `WARN_BELOW` (every `WARN_COOL` turns) and the
   treaty broken at `BREAK_BELOW`; courting (pacts, alliances, a gift for a low relation) by `court`; a demand of gold from
   a weaker player it dislikes (every `DEMAND_COOL` turns); a gift from a close friend with a treaty (`GIFT_FRIEND`, every

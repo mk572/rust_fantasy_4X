@@ -10,6 +10,9 @@
 //! round end     (once: durations and world-wide work)
 //! ```
 //!
+//! A turn that has been played does not end while a proposal made in it waits for an answer: the
+//! master asks the controller of whoever it waits for ([`Controller::react`]).
+//!
 //! Every player has a turn of its own: the wizards, then the independent race players, then the
 //! monsters' player. A **seat** says who plays: one wizard's (a human or an AI), or the one that
 //! plays for every player without a wizard, each in that player's turn. The master knows no
@@ -33,6 +36,7 @@ pub use game::step::{self, turn_order, turn_players, Step};
 pub use game::undo::{self, UndoError};
 pub use game::Game;
 
+use f4x_core::diplomacy::Proposal;
 use f4x_core::player::{PlayerId, MONSTERS};
 use f4x_core::world::{Command, Event, World};
 use serde::{Deserialize, Serialize};
@@ -51,6 +55,14 @@ pub enum Status {
 pub trait Controller {
     /// Play or go on playing the turn of `player`. Events are appended to `events`.
     fn play(&mut self, game: &mut Game, player: PlayerId, events: &mut Vec<Event>) -> Status;
+
+    /// Something of the turn being played waits for `player`: a proposal made to it. The
+    /// controller answers it with commands, or leaves it. `Waiting` holds the turn until the
+    /// controller is asked again (a human who has not answered); `Done` lets the turn go on,
+    /// answered or not. Events are appended to `events`. The default leaves it.
+    fn react(&mut self, _game: &mut Game, _player: PlayerId, _events: &mut Vec<Event>) -> Status {
+        Status::Done
+    }
 
     /// What the controller has in mind, as text to keep in a save, with the player each is for
     /// (the plans of the computer players it plays). The host asks for these when it saves the
@@ -116,7 +128,8 @@ pub enum Phase {
     TurnStart(PlayerId),
     /// The player is playing.
     Acting(PlayerId),
-    /// The player's turn has been played and is about to end.
+    /// The player's turn has been played and is about to end: it waits here while a proposal of
+    /// the turn is unanswered.
     TurnEnd(PlayerId),
     /// Every player has played; the round is about to end.
     RoundEnd,
@@ -174,7 +187,8 @@ pub struct Progress {
 pub enum Stopped {
     /// One step was made and the master could go on.
     Ready,
-    /// A controller waits for input; this is the player whose turn it plays.
+    /// A controller waits for input; this is the player it plays: the one whose turn it is
+    /// ([`Phase::Acting`]), or one a turn that has been played waits for ([`Phase::TurnEnd`]).
     Waiting(PlayerId),
     /// The game is over.
     Over,
@@ -192,6 +206,14 @@ pub enum Until {
     /// work is done), or a controller waits, or the game ends. `Rounds(1)` from a fresh master
     /// plays out the current round and begins the next.
     Rounds(u32),
+}
+
+/// The proposals a turn of `active` is not over with: those it made and those made to it.
+fn requests(game: &Game, active: PlayerId) -> Vec<Proposal> {
+    let open = game.diplomacy.proposals().iter();
+    open.filter(|p| p.from == active || p.to == active)
+        .copied()
+        .collect()
 }
 
 /// The wizard that plays first of those seated; the monsters' player at a table without one.
@@ -328,6 +350,34 @@ impl<'a> Master<'a> {
             .map_or(Phase::RoundEnd, Phase::TurnStart)
     }
 
+    /// Ask whoever a proposal of the turn of `active` waits for to answer it
+    /// ([`Controller::react`]); an answer in return is asked for too. Returns the player the
+    /// turn waits for.
+    fn held_by(
+        &mut self,
+        game: &mut Game,
+        active: PlayerId,
+        events: &mut Vec<Event>,
+    ) -> Option<PlayerId> {
+        loop {
+            let open = requests(game, active);
+            let mut asked: Vec<PlayerId> = open.iter().map(|p| p.to).collect();
+            asked.sort_by_key(|&p| turn_order(p));
+            asked.dedup();
+            for player in asked {
+                let Some(seat) = self.seat_of(game, player) else {
+                    continue;
+                };
+                if self.seats[seat].controller.react(game, player, events) == Status::Waiting {
+                    return Some(player);
+                }
+            }
+            if requests(game, active) == open {
+                return None;
+            }
+        }
+    }
+
     /// Make one step: one boundary operation, or one call to a controller.
     pub fn step(&mut self, game: &mut Game) -> Progress {
         let mut events = Vec::new();
@@ -362,10 +412,15 @@ impl<'a> Master<'a> {
                     Status::Waiting => stopped = Stopped::Waiting(player),
                 }
             }
-            Phase::TurnEnd(player) => {
-                events.extend(game.end_player_turn(player));
-                self.state.phase = self.next_turn(game, Some(player));
-            }
+            Phase::TurnEnd(player) => match self.held_by(game, player, &mut events) {
+                Some(other) => stopped = Stopped::Waiting(other),
+                // An answer may have ended the game.
+                None if game.game_over().is_some() => self.state.phase = Phase::Over,
+                None => {
+                    events.extend(game.end_player_turn(player));
+                    self.state.phase = self.next_turn(game, Some(player));
+                }
+            },
             Phase::RoundEnd => {
                 events.extend(game.end_round());
                 self.state.phase = if game.game_over().is_some() {

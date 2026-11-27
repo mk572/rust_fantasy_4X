@@ -21,7 +21,7 @@ use macroquad::prelude::*;
 
 use crate::frame::Layout;
 use crate::ui::GOLD;
-use crate::view::{App, Screen, AUTOSAVE};
+use crate::view::{App, Screen};
 
 /// Save slots on the Load / Save screen.
 pub const SLOTS: usize = 8;
@@ -172,7 +172,7 @@ enum Entry {
 
 impl App {
     pub fn open_main_menu(&mut self) {
-        self.menu.can_continue = Path::new(AUTOSAVE).exists();
+        self.menu.can_continue = self.autosave.exists();
         self.menu.slots = (0..SLOTS).map(|n| Slot::read(&slot_path(n))).collect();
         self.menu.message.clear();
         self.open_page(Screen::MainMenu, MainMenuPage);
@@ -283,7 +283,7 @@ impl Page for MainMenuPage {
 
         match chosen {
             Some(Entry::Continue) => {
-                if let Err(e) = app.load_from(Path::new(AUTOSAVE)) {
+                if let Err(e) = app.load_from(&app.autosave.clone()) {
                     app.menu.message = app.text_with(
                         "menu.could_not_continue",
                         &Args::new().text("why", e.to_string()),
@@ -470,7 +470,7 @@ impl Page for SlotsPage {
             } else {
                 // Leaving the game keeps it as the one Continue offers.
                 if app.game.game_over().is_none() {
-                    app.save_to(Path::new(AUTOSAVE));
+                    app.save_to(&app.autosave.clone());
                 }
                 app.open_main_menu();
             }
