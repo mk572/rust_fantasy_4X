@@ -46,32 +46,25 @@ draw, log, animate from events and queries
 
 ## 2. Commands and their events
 
-| Command | What it does | Events on success | Typical rejections |
-|---|---|---|---|
-| `CreateUnit { owner, pos, unit }` | Makes a unit with full moves and health; explores around it | `UnitCreated` | none (not validated: for scenario setup and summoning) |
-| `MoveStack { units, to }` | One step of a stack to an adjacent tile | `UnitsMoved`, or `AttackRequested` if hostile | `Move(...)` |
-| `GoTo { units, to }` | Plans a route and starts walking it at once | `UnitsMoved`... (as far as moves allow), or `AttackRequested` | `Move(Impassable)` if there is no route |
-| `ClearOrders { units }` | Removes standing orders | none | none |
-| `SetStandby { units, standby }` | Puts units on Done (skipped for this turn) or Patrol (skipped until they move), or takes them off with `None` | none | none |
-| `ShiftPlane { units }` | Same tile, other plane, costs one move | `UnitsMoved` | `Move(CannotShiftPlane)` and others |
-| `FoundCity { owner, pos, name, race, population }` | New city (or outpost if population is 0) | `CityFounded` | `FoundCity(...)` |
-| `SettleOutpost { unit, name }` | Settlers become an outpost where they stand | `CityFounded` | `FoundCity(...)`, `Move(BadSelection)` |
-| `SetProduction { city, item }` | Choose what the city builds | none | `Production(...)` |
-| `BuyProduction { city }` | Pay gold so the item completes at the next turn change | none | `Production(NotEnoughGold, NothingToBuy)` |
-| `SellBuilding { city, building }` | Sell for its construction cost | none | `Production(NotBuilt, MissingBuilding)` |
-| `SetFarmers { city, farmers }` | Citizens on farms, clamped to the minimum that feeds the city and the population | none | none |
-| `BalanceFarmers { player }` | Just enough citizens on farms in all the player's cities to feed its citizens and army | none | none |
-| `SetTaxRate { player, rate }` | Tax rate, clamped to the table | none | none |
-| `PlaceFortress { player, pos, name, race, population }` | Found the wizard's first city with the fortress and summoning circle in it (once per wizard) | `CityFounded`, `FortressPlaced` | `Rejected(Fortress(..))` |
+The commands are the variants of `Command` (`world/command.rs`, each with its doc comment):
 
-Events: `TurnStarted`, `CityFounded`, `ProductionCompleted`, `CityGrew`, `CityShrank`,
-`UnitsDisbanded`, `UnitCreated`, `UnitsMoved`, `AttackRequested`, `Rejected`. Not every
-state change has an event: units produced by a city appear through `ProductionCompleted`,
-not `UnitCreated`; changes to production, farmers and tax have none because the caller
-already knows.
+| Area | Commands |
+|---|---|
+| Units and movement | `MoveStack`, `GoTo`, `ClearOrders`, `SetStandby`, `SetBridge`, `ShiftPlane`, `EarthGate`, `EnterSite`, `Meld`, `Purify`, `BuildRoad`, `DismissUnit`, `SettleOutpost` |
+| Battles | `BeginBattle`, `AutoResolve`, `Defend`, `Battle` (an order in the battle being fought) |
+| Cities | `SetProduction`, `BuyProduction`, `SellBuilding`, `SetFarmers`, `BalanceFarmers`, `SetAutoBuild`, `SetGrandVizier`, `RenameCity`, `RazeCity` |
+| Treasury and shortages | `SetTaxRate`, `Alchemy`, `ReleaseTroops`, `ReleaseUpkeep` |
+| Magic | `SetPowerSplit`, `SetResearch`, `CastSpell`, `ResolveCast`, `CancelCast`, `TurnOffSpell`, `TurnOffCitySpell`, `TurnOffUnitSpell` |
+| Items and offers | `CraftItem`, `MoveItem`, `ScrapItem`, `SellItem`, `AcceptOffer`, `RejectOffer` |
+| Other players and the end | `Diplomacy` (every proposal, answer, gift, treaty and war), `Resign` |
+| Setup only, refused from a player | `CreateUnit`, `FoundCity`, `PlaceFortress` |
+| Wrapper | `Anyway` (a command sent again after the player was told it would do nothing) |
 
-Rejection reasons are typed: `FoundCity(FoundCityError)`, `Move(MoveError)`,
-`Production(ProductionError)`.
+- **Events** (`world/event.rs`) report what happened. Not every state change has one: a unit a city
+  builds appears through `ProductionCompleted`, not `UnitCreated`, and a change to farmers or tax has
+  none because the sender already knows.
+- **Rejections** are typed: `Rejection` (`world/event.rs`) wraps the error enum of each feature
+  (`MoveError`, `ProductionError` and the others), and each has a text key for the player.
 
 ## 3. Movement
 
@@ -86,23 +79,30 @@ Rejection reasons are typed: `FoundCity(FoundCityError)`, `Move(MoveError)`,
 | Mover | Cost |
 |---|---|
 | Non-corporeal (a ship made so too, which then also crosses land), onto any tile, water included | 0.5 |
-| Flying, or in a stack carried by a wind-walker | 1 on any tile, water included |
+| Flying, or in a stack carried by a wind-walker; walking on water, onto water | 1 on any tile |
 | Sailing | 1 on ocean or on a city of its owner; otherwise impossible |
 | Swimming | 1 on ocean; on land as walking |
-| Walking | terrain `move_cost`; impossible on ocean or non-walkable terrain |
-| Walking, between two road tiles | 0.5 |
+| A land unit onto water | nothing when a ship of the stack carries it; 1 to board a ship of its owner waiting there; otherwise impossible |
+| Walking | terrain `move_cost`, at least 1; impossible on non-walkable terrain |
+| Walking, between two road tiles | 0.5; nothing when both have enchanted roads (every road on Myrror is one) |
+| Walking, between two river tiles, with the setting `river_roads` | at most 0.5 |
 | Pathfinding ability | at most 0.5 |
-| A diagonal step (both x and y change), with the setting `diagonal_extra_cost` (off by default) | one and a half times the cost above, rounded up to a half (1.5 on open ground) |
 | Forester ability, onto forest | at most 1 |
 | Mountaineer ability, onto hills or mountains | at most 1 |
+| A diagonal step (both x and y change), with the setting `diagonal_extra_cost` (off by default) | one and a half times the cost above, rounded up to a half (1.5 on open ground) |
 
-- **A stack** is units on one tile of one owner, at most nine per tile. All units in a move
-  must be on the same tile and have moves left; each pays its own cost; the move fails if any
-  unit cannot enter the tile.
-- **Hostile tiles.** If the target holds units of another player, or another player's city,
-  nothing moves and the core emits `AttackRequested { attackers, from, to, defenders }`. The sender
-  then sends `BeginBattle` or `AutoResolve` (`combat.md`); an attack on the human is held until it
-  answers (`turn-structure.md` 10.4).
+- **A stack** is units of one owner on one tile. At most `max_tile` units (a setting; 9 as shipped)
+  may walk onto a square, twice that onto a tower. All units in a move must be on the same tile and
+  have moves left (passengers of a moving ship need none; a stack with a Wind Walker moves as far as
+  the Wind Walker can); each pays its own cost; the move fails if any unit cannot enter the tile, or
+  if a city's ward bars one of them.
+- **Hostile tiles.** If the target holds units of another player, nothing moves and the core emits
+  `AttackRequested { attackers, from, to, defenders }`. The sender then sends `BeginBattle` or
+  `AutoResolve` (`combat.md`); an attack on the human is held until it answers (`turn-structure.md`
+  10.4). Another player's city with no unit in it is walked into and taken (the monsters wreck it and
+  stay outside). A move against a player one has a treaty with is refused (`MoveError::Treaty`).
+- **Guarded sites.** A move onto a lair, node or tower with guards moves nothing and reports
+  `SiteEncounter`; `EnterSite` assaults the guards.
 - **Plane shift.** Allowed on a tower tile, or for a stack whose every unit has planar
   travel, or at an Astral Gate. A stack in a tower is on both planes at once (the original's
   `in_tower`, `Units_In_Tower`, `Player_Army_At_Square` / `Enemy_Army_At_Square`): the tower is a
@@ -113,7 +113,7 @@ Rejection reasons are typed: `FoundCity(FoundCityError)`, `Move(MoveError)`,
   selects the stack on both planes. The room on the square is
   counted over both planes. Under a Planar Seal none of this holds: the tower is cut off. Planar
   travel and an Astral Gate still move the stack to the same tile of the other plane for one full
-  move, which must be free of hostile units and have room.
+  move, which must be free of hostile units and have room; an Astral Gate does not lead into a city.
 - **Exploration.** After each move the owner explores around the new tile as far as the unit
   sees. `Sight` is a distance in squares counted like movement (a step along a row or column costs 1,
   a diagonal step 1.5 with the setting `diagonal_extra_cost` and 1 without it, the same setting as
@@ -129,10 +129,11 @@ Rejection reasons are typed: `FoundCity(FoundCityError)`, `Move(MoveError)`,
   destination. `path_turns` estimates turns from the allowance of the units that move: land units riding a ship of the stack cost nothing and do not slow it, so the ship's speed decides.
 - `GoTo` stores the path in an `Order::GoTo` component on every unit of the stack and
   immediately follows it as far as moves allow.
-- At each turn change, units with an order continue (section 4, step 5). Units on the same
-  tile with identical orders walk together. The order ends when the path is finished, when a
-  step is refused for any reason other than running out of moves, or when it leads into
-  hostile units (an `AttackRequested` is emitted and the order is cleared).
+- Units with an order continue at the start of their owner's turn (section 4.1, step 4). Units on the
+  same tile with identical orders walk together, and a group whose next square is full waits for the
+  others to move first. The order ends when the path is finished, when a step is refused for any
+  reason other than running out of moves (`OrderFailed`), or when it meets hostile units, a hostile
+  city or a guarded site.
 
 ## 4. The turn
 
@@ -203,19 +204,23 @@ numbers.
 
 **Income**, from the player's cities as they stand at the turn end, before production changes them:
 - gold of each city (taxes, trade, mines, percentage buildings) minus its building upkeep;
-- plus ten gold per noble hero (none exist yet);
-- plus **spare food sold at two for one**: each city's food beyond what its citizens eat,
-  halved, summed, minus half the army's food need, never below zero.
+- plus ten gold for each noble hero;
+- plus **spare food sold at two for one**: each city's food beyond what its citizens eat, summed,
+  less the army's food need, halved, never below zero.
 
 **Then upkeep:**
-- **Food.** Each normal unit eats one food. If the army needs more than the cities have
-  spare, units that eat are disbanded until it fits: the highest food first, then the cheapest
-  to make, then the newest; heroes and loaded ships last.
-- **Gold.** Normal units and heroes cost their gold upkeep (a noble hero costs none), reduced
-  by the player's fame, never below zero. Gold cannot go below zero: if the upkeep exceeds the
-  treasury (income already added), units that cost gold are disbanded until it fits, in the same
-  order by gold upkeep, then the upkeep is paid.
-- Disbanded units are removed and one `UnitsDisbanded { player, units }` is emitted.
+- **Food.** A unit eats the food its definition names. If the army needs more than the cities have
+  spare, units that eat are let go until it fits: the highest food first, then the cheapest to make,
+  then the newest; heroes and loaded ships last.
+- **Gold.** Units cost their gold upkeep (a noble hero costs none); the player's fame pays part of the
+  total, never below zero. Gold cannot go below zero: if the upkeep exceeds the treasury (income
+  already added), units that cost gold are let go until it fits, in the same order by gold upkeep,
+  then the upkeep is paid.
+- A wizard may choose beforehand whom to let go (`ReleaseTroops`); the order above is what happens
+  otherwise.
+- Each unit let go is reported (`UnitLost`), with `Shortage` for what ran out and one
+  `UnitsDisbanded { player, units }` for the count. A hero returns to the roster and its items to the
+  armory; a ship with passengers aboard at sea turns neutral and sails for the shore.
 
 Mana and research are handled by `process_magic` (section 4.2). The command `BalanceFarmers` sets farmers so the
 cities also feed the army; the AI sends it every turn, and the client when food is short at the end of a turn
@@ -223,17 +228,20 @@ or when asked.
 
 ## 6. Healing
 
-Each unit with damage heals once per turn, except Death creatures (born so or made undead, `unit/undead.rs`) and units under Black Channels. The base
-is a fraction of its total hit points: one twentieth in the field, one tenth in a city of
-its owner, one sixth in such a city if it has an animist's guild. The remainder is settled by
-a seeded roll so the average is exact. Every unit in a stack that contains a unit with the
-`healer` ability additionally heals a fifth of its total hit points. A unit heals at least
-one point.
+Each damaged unit of a player heals at the start of the player's turn (`unit/healing.rs`), except
+Death creatures (born so or made undead, `unit/undead.rs`). A unit with regeneration, and every unit
+in a city under Stream of Life, heals completely. Otherwise the base is a fraction of the total hit
+points: one twentieth in the field, one tenth in a city of its owner, one sixth in such a city if it
+has an animist's guild. The remainder is settled by a seeded roll so the average is exact. Every unit
+in a stack that contains a unit with the `healer` ability heals a further fifth of its total hit
+points. A unit that heals this way heals at least one point. While Time Stop lasts only its wizard's
+units heal.
 
 ## 7. Production in detail
 
 - **Items:** a building, a unit, trade goods (turn production into gold, two for one), or
-  housing (faster growth). New cities start on housing.
+  housing (faster growth). A new city starts on housing, a captured one on trade goods. A city
+  whose item it can no longer build falls back to trade goods (`ProductionImpossible`).
 - **A finished item ends the production** (rule: `design.md`, "Economy and movement"). The city
   then has no item (`None`) until its owner chooses again: nothing queues the same item. Trade
   goods and housing never finish; housing ends when the city's figures reach its maximum size
@@ -245,12 +253,13 @@ one point.
   (the auto-builder) does not open: a building is announced over the map, a unit only in the log. The switch "Open Finished Cities" on the Settings screen (`client_settings.ron`: `open_finished_cities`, default on) turns it off.
 - **Allowed** (`can_build`): a building must not already be built, must allow the city's
   race, and needs all its required buildings. A normal unit must be in the race's list; a
-  fantastic unit (boats, siege) is open to all; both need their required buildings, and
-  ships also need a coastal city. Heroes and summoned units cannot be built.
+  fantastic unit (boats, siege) is open to all; both need their required buildings. Ships, and
+  buildings marked coastal, need a coastal city; a unit that costs a citizen (settlers, unless
+  the setting says otherwise) needs two. Heroes and summoned units cannot be built.
 - **Cost:** a building's cost; a unit's cost reduced by the city's mines (never below half).
 - **Buying:** four times what remains if nothing is done yet; three times if less than half of
   the remaining amount is done; otherwise twice. Gold is paid at once; the item completes at
-  the next turn change.
+  the end of the owner's turn.
 - **Selling:** a third of the construction cost (city walls a sixth, at least 1), one sale per city per turn; refused if another built building requires it; selling what the current production needs puts the city back on Housing.
 - **Replaced buildings:** a building can replace another (an armory replaces barracks). The
   old one stays built and keeps its effects and its value as a requirement, but costs no
@@ -264,36 +273,35 @@ own state, that snapshot and the computer players' plans; `f4x_master::{save_gam
 the file work. Code: `f4x-core/src/world/save.rs`, `world/save/file.rs`,
 `f4x-master/src/game/save.rs`.
 
-**What a save holds:** in the game's part, the seed and how many random numbers have been drawn (so the random
-stream resumes exactly), the round and the end of the game; in the world's, the creation counter, the map (terrain, features, roads),
-each player's explored area (bit-packed), the players, every unit (with moves, damage,
-experience and any standing order) and every city (population, farmers, buildings,
-enchantments, race, current item and progress).
+**What a save holds:** in the game's part, the seed and how many random numbers have been drawn (so
+the random stream resumes exactly), the round, the order of the players, the place in the round, the
+open reactions and held attacks, and the end of the game. In the world's part (`Snapshot`), the
+settings, the creation counter, the map, each player's explored area (bit-packed), the players and
+wizards, heroes, units (with moves, damage, experience and any standing order), cities, features,
+items, spells, diplomacy, world events, threats and a battle in progress.
 
-**Where the game is in its round:** the optional `phase` of the game, written by `f4x-master` after every step and cleared by every step of the turn order, says which phase and seat come next; a save without it was made on the human's turn. The client's autosave is made at the start of a round. What each AI has in mind (the `plans`) is saved beside the game.
+**Where the game is in its round:** the optional `phase` of the game, written by `f4x-master` as it runs and cleared by every step of the turn order, says what comes next and whose turn it is; a save without it was made on the human's turn. The client's autosave is made at the start of a round. What each AI has in mind (the `plans`) is saved beside the game.
 
 **What it does not hold:** content definitions, events, the command log, or the undo history. A save is a game
 state, not a content pack.
 
-**References by name.** Everything that points at content (a unit's definition, a building,
-a terrain, a feature, a race) is saved as its string id and looked up again on load. Adding
-content, or reordering the data files, does not break old saves (a test restores a save into
-content with reordered tables and gets the identical game). A save that needs content that
-is no longer loaded is refused with a message naming it (`LoadError::UnknownId`), never
-loaded wrongly.
+**References by number.** Everything that points at content (a unit's definition, a building, a
+terrain, a feature, a race, a spell) is saved as its number in the content and looked up again on
+load (`ecs-structure.md` 3.9). A save that needs a number the content does not have is refused with a
+message naming it (`LoadError::UnknownId`), never loaded wrongly. The save also carries a fingerprint
+of the content files; other content is refused unless the player chooses to load it.
 
-**Same game after loading.** Units and cities are written in creation order with their
-creation numbers, so a loaded game orders everything as the original did. A test saves a game
-in which entity ids had been reused, loads it, plays twelve turns on both copies and compares
-the snapshots after every turn: they never differ.
+**Same game after loading.** Units and cities are written in creation order with their creation
+numbers, so a loaded game orders everything as the saved one did and plays on as it would have
+(`f4x-master/tests/it/persist.rs`).
 
-**Checks on load:** the format version (an unknown version is refused); every id resolves;
-positions are on the map; creation numbers are unique and below the counter; farmers do not
-exceed citizens; the explored area matches the map; a player appears once. Failures are
-`LoadError::{Parse, Version, UnknownId, Inconsistent}` and leave the running game untouched.
+**Checks on load:** the format and game version; settings in range; every content number resolves;
+positions are on the map; creation numbers are unique; owners exist; population figures are possible.
+Failures are `LoadError::{Parse, Version, GameVersion, UnknownId, Inconsistent, Content}` and leave
+the running game untouched.
 
-**Files.** The text format is RON, readable and diff-able: about 78 KB for a new game of 3 wizards
-on a 60x40 map, 420 KB at turn 400 of a 5-wizard game. The entities are written one field to a line,
+**Files.** The text format is RON, readable and diff-able: about 80 KB for a new game of 3 wizards
+on a 60x40 map, growing with the game. The entities are written one field to a line,
 what is inside a field on the same line, and numbers in a list on one line (`save.rs`, `to_text`); the explored
 flags are one short text for each player and plane, hex bytes and runs like `00*300` (`Bits`); a unit's fields at their default are left out. Older
 saves with the long form still load. `save_game` writes to `<file>.tmp` and renames it, so an interrupted save never
@@ -302,7 +310,7 @@ damages an existing one. Saves live in `saves/` (gitignored). What the player ch
 **Versions.** `SAVE_VERSION` is bumped when the layout changes incompatibly. Adding optional
 fields does not need a bump. Version 4 saves are converted to version 5 when they are read
 (`f4x-master/src/convert.rs`, to be retired by task 823). Version 3 saves (names for spells, items
-and powers) are refused with the version message; the converter is task 462.
+and powers) are refused with the version message.
 
 **Game version.** The game has one version, the workspace `version` in `Cargo.toml` (now 0.0.8),
 read as `save::GAME_VERSION`. Every save records it in `game_version` and in the header
@@ -317,11 +325,12 @@ release.
 
 The macroquad client (`f4x-client`) runs this loop each frame: read input, turn it into a
 `Command`, send it to the game (`Game::apply`), add any events to its message log, then draw from queries. It never
-touches the `hecs::World` directly except to read. The `--shot` mode runs a few commands
-(`--turns N`) and renders a single frame, which is how the flow is checked without a person.
+touches the `hecs::World` directly except to read. `--shot FILE` renders a single frame, after
+`--turns N` turns have been ended if asked, which is how the flow is checked without a person.
 
-Keys: F10 saves to `saves/quick.ron`, Ctrl-L loads it, and the game autosaves to
-`saves/autosave.ron` at every turn end. `--save FILE` and `--load FILE` do the same from the
+Keys: F10 saves to `saves/quick.ron`, Ctrl-L loads it (both can be changed, `hotkeys.ron`). The game
+autosaves to `saves/autosave.ron` at the start of every round and when the player leaves it for the
+menu. `--save FILE` and `--load FILE` do the same from the
 command line. Before each turn end the client puts more citizens on farms if the army would
 otherwise go hungry, so the starting troops do not starve unnoticed.
 
