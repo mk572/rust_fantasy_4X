@@ -9,6 +9,7 @@
 //! `World` has thin methods that make a handle and ask it (`World::units`).
 
 pub mod experience;
+pub mod handling;
 pub(crate) mod healing;
 pub(crate) mod kept;
 pub mod ledger;

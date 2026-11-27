@@ -5,24 +5,24 @@
 //! nearer squares first, and takes a new target when it arrives or stops. Scouts keep apart:
 //! two never head for the same patch. When nothing reachable has unexplored ground near it the
 //! scouts rejoin the army.
-//!
-//! A scout is given the players' exploring order (`f4x_core::unit::Errand::Scout`), a ship with its
-//! party aboard too; the core walks it from patch to patch, and the wizard looks in each turn.
 
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::view::PlayerView;
-use f4x_core::unit::Errand;
 use f4x_core::world::serial::Serial;
 use f4x_core::world::{Command, Event, World};
 use f4x_def::half_int::HalfInt;
 use f4x_def::rules::Stat;
 
-use crate::view::{is_fighter, is_ship};
+use crate::view::{distance, is_fighter, is_ship};
 use crate::Ai;
 use f4x_master::Game;
 
+/// How many squares of walking a square of new ground is worth.
+const WALK_COST: f32 = 0.35;
 /// Turns a scout may stand still on an order before its target is given up.
 const STUCK_TURNS: u32 = 3;
+/// Scouting targets this close to another scout's are left to it.
+const KEEP_APART: u32 = 5;
 
 /// How many fighters a sea scout carries to put ashore.
 const PARTY: usize = 2;
@@ -54,7 +54,7 @@ fn across(at: Position) -> Position {
 
 /// Whether the ground across a tower is still unexplored, so that crossing it shows something.
 pub(crate) fn worth_crossing(view: &PlayerView, tower: Position) -> bool {
-    view.unexplored_near(across(tower), HalfInt::from_raw(3)) > 0
+    unexplored_near(view, across(tower), HalfInt::from_raw(3)) > 0
 }
 
 /// Past the build-up, a plane the wizard has hardly seen and has no unit on is worth a crossing
@@ -143,12 +143,6 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             found_any = true;
             continue;
         }
-        let is_sea_scout = is_ship(&PlayerView::new(game, me), unit);
-        // A sea scout beside land nobody holds puts one of its party ashore, under way or not.
-        if is_sea_scout && put_ashore(ai, game, pos, events) {
-            found_any = true;
-            continue;
-        }
         // A scout that has not moved for a few turns although it has an order is stuck: give
         // its target up (a guarded or blocked patch) and choose another.
         let stuck = ai.roles.track(serial, pos, !idle) >= STUCK_TURNS;
@@ -158,12 +152,13 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 ai.roles.set_target(serial, crate::roles::Role::Scout, None);
             }
             ai.roles.clear_track(serial);
-            let mut stopped = vec![unit];
-            if is_sea_scout {
-                stopped.extend(party_at(ai, &PlayerView::new(game, me), pos));
-            }
-            ai.order(game, Command::ClearOrders { units: stopped }, events);
+            ai.order(game, Command::ClearOrders { units: vec![unit] }, events);
         } else if !idle {
+            found_any = true;
+            continue;
+        }
+        let is_sea_scout = is_ship(&PlayerView::new(game, me), unit);
+        if is_sea_scout && put_ashore(ai, game, pos, events) {
             found_any = true;
             continue;
         }
@@ -175,8 +170,10 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             .map(|(_, p)| p)
             .chain(ai.bad_scout_targets.iter().copied())
             .collect();
-        let target =
-            PlayerView::new(game, me).scout_target(&[unit], pos, &claimed, &ai.war_plan.recon);
+        let target = {
+            let view = PlayerView::new(game, me);
+            best_target_with(&view, unit, pos, &claimed, &ai.war_plan.recon)
+        };
         match target {
             Some(to) => {
                 found_any = true;
@@ -186,8 +183,7 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 if is_sea_scout {
                     units.extend(board(ai, game, unit, pos, game.round()));
                 }
-                let errand = exploring(ai, to);
-                ai.order(game, Command::GiveOrder { units, errand }, events);
+                ai.order(game, Command::GoTo { units, to }, events);
             }
             None => {
                 // Nothing left to explore that this unit can reach: its scouting is over and it
@@ -215,27 +211,6 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     }
 }
 
-/// The order to explore, beginning at `to`, with what the wizard knows to leave alone and what
-/// its war plan wants looked at (`war_plan.rs`).
-pub(crate) fn exploring(ai: &Ai, to: Position) -> Errand {
-    Errand::Scout {
-        to: Some(to),
-        avoid: ai.bad_scout_targets.clone(),
-        favour: ai.war_plan.recon.clone(),
-    }
-}
-
-/// The fighters of a sea scout's party that stand at `at`, oldest first.
-fn party_at(ai: &Ai, view: &PlayerView, at: Position) -> Vec<hecs::Entity> {
-    view.my_units()
-        .into_iter()
-        .filter(|&u| {
-            ai.roles.is(view.serial_of(u), crate::roles::Role::SeaParty)
-                && view.unit_position(u) == Some(at)
-        })
-        .collect()
-}
-
 /// The sea scout in a city takes spare fighters aboard, up to [`PARTY`] in all, to put ashore on
 /// land nobody holds. The party sails with the ship (the order names them) and is left alone by
 /// the rest of the scouting meanwhile. Returns the fighters taken aboard now, with the ones
@@ -249,7 +224,14 @@ fn board(
 ) -> Vec<hecs::Entity> {
     let game_turn = round;
     let view = PlayerView::new(world, ai.player);
-    let mut party = party_at(ai, &view, at);
+    let mut party: Vec<hecs::Entity> = view
+        .my_units()
+        .into_iter()
+        .filter(|&u| {
+            ai.roles.is(view.serial_of(u), crate::roles::Role::SeaParty)
+                && view.unit_position(u) == Some(at)
+        })
+        .collect();
     if view.city_at(at).is_none() {
         return party;
     }
@@ -319,11 +301,10 @@ fn put_ashore(ai: &mut Ai, game: &mut Game, ship_at: Position, events: &mut Vec<
     let me = ai.player;
     let (rider, shore) = {
         let view = PlayerView::new(game, me);
-        // One that can step off now: the ship may sail on before the turn is over.
-        let Some(rider) = party_at(ai, &view, ship_at)
-            .into_iter()
-            .find(|&u| view.unit_moves_left(u) > 0)
-        else {
+        let Some(rider) = view.my_units().into_iter().find(|&u| {
+            ai.roles.is(view.serial_of(u), crate::roles::Role::SeaParty)
+                && view.unit_position(u) == Some(ship_at)
+        }) else {
             return false;
         };
         let shore = (-1i32..=1)
@@ -503,11 +484,85 @@ fn recruit(ai: &Ai, world: &World, reach: Option<Position>) -> Option<hecs::Enti
     best.map(|b| b.2)
 }
 
+/// The reachable square worth most to this scout: new ground within sight of it, less the
+/// walk, skipping the patches other scouts are heading for.
+pub(crate) fn best_target(
+    view: &PlayerView,
+    unit: hecs::Entity,
+    from: Position,
+    claimed: &[Position],
+) -> Option<Position> {
+    best_target_with(view, unit, from, claimed, &[])
+}
+
+/// [`best_target`] with the towns the war plan wants looked at (`war_plan.rs`): new ground near
+/// one of them is worth more than other new ground.
+pub(crate) fn best_target_with(
+    view: &PlayerView,
+    unit: hecs::Entity,
+    from: Position,
+    claimed: &[Position],
+    recon: &[Position],
+) -> Option<Position> {
+    let reachable = view.reachable(&[unit]);
+    // A unit shows the squares within its sight of where it stands, and no more.
+    let look = view.unit_sight(unit);
+    let mut best: Option<(f32, Position)> = None;
+    for &p in &reachable {
+        if p == from
+            || claimed
+                .iter()
+                .any(|&c| distance(view, c, p).is_some_and(|d| d < KEEP_APART))
+        {
+            continue;
+        }
+        let fresh = unexplored_near(view, p, look);
+        if fresh == 0 {
+            continue;
+        }
+        let walk = distance(view, from, p).unwrap_or(99) as f32;
+        let mut value = fresh as f32 - walk * WALK_COST * 4.0;
+        if recon
+            .iter()
+            .any(|&r| distance(view, r, p).is_some_and(|d| d <= crate::war_plan::RECON_NEAR))
+        {
+            value += crate::war_plan::RECON_BONUS;
+        }
+        // A strict comparison with the position as a tie-break keeps the choice deterministic
+        // whatever order the set is walked in.
+        let better = match best {
+            None => true,
+            Some((v, b)) => value > v || (value == v && (p.y, p.x) < (b.y, b.x)),
+        };
+        if better {
+            best = Some((value, p));
+        }
+    }
+    best.map(|(_, p)| p)
+}
+
+/// How many squares within the sight `look` of `at` the wizard has not explored.
+fn unexplored_near(view: &PlayerView, at: Position, look: HalfInt) -> u32 {
+    let mut n = 0;
+    let reach = f4x_core::map::fog::squares_seen(look) as i32;
+    for dy in -reach..=reach {
+        for dx in (-reach..=reach)
+            .filter(|&dx| f4x_core::map::fog::in_sight(dx, dy, look, view.diagonal_extra_cost()))
+        {
+            if let Some(p) = view.shift(at, dx, dy) {
+                if !view.explored(p) {
+                    n += 1;
+                }
+            }
+        }
+    }
+    n
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::testworld::{at, game, spawn, spawn_tower, COAST_CITY, P0};
-    use crate::view::distance;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -556,15 +611,15 @@ mod tests {
         let far = at(4, 4);
         let view = PlayerView::new(&w, P0);
         assert_eq!(
-            view.unexplored_near(far, HalfInt::from_raw(5)),
+            unexplored_near(&view, far, HalfInt::from_raw(5)),
             25,
             "all 25 squares of a look of 2.5 squares unseen"
         );
         // The city's own surroundings are known.
-        assert_eq!(view.unexplored_near(city(), HalfInt::from_raw(1)), 0);
+        assert_eq!(unexplored_near(&view, city(), HalfInt::from_raw(1)), 0);
         w.reveal_map(P0);
         let view = PlayerView::new(&w, P0);
-        assert_eq!(view.unexplored_near(far, HalfInt::from_raw(5)), 0);
+        assert_eq!(unexplored_near(&view, far, HalfInt::from_raw(5)), 0);
     }
 
     #[test]
@@ -572,14 +627,13 @@ mod tests {
         let mut w = game(COAST_CITY, 8 /* high_men */);
         let walker = spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 1)[0];
         let view = PlayerView::new(&w, P0);
-        let target = view
-            .scout_target(&[walker], city(), &[], &[])
-            .ok_or("there is something to explore")?;
+        let target =
+            best_target(&view, walker, city(), &[]).ok_or("there is something to explore")?;
         assert_ne!(target, city());
         assert!(view.reachable(&[walker]).contains(&target));
-        assert!(view.unexplored_near(target, HalfInt::from_raw(3)) > 0);
+        assert!(unexplored_near(&view, target, HalfInt::from_raw(3)) > 0);
         // The same choice every time.
-        assert_eq!(view.scout_target(&[walker], city(), &[], &[]), Some(target));
+        assert_eq!(best_target(&view, walker, city(), &[]), Some(target));
         Ok(())
     }
 
@@ -588,14 +642,10 @@ mod tests {
         let mut w = game(COAST_CITY, 8 /* high_men */);
         let walker = spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 1)[0];
         let view = PlayerView::new(&w, P0);
-        let first = view
-            .scout_target(&[walker], city(), &[], &[])
-            .ok_or("a first target")?;
-        let second = view
-            .scout_target(&[walker], city(), &[first], &[])
-            .ok_or("a second target")?;
+        let first = best_target(&view, walker, city(), &[]).ok_or("a first target")?;
+        let second = best_target(&view, walker, city(), &[first]).ok_or("a second target")?;
         let apart = distance(&view, first, second).ok_or("the targets are on one plane")?;
-        assert!(apart >= f4x_core::unit::scouting::KEEP_APART, "{apart}");
+        assert!(apart >= KEEP_APART, "{apart}");
         Ok(())
     }
 
@@ -605,7 +655,7 @@ mod tests {
         let walker = spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 1)[0];
         w.reveal_map(P0);
         let view = PlayerView::new(&w, P0);
-        assert_eq!(view.scout_target(&[walker], city(), &[], &[]), None);
+        assert_eq!(best_target(&view, walker, city(), &[]), None);
     }
 
     #[test]
@@ -769,59 +819,6 @@ mod tests {
         );
         let landed = w.units().unit_position(walker);
         assert!(landed.is_some_and(|p| p.x == 28), "{landed:?}");
-    }
-
-    #[test]
-    fn a_sea_scout_lands_a_fighter_while_its_ship_is_under_way() -> TestResult {
-        let mut w = game(COAST_CITY, 8 /* high_men */);
-        let sea = at(27, 9);
-        let boat = spawn(&mut w, P0, sea, 36 /* galley */, 1)[0];
-        let riders = spawn(&mut w, P0, sea, 104 /* high_men_spearmen */, 2);
-        w.explore(P0, sea, HalfInt::from_raw(3));
-        let mut ai = Ai::new(P0);
-        let view = PlayerView::new(&w, P0);
-        let _ = ai
-            .roles
-            .claim(view.serial_of(boat), crate::roles::Role::Scout, 1, None);
-        for &rider in &riders {
-            let serial = view.serial_of(rider);
-            let _ = ai
-                .roles
-                .claim(serial, crate::roles::Role::SeaParty, 1, None);
-        }
-        // The ship and its party are exploring, with no moves to go anywhere yet.
-        for &u in riders.iter().chain([&boat]) {
-            w.scenario_set_moves_left(u, HalfInt::ZERO);
-        }
-        let go = Errand::Scout {
-            to: Some(at(20, 9)),
-            avoid: Vec::new(),
-            favour: Vec::new(),
-        };
-        let units = vec![boat, riders[0], riders[1]];
-        ai.order(
-            &mut w,
-            Command::GiveOrder { units, errand: go },
-            &mut Vec::new(),
-        );
-        crate::dispatch::drop_stray_orders(&mut ai, &mut w, &mut Vec::new());
-        assert!(
-            riders.iter().all(|&u| w.unit_has_order(u)),
-            "the party keeps the ship's order"
-        );
-        for &u in &riders {
-            w.scenario_set_moves_left(u, HalfInt::from_int(2));
-        }
-        scout(&mut ai, &mut w, &mut Vec::new());
-        // The one that landed explores the east island (columns 28 and up) from there.
-        let ashore: Vec<_> = riders
-            .iter()
-            .filter(|&&u| w.units().unit_position(u).is_some_and(|p| p.x >= 28))
-            .collect();
-        assert_eq!(ashore.len(), 1, "one rider went ashore");
-        assert!(w.unit_has_order(boat), "the ship's order stands");
-        assert_eq!(ai.roles.count(crate::roles::Role::SeaParty), 1);
-        Ok(())
     }
 
     #[test]

@@ -13,24 +13,20 @@ use crate::view::{is_fighter, unit_strength};
 use crate::Ai;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
-use f4x_core::unit::{Errand, Order};
 use f4x_core::world::serial::Serial;
 use f4x_core::world::{Command, Event, World};
 use f4x_master::Game;
 
-/// Give a charge (a settler, a spirit) its order, with an escort when it leaves a city that has a
-/// soldier to spare: the two walk as one stack (`f4x_core::unit::Order::Escort`). Whether the
-/// order was accepted.
+/// Send a settler to its site, with an escort when it leaves a city that has a soldier to spare:
+/// the two walk as one stack. Whether the order was accepted. (`expand.rs` calls this where it
+/// would send the settler alone.)
 pub fn walk(
     ai: &mut Ai,
     game: &mut Game,
     settler: hecs::Entity,
-    errand: Errand,
+    to: Position,
     events: &mut Vec<Event>,
 ) -> bool {
-    let Some(to) = errand.square() else {
-        return false;
-    };
     let me = ai.player;
     let turn = game.round();
     let (charge, at) = {
@@ -64,40 +60,14 @@ pub fn walk(
         if let Some(escort) = ai.roles.escort_of(charge) {
             ai.roles.release_many(&[escort], Role::Escort);
         }
-        let left = units.split_off(1);
-        ai.order(game, Command::ClearOrders { units: left }, events);
+        units.truncate(1);
     }
     // With no escort at its side and an enemy near, the charge waits where it stands (the order
     // is asked again next turn, when a soldier may be spare).
     if units.len() == 1 && at.is_some_and(|at| enemy_near(&PlayerView::new(game, me), at)) {
         return true;
     }
-    for &escort in &units[1..] {
-        follow(ai, game, escort, settler, events);
-    }
-    let order = Command::GiveOrder {
-        units: vec![settler],
-        errand,
-    };
-    ai.send(game, order, events).is_ok()
-}
-
-/// Tell `escort` to go with `charge`.
-fn follow(
-    ai: &Ai,
-    game: &mut Game,
-    escort: hecs::Entity,
-    charge: hecs::Entity,
-    events: &mut Vec<Event>,
-) {
-    ai.order(
-        game,
-        Command::GiveOrder {
-            units: vec![escort],
-            errand: Errand::Escort { charge },
-        },
-        events,
-    );
+    ai.send(game, Command::GoTo { units, to }, events).is_ok()
 }
 
 /// Squares within which an enemy unit is a danger to a charge walking alone.
@@ -249,8 +219,16 @@ pub fn guard(ai: &mut Ai, game: &mut Game, charge: hecs::Entity, events: &mut Ve
     match (unit, there) {
         (Some(_), Some(p)) if p == at => true,
         (Some(u), _) => {
-            if PlayerView::new(game, me).unit_order(u) != Some(Order::Escort(serial)) {
-                follow(ai, game, u, charge, events);
+            // A square with no room for it is not asked: the escort waits till one leaves.
+            if !PlayerView::new(game, me).unit_has_order(u) && Ai::room_at(game, at, 1) {
+                ai.order(
+                    game,
+                    Command::GoTo {
+                        units: vec![u],
+                        to: at,
+                    },
+                    events,
+                );
             }
             false
         }
@@ -300,18 +278,6 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             })
             .collect();
         ai.roles.release_many(&gone, Role::Escort);
-        let freed: Vec<hecs::Entity> = view
-            .my_units()
-            .into_iter()
-            .filter(|&u| {
-                gone.contains(&view.serial_of(u))
-                    && matches!(view.unit_order(u), Some(Order::Escort(_)))
-            })
-            .collect();
-        drop(view);
-        if !freed.is_empty() {
-            ai.order(game, Command::ClearOrders { units: freed }, events);
-        }
     }
     // A settler or a spirit walking with no escort stops when an enemy comes near.
     {
@@ -423,11 +389,7 @@ mod tests {
             .filter(|p| p.x >= 28 && !walks.contains(p))
             .min_by_key(|p| (p.y, p.x))
             .ok_or("the swimmer reaches the east island")?;
-        let go = Errand::Settle {
-            to: far,
-            name: None,
-        };
-        walk(&mut ai, &mut w, settler, go, &mut Vec::new());
+        assert!(walk(&mut ai, &mut w, settler, far, &mut Vec::new()));
         assert_eq!(ai.roles.escort_of(charge), None, "no walking escort");
         Ok(())
     }

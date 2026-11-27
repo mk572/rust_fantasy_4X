@@ -1,7 +1,6 @@
 //! Settlers: choose a place for the next city, walk there and found it.
 
 use f4x_core::player::view::PlayerView;
-use f4x_core::unit::Errand;
 use f4x_core::world::{Command, Event};
 
 use crate::city_site::Free;
@@ -93,17 +92,16 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         if ai.roles.crossing_of(serial).is_some() {
             continue;
         }
-        let settle = Errand::Settle {
-            to: target,
-            name: None,
-        };
         if target == pos {
-            let can_found = PlayerView::new(game, me).can_found_city(pos);
-            let found = Command::GiveOrder {
-                units: vec![unit],
-                errand: settle.clone(),
+            let (can_found, name) = {
+                let view = PlayerView::new(game, me);
+                (view.can_found_city(pos), city_name(&view, unit))
             };
-            if can_found && ai.send(game, found, events).is_ok() {
+            if can_found
+                && ai
+                    .send(game, Command::SettleOutpost { unit, name }, events)
+                    .is_ok()
+            {
                 ai.roles.release(serial, Role::Settle);
                 continue;
             }
@@ -117,7 +115,7 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         if walking && ai.roles.track(serial, pos, true) < 1 {
             continue; // still walking
         }
-        if walking || !crate::escort::walk(ai, game, unit, settle, events) {
+        if walking || !crate::escort::walk(ai, game, unit, target, events) {
             // It did not move all turn, or no walk can be ordered: the way is blocked.
             ai.settler_fates
                 .note(crate::settler_fate::SettlerFate::WayBlocked);
@@ -138,6 +136,16 @@ fn give_up(
     ai.roles.release(serial, crate::roles::Role::Settle);
     ai.roles.clear_track(serial);
     ai.order(game, Command::ClearOrders { units: vec![unit] }, events);
+}
+
+/// A name for the next city: the race's list, by how many cities the wizard has.
+fn city_name(view: &PlayerView, unit: hecs::Entity) -> String {
+    let used = view.my_cities().len();
+    view.unit_def(unit)
+        .and_then(|d| d.race.as_ref())
+        .copied()
+        .map(|r| view.city_name_for(r, used))
+        .unwrap_or_else(|| format!("Outpost {}", used + 1))
 }
 
 #[cfg(test)]
@@ -216,8 +224,6 @@ mod tests {
             w.units().unit_owner(units[0]).is_none(),
             "the settlers are used up by founding"
         );
-        // The city was founded at the end of a turn: the next look at the army forgets the unit.
-        crate::roles::register(&mut ai, &w, w.round());
         assert!(
             ai.roles.targets(crate::roles::Role::Settle).is_empty(),
             "the target is forgotten"
@@ -288,6 +294,24 @@ mod tests {
         assert_eq!(
             ai.roles.role_of(serial),
             Some(crate::roles::Role::AwaitingOrders)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn the_new_city_is_named_after_its_race_when_the_game_has_no_name_list() -> TestResult {
+        let (w, units) = island_with_settlers(1);
+        let view = PlayerView::new(&w, P0);
+        let race = view
+            .content()
+            .rules
+            .races
+            .by_num(8)
+            .ok_or("high_men is shipped")?;
+        let used = view.my_cities().len();
+        assert_eq!(
+            city_name(&view, units[0]),
+            format!("{}_city_{used:02}", race.id)
         );
         Ok(())
     }

@@ -13,6 +13,7 @@ use f4x_core::world::{Command, Event};
 
 use crate::assault::march;
 use crate::military::{engage, expected_defence};
+use crate::scout::best_target;
 use crate::view::{distance, stack_strength};
 use crate::Ai;
 use f4x_master::Game;
@@ -183,7 +184,7 @@ fn act(
         None => {
             let target = {
                 let view = PlayerView::new(game, MONSTERS);
-                view.scout_target(&units[..1], pos, &[], &[])
+                best_target(&view, units[0], pos, &[])
             };
             if let Some(to) = target {
                 ai.order(game, Command::GoTo { units, to }, events);

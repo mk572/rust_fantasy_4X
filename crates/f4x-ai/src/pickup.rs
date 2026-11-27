@@ -755,13 +755,6 @@ fn assign_ships(ai: &mut Ai, game: &mut Game) {
     }
 }
 
-/// Whether a unit of the group stands at `at`.
-fn any_at(view: &PlayerView, group: &[Serial], at: Position) -> bool {
-    view.my_units()
-        .into_iter()
-        .any(|u| view.unit_position(u) == Some(at) && group.contains(&view.serial_of(u)))
-}
-
 /// The units of the group, aboard at `at`, step onto the land square beside it that is nearest to
 /// `dest`. Whether they were sent.
 fn step_ashore(
@@ -838,12 +831,8 @@ fn advance(ai: &mut Ai, game: &mut Game, pickup: &Pickup, events: &mut Vec<Event
         };
         if ship_pos == drop {
             let in_port = PlayerView::new(game, me).city_at(ship_pos).is_some();
-            // In a port the units are in their city; at sea they step ashore first. Units with
-            // no moves left walk later, and the ship waits: sailing, it would carry them off.
-            let landed = in_port
-                || step_ashore(ai, game, &pickup.group, ship_pos, pickup.dest, events)
-                    && !any_at(&PlayerView::new(game, me), &pickup.group, ship_pos);
-            if landed {
+            // In a port the units are in their city; at sea they step ashore first.
+            if in_port || step_ashore(ai, game, &pickup.group, ship_pos, pickup.dest, events) {
                 for s in &pickup.group {
                     ai.roles.set_crossing(*s, None);
                     ai.roles.unboard(*s);
@@ -1751,59 +1740,13 @@ mod tests {
             soldiers.iter().map(|&u| view.serial_of(u)).collect()
         };
         assert!(step_ashore(&ai, &mut w, &group, sea, land, &mut Vec::new()));
-        // They used their moves going aboard: the order is walked at the end of the next turn.
+        // They used their moves going aboard: the order is followed next turn.
         w.play_round();
-        w.end_player_turn(P0);
         let view = PlayerView::new(&w, P0);
         for &u in &soldiers {
             let at = view.unit_position(u).ok_or("a position")?;
             assert_eq!(view.terrain_class(at), view.terrain_class(land), "ashore");
             assert_ne!(at, land, "off the site");
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn a_ship_keeps_the_units_booked_until_they_have_stepped_ashore() -> TestResult {
-        let mut w = game(COAST_CITY, 8 /* high_men */);
-        w.reveal_map(P0);
-        let land = shore(&w)?;
-        let soldiers = spawn(&mut w, P0, land, 104 /* spearmen */, 2);
-        let sea = {
-            let view = PlayerView::new(&w, P0);
-            sea_beside(&view, land).ok_or("a sea square beside the shore")?
-        };
-        let ship = spawn(&mut w, P0, sea, 36 /* galley */, 1)[0];
-        // Going aboard takes their moves.
-        w.move_stack(&soldiers, sea).map_err(|e| format!("{e:?}"))?;
-        w.balance_farmers(P0);
-        let mut ai = Ai::new(P0);
-        strand(&mut ai, &w, &soldiers, land);
-        let (ship, group): (Serial, Vec<Serial>) = {
-            let view = PlayerView::new(&w, P0);
-            let group = soldiers.iter().map(|&u| view.serial_of(u)).collect();
-            (view.serial_of(ship), group)
-        };
-        for &s in &group {
-            ai.roles.board_at(s, ship, land);
-        }
-        let voyage = Pickup {
-            ship,
-            tile: land,
-            sea,
-            dest: land,
-            group: group.clone(),
-        };
-        advance(&mut ai, &mut w, &voyage, &mut Vec::new());
-        assert!(any_at(&PlayerView::new(&w, P0), &group, sea), "no moves");
-        for &s in &group {
-            assert_eq!(ai.roles.boarding_of(s), Some(land), "still booked");
-        }
-        w.play_round();
-        advance(&mut ai, &mut w, &voyage, &mut Vec::new());
-        assert!(!any_at(&PlayerView::new(&w, P0), &group, sea), "ashore");
-        for &s in &group {
-            assert_eq!(ai.roles.boarding_of(s), None);
         }
         Ok(())
     }

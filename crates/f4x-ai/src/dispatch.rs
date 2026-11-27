@@ -25,7 +25,6 @@
 //! Then come the ships and the colonies (task 647) and the audit that counts what is left.
 
 use crate::Ai;
-use f4x_core::unit::Order;
 use f4x_core::world::{Event, World};
 use f4x_master::Game;
 
@@ -127,7 +126,14 @@ fn resend(
             Role::Raid | Role::March => crate::assault::march(ai, game, &[unit], target, events)
                 .map_err(|why| why == crate::assault::MarchError::Unreachable),
             _ => ai
-                .probe(game, walk_for(ai, game, unit, role, target), events)
+                .probe(
+                    game,
+                    f4x_core::world::Command::GoTo {
+                        units: vec![unit],
+                        to: target,
+                    },
+                    events,
+                )
                 .map_err(|why| {
                     matches!(
                         why,
@@ -162,47 +168,6 @@ fn resend(
         }
     }
     refused
-}
-
-/// The command that sends the holder of a role on its way to `target`: the standing order made
-/// for the role, else a walk.
-fn walk_for(
-    ai: &Ai,
-    world: &World,
-    unit: hecs::Entity,
-    role: crate::roles::Role,
-    target: f4x_core::map::Position,
-) -> f4x_core::world::Command {
-    use crate::roles::Role;
-    use f4x_core::unit::Errand;
-    use f4x_core::world::Command;
-    let view = f4x_core::player::view::PlayerView::new(world, ai.player);
-    let errand = match role {
-        Role::Scout => Some(crate::scout::exploring(ai, target)),
-        Role::Meld => Some(Errand::Meld { to: target }),
-        Role::Settle => Some(Errand::Settle {
-            to: target,
-            name: None,
-        }),
-        Role::Reinforce => Some(Errand::Reinforce { to: target }),
-        Role::Escort => ai.roles.with_of(view.serial_of(unit)).and_then(|charge| {
-            view.my_units()
-                .into_iter()
-                .find(|&u| view.serial_of(u) == charge)
-                .map(|charge| Errand::Escort { charge })
-        }),
-        _ => None,
-    };
-    match errand {
-        Some(errand) => Command::GiveOrder {
-            units: vec![unit],
-            errand,
-        },
-        None => Command::GoTo {
-            units: vec![unit],
-            to: target,
-        },
-    }
 }
 
 /// A unit on the other plane from `target` that can travel between the planes by itself shifts
@@ -252,13 +217,7 @@ pub fn repair_escorts(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 let charge = find(ai.roles.with_of(e)?)?;
                 let unit = find(e)?;
                 let (there, here) = (view.unit_position(charge)?, view.unit_position(unit)?);
-                // One that follows already is told again, so that it walks now.
-                let free = matches!(view.unit_order(unit), None | Some(Order::Escort(_)));
-                (there != here && free && view.unit_moves_left(unit) > 0).then_some((
-                    unit,
-                    Role::Escort,
-                    there,
-                ))
+                (there != here && !view.unit_has_order(unit)).then_some((unit, Role::Escort, there))
             })
             .collect()
     };
@@ -289,16 +248,6 @@ pub fn revalidate(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> u32 
                 Role::Reinforce,
             ] {
                 if !ai.roles.is(serial, role) {
-                    continue;
-                }
-                // A scouting order chooses its own patches: the registry takes note, and the
-                // order stands until the world ends it.
-                if let (Role::Scout, Some(Order::Scout(scouting))) = (role, view.unit_order(unit)) {
-                    if let Some(trip) = scouting.trip {
-                        if ai.roles.target_of(serial, role) != Some(trip.to) {
-                            ai.roles.set_target(serial, role, Some(trip.to));
-                        }
-                    }
                     continue;
                 }
                 let Some(target) = ai.roles.target_of(serial, role) else {
@@ -360,38 +309,6 @@ pub fn revalidate(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> u32 
     }
     ai.missions_reset += count;
     count
-}
-
-/// A standing order outlives the role it was given for (a scout called back, an escort freed):
-/// such an order is ended, or the unit would carry on with it at the end of the turn.
-pub(crate) fn drop_stray_orders(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
-    use crate::roles::Role;
-    let stray: Vec<hecs::Entity> = {
-        let view = f4x_core::player::view::PlayerView::new(game, ai.player);
-        view.my_units()
-            .into_iter()
-            .filter(|&u| {
-                let roles: &[Role] = match view.unit_order(u) {
-                    // The party aboard a sea scout shares its ship's order.
-                    Some(Order::Scout(_)) => &[Role::Scout, Role::SeaParty],
-                    Some(Order::Meld(_)) => &[Role::Meld],
-                    Some(Order::Settle { .. }) => &[Role::Settle],
-                    Some(Order::Reinforce(_)) => &[Role::Reinforce],
-                    Some(Order::Escort(_)) => &[Role::Escort],
-                    // A walk and a road are given for many reasons.
-                    Some(Order::GoTo(_) | Order::Road(_)) | None => return false,
-                };
-                !roles.iter().any(|&r| ai.roles.is(view.serial_of(u), r))
-            })
-            .collect()
-    };
-    if !stray.is_empty() {
-        ai.order(
-            game,
-            f4x_core::world::Command::ClearOrders { units: stray },
-            events,
-        );
-    }
 }
 
 /// The fighters that are rested and stand somewhere, of the roles `role_ok` allows.
@@ -458,7 +375,6 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     crate::pickup::run(ai, game, events);
     // The orders a full square stopped go again, now that the units that could move have moved.
     ai.retry_blocked(game, events);
-    drop_stray_orders(ai, game, events);
     crate::roles::audit(ai, game, events);
 }
 
@@ -792,37 +708,6 @@ mod tests {
         assert!(ai.roles.targets(Role::Settle).is_empty());
     }
 
-    /// A scouting order moves from patch to patch on its own: the registry takes the patch it
-    /// is bound for, and the order goes when the unit is no longer a scout.
-    #[test]
-    fn a_scouting_order_is_noted_in_the_registry_and_ends_with_the_role() {
-        use crate::roles::Role;
-        let mut w = game(COAST_CITY, 8 /* high_men */);
-        let unit = spawn(&mut w, P0, at(7, 6), 104 /* high_men_spearmen */, 1)[0];
-        w.scenario_set_moves_left(unit, f4x_def::half_int::HalfInt::ZERO);
-        let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.round());
-        let serial = f4x_core::player::view::PlayerView::new(&w, P0).serial_of(unit);
-        let patch = at(4, 4);
-        let _ = ai.roles.claim(serial, Role::Scout, 1, Some(at(5, 9)));
-        let go = crate::scout::exploring(&ai, patch);
-        ai.order(
-            &mut w,
-            f4x_core::world::Command::GiveOrder {
-                units: vec![unit],
-                errand: go,
-            },
-            &mut Vec::new(),
-        );
-        assert_eq!(revalidate(&mut ai, &mut w, &mut Vec::new()), 0);
-        assert_eq!(ai.roles.target_of(serial, Role::Scout), Some(patch));
-        drop_stray_orders(&mut ai, &mut w, &mut Vec::new());
-        assert!(w.unit_has_order(unit), "a scout keeps its order");
-        ai.roles.release(serial, Role::Scout);
-        drop_stray_orders(&mut ai, &mut w, &mut Vec::new());
-        assert!(!w.unit_has_order(unit));
-    }
-
     /// An engineer that is not building and has no walk goes on to its square, one that is
     /// building is left alone, and an escort apart from its charge walks to it.
     #[test]
@@ -835,8 +720,8 @@ mod tests {
             .expect("a site")
             .at;
         let engineer = spawn(&mut w, P0, at(9, 7), 110 /* high_men_engineers */, 1)[0];
-        let charge = spawn(&mut w, P0, at(9, 6), 111 /* high_men_settlers */, 1)[0];
-        let escort = spawn(&mut w, P0, at(7, 6), 104 /* high_men_spearmen */, 1)[0];
+        let charge = spawn(&mut w, P0, at(9, 6), 104, 1)[0];
+        let escort = spawn(&mut w, P0, at(7, 6), 104, 1)[0];
         let mut ai = Ai::new(P0);
         crate::roles::register(&mut ai, &w, w.round());
         let view = f4x_core::player::view::PlayerView::new(&w, P0);

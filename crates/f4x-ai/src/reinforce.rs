@@ -11,7 +11,6 @@
 
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
-use f4x_core::unit::Errand;
 use f4x_core::world::{Command, Event, World};
 
 use crate::roles::Role;
@@ -118,9 +117,9 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             }
             let strength = unit_strength(&PlayerView::new(game, me), unit);
             if !sails {
-                let go = Command::GiveOrder {
+                let go = Command::GoTo {
                     units: vec![unit],
-                    errand: Errand::Reinforce { to: city },
+                    to: city,
                 };
                 if ai.send(game, go, events).is_err() {
                     continue;

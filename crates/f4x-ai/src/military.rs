@@ -169,15 +169,10 @@ pub(crate) fn threats(view: &PlayerView) -> Vec<(Position, f32)> {
     found
 }
 
-/// The mean strength of the AI's fighters (20 with none).
+/// The mean strength of the AI's fighters (20 with none). Worked out once for a view: it walks
+/// every own unit, and the plans ask for it once per target.
 pub(crate) fn average_strength(view: &PlayerView) -> f32 {
-    mean_fighter_strength(view).unwrap_or(20.0)
-}
-
-/// The mean strength of the AI's fighters, if it has any. Worked out once for a view: it walks
-/// every own unit, and the plans ask for it once per target and per city.
-pub(crate) fn mean_fighter_strength(view: &PlayerView) -> Option<f32> {
-    view.memo(|| {
+    let mean = view.memo(|| {
         let units: Vec<_> = view
             .my_units()
             .into_iter()
@@ -187,7 +182,8 @@ pub(crate) fn mean_fighter_strength(view: &PlayerView) -> Option<f32> {
             return None;
         }
         Some(units.iter().map(|&u| unit_strength(view, u)).sum::<f32>() / units.len() as f32)
-    })
+    });
+    mean.unwrap_or(20.0)
 }
 
 /// What the AI expects to meet in an enemy city: the strength it last saw there (with the city's
