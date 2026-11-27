@@ -41,24 +41,27 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let content = f4x_def::load::load_content_layers(&[&dir, Path::new(f4x_def::SHIPPED_CONTENT)])
         .map_err(|e| e.to_string())?;
     let new = load.is_none();
-    let mut game = Game::new(match load {
+    // The plans a loaded game carries are saved with it again.
+    let (mut game, plans) = match load {
         Some(path) => {
-            let (mut w, _) =
-                f4x_core::world::save::load_game(&path, content).map_err(|e| e.to_string())?;
-            w.ensure_human(HUMAN);
-            w
+            let check = f4x_core::world::save::ContentCheck::Strict;
+            let loaded = f4x_master::load_game(&path, content, check).map_err(|e| e.to_string())?;
+            let mut game = loaded.game;
+            game.world_mut().ensure_human(HUMAN);
+            (game, loaded.plans)
         }
-        None => new_game(
-            &content,
-            &NewGame {
+        None => {
+            let spec = NewGame {
                 seed,
                 ..NewGame::default()
-            },
-        )?,
-    });
+            };
+            (Game::new(new_game(&content, &spec)?), Vec::new())
+        }
+    };
     // A new game has a person at the console, who may take orders back.
     game.set_undo(new);
     let mut console = Console::new(HUMAN, access);
+    console.session.plans = plans;
     let input: Box<dyn BufRead> = match &script {
         Some(path) => Box::new(std::io::BufReader::new(
             std::fs::File::open(path).map_err(|e| format!("{}: {e}", path.display()))?,

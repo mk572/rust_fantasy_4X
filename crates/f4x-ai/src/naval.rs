@@ -523,7 +523,7 @@ mod tests {
         let mut ai = Ai::new(P0);
         ai.unreachable.push(enemy());
         let view = PlayerView::new(&w, P0);
-        let plan = choose_plan(&ai, &view, w.turn).ok_or("a plan")?;
+        let plan = choose_plan(&ai, &view, w.round()).ok_or("a plan")?;
         assert_eq!(plan.target, enemy());
         assert_eq!(plan.port, port());
         assert_eq!(view.terrain_class(plan.sea), Some(TerrainClass::Ocean));
@@ -537,21 +537,21 @@ mod tests {
         w.reveal_map(P0);
         let mut ai = Ai::new(P0);
         // Nothing is unreachable by land.
-        assert_eq!(choose_plan(&ai, &PlayerView::new(&w, P0), w.turn), None);
+        assert_eq!(choose_plan(&ai, &PlayerView::new(&w, P0), w.round()), None);
         // A target already given up on.
         ai.unreachable.push(enemy());
         ai.naval_bad.push(enemy());
-        assert_eq!(choose_plan(&ai, &PlayerView::new(&w, P0), w.turn), None);
+        assert_eq!(choose_plan(&ai, &PlayerView::new(&w, P0), w.round()), None);
         // A port already given up on.
         ai.naval_bad = vec![port()];
-        assert_eq!(choose_plan(&ai, &PlayerView::new(&w, P0), w.turn), None);
+        assert_eq!(choose_plan(&ai, &PlayerView::new(&w, P0), w.round()), None);
         // No coastal city at all.
         let mut inland = game(INLAND_CITY, 8 /* high_men */);
         inland.reveal_map(P0);
         let mut ai = Ai::new(P0);
         ai.unreachable.push(enemy());
         assert_eq!(
-            choose_plan(&ai, &PlayerView::new(&inland, P0), w.turn),
+            choose_plan(&ai, &PlayerView::new(&inland, P0), w.round()),
             None
         );
     }
@@ -564,7 +564,7 @@ mod tests {
         w.explore(P0, tower, HalfInt::from_raw(5));
         let ai = Ai::new(P0);
         let plan =
-            choose_plan(&ai, &PlayerView::new(&w, P0), w.turn).ok_or("a plan for the tower")?;
+            choose_plan(&ai, &PlayerView::new(&w, P0), w.round()).ok_or("a plan for the tower")?;
         assert_eq!(plan.target, tower);
         assert_eq!(plan.port, port());
         // Once its ground across is explored, it is not worth the trip.
@@ -572,7 +572,7 @@ mod tests {
             w.explore(P0, Position { plane, ..tower }, HalfInt::from_raw(5));
         }
         w.reveal_map(P0);
-        assert_eq!(choose_plan(&ai, &PlayerView::new(&w, P0), w.turn), None);
+        assert_eq!(choose_plan(&ai, &PlayerView::new(&w, P0), w.round()), None);
         Ok(())
     }
 

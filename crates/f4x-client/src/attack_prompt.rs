@@ -578,7 +578,7 @@ mod tests {
     fn a_rivals_attack_is_asked_in_the_middle_of_the_round_and_the_round_goes_on_after_it(
     ) -> TestResult {
         let mut app = App::for_test();
-        let round = app.game.turn;
+        let round = app.game.round();
         let pending = attack(&app, PlayerId(1), true)?;
         // A rival has attacked while the master waited: the turn is half way through.
         app.defences.push_back(pending.clone());
@@ -586,7 +586,7 @@ mod tests {
         app.resume_turn();
         assert!(app.modals.has(kind::ATTACK), "the attack is asked at once");
         assert!(app.turn_events.is_some(), "the round waits for the answer");
-        assert_eq!(app.game.turn, round, "the round has not ended");
+        assert_eq!(app.game.round(), round, "the round has not ended");
 
         // The player answers: the box goes. (The fight itself is not run here: the two stacks
         // of this test world are not next to each other, and the game refuses a battle then.)

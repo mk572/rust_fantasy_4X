@@ -3,14 +3,21 @@
 //! tallies (`city_economy`); the rules the outcomes are checked against are written here from
 //! the content, not read back from the code that keeps them.
 
-use crate::support::worlds;
 use f4x_core::city::production::{ProductionError, ProductionItem};
 use f4x_core::player::PlayerId;
 use f4x_core::rules::{BuildingId, UnitId};
 use f4x_core::world::{Command, Event, Rejection, World};
 use f4x_def::half_int::HalfInt;
 use f4x_def::rules::UnitKind;
-use f4x_master::turn_players;
+use f4x_master::{turn_players, Game};
+
+/// The fresh worlds, each in a game, so that time can pass in them.
+fn worlds() -> Vec<(String, Game)> {
+    crate::support::worlds()
+        .into_iter()
+        .map(|(name, w)| (name, Game::new(w)))
+        .collect()
+}
 
 /// The wizards of a game.
 fn wizards(w: &World) -> Vec<PlayerId> {
@@ -46,11 +53,11 @@ enum Phase {
 
 /// One round as the master runs it, player by player, with `look` called at each step of each player's
 /// turn. The events of the round come back.
-fn round(w: &mut World, look: &mut dyn FnMut(&mut World, PlayerId, Phase)) -> Vec<Event> {
-    let mut events = w.start_round(w.turn + 1);
+fn round(w: &mut Game, look: &mut dyn FnMut(&mut World, PlayerId, Phase)) -> Vec<Event> {
+    let mut events = w.start_round();
     for p in turn_players(w) {
         look(w, p, Phase::BeforeStart);
-        events.extend(w.start_player_turn(p, w.turn));
+        events.extend(w.start_player_turn(p));
         look(w, p, Phase::BeforeEnd);
         events.extend(w.end_player_turn(p));
         look(w, p, Phase::AfterEnd);
@@ -458,8 +465,8 @@ fn a_building_sells_for_a_third_of_its_cost_once_a_turn_and_not_while_another_ne
             "{name}"
         );
         // The next turn of the wizard opens the sale again.
-        w.start_round(w.turn + 1);
-        w.start_player_turn(p, w.turn);
+        w.start_round();
+        w.start_player_turn(p);
         let def = rules.buildings.get(base);
         let price = sale(def.cost, def.num == 35);
         let before = gold(&w, p);
@@ -487,7 +494,7 @@ fn after_growth(figures: u32, tens: u32, delta: i32, cap: u32) -> (u32, u32) {
 }
 
 /// The worlds, each with the size to put its cities at: one citizen, half the cap and the cap.
-fn sizes() -> Vec<(String, World, u32)> {
+fn sizes() -> Vec<(String, Game, u32)> {
     let mut out = Vec::new();
     for fraction in [0, 1, 2] {
         for (name, w) in worlds().into_iter().step_by(2) {

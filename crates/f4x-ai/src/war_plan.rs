@@ -422,7 +422,7 @@ mod tests {
         );
         let view = PlayerView::new(&w, P0);
         let origin = at(COAST_CITY.0, COAST_CITY.1);
-        let list = towns(&view, &HashMap::new(), w.turn, origin, &[], None);
+        let list = towns(&view, &HashMap::new(), w.round(), origin, &[], None);
         assert_eq!(list.len(), 1, "{list:?}");
         assert_eq!(list[0].pos, at(ENEMY_CITY.0, ENEMY_CITY.1));
         assert!(!list[0].on_foot);
@@ -446,14 +446,14 @@ mod tests {
         spawn(&mut w, P0, at(COAST_CITY.0, COAST_CITY.1), 104, 2);
         let view = PlayerView::new(&w, P0);
         let origin = at(COAST_CITY.0, COAST_CITY.1);
-        let list = towns(&view, &HashMap::new(), w.turn, origin, &[], None);
+        let list = towns(&view, &HashMap::new(), w.round(), origin, &[], None);
         let mut plan = WarPlan::default();
         revise(&mut plan, &view, &list, origin);
         assert_eq!(plan.recon, vec![at(ENEMY_CITY.0, ENEMY_CITY.1)]);
         drop(view);
         w.reveal_map(P0);
         let view = PlayerView::new(&w, P0);
-        let list = towns(&view, &HashMap::new(), w.turn, origin, &[], None);
+        let list = towns(&view, &HashMap::new(), w.round(), origin, &[], None);
         revise(&mut plan, &view, &list, origin);
         assert!(plan.recon.is_empty(), "{:?}", plan.recon);
         Ok(())

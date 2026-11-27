@@ -146,7 +146,7 @@ impl App {
         }
         let alive = self.game.has_player(HUMAN)
             && !self.game.player(HUMAN).is_some_and(|p| p.is_defeated());
-        if idle && alive && self.game.game_over.is_none() {
+        if idle && alive && self.game.game_over().is_none() {
             self.open_research_choice();
         }
     }

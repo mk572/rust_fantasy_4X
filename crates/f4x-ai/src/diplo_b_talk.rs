@@ -471,9 +471,9 @@ mod tests {
         w.start_treaty(P0, P1, Treaty::Pact);
         // Down to between the marks for a warning and for breaking the treaty.
         let k = Knobs::current();
-        let friendship = |w: &World| {
+        let friendship = |w: &Game| {
             let scene = Scene::new(w, P0);
-            regard(w, P0, P1, &scene, &ai.memory.get(), w.turn).friendship
+            regard(w, P0, P1, &scene, &ai.memory.get(), w.round()).friendship
         };
         feel(&mut w, &ai, k.warn_below - 1);
         assert!(
@@ -496,7 +496,7 @@ mod tests {
         assert_eq!(warnings(&events), 1, "no warning");
         approach_human(&ai, &mut w, &mut events);
         assert_eq!(warnings(&events), 1, "warned twice in a turn");
-        w.turn += Knobs::current().warn_cool;
+        w.set_round(w.round() + Knobs::current().warn_cool);
         approach_human(&ai, &mut w, &mut events);
         assert_eq!(
             warnings(&events),

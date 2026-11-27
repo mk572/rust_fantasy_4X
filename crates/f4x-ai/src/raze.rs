@@ -329,7 +329,7 @@ mod tests {
                 self.at,
                 P1,
                 &Knobs::current(),
-                self.w.turn,
+                self.w.round(),
             )
         }
 

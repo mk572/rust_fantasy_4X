@@ -16,10 +16,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::player::MONSTERS;
 
 impl World {
-    /// Note that an override command changed the game.
+    /// Note that an override command changed the game. The caller, which knows the round, says in
+    /// the line when it was.
     pub fn record_override(&mut self, line: &str) {
-        self.override_log
-            .push(format!("turn {}: {line}", self.turn));
+        self.override_log.push(line.to_string());
     }
 
     /// Whether the game ever used the console's cheat mode (switching it on is logged, and the log

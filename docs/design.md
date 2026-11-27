@@ -25,7 +25,7 @@ crates/f4x-core/     the simulation (reads f4x-def and f4x-battle): no I/O but s
 crates/f4x-newgame/  what runs once per game: map generator, placement of nodes, lairs and neutral cities, the wizards and their start (uses f4x-core's public API)
 crates/f4x-lang/     the words of the game: messages by key, names, name lists (`text.md`)
 crates/f4x-ai/       the AI players: they see what a player sees and answer with `Command`s (`ai-design.md`)
-crates/f4x-master/   the flow of a game: rounds and turns per player, undo and replays (`turn-structure.md`)
+crates/f4x-master/   the flow of a game: rounds and turns per player, its end, saves, undo and replays (`turn-structure.md`)
 crates/f4x-learn/    the learning environment of the AIs (`learning-ai.md`)
 crates/f4x-console/  the text console: every action as a line of text (`console.md`)
 crates/f4x-client/   rendering, input, UI (macroquad); `extract/` reads the original's art

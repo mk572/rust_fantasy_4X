@@ -1,6 +1,6 @@
 # How game state is stored (and how that differs from the original)
 
-**Version: 0.0.7** (`Cargo.toml`). Saves and replays of another version of the game are refused (section 3.9).
+**Version: 0.0.8** (`Cargo.toml`). Saves and replays of another version of the game are refused (section 3.9).
 
 The original game keeps its world in fixed-size arrays of packed records and refers to
 things by array index. This project keeps it as entities with components, typed ids into
@@ -47,9 +47,9 @@ World                                  (world/mod.rs; the owner and the orchestr
 │                                      was copied from (battle/); saved with the
 │                                      world (`Snapshot.battle`, battle/save.rs)
 ├── rng: GameRng                       the one source of randomness, with its draw count (world/rng.rs)
-├── turn, settings                     the turn counter and the game's settings (`world/setting.rs`)
+├── settings                           the game's settings (`world/setting.rs`)
 ├── human: Option<PlayerId>            the human wizard
-├── game_over: Option<GameOver>        set once the game has ended; every later command is refused
+├── mastery: Option<PlayerId>          the wizard who completed the Spell of Mastery
 ├── next_serial                        the counter behind `Serial` (section 5)
 ├── events, item_awards                random events going on; items that fell to wizards from slain heroes
 ├── override_log                       the console's override (cheat) commands that changed the game, saved; a game with entries is `cheated` and does not enter the Hall of Fame
@@ -327,7 +327,10 @@ it has no city and no unit, as the table says.
 
 ### 3.9 Saving and replaying
 
-- The save (`world/save.rs`, `SAVE_VERSION = 4`) writes each entity kind as its own list: `players`,
+- A saved game is a `SaveFile` (`f4x-master`, `game/save.rs`): the versions, the game's own state (`game`:
+  round, phase, game over), the world (`world`, a `Snapshot`, which also loads on its own) and the
+  computer players' `plans` (`docs/turn-structure.md` 10.8).
+- The world's part (`world/save.rs`, `SAVE_VERSION = 5`) writes each entity kind as its own list: `players`,
   `wizards` (one for each player that is no neutral player, naming its player by id), `heroes`,
   `units` (a unit with the creation number of a hero is that hero's body), `cities`, `features`,
   `items` and `spells` (every spell instance: the lasting ones and the cast in progress, with its
@@ -340,15 +343,17 @@ it has no city and no unit, as the table says.
   fingerprint of the content files it was made with (`Content::fingerprint`, SHA-256 over the `.ron` files
   of the layers); a different fingerprint is refused (`ContentCheck::Strict`) unless the caller passes
   `ContentCheck::Ignore`, and a save with no `content` (older saves) is not checked. `degraded` lists the
-  `(file, row)` pairs the game was played without; `load_game_with` returns notes for the player: the
+  `(file, row)` pairs the game was played without; a load returns notes for the player: the
   rows the content leaves out now, and rows the game was played without that are back. Both fields are
   optional in the text, so no version bump was needed. Every problem of a load is reported together
   (`LoadError::Content`).
-- A battle in progress is the `battle` field (`battle/save.rs`).
-- **Versions.** The first line of a save is `// f4x save, version 4, game 0.0.7, checksum <hex>`. The
+- A battle in progress is the world's `battle` field (`battle/save.rs`).
+- **Versions.** The first line of a save is `// f4x save, version 5, game 0.0.8, checksum <hex>`. The
   loader reads the `version` and `game_version` fields before the rest and refuses a file of
-  another layout, or a game version outside `OLDEST_COMPATIBLE_VERSION..=GAME_VERSION` (`save.rs`), with a plain message ("saved by 0.0.1, this is 0.0.4 (it reads saves from 0.0.2 to 0.0.3)"); a replay
-  is checked the same way, through the snapshot it starts from.
+  another layout, or a game version outside `OLDEST_COMPATIBLE_VERSION..=GAME_VERSION` (`save.rs`), with a plain message that names the versions. Saves of
+  version 4 (game versions 0.0.2 to 0.0.7) are converted when they are read (`f4x-master`,
+  `convert.rs`, to be retired by task 823). A replay is checked the same way, through the save it
+  starts from; older replays are refused.
 - **Checksum.** The checksum is a hash (FNV-1a, 64 bits) of the text after the first line. A save
   whose text no longer matches it, or that has none, still loads; `Snapshot::integrity(text)` says
   so and `load_game` returns it, and the client and the console warn (`log.save_edited`). It
@@ -361,7 +366,8 @@ it has no city and no unit, as the table says.
 The map layers and the fog (dense grids), the content registries, `Diplomacy` (pairs of players, keyed
 by `PlayerId`), the world events table, the RNG, and the battle in progress (a
 `Battle` with its own world for its spell instances). Battle units are not entities in `World::ecs`.
-The undo history and the replay log are not the world's: they belong to the game (`f4x-master`).
+The round counter, the place in the round, the end of the game, the undo history and the replay log
+are not the world's: they belong to the game (`f4x-master`).
 
 ### 3.11 How the code reads and writes the new entities
 

@@ -183,7 +183,7 @@ pub(crate) fn zap_growth(stage: u32) -> Option<usize> {
 impl App {
     /// Queue the scene of the game's end: the human's victory or defeat, before the score.
     pub(crate) fn queue_game_over_scene(&mut self) {
-        let Some(over) = self.game.game_over else {
+        let Some(over) = self.game.game_over() else {
             return;
         };
         let wizard = self

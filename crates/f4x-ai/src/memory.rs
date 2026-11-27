@@ -433,7 +433,7 @@ mod tests {
     /// A game at turn `turn`.
     fn at_turn(turn: u32) -> Game {
         let mut w = game(COAST_CITY, 8 /* high_men */);
-        w.turn = turn;
+        w.set_round(turn);
         w
     }
 

@@ -52,7 +52,6 @@ pub const MAP_LOCATIONS: u8 = 8;
 
 pub struct World {
     pub(crate) ecs: hecs::World,
-    pub turn: u32,
     pub(crate) map: Option<map::Map>,
     pub(crate) content: std::sync::Arc<content::Content>,
     /// The name lists the game draws city, hero and rival names from (`NameBundle`). They are not
@@ -85,20 +84,14 @@ pub struct World {
     pub(crate) settings: world::setting::GameSettings,
     /// The battle being fought, if any. A save taken in a battle holds it too (`battle/save.rs`).
     pub battle: Option<battle::world::ActiveBattle>,
-    /// Set once the game has ended; every later command is refused.
-    pub game_over: Option<world::endgame::GameOver>,
+    /// Who has completed the Spell of Mastery. The game decides what that ends (`f4x-master`).
+    pub(crate) mastery: Option<player::PlayerId>,
     /// Contact, relations, treaties and proposals between wizards.
     pub diplomacy: diplomacy::Diplomacy,
     /// The random events that are going on.
     pub(crate) events: world_event::Events,
     /// The clocks of the raiders and the roaming monsters.
     pub(crate) threat: threat::Threat,
-    /// Where the game is in its round, as the master (`f4x-master`) wrote it: opaque text that
-    /// is saved with the game. Every step of the game's turn order clears it, so it never outlives the step
-    /// it describes (see [`World::flow`]).
-    flow: Option<String>,
-    /// What each computer player has in mind, as text the AI wrote (see [`World::plans`]).
-    plans: Vec<(player::PlayerId, String)>,
     /// The map locations each player saved to come back to, by slot (see [`World::locations`]).
     locations: Vec<(player::PlayerId, u8, map::Position)>,
     /// Items that fell to wizards from slain heroes since the last command ended: the wizard,
@@ -182,7 +175,6 @@ impl World {
         Self {
             ecs,
             monsters,
-            turn: 1,
             map: None,
             content: std::sync::Arc::default(),
             names: Default::default(),
@@ -198,12 +190,10 @@ impl World {
             // `f4x_newgame::setup::new_game`.
             settings: world::setting::GameSettings::default(),
             battle: None,
-            game_over: None,
+            mastery: None,
             diplomacy: diplomacy::Diplomacy::default(),
             events: world_event::Events::default(),
             threat: threat::Threat::default(),
-            flow: None,
-            plans: Vec::new(),
             locations: Vec::new(),
             item_awards: Vec::new(),
             override_log: Vec::new(),
@@ -211,32 +201,6 @@ impl World {
             battle_brains: Vec::new(),
             confirmed: false,
         }
-    }
-
-    /// Where the game is in its round, as the master last wrote it (`None` when nothing has:
-    /// a game made by hand, or one played by commands alone). It is saved and loaded with the
-    /// game, so a save made at the start of a round resumes at the start of that round.
-    pub fn flow(&self) -> Option<&str> {
-        self.flow.as_deref()
-    }
-
-    /// Record where the game is in its round (the master calls this after each step).
-    pub fn set_flow(&mut self, flow: Option<String>) {
-        self.flow = flow;
-    }
-
-    /// What each computer player has in mind (its targets, marches, voyages), as opaque text the
-    /// AI wrote with [`World::set_plans`]. It is saved and loaded with the game, so a loaded game
-    /// plays on as the saved one would have. Empty for a game nobody has set it on.
-    pub fn plans(&self) -> &[(player::PlayerId, String)] {
-        &self.plans
-    }
-
-    /// Record what the computer players have in mind, one text for each (the AI crate writes
-    /// these just before the game is saved). It is not cleared by play: it is as old as the
-    /// last call.
-    pub fn set_plans(&mut self, plans: Vec<(player::PlayerId, String)>) {
-        self.plans = plans;
     }
 
     /// The map locations a player saved, as (slot, square) in the order of the slots. A square
@@ -528,11 +492,8 @@ impl World {
         ids
     }
 
-    /// Run a command.
+    /// Run a command. Whether the game still takes commands is the game's to say (`f4x-master`).
     pub fn apply(&mut self, command: Command) -> Vec<Event> {
-        if self.game_over.is_some() {
-            return vec![Event::Rejected(Rejection::GameOver)];
-        }
         self.execute(command)
     }
 

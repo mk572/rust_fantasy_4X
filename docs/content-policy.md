@@ -114,7 +114,7 @@ Rules for a drop:
 2. A drop never renumbers: the other rows keep their numbers (saves and references use them).
 3. A file that is unreadable or whole-file corrupt is Refuse, also for these elements (there is no row to drop).
 4. A degraded game is marked as such in the save, so a later load can say it was played without the element
-   (built: `Snapshot.degraded`, `load_game_with` notes).
+   (built: `Snapshot.degraded`, the notes of a load).
 
 Built (task 765): `assemble` and `Help::repaired`. A row of a degradable file that is out of order or twice keeps the
 longest rising run of numbers; the other rows are dropped. The rules are checked again without the dropped rows, and an

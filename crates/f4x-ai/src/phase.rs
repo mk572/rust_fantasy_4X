@@ -175,14 +175,14 @@ mod tests {
     #[test]
     fn a_new_wizard_with_one_city_is_building_up() -> Result<(), Box<dyn std::error::Error>> {
         let w = fresh_game()?;
-        assert_eq!(phase(&PlayerView::new(&w, P1), w.turn), Phase::Build);
+        assert_eq!(phase(&PlayerView::new(&w, P1), w.round()), Phase::Build);
         Ok(())
     }
 
     #[test]
     fn a_new_wizard_with_room_to_settle_leans_wide() -> Result<(), Box<dyn std::error::Error>> {
         let w = fresh_game()?;
-        let value = width(&PlayerView::new(&w, P1), true, w.turn);
+        let value = width(&PlayerView::new(&w, P1), true, w.round());
         assert!(value > 0.5, "build phase and room: {value}");
         assert!((0.0..=1.0).contains(&value));
         Ok(())
@@ -192,7 +192,7 @@ mod tests {
     fn a_wizard_with_no_site_left_leans_less_wide() -> Result<(), Box<dyn std::error::Error>> {
         let w = fresh_game()?;
         let view = PlayerView::new(&w, P1);
-        assert!(width(&view, false, w.turn) < width(&view, true, w.turn));
+        assert!(width(&view, false, w.round()) < width(&view, true, w.round()));
         Ok(())
     }
 
@@ -200,7 +200,7 @@ mod tests {
     fn a_wizard_about_to_win_with_the_spell_of_mastery_leans_tall(
     ) -> Result<(), Box<dyn std::error::Error>> {
         let mut w = fresh_game()?;
-        let before = width(&PlayerView::new(&w, P1), true, w.turn);
+        let before = width(&PlayerView::new(&w, P1), true, w.round());
         let mastery = w
             .content()
             .rules
@@ -210,18 +210,18 @@ mod tests {
             .map(|(id, _)| id)
             .ok_or("a spell of mastery")?;
         w.cheat_learn_spell(P1, mastery);
-        assert!(width(&PlayerView::new(&w, P1), true, w.turn) < before);
+        assert!(width(&PlayerView::new(&w, P1), true, w.round()) < before);
         Ok(())
     }
 
     #[test]
     fn a_late_turn_is_the_winning_phase() -> Result<(), Box<dyn std::error::Error>> {
         let mut w = fresh_game()?;
-        w.turn = LATE_TURN;
-        assert_eq!(phase(&PlayerView::new(&w, P1), w.turn), Phase::Win);
-        w.turn = EARLY_TURN;
+        w.set_round(LATE_TURN);
+        assert_eq!(phase(&PlayerView::new(&w, P1), w.round()), Phase::Win);
+        w.set_round(EARLY_TURN);
         // Not enough cities, but the early turns are over: secure.
-        assert_eq!(phase(&PlayerView::new(&w, P1), w.turn), Phase::Secure);
+        assert_eq!(phase(&PlayerView::new(&w, P1), w.round()), Phase::Secure);
         Ok(())
     }
 
@@ -237,7 +237,7 @@ mod tests {
             .map(|(id, _)| id)
             .ok_or("a spell of mastery")?;
         w.cheat_learn_spell(P1, mastery);
-        assert_eq!(phase(&PlayerView::new(&w, P1), w.turn), Phase::Win);
+        assert_eq!(phase(&PlayerView::new(&w, P1), w.round()), Phase::Win);
         Ok(())
     }
 

@@ -292,8 +292,7 @@ impl EffectHost for WorldHost<'_> {
             }
         }
         if hook == crate::spell::special::SPELL_OF_MASTERY {
-            let events = self.world.win_by_mastery(ctx.owner);
-            self.events.extend(events);
+            self.world.complete_mastery(ctx.owner);
         }
         if hook == crate::spell::special::SPELL_OF_RETURN {
             if let Target::City(city) = who {

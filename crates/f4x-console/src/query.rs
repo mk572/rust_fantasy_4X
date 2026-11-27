@@ -220,7 +220,7 @@ fn status(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     if ctx.game.in_battle() {
         ctx.say("a battle is being fought (see `battle`)");
     }
-    if let Some(over) = ctx.game.game_over {
+    if let Some(over) = ctx.game.game_over() {
         ctx.say(format!(
             "GAME OVER: {} won by {:?} on turn {}",
             describe::player(ctx.game, over.winner),

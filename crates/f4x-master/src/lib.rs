@@ -19,9 +19,15 @@
 //!
 //! Tests: in tests/it.
 
+mod convert;
 mod game;
 
+pub use game::end::{self, GameOver};
 pub use game::replay::{self, Entry, Replay, ReplayError};
+pub use game::save::{
+    self, load_game, save_game, summarize_save, GameState, Loaded, Plans, Restored, SaveFile,
+    SaveSummary,
+};
 pub use game::step::{self, turn_players, Step};
 pub use game::undo::{self, UndoError};
 pub use game::Game;
@@ -47,9 +53,8 @@ pub trait Controller {
     fn play(&mut self, game: &mut Game, players: &[PlayerId], events: &mut Vec<Event>) -> Status;
 
     /// What the controller has in mind, as text to keep in a save, with the player each is for
-    /// (the plans of the computer players it plays). The master collects these at every checkpoint
-    /// ([`Master::checkpoints`]) and gives them to the game ([`World::set_plans`]). The default
-    /// is nothing to keep.
+    /// (the plans of the computer players it plays). The host asks for these when it saves the
+    /// game ([`Master::plans`]). The default is nothing to keep.
     fn plans(&self) -> Vec<(PlayerId, String)> {
         Vec::new()
     }
@@ -127,31 +132,15 @@ pub enum Phase {
     Over,
 }
 
-/// The master's saved state: with the game's own round counter (`World::turn`) it says exactly
-/// where to go on.
+/// The master's place in the round: with the game's round counter it says exactly where to go on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct State {
     pub phase: Phase,
 }
 
-impl State {
-    /// The state as text, for [`World::set_flow`].
-    pub fn to_text(self) -> String {
-        // A plain enum in a struct cannot fail to serialize.
-        ron::to_string(&self).unwrap_or_default()
-    }
-
-    /// The state from the text [`State::to_text`] made.
-    pub fn from_text(text: &str) -> Result<Self, FlowError> {
-        ron::from_str(text).map_err(|e| FlowError::Unreadable(e.to_string()))
-    }
-}
-
-/// Why a saved flow cannot be used.
+/// Why a saved state cannot be used.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FlowError {
-    /// The text is not a master state.
-    Unreadable(String),
     /// The state names a seat the table does not have (the game was saved at another table).
     NoSuchSeat { seat: usize, seats: usize },
 }
@@ -159,7 +148,6 @@ pub enum FlowError {
 impl std::fmt::Display for FlowError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            FlowError::Unreadable(why) => write!(f, "the saved round state is unreadable: {why}"),
             FlowError::NoSuchSeat { seat, seats } => {
                 write!(
                     f,
@@ -244,15 +232,12 @@ impl<'a> Master<'a> {
         }
     }
 
-    /// A master that goes on from where the game was saved (`World::flow`, which the master
-    /// writes after every step). A game without a flow was saved on the first seat's turn: the
+    /// A master that goes on from where the game was saved ([`Game::phase`], which the master
+    /// writes after every step). A game without a phase was saved on the first seat's turn: the
     /// human's, the seat the client plays and saves on. The state must fit the table.
     pub fn from_game(seats: Vec<Seat<'a>>, game: &Game) -> Result<Self, FlowError> {
-        let state = match game.flow() {
-            Some(text) => State::from_text(text)?,
-            None => State {
-                phase: Phase::Acting(0),
-            },
+        let state = State {
+            phase: game.phase().unwrap_or(Phase::Acting(0)),
         };
         let seat = match state.phase {
             Phase::TurnStart(i) | Phase::Acting(i) | Phase::TurnEnd(i) => Some(i),
@@ -272,6 +257,14 @@ impl<'a> Master<'a> {
     pub fn checkpoints(mut self) -> Self {
         self.checkpoints = true;
         self
+    }
+
+    /// What the controllers have in mind, to be saved with the game.
+    pub fn plans(&self) -> Plans {
+        self.seats
+            .iter()
+            .flat_map(|s| s.controller.plans())
+            .collect()
     }
 
     /// The state to save with the game.
@@ -358,7 +351,7 @@ impl<'a> Master<'a> {
     pub fn step(&mut self, game: &mut Game) -> Progress {
         let mut events = Vec::new();
         let mut stopped = Stopped::Ready;
-        if game.game_over.is_some() {
+        if game.game_over().is_some() {
             self.state.phase = Phase::Over;
         }
         match self.state.phase {
@@ -396,21 +389,13 @@ impl<'a> Master<'a> {
             }
             Phase::RoundEnd => {
                 events.extend(game.end_round());
-                self.state.phase = if game.game_over.is_some() {
+                self.state.phase = if game.game_over().is_some() {
                     Phase::Over
                 } else {
                     Phase::RoundStart
                 };
                 if self.checkpoints && self.state.phase == Phase::RoundStart {
                     stopped = Stopped::RoundStart;
-                    let plans: Vec<_> = self
-                        .seats
-                        .iter()
-                        .flat_map(|s| s.controller.plans())
-                        .collect();
-                    if !plans.is_empty() {
-                        game.world_mut().set_plans(plans);
-                    }
                 }
             }
         }
@@ -418,7 +403,7 @@ impl<'a> Master<'a> {
             stopped = Stopped::Over;
         }
         // Whatever saves the game now saves where it is in its round.
-        game.world_mut().set_flow(Some(self.state.to_text()));
+        game.set_phase(self.state.phase);
         self.tell(game, &events);
         Progress { events, stopped }
     }

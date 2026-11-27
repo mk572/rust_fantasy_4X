@@ -1757,7 +1757,7 @@ mod tests {
         let players = [PlayerId(0), PlayerId(1)];
         let start: Vec<usize> = players
             .iter()
-            .map(|&p| Standing::of(&world, p, world.turn).cities)
+            .map(|&p| Standing::of(&world, p, world.round()).cities)
             .collect();
         let mut ais: Vec<_> = players
             .iter()
@@ -1769,14 +1769,14 @@ mod tests {
             let (turns, rest, _) =
                 contestant::play_round_timed(&mut world, &mut ais, &mut neutrals);
             for (player, events) in &turns {
-                tally.record(&world, world.turn, Some(*player), events);
+                tally.record(&world, world.round(), Some(*player), events);
             }
-            tally.record(&world, world.turn, None, &rest);
+            tally.record(&world, world.round(), None, &rest);
         }
         assert!(tally.total().cities_founded > 0, "nobody founded a city");
         for (k, &p) in players.iter().enumerate() {
             let m = tally.of(p);
-            let ends = Standing::of(&world, p, world.turn).cities;
+            let ends = Standing::of(&world, p, world.round()).cities;
             assert_eq!(
                 start[k] + m.cities_founded as usize + m.cities_captured as usize
                     - m.cities_lost as usize,
@@ -1795,14 +1795,14 @@ mod tests {
     fn a_settler_that_leaves_the_map_is_counted_by_what_took_it() -> TestResult {
         use f4x_core::world::event::LossCause;
         let content = shipped();
-        let mut world = new_game(
+        let mut world = f4x_master::Game::new(new_game(
             content,
             &NewGame {
                 seed: 4,
                 all_ai: true,
                 ..NewGame::with_wizards(2)
             },
-        )?;
+        )?);
         let kind = content
             .rules
             .units
@@ -1836,7 +1836,7 @@ mod tests {
         world.scenario_remove_unit(made[1]);
         tally.record(
             &world,
-            world.turn,
+            world.round(),
             None,
             &[Event::UnitLost {
                 player: PlayerId(0),
@@ -1858,7 +1858,7 @@ mod tests {
         world.scenario_remove_unit(made[2]);
         tally.record(
             &world,
-            world.turn,
+            world.round(),
             None,
             &[Event::CityFounded { city, pos: home }],
         );
@@ -1872,14 +1872,14 @@ mod tests {
     #[test]
     fn a_city_with_no_unit_but_workers_is_counted_as_undefended() -> TestResult {
         let content = shipped();
-        let mut world = new_game(
+        let mut world = f4x_master::Game::new(new_game(
             content,
             &NewGame {
                 seed: 4,
                 all_ai: true,
                 ..NewGame::with_wizards(2)
             },
-        )?;
+        )?);
         let home = world
             .wizard(PlayerId(0))
             .and_then(|w| w.fortress())
@@ -1899,10 +1899,10 @@ mod tests {
             world.scenario_remove_unit(u);
         }
         let mut tally = Tally::new(&world);
-        tally.sample_cities(&world, world.turn);
+        tally.sample_cities(&world, world.round());
         assert_eq!(tally.of(PlayerId(0)).undefended_cities, 1, "an empty city");
         let ours: Vec<_> = tally.undefended().iter().filter(|u| u.1 == 0).collect();
-        assert_eq!(ours, [&(world.turn, 0, home)], "turn and square");
+        assert_eq!(ours, [&(world.round(), 0, home)], "turn and square");
         assert!(
             tally.undefended().iter().any(|u| u.1 >= 100),
             "a neutral city with no garrison counts too: {:?}",
@@ -1915,7 +1915,7 @@ mod tests {
             pos: home,
             unit: settler,
         });
-        tally.sample_cities(&world, world.turn);
+        tally.sample_cities(&world, world.round());
         assert_eq!(tally.of(PlayerId(0)).undefended_cities, 2, "a settler only");
         // Nor is a ship.
         let ship = kind_of(&|d| is_ship(d))?;
@@ -1924,7 +1924,7 @@ mod tests {
             pos: home,
             unit: ship,
         });
-        tally.sample_cities(&world, world.turn);
+        tally.sample_cities(&world, world.round());
         assert_eq!(tally.of(PlayerId(0)).undefended_cities, 3, "a ship too");
         // A soldier is.
         let soldier = kind_of(&|d| d.is_fighter())?;
@@ -1933,7 +1933,7 @@ mod tests {
             pos: home,
             unit: soldier,
         });
-        tally.sample_cities(&world, world.turn);
+        tally.sample_cities(&world, world.round());
         assert_eq!(tally.of(PlayerId(0)).undefended_cities, 3, "defended now");
         Ok(())
     }
@@ -1966,14 +1966,14 @@ mod tests {
     /// taker, former owner and plane; one taken on the home plane is not.
     #[test]
     fn a_city_taken_on_the_other_plane_is_a_far_capture() -> TestResult {
-        let world = new_game(
+        let world = f4x_master::Game::new(new_game(
             shipped(),
             &NewGame {
                 seed: 4,
                 all_ai: true,
                 ..NewGame::with_wizards(2)
             },
-        )?;
+        )?);
         let (city, plane) = world
             .economy()
             .cities()
@@ -1989,11 +1989,11 @@ mod tests {
                 from: PlayerId(1),
                 to: PlayerId(0),
             };
-            tally.record(&world, world.turn, None, &[event]);
+            tally.record(&world, world.round(), None, &[event]);
             Ok(tally)
         };
         let far = taken(1 - plane)?;
-        assert_eq!(far.far_captures(), &[(world.turn, 0, 1, plane)]);
+        assert_eq!(far.far_captures(), &[(world.round(), 0, 1, plane)]);
         assert_eq!(far.of(PlayerId(0)).cities_captured_far_plane, 1);
         let home = taken(plane)?;
         assert!(home.far_captures().is_empty());
@@ -2005,14 +2005,14 @@ mod tests {
     /// The AI's role audit is counted per wizard, summed over turns.
     #[test]
     fn the_role_audit_is_counted() -> TestResult {
-        let world = new_game(
+        let world = f4x_master::Game::new(new_game(
             shipped(),
             &NewGame {
                 seed: 4,
                 all_ai: true,
                 ..NewGame::with_wizards(2)
             },
-        )?;
+        )?);
         let player = PlayerId(0);
         let mut tally = Tally::new(&world);
         let audit = |adrift, unassigned, waiting| Event::RolesAudited {
@@ -2025,7 +2025,12 @@ mod tests {
             bridges: 1,
             waiting_bridge: waiting + 1,
         };
-        tally.record(&world, world.turn, None, &[audit(2, 4, 3), audit(1, 5, 2)]);
+        tally.record(
+            &world,
+            world.round(),
+            None,
+            &[audit(2, 4, 3), audit(1, 5, 2)],
+        );
         let m = tally.of(player);
         assert_eq!((m.units_adrift, m.units_unassigned), (3, 9));
         assert_eq!(m.waiting_for_ship, 5);
@@ -2037,14 +2042,14 @@ mod tests {
     /// off for time, marches dropped for another target.
     #[test]
     fn marches_launched_and_called_off_are_counted() -> TestResult {
-        let world = new_game(
+        let world = f4x_master::Game::new(new_game(
             shipped(),
             &NewGame {
                 seed: 4,
                 all_ai: true,
                 ..NewGame::with_wizards(2)
             },
-        )?;
+        )?);
         let at = f4x_core::map::Position {
             plane: f4x_core::map::Plane::Arcanus,
             x: 3,
@@ -2078,7 +2083,7 @@ mod tests {
                 target_changed: true,
             },
         ];
-        tally.record(&world, world.turn, None, &events);
+        tally.record(&world, world.round(), None, &events);
         let m = tally.of(player);
         assert_eq!(
             (
@@ -2095,19 +2100,19 @@ mod tests {
 
     #[test]
     fn contacts_count_for_both_wizards_and_only_the_one_who_acts_starts_diplomacy() -> TestResult {
-        let world = new_game(
+        let world = f4x_master::Game::new(new_game(
             shipped(),
             &NewGame {
                 seed: 1,
                 all_ai: true,
                 ..NewGame::with_wizards(2)
             },
-        )?;
+        )?);
         let (a, b) = (PlayerId(0), PlayerId(1));
         let mut tally = Tally::new(&world);
         tally.record(
             &world,
-            world.turn,
+            world.round(),
             None,
             &[
                 Event::Diplomacy(DiplomacyEvent::ContactMade { a, b }),
@@ -2131,14 +2136,14 @@ mod tests {
     #[test]
     fn each_kind_of_diplomatic_action_has_its_own_count_and_all_add_up_to_the_total() -> TestResult
     {
-        let world = new_game(
+        let world = f4x_master::Game::new(new_game(
             shipped(),
             &NewGame {
                 seed: 1,
                 all_ai: true,
                 ..NewGame::with_wizards(3)
             },
-        )?;
+        )?);
         let (a, b, c) = (PlayerId(0), PlayerId(1), PlayerId(2));
         let offer = |kind| {
             Event::Diplomacy(DiplomacyEvent::ProposalMade(Proposal {
@@ -2159,7 +2164,7 @@ mod tests {
         let mut tally = Tally::new(&world);
         tally.record(
             &world,
-            world.turn,
+            world.round(),
             None,
             &[
                 offer(ProposalKind::Peace),
@@ -2264,14 +2269,14 @@ mod tests {
     fn failed_casts_are_counted_by_spell_and_reason() -> TestResult {
         let rules = &shipped().rules;
         let (id, def) = rules.spells.iter().next().ok_or("no spells")?;
-        let world = new_game(
+        let world = f4x_master::Game::new(new_game(
             shipped(),
             &NewGame {
                 seed: 4,
                 all_ai: true,
                 ..NewGame::with_wizards(2)
             },
-        )?;
+        )?);
         let mut tally = Tally::new(&world);
         let command =
             format!("CastSpell {{ player: PlayerId(1), spell: {id:?}, target: None, extra: 0 }}");
@@ -2280,7 +2285,7 @@ mod tests {
         tally.note_refused_cast(&world, "GoTo { units: [] }", "Move(Treaty)");
         tally.record(
             &world,
-            world.turn,
+            world.round(),
             None,
             &[Event::NoTargetForCast {
                 player: PlayerId(1),
@@ -2307,20 +2312,20 @@ mod tests {
                 .map(|(i, _)| i)
                 .ok_or(format!("no spell {id}"))
         };
-        let world = new_game(
+        let world = f4x_master::Game::new(new_game(
             shipped(),
             &NewGame {
                 seed: 4,
                 all_ai: true,
                 ..NewGame::with_wizards(2)
             },
-        )?;
+        )?);
         let mut tally = Tally::new(&world);
         let bolt = spell("fire_bolt")?;
         let side = f4x_battle::Side::Attacker;
         tally.record(
             &world,
-            world.turn,
+            world.round(),
             None,
             &[
                 Event::Battle(BattleEvent::SpellCast {

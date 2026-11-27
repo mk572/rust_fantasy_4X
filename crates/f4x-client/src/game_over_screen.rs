@@ -45,11 +45,8 @@ pub(crate) fn bar_width(score: i32) -> i32 {
 impl App {
     /// For the screenshot check: end the game as a win by the Spell of Mastery now.
     pub fn open_test_game_over(&mut self) {
-        self.game.world_mut().game_over = Some(f4x_core::world::endgame::GameOver {
-            winner: HUMAN,
-            kind: EndKind::SpellOfMastery,
-            turn: self.game.round(),
-        });
+        self.game.world_mut().complete_mastery(HUMAN);
+        self.game.check_end();
     }
 }
 
@@ -58,7 +55,7 @@ pub(crate) struct GameOverPage;
 impl Page for GameOverPage {
     fn frame(&mut self, app: &mut App, input: &Input) {
         clear_background(BLACK);
-        let Some(over) = app.game.game_over else {
+        let Some(over) = app.game.game_over() else {
             app.screen = Screen::Map;
             return;
         };

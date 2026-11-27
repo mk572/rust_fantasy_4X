@@ -479,7 +479,7 @@ impl App {
     }
 
     fn game_over_pending(&self) -> bool {
-        self.game.game_over.is_some() && !self.game_over_seen
+        self.game.game_over().is_some() && !self.game_over_seen
     }
 
     /// The overland track by how the human's power compares with the rivals' (`Get_Background_Music`).
@@ -533,7 +533,7 @@ impl App {
     }
 
     fn game_over_track(&self) -> Option<Track> {
-        let over = self.game.game_over?;
+        let over = self.game.game_over()?;
         let won = over.winner == HUMAN;
         Some(Track::piece(match (won, over.kind) {
             (true, _) => music::WIN_MILITARY,

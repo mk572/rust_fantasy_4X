@@ -170,7 +170,8 @@ fn mode(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         )));
     }
     if wanted == Mode::Override && ctx.session.mode != Mode::Override {
-        ctx.game.world_mut().record_override("mode override");
+        let entry = format!("turn {}: mode override", ctx.game.round());
+        ctx.game.world_mut().record_override(&entry);
     }
     ctx.session.mode = wanted;
     ctx.say(match wanted {
@@ -269,7 +270,7 @@ fn named_path(ctx: &Ctx, name: Option<&str>) -> Result<PathBuf, ConsoleError> {
 
 fn save(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let path = save_path(ctx, a)?;
-    f4x_core::world::save::save_game(&path, ctx.game)
+    f4x_master::save_game(&path, ctx.game, ctx.session.plans.clone())
         .map_err(|e| ConsoleError::Failed(e.to_string()))?;
     ctx.say(format!("saved to {}", path.display()));
     Ok(())
@@ -289,11 +290,14 @@ fn load(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     replaces_game(ctx)?;
     let path = save_path(ctx, a)?;
     let content = ctx.game.content().clone();
-    let (mut world, integrity) = f4x_core::world::save::load_game(&path, content)
+    let check = f4x_core::world::save::ContentCheck::Strict;
+    let loaded = f4x_master::load_game(&path, content, check)
         .map_err(|e| ConsoleError::Failed(e.to_string()))?;
-    world.ensure_human(ctx.session.player);
-    *ctx.game = Game::new(world);
+    let integrity = loaded.integrity;
+    *ctx.game = loaded.game;
+    ctx.game.world_mut().ensure_human(ctx.session.player);
     ctx.game.set_undo(true);
+    ctx.session.plans = loaded.plans;
     ctx.say(format!(
         "loaded {} (turn {})",
         path.display(),
@@ -519,6 +523,7 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let content = ctx.game.content().clone();
     let world = new_game(&content, &spec).map_err(|e| ConsoleError::Failed(e.to_string()))?;
     *ctx.game = Game::new(world);
+    ctx.session.plans.clear();
     // Undo takes a snapshot of the whole game for every command: only a person needs it.
     ctx.game.set_undo(!spec.all_ai);
     ctx.session.player = crate::setup::HUMAN;

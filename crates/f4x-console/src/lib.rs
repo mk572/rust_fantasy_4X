@@ -176,6 +176,9 @@ pub struct Session {
     /// What the wizards feel about the player (`talk` shows it). The console's rivals do not play, so
     /// nothing moves it: a wizard shows the feeling it starts with.
     pub diplomats: f4x_ai::Diplomats,
+    /// The computer players' plans a loaded game carried: saved with it again, since no computer
+    /// player of the console's own replaces them.
+    pub plans: f4x_master::Plans,
 }
 
 /// A console for one game.
@@ -219,6 +222,7 @@ impl Console {
                 quit: false,
                 saves_dir: PathBuf::from("saves"),
                 diplomats: f4x_ai::Diplomats::new(),
+                plans: Vec::new(),
             },
             history: Vec::new(),
         }
@@ -294,14 +298,20 @@ impl Console {
             bypassed: false,
         };
         let result = (def.run)(&mut ctx, &Args { words: rest });
-        let (mut out, events, bypassed) = (ctx.out, ctx.events, ctx.bypassed);
+        let (mut out, mut events, bypassed) = (ctx.out, ctx.events, ctx.bypassed);
+        // A command that changed the world by hand may have decided the game.
+        for event in game.check_end() {
+            out.push(describe::event(game, &event));
+            events.push(event);
+        }
         if result.is_ok() && out.is_empty() && def.kind != Kind::Query {
             out.push("ok".into());
         }
         match result {
             Ok(()) => {
                 if def.kind == Kind::Override || bypassed {
-                    game.world_mut().record_override(line.trim());
+                    let entry = format!("turn {}: {}", game.round(), line.trim());
+                    game.world_mut().record_override(&entry);
                 }
                 Ok((out, events))
             }

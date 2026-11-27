@@ -672,11 +672,11 @@ mod tests {
         let mut w = game(COAST_CITY, 8 /* high_men */);
         spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 1);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         assert_eq!(recruit(&ai, &w, None), None);
         // A lone fighter outside any city is free to go.
         let outside = spawn(&mut w, P0, at(5, 5), 104 /* high_men_spearmen */, 1)[0];
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         assert_eq!(recruit(&ai, &w, None), Some(outside));
     }
 
@@ -707,7 +707,7 @@ mod tests {
         let mut w = game(COAST_CITY, 8 /* high_men */);
         spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 1);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         scout(&mut ai, &mut w, &mut Vec::new());
         assert!(ai.roles.scouting().is_empty());
         assert!(!ai.frontier_closed);
@@ -989,21 +989,21 @@ mod tests {
         spawn_tower(&mut w, at(4, 4), false)?;
         let tower = at(4, 4);
         // Early on the wizard builds up instead.
-        assert!(!blind_across(&PlayerView::new(&w, P0), tower, w.turn));
+        assert!(!blind_across(&PlayerView::new(&w, P0), tower, w.round()));
         // Late, with the far plane unseen and no unit there, it is worth looking.
-        w.turn = 400;
-        assert!(blind_across(&PlayerView::new(&w, P0), tower, w.turn));
+        w.set_round(400);
+        assert!(blind_across(&PlayerView::new(&w, P0), tower, w.round()));
         // Once the far plane is seen, or a unit of the wizard stands on it, it is not.
         let far = Position {
             plane: f4x_core::map::Plane::Myrror,
             ..tower
         };
         let scout = spawn(&mut w, P0, far, 113 /* high_men_paladins */, 1);
-        assert!(!blind_across(&PlayerView::new(&w, P0), tower, w.turn));
+        assert!(!blind_across(&PlayerView::new(&w, P0), tower, w.round()));
         w.cheat_remove_unit(scout[0]);
-        assert!(blind_across(&PlayerView::new(&w, P0), tower, w.turn));
+        assert!(blind_across(&PlayerView::new(&w, P0), tower, w.round()));
         w.reveal_map(P0);
-        assert!(!blind_across(&PlayerView::new(&w, P0), tower, w.turn));
+        assert!(!blind_across(&PlayerView::new(&w, P0), tower, w.round()));
         Ok(())
     }
 }

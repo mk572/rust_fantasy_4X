@@ -728,10 +728,10 @@ mod tests {
 
     /// The plan the AI works out for a city of player 0 (the plan decides what the chooser may
     /// build; it is not stored in the game).
-    fn plan_of(w: &World, ai: &Ai, city: hecs::Entity) -> Result<BuildPlan, &'static str> {
+    fn plan_of(w: &Game, ai: &Ai, city: hecs::Entity) -> Result<BuildPlan, &'static str> {
         let view = PlayerView::new(w, P0);
         let pos = w.city_position(city).ok_or("the city has a position")?;
-        let empire = Empire::of(&view, w.turn);
+        let empire = Empire::of(&view, w.round());
         let mut planned = settlers_alive(&view);
         Ok(plan_for(
             &view,
@@ -750,7 +750,7 @@ mod tests {
                     &ai.roles.targets(crate::roles::Role::Settle),
                     &view,
                 ),
-                wide: crate::phase::width(&view, crate::city_site::has_sites(&view), w.turn),
+                wide: crate::phase::width(&view, crate::city_site::has_sites(&view), w.round()),
             },
         ))
     }
@@ -909,7 +909,7 @@ mod tests {
             );
             let mut ai = Ai::new(P0);
             ai.frontier_closed = true;
-            crate::roles::register(&mut ai, &w, w.turn);
+            crate::roles::register(&mut ai, &w, w.round());
             let serials: Vec<_> = {
                 let view = PlayerView::new(&w, P0);
                 stranded.iter().map(|&u| view.serial_of(u)).collect()
@@ -937,7 +937,7 @@ mod tests {
         spawn(&mut w, P0, at(9, 9), 104 /* high_men_spearmen */, 6);
         let mut ai = Ai::new(P0);
         ai.frontier_closed = true;
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         let roster = Roster::of(&ai, &PlayerView::new(&w, P0));
         assert!(roster.idle_army(), "{}", roster.idle_fighters);
         let plan = plan_of(&w, &ai, capital(&w)?)?;
@@ -972,7 +972,7 @@ mod tests {
         let view = PlayerView::new(&w, P0);
         let pos = w.city_position(city).ok_or("the city has a position")?;
         // All the cities it wanted, and a leaning to build up: it does not press for more.
-        let mut empire = Empire::of(&view, w.turn);
+        let mut empire = Empire::of(&view, w.round());
         empire.traits.cities_wanted = 0;
         let plan_with = |planned: usize| {
             let mut planned = planned;
@@ -1009,7 +1009,7 @@ mod tests {
         let city = capital(&w)?;
         let view = PlayerView::new(&w, P0);
         let pos = w.city_position(city).ok_or("the city has a position")?;
-        let mut empire = Empire::of(&view, w.turn);
+        let mut empire = Empire::of(&view, w.round());
         empire.traits.cities_wanted = 0;
         let mut planned = planned;
         Ok(plan_for(
@@ -1109,7 +1109,7 @@ mod tests {
         });
         let mut ai = Ai::new(P0);
         ai.frontier_closed = true;
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         cities(&mut ai, &mut w, &mut Vec::new());
         // It looks at every building it can build: a library or a temple is chosen over trade goods.
         let item = w.economy().city_production(city).item;

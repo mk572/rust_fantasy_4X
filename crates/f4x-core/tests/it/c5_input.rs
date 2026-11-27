@@ -4,7 +4,7 @@
 use crate::support::{commands, content, text, worlds};
 use f4x_core::map::{Plane, Position};
 use f4x_core::world::save::Snapshot;
-use f4x_core::world::{Command, Event, Rejection, World};
+use f4x_core::world::{Command, Event, World};
 use f4x_master::Game;
 
 /// Apply `command`; a panic names the command.
@@ -16,39 +16,6 @@ fn apply(w: &mut World, command: Command, what: &str) -> Vec<Event> {
 
 fn refused(events: &[Event]) -> bool {
     events.iter().any(|e| matches!(e, Event::Rejected(_)))
-}
-
-#[test]
-fn nothing_can_be_done_once_the_game_is_over() {
-    use f4x_core::world::endgame::{EndKind, GameOver};
-    for (name, mut w) in worlds().into_iter().step_by(2) {
-        let list = commands(&w);
-        let winner = w
-            .player_ids()
-            .into_iter()
-            .find(|&p| w.wizard(p).is_some())
-            .expect("a wizard");
-        w.game_over = Some(GameOver {
-            winner,
-            kind: EndKind::Conquest,
-            turn: w.turn,
-        });
-        let before = text(&w);
-        for command in list {
-            let label = format!("{command:?}");
-            let events = apply(&mut w, command, &name);
-            assert_eq!(
-                events.as_slice(),
-                [Event::Rejected(Rejection::GameOver)],
-                "{name}: {label} after the game ended"
-            );
-        }
-        assert_eq!(text(&w), before, "{name}");
-        assert_eq!(
-            Game::new(w).play_round(),
-            [Event::Rejected(Rejection::GameOver)]
-        );
-    }
 }
 
 #[test]

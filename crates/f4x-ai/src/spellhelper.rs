@@ -265,24 +265,24 @@ mod tests {
     #[test]
     fn a_tower_the_soldiers_cannot_take_alone_is_a_goal_for_mana() -> TestResult {
         let mut w = game_rival_across(COAST_CITY, 8 /* high_men */);
-        w.turn = 400; // the end of the game: not a build-up
+        w.set_round(400); // the end of the game: not a build-up
         spawn(&mut w, P0, at(10, 6), 113 /* high_men_paladins */, 1);
         crate::testworld::spawn_tower(&mut w, at(33, 9), true)?;
         w.reveal_map(P0);
         assert_eq!(
-            mana_goal(&PlayerView::new(&w, P0), &[], w.turn),
+            mana_goal(&PlayerView::new(&w, P0), &[], w.round()),
             0,
             "no battle spell"
         );
         learn_a_battle_spell(&mut w)?;
-        let goal = mana_goal(&PlayerView::new(&w, P0), &[], w.turn);
+        let goal = mana_goal(&PlayerView::new(&w, P0), &[], w.round());
         assert!(
             goal > 0,
             "one soldier is short of a tower's guess of guards"
         );
         // The goal is spells for the shortfall only: a tenth soldier more and it shrinks.
         spawn(&mut w, P0, at(10, 6), 113 /* high_men_paladins */, 4);
-        assert!(mana_goal(&PlayerView::new(&w, P0), &[], w.turn) < goal);
+        assert!(mana_goal(&PlayerView::new(&w, P0), &[], w.round()) < goal);
         Ok(())
     }
 

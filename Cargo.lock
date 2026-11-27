@@ -2654,7 +2654,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-ai"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "f4x-battle",
  "f4x-core",
@@ -2668,7 +2668,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-battle"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "f4x-battle",
  "f4x-def",
@@ -2681,7 +2681,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-client"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "f4x-ai",
  "f4x-battle",
@@ -2704,7 +2704,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-console"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "f4x-ai",
  "f4x-battle",
@@ -2717,7 +2717,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-core"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "f4x-battle",
  "f4x-core",
@@ -2733,7 +2733,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-def"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "f4x-def",
  "ron",
@@ -2744,7 +2744,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-extract"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "fontdue",
  "lewton 0.10.2",
@@ -2756,7 +2756,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-lang"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "f4x-core",
  "f4x-def",
@@ -2766,7 +2766,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-learn"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "burn",
  "f4x-ai",
@@ -2782,7 +2782,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-master"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "f4x-battle",
  "f4x-core",
@@ -2795,7 +2795,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-newgame"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "f4x-core",
  "f4x-def",
@@ -2809,7 +2809,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-setup"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "f4x-extract",
  "f4x-lang",
@@ -2822,7 +2822,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-tools"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "f4x-ai",
  "f4x-battle",

@@ -341,9 +341,11 @@ mod tests {
         let walker = spawn(&mut w, P0, at(9, 6), 104 /* spearmen */, 1)[0];
         let ship = spawn(&mut w, P0, at(25, 1), 36 /* galley */, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         let s = PlayerView::new(&w, P0).serial_of(walker);
-        let _ = ai.roles.claim(s, Role::Reinforce, w.turn, Some(at(30, 6)));
+        let _ = ai
+            .roles
+            .claim(s, Role::Reinforce, w.round(), Some(at(30, 6)));
         ai.roles.set_crossing(s, Some(Crossing::Sea));
         Ok((w, ai, walker, ship))
     }
@@ -426,7 +428,7 @@ mod tests {
     fn with_no_free_ship_the_unit_keeps_waiting_for_a_ferry() -> TestResult {
         let (mut w, mut ai, walker, ship) = waiting()?;
         let ship_serial = PlayerView::new(&w, P0).serial_of(ship);
-        let _ = ai.roles.claim(ship_serial, Role::Scout, w.turn, None);
+        let _ = ai.roles.claim(ship_serial, Role::Scout, w.round(), None);
         run(&mut ai, &mut w, &mut Vec::new());
         let s = PlayerView::new(&w, P0).serial_of(walker);
         assert_eq!(ai.roles.crossing_of(s), Some(Crossing::Sea));
@@ -449,7 +451,7 @@ mod tests {
         assert!(w.economy().is_bridge(ship));
         // The unit is gone: nobody asks any more.
         w.apply(Command::DismissUnit { unit: walker });
-        w.turn += KEEP + 2;
+        w.set_round(w.round() + KEEP + 2);
         run(&mut ai, &mut w, &mut events);
         assert!(!ai.roles.is(ship_serial, Role::Bridge));
         run(&mut ai, &mut w, &mut events);

@@ -309,7 +309,7 @@ mod tests {
     /// over 100, and the pick can come up empty, so it tries again.
     fn offer_hero(w: &mut Game) {
         w.set_fame(P1, 100);
-        let round = w.turn;
+        let round = w.round();
         assert!(
             (0..500).any(|_| w.cheat_offer(P1, OfferKind::Hero, round).is_some()),
             "no hero was ever offered"
@@ -346,10 +346,10 @@ mod tests {
         let ai = Ai::new(P1);
         set_gold(&mut w, P1, 100_000)?;
         let first = w.content().rules.config.offer.ai_first_turn;
-        w.turn = first - 10;
+        w.set_round(first - 10);
         let mut got = 0;
         for _ in 0..50 {
-            let round = w.turn;
+            let round = w.round();
             if w.cheat_offer(P1, OfferKind::Mercenaries, round).is_some() {
                 got += 1;
             }
@@ -364,8 +364,8 @@ mod tests {
             .iter()
             .any(|e| matches!(e, Event::MercenariesHired { .. })));
         assert!(w.offers(P1).is_empty());
-        w.turn = first;
-        let round = w.turn;
+        w.set_round(first);
+        let round = w.round();
         w.cheat_offer(P1, OfferKind::Mercenaries, round);
         let mut events = Vec::new();
         answer(&ai, &mut w, &mut events);
@@ -381,7 +381,7 @@ mod tests {
         let mut w = game()?;
         let ai = Ai::new(P1);
         set_gold(&mut w, P1, 100_000)?;
-        let round = w.turn;
+        let round = w.round();
         // Without a hero to carry it, the item is turned down.
         w.cheat_offer(P1, OfferKind::Item, round)
             .ok_or("an item is offered")?;
@@ -398,7 +398,7 @@ mod tests {
             .ok_or("the wizard hired a hero")?;
         let mut equipped = false;
         for _ in 0..40 {
-            let round = w.turn;
+            let round = w.round();
             if w.cheat_offer(P1, OfferKind::Item, round).is_none() {
                 continue;
             }

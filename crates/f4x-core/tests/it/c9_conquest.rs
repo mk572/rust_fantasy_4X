@@ -3,7 +3,6 @@
 //!
 //! Each world has the first wizard take cities of the second, who has the fortress city and a second city.
 
-use crate::support::worlds;
 use f4x_core::player::PlayerId;
 use f4x_core::rules::SpellId;
 use f4x_core::wizard::fortress::FortressError;
@@ -12,9 +11,17 @@ use f4x_core::world::{Command, Event, Rejection, World};
 use f4x_def::half_int::HalfInt;
 use f4x_master::Game;
 
+/// The fresh worlds, each in a game, so that time can pass in them.
+fn worlds() -> Vec<(String, Game)> {
+    crate::support::worlds()
+        .into_iter()
+        .map(|(name, w)| (name, Game::new(w)))
+        .collect()
+}
+
 struct Fall {
     name: String,
-    w: World,
+    w: Game,
     /// The one who takes, and the one who loses.
     a: PlayerId,
     b: PlayerId,
@@ -433,8 +440,9 @@ fn defeating_the_last_rival_ends_the_game_by_conquest() {
                 f.w.capture_city(c, f.a);
             }
         }
+        f.w.check_end();
         assert!(
-            f.w.game_over.is_none(),
+            f.w.game_over().is_none(),
             "{}: over while two wizards stand",
             f.name
         );
@@ -442,7 +450,8 @@ fn defeating_the_last_rival_ends_the_game_by_conquest() {
         if can_pay_for_return(&f.w, f.b) {
             continue;
         }
-        let events = f.w.capture_city(f.capital, f.a);
+        let mut events = f.w.capture_city(f.capital, f.a);
+        events.extend(f.w.check_end());
         assert!(
             told(
                 &events,
@@ -452,7 +461,7 @@ fn defeating_the_last_rival_ends_the_game_by_conquest() {
             "{}: {events:?}",
             f.name
         );
-        assert!(f.w.game_over.is_some(), "{}", f.name);
+        assert!(f.w.game_over().is_some(), "{}", f.name);
         ended += 1;
     }
     assert!(ended > 0, "no world ended by conquest");
@@ -493,7 +502,7 @@ fn starting_the_spell_of_mastery_is_told_to_all_and_listed_with_what_is_still_ow
             f.name
         );
         assert!(
-            f.w.game_over.is_none(),
+            f.w.game_over().is_none(),
             "{}: won before it was paid",
             f.name
         );
@@ -516,14 +525,14 @@ fn finishing_the_spell_of_mastery_wins_at_once_and_scores_it_for_the_caster_only
             "{}: {events:?}",
             f.name
         );
-        let over = f.w.game_over.expect("the game is over");
+        let over = f.w.game_over().expect("the game is over");
         assert_eq!(
             (over.winner, over.kind),
             (f.a, EndKind::SpellOfMastery),
             "{}",
             f.name
         );
-        let (won, lost) = (f.w.score(f.a, f.w.turn), f.w.score(f.b, f.w.turn));
+        let (won, lost) = (f.w.score(f.a, f.w.round()), f.w.score(f.b, f.w.round()));
         assert!(
             won.mastery > 0 && lost.mastery == 0,
             "{}: {won:?} {lost:?}",
@@ -539,7 +548,7 @@ fn finishing_the_spell_of_mastery_wins_at_once_and_scores_it_for_the_caster_only
             f.name
         );
         // A game that is over takes no more commands.
-        let later = Game::new(f.w).play_round();
+        let later = f.w.play_round();
         assert!(
             told(&later, |e| matches!(
                 e,

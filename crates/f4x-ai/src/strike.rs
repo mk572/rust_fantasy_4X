@@ -103,7 +103,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         // that works ends the stack's turn.
         let (ratio, sorties) = {
             let view = PlayerView::new(game, me);
-            if view.game_over() {
+            if game.game_over().is_some() {
                 return;
             }
             let committed = units
@@ -372,7 +372,7 @@ mod tests {
         let serial = PlayerView::new(&w, P0).serial_of(soldier[0]);
         let _ = ai
             .roles
-            .claim(serial, Role::Reinforce, w.turn, Some(beside));
+            .claim(serial, Role::Reinforce, w.round(), Some(beside));
         ai.roles.board_at(serial, serial, beside);
         assert!(ai.roles.boarding_of(serial).is_some());
         run(&mut ai, &mut w, &mut Vec::new());

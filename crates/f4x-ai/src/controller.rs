@@ -5,9 +5,9 @@
 
 use crate::{Ai, Attack, Diplomats};
 use f4x_core::player::PlayerId;
-use f4x_core::world::{Event, World};
+use f4x_core::world::Event;
 use f4x_master::Game;
-use f4x_master::{Controller, Master, Pass, Seat, Status, Until};
+use f4x_master::{Controller, Master, Pass, Plans, Seat, Status, Until};
 use std::collections::{BTreeMap, HashMap};
 
 /// The seat of one wizard's AI.
@@ -46,6 +46,8 @@ pub struct NeutralSeat {
     record_refusals: bool,
     /// The game's table of memories, which the race players join when they are made.
     diplomats: Diplomats,
+    /// The plans a loaded game carries, for the race players that are not made yet.
+    saved: Plans,
 }
 
 impl NeutralSeat {
@@ -83,8 +85,17 @@ impl NeutralSeat {
         self.ais.values().flat_map(Ai::take_refusals).collect()
     }
 
+    /// Give the race players the plans a loaded game carries (see [`Ai::recall`]): those there
+    /// are now, and those made later.
+    pub fn recall(&mut self, plans: &[(PlayerId, String)]) {
+        self.saved = plans.to_vec();
+        for ai in self.ais.values_mut() {
+            Ai::recall(&self.saved, std::slice::from_mut(ai));
+        }
+    }
+
     /// What the race players have in mind, as text to keep in a save, with their players.
-    pub fn plans(&self) -> Vec<(PlayerId, String)> {
+    pub fn plans(&self) -> Plans {
         self.ais
             .iter()
             .filter_map(|(&p, ai)| Some((p, ai.to_text().ok()?)))
@@ -108,14 +119,15 @@ impl NeutralSeat {
     }
 
     /// The AI of a race player, made now if it has none.
-    fn ai_of(&mut self, world: &World, id: PlayerId) -> &mut Ai {
+    fn ai_of(&mut self, id: PlayerId) -> &mut Ai {
         let (defended_by, record) = (self.defended_by.clone(), self.record_refusals);
         let diplomats = self.diplomats.clone();
+        let saved = &self.saved;
         self.ais.entry(id).or_insert_with(|| {
             let mut ai = Ai::new(id);
             ai.join(&diplomats);
             ai.leave_defence_to(&defended_by);
-            Ai::recall(world, std::slice::from_mut(&mut ai));
+            Ai::recall(saved, std::slice::from_mut(&mut ai));
             ai.record_refusals(record);
             ai
         })
@@ -129,7 +141,7 @@ impl NeutralSeat {
             if game.race_of_player(id).is_none() || !game.has_player(id) {
                 continue;
             }
-            let ai = self.ai_of(game, id);
+            let ai = self.ai_of(id);
             events.extend(ai.play_turn(game));
             let attacks = ai.take_attacks();
             self.attacks.extend(attacks);

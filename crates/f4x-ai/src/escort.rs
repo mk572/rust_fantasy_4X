@@ -449,7 +449,7 @@ mod tests {
         let (mut w, _, soldiers) = world();
         let healer = spawn(&mut w, P0, at(7, 6), 7 /* healer */, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         run(&mut ai, &mut w, &mut Vec::new());
         let view = PlayerView::new(&w, P0);
         let charge = view.serial_of(healer);
@@ -459,7 +459,7 @@ mod tests {
         let mut w = world().0;
         let in_city = spawn(&mut w, P0, at(COAST_CITY.0, COAST_CITY.1), 7, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         run(&mut ai, &mut w, &mut Vec::new());
         let charge = PlayerView::new(&w, P0).serial_of(in_city);
         assert_eq!(ai.roles.escort_of(charge), None);

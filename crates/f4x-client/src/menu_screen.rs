@@ -15,8 +15,8 @@ use crate::modal::Modal;
 use crate::page::Page;
 use crate::text::{Args, Texts};
 use crate::ui;
-use f4x_core::world::save::LoadError;
-use f4x_core::world::save::{summarize_save, SaveError, SaveSummary};
+use f4x_core::world::save::{LoadError, SaveError};
+use f4x_master::{summarize_save, SaveSummary};
 use macroquad::prelude::*;
 
 use crate::frame::Layout;
@@ -395,7 +395,7 @@ impl Page for SlotsPage {
         let selected_slot = selected.and_then(|n| app.menu.slots.get(n).cloned());
         let can_load = selected_slot.as_ref().is_some_and(Slot::loadable);
         let in_game = !app.menu.from_menu;
-        let can_save = in_game && selected.is_some() && app.game.game_over.is_none();
+        let can_save = in_game && selected.is_some() && app.game.game_over().is_none();
 
         // Buttons along y = 171: Quit, Load, Save, Settings, OK.
         let quit_key = if app.menu.from_menu {
@@ -469,7 +469,7 @@ impl Page for SlotsPage {
                 app.open_main_menu();
             } else {
                 // Leaving the game keeps it as the one Continue offers.
-                if app.game.game_over.is_none() {
+                if app.game.game_over().is_none() {
                     app.save_to(Path::new(AUTOSAVE));
                 }
                 app.open_main_menu();

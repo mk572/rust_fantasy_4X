@@ -73,7 +73,7 @@ use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
 use f4x_core::world::serial::Serial;
 use f4x_core::world::{Command, Event, World};
-use f4x_master::Game;
+use f4x_master::{Game, Plans};
 
 /// A command the game refused, with where in the AI it was sent from (for finding out why the AI
 /// sends orders the game will not take).
@@ -365,22 +365,19 @@ impl Ai {
         ron::de::from_str(text)
     }
 
-    /// Put the plans of every AI in `ais` into `game`, to be saved with it.
-    pub fn remember(game: &mut Game, ais: &[Ai]) {
-        let plans = ais
-            .iter()
+    /// What every AI in `ais` has in mind, to be saved with the game.
+    pub fn plans_of(ais: &[Ai]) -> Plans {
+        ais.iter()
             .filter_map(|ai| Some((ai.player, ai.to_text().ok()?)))
-            .collect();
-        game.world_mut().set_plans(plans);
+            .collect()
     }
 
-    /// Give each AI in `ais` the plans `game` carries for its player. An AI the game has no plans
+    /// Give each AI in `ais` the plans a saved game carries for its player. An AI it has no plans
     /// for, or plans that cannot be read, starts afresh. Who defends in person (a setting of the
     /// seats, not a plan) is kept.
-    pub fn recall(world: &World, ais: &mut [Ai]) {
+    pub fn recall(plans: &[(PlayerId, String)], ais: &mut [Ai]) {
         for ai in ais {
-            let saved = world
-                .plans()
+            let saved = plans
                 .iter()
                 .find(|(player, _)| *player == ai.player)
                 .and_then(|(_, text)| Ai::from_text(text).ok());
@@ -436,7 +433,7 @@ impl Ai {
                     a.razed,
                     a.wars,
                     a.broken,
-                    m.ruthlessness(a.who, world.turn, diplo_b::Knobs::current().ruth_half)
+                    m.ruthlessness(a.who, round, diplo_b::Knobs::current().ruth_half)
                 )
             })
             .collect();
@@ -618,13 +615,13 @@ impl Ai {
             let view = PlayerView::new(game, self.player);
             // A player plays when it has a wizard or is the neutral player of a race (task 522).
             let plays = view.wizard().is_some() || game.race_of_player(self.player).is_some();
-            if view.game_over() || !plays || view.is_defeated() {
+            if game.game_over().is_some() || !plays || view.is_defeated() {
                 return events;
             }
         }
         // Units built or hired since the last turn await orders from the first moment.
         roles::register(self, game, game.round());
-        let dropped = self.drop_stale_plans(game.turn);
+        let dropped = self.drop_stale_plans(game.round());
         if dropped.sea {
             naval::release_scouts(self, game, &mut events);
         }
@@ -680,13 +677,13 @@ impl Ai {
     /// Keep a failure that is no refused command (a party that cannot be sent anywhere) in the
     /// refused-order log, with the line that asks.
     #[track_caller]
-    pub(crate) fn note_failure(&self, world: &World, what: String, reason: String) {
+    pub(crate) fn note_failure(&self, game: &Game, what: String, reason: String) {
         if !self.record_refusals {
             return;
         }
         let at = std::panic::Location::caller();
         self.refusals.borrow_mut().push(Refusal {
-            turn: world.turn,
+            turn: game.round(),
             player: self.player,
             source: format!("{}:{}", at.file(), at.line()),
             command: what,
@@ -740,7 +737,7 @@ impl Ai {
         events: &mut Vec<Event>,
         keep_refusal: bool,
     ) -> Result<(), SendError> {
-        if game.game_over.is_some() {
+        if game.game_over().is_some() {
             // The other wizard's turn ended the game: nothing more can be ordered.
             return Err(SendError::GameOver);
         }
@@ -786,7 +783,7 @@ impl Ai {
                 if let Event::OrderFailed { why, player, .. } = e {
                     if *player == self.player {
                         self.refusals.borrow_mut().push(Refusal {
-                            turn: game.turn,
+                            turn: game.round(),
                             player: self.player,
                             source: format!("{}:{}", at.file(), at.line()),
                             command: command.clone(),
@@ -799,7 +796,7 @@ impl Ai {
                 }
                 if let Event::Rejected(reason) = e {
                     self.refusals.borrow_mut().push(Refusal {
-                        turn: game.turn,
+                        turn: game.round(),
                         player: self.player,
                         source: format!("{}:{}", at.file(), at.line()),
                         command: command.clone(),
@@ -939,7 +936,7 @@ mod memory_tests {
 
     fn lost_a_battle(ai: &mut Ai, turn: u32) {
         let mut w = crate::testworld::game(crate::testworld::COAST_CITY, 8 /* high_men */);
-        w.turn = turn;
+        w.set_round(turn);
         ai.notice(
             &w,
             &[Event::BattleEnded {
@@ -979,9 +976,7 @@ mod memory_tests {
         // A game is loaded: a new AI for the wizard recalls the plans; the table keeps its handle.
         let mut fresh = vec![Ai::new(ME)];
         fresh[0].join(&table);
-        let mut w = crate::testworld::game(crate::testworld::COAST_CITY, 8 /* high_men */);
-        w.set_plans(vec![(ME, text)]);
-        Ai::recall(&w, &mut fresh);
+        Ai::recall(&[(ME, text)], &mut fresh);
         assert_eq!(battles_lost(&fresh[0].memory.get()), Some(1));
         assert_eq!(battles_lost(&table.of(ME)), Some(1));
         Ok(())
@@ -1224,11 +1219,8 @@ mod send_tests {
     #[test]
     fn nothing_can_be_sent_once_the_game_is_over() {
         let mut w = game(COAST_CITY, 8 /* high_men */);
-        w.game_over = Some(f4x_core::world::endgame::GameOver {
-            winner: P0,
-            kind: f4x_core::world::endgame::EndKind::SpellOfMastery,
-            turn: 1,
-        });
+        w.complete_mastery(P0);
+        w.check_end();
         let mut events = Vec::new();
         assert_eq!(
             Ai::new(P0).send(&mut w, Command::BalanceFarmers { player: P0 }, &mut events),

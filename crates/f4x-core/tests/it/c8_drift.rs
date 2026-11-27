@@ -10,7 +10,6 @@
 
 use crate::support::{busy_round, commands, text, worlds};
 use f4x_core::check::digest;
-use f4x_core::world::World;
 use f4x_master::Game;
 use std::collections::BTreeMap;
 
@@ -36,13 +35,16 @@ const PLAYS: [(&str, &[usize], Round); 2] = [
     ("turns", &[10, 20, 40], ending_turns),
 ];
 
-/// The line of a game at a checkpoint: `field=hash` for each field of its digest.
-fn line(w: &World) -> String {
-    digest(w)
-        .into_iter()
-        .map(|(k, v)| format!("{k}={v}"))
-        .collect::<Vec<_>>()
-        .join(" ")
+/// The line of a game at a checkpoint: its round and its end, then `field=hash` for each field of
+/// the digest of its world.
+fn line(game: &Game) -> String {
+    let over = game.game_over().map_or_else(
+        || "none".to_string(),
+        |o| format!("{}:{:?}:{}", o.winner.0, o.kind, o.turn),
+    );
+    let mut parts = vec![format!("round={}", game.round()), format!("over={over}")];
+    parts.extend(digest(game).into_iter().map(|(k, v)| format!("{k}={v}")));
+    parts.join(" ")
 }
 
 /// Every checkpoint of every play on every world, as `world play@round` and its line.
@@ -149,13 +151,13 @@ fn the_digest_is_the_same_for_the_same_game_and_names_what_differs() {
         .expect("restores");
     assert_eq!(digest(&w), digest(&copy));
     let names: Vec<String> = digest(&w).into_iter().map(|(k, _)| k).collect();
-    for wanted in ["seed", "draws", "turn", "units", "cities", "players", "map"] {
+    for wanted in ["seed", "draws", "units", "cities", "players", "map"] {
         assert!(
             names.iter().any(|n| n == wanted),
             "no field {wanted}: {names:?}"
         );
     }
-    // One turn moves the clock, the random generator and the units' moves, not the settings or the seed.
+    // One round moves the random generator and the units, not the settings or the seed.
     let mut later = Game::new(copy);
     later.play_round();
     let (a, b) = (digest(&w), digest(&later));
@@ -166,7 +168,7 @@ fn the_digest_is_the_same_for_the_same_game_and_names_what_differs() {
         .map(|(x, _)| x.0.as_str())
         .collect();
     assert!(
-        moved.contains(&"turn") && moved.contains(&"units"),
+        moved.contains(&"draws") && moved.contains(&"units"),
         "{moved:?}"
     );
     assert!(

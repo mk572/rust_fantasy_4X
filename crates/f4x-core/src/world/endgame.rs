@@ -1,9 +1,9 @@
-//! How a game ends, and what it was worth (the rules are in `docs/game_end.md`).
+//! What the world knows about the end of a game, and what a game was worth (the rules are in
+//! `docs/game_end.md`).
 //!
-//! A game ends in one of two ways: the last wizard standing wins by **conquest** (or the human
-//! wizard is defeated, which ends it at once), or a wizard finishes the **Spell of Mastery**.
-//! Once it has ended every command is refused. A defeated wizard's belongings are cleared away
-//! first (`aftermath`).
+//! The world keeps the facts: who is defeated and by whom, and who has completed the Spell of
+//! Mastery. Whether the game is over, and who won, is the game's to say (`f4x-master`). A defeated
+//! wizard's belongings are cleared away here (`aftermath`).
 
 use serde::{Deserialize, Serialize};
 
@@ -18,14 +18,6 @@ pub enum EndKind {
     Conquest,
     /// The winner finished casting the Spell of Mastery.
     SpellOfMastery,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct GameOver {
-    pub winner: PlayerId,
-    pub kind: EndKind,
-    /// The turn it ended on.
-    pub turn: u32,
 }
 
 /// A wizard's final score and where it came from (`End_Of_Game_Score_Draw`). The total is scaled
@@ -100,9 +92,7 @@ impl World {
     /// The wizards `player` has beaten: those it defeated and, once it has cast the Spell of
     /// Mastery, every wizard still standing, who count as banished too.
     pub fn banished_wizards(&self, player: PlayerId) -> Vec<PlayerId> {
-        let mastery = self
-            .game_over
-            .is_some_and(|g| g.kind == EndKind::SpellOfMastery && g.winner == player);
+        let mastery = self.mastery == Some(player);
         self.player_ids()
             .into_iter()
             .filter(|&id| {
@@ -119,10 +109,7 @@ impl World {
         if !self.has_player(player) {
             return Score::default();
         }
-        let mastery_by = self
-            .game_over
-            .filter(|g| g.kind == EndKind::SpellOfMastery)
-            .map(|g| g.winner);
+        let mastery_by = self.mastery;
         let townsfolk: u32 = self
             .economy()
             .cities()
@@ -154,23 +141,6 @@ impl World {
             mastery: if mastery_by == Some(player) { 250 } else { 0 },
             percent: i32::from(self.settings.scoring.score_percent),
         }
-    }
-
-    fn finish(&mut self, winner: PlayerId, kind: EndKind) -> Vec<Event> {
-        if self.game_over.is_some() {
-            return Vec::new();
-        }
-        let over = GameOver {
-            winner,
-            kind,
-            turn: self.turn,
-        };
-        self.game_over = Some(over);
-        vec![Event::GameOver {
-            winner,
-            kind,
-            turn: self.turn,
-        }]
     }
 
     /// The announcement that `player` has started casting `spell`, if it is the Spell of
@@ -218,26 +188,14 @@ impl World {
             .collect()
     }
 
-    /// The Spell of Mastery is finished: the caster wins at once.
-    pub fn win_by_mastery(&mut self, caster: PlayerId) -> Vec<Event> {
-        self.finish(caster, EndKind::SpellOfMastery)
+    /// Note that `caster` has completed the Spell of Mastery. The first to do so keeps it.
+    pub fn complete_mastery(&mut self, caster: PlayerId) {
+        self.mastery.get_or_insert(caster);
     }
 
-    /// Called after a wizard is defeated: ends the game when the human wizard has fallen or
-    /// only one wizard is left.
-    pub(crate) fn check_conquest(&mut self, conqueror: PlayerId) -> Vec<Event> {
-        let human_down = self
-            .human()
-            .is_some_and(|h| self.has_player(h) && self.player(h).is_some_and(|p| p.is_defeated()));
-        let living = self.living_wizards();
-        if human_down {
-            return self.finish(conqueror, EndKind::Conquest);
-        }
-        match living.as_slice() {
-            [last] => self.finish(*last, EndKind::Conquest),
-            [] => self.finish(conqueror, EndKind::Conquest),
-            _ => Vec::new(),
-        }
+    /// Who has completed the Spell of Mastery.
+    pub fn mastered_by(&self) -> Option<PlayerId> {
+        self.mastery
     }
 
     /// Clear away a defeated wizard's holdings: their heroes, creatures and remaining

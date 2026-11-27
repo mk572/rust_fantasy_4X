@@ -390,7 +390,7 @@ has seen, the treaties and the proposals.
    peace one turn in three, at most once in 25 turns per wizard (`Remark::WarWeary`). `peace_ok` is the other side: a wizard
    far ahead (130 percent of the power) does not accept peace while the war has taken no city from the other and is
    under 80 turns old. (The stalled war is task 561.) The core keeps when a war began and the cities each side held
-   (`Pair::war_since`, `Pair::war_cities`, `World::war_age`, `World::war_gain`).
+   (`Pair::war_age`, `Pair::war_cities`, `World::war_age`, `World::war_gain`).
 5. *Trades* (tasks 504 and 597, `f4x-ai/src/trade.rs`, `f4x-core/src/diplomacy/trade.rs`). A proposal `ProposalKind::Trade { give, get }`
    is two bundles of `Goods`: gold, a spell, an item of the vault or award list, a unit that is not a hero and stands in a city,
    each optional (a swap of two spells, a spell for gold and an item for a unit are all one kind). The core checks that each

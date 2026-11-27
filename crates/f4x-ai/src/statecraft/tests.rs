@@ -67,7 +67,7 @@ fn lopsided_at(rival: Option<(u32, u32)>) -> Result<Game, Box<dyn std::error::Er
     if let Some((x, y)) = rival {
         w.explore(P0, at(x, y), HalfInt::from_raw(3));
     }
-    w.turn = 100;
+    w.set_round(100);
     Ok(w)
 }
 
@@ -146,7 +146,7 @@ fn neutral_races_take_part_too() -> TestResult {
     let reach = crate::statecraft::can_attack(&w, P0, &scene, neutral);
     assert!(reach, "no army can get there");
     let value =
-        crate::diplo_b_stance::values(&w, P0, neutral, &scene, &ai.memory.get(), reach, w.turn)
+        crate::diplo_b_stance::values(&w, P0, neutral, &scene, &ai.memory.get(), reach, w.round())
             .enemy;
     assert!(value >= crate::diplo_b::Knobs::current().declare, "{value}");
     Ok(())

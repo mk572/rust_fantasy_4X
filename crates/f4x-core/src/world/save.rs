@@ -13,10 +13,10 @@
 //! the same snapshots. The random stream is resumed from the seed and the number of values
 //! drawn so far.
 //!
-//! The files themselves (crash-safe write, checksum check on read, the save slot summary) are in
-//! `file`.
+//! The files themselves (crash-safe write, checksum check on read) are in `file`. A saved game
+//! is a world together with the game's own state: `f4x-master` writes and reads it.
 //!
-//! Tests: in world/save/tests.rs and world/save/file.rs.
+//! Tests: in tests/it/c4_persist.rs.
 
 use f4x_def::half_int::HalfInt;
 use std::collections::BTreeMap;
@@ -48,24 +48,17 @@ use crate::world::World;
 /// Bumped when the snapshot layout changes in a way old files cannot be read. Version 2 saves each
 /// kind of entity as its own list (`docs/ecs-structure.md` section 3.9). Version 4 writes everything
 /// that has a number in the content (spells, items, powers, abilities, prefab items) by that number.
-pub const SAVE_VERSION: u32 = 4;
+/// Version 5 keeps the round, the end of the game and the plans out of the world
+/// (`docs/turn-structure.md` 10.8).
+pub const SAVE_VERSION: u32 = 5;
 
 /// The version of the game itself (the workspace version in `Cargo.toml`), written into every save.
 pub const GAME_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// The oldest game version whose saves and replays this build still reads. Raise it when a change
-/// makes older files unreadable; leave it when they still load.
-pub const OLDEST_COMPATIBLE_VERSION: &str = "0.0.2";
-
-/// The conversions that bring a save of an older game version up to the current layout of its
-/// numbers: `(first game version that writes the new form, conversion)`, oldest first. A save whose
-/// game version is below an entry's has the conversion applied when it is read, in order. Add an
-/// entry in the change that alters what a number in a save means (a unit of an amount, an id
-/// scheme), and bump the workspace version to that release in the same change. `HalfInt` writes the
-/// amount (`1.5`), not the doubled count the older versions wrote for the amounts they counted in
-/// halves, so the entry that moves a saved amount to `HalfInt` doubles it back to the new form.
-/// 0.0.6: one neutral player for each race instead of one for each independent city (task 522).
-const UPGRADES: &[Upgrade] = &[("0.0.6", race_player::upgrade)];
+/// makes older files unreadable; leave it when they still load. `f4x-master` converts older saves
+/// of a game.
+pub const OLDEST_COMPATIBLE_VERSION: &str = "0.0.8";
 
 /// What a load checks the save's content fingerprint against.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -82,9 +75,6 @@ fn short(fingerprint: &str) -> &str {
     fingerprint.get(..12).unwrap_or(fingerprint)
 }
 
-/// A conversion of a snapshot written before a game version.
-type Upgrade = (&'static str, fn(&mut Snapshot));
-
 /// `"0.0.4"` as numbers, to compare versions (`"0.0.10"` is newer than `"0.0.9"`).
 fn version_parts(version: &str) -> Option<Vec<u32>> {
     version.split('.').map(|p| p.parse().ok()).collect()
@@ -98,7 +88,6 @@ pub struct Snapshot {
     pub seed: u64,
     /// Values drawn from the random generator so far.
     pub draws: u64,
-    pub turn: u32,
     pub next_serial: u64,
     /// The settings the game is played with.
     pub settings: crate::world::setting::GameSettings,
@@ -110,8 +99,9 @@ pub struct Snapshot {
     /// number)`. A later load says so.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub degraded: Vec<(String, u16)>,
-    /// Set once the game has ended.
-    pub game_over: Option<crate::world::endgame::GameOver>,
+    /// Who has completed the Spell of Mastery.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mastery: Option<u8>,
     pub human: Option<u8>,
     /// Contact, relations, treaties and pending proposals between wizards.
     pub diplomacy: crate::diplomacy::DiplomacySave,
@@ -120,14 +110,6 @@ pub struct Snapshot {
     /// The clocks of the raiders and the roaming monsters.
     #[serde(default)]
     pub threat: crate::threat::Threat,
-    /// Where the game is in its round, written by the master (`World::flow`). A save without it
-    /// was made on the human's turn.
-    #[serde(default)]
-    pub flow: Option<String>,
-    /// What each computer player has in mind (`World::plans`). A save without it loads with
-    /// computer players that start afresh.
-    #[serde(default)]
-    pub plans: Vec<(crate::player::PlayerId, String)>,
     /// The map locations the players saved (`World::locations`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub locations: Vec<(crate::player::PlayerId, u8, crate::map::Position)>,
@@ -862,19 +844,16 @@ impl World {
         let World {
             // Kept (the world is read in parts: players, units, cities, wizards).
             ecs: _,
-            turn: _,
             map: _,
             fog: _,
             next_serial: _,
             rng: _,
             settings: _,
             battle: _,
-            game_over: _,
+            mastery: _,
             diplomacy: _,
             events: _,
             threat: _,
-            flow: _,
-            plans: _,
             locations: _,
             override_log: _,
             prefab_taken: _,
@@ -1109,7 +1088,6 @@ impl World {
             game_version: GAME_VERSION.to_string(),
             seed: self.rng.seed(),
             draws: self.rng.draws(),
-            turn: self.turn,
             next_serial: self.next_serial,
             settings: self.settings,
             content: self.content.fingerprint.clone(),
@@ -1120,13 +1098,11 @@ impl World {
                 .iter()
                 .filter_map(|i| Some((i.file.clone(), i.row?)))
                 .collect(),
-            game_over: self.game_over,
+            mastery: self.mastery.map(|p| p.0),
             human: self.human().map(|h| h.0),
             diplomacy: self.diplomacy_to_save(),
             events: self.events.to_save(|e| crate::player::id_of(&self.ecs, e)),
             threat: self.threat,
-            flow: self.flow.clone(),
-            plans: self.plans.clone(),
             locations: self.locations.clone(),
             override_log: self.override_log.clone(),
             prefab_taken: self.prefab_taken.clone(),
@@ -1189,6 +1165,28 @@ fn checksum(text: &str) -> u64 {
     })
 }
 
+/// A save file's text: the first line, which names the versions and carries the checksum of the
+/// rest, and the `body`.
+pub fn signed(body: &str) -> String {
+    let body = format!("{body}\n");
+    format!(
+        "// f4x save, version {SAVE_VERSION}, game {GAME_VERSION}, checksum {:016x}\n{body}",
+        checksum(&body)
+    )
+}
+
+/// Run `read` with a value for the settings a save may not name: the player's default when the
+/// caller has set one (`f4x_def::settings::with_fallback`), else the shipped one.
+pub fn with_setting_fallback<T>(
+    read: impl FnOnce() -> Result<T, LoadError>,
+) -> Result<T, LoadError> {
+    if f4x_def::settings::has_fallback() {
+        read()
+    } else {
+        f4x_def::settings::with_fallback(f4x_def::settings::GameSettings::default(), read)
+    }
+}
+
 /// Refuse a save or replay of another save layout, or of a game version outside
 /// `OLDEST_COMPATIBLE_VERSION..=GAME_VERSION`.
 pub fn check_versions(version: u32, game_version: &str) -> Result<(), LoadError> {
@@ -1236,11 +1234,7 @@ impl Snapshot {
                 .compact_arrays(true),
         )
         .map_err(|e| LoadError::Parse(e.to_string()))?;
-        let body = format!("{body}\n");
-        Ok(format!(
-            "// f4x save, version {SAVE_VERSION}, game {GAME_VERSION}, checksum {:016x}\n{body}",
-            checksum(&body)
-        ))
+        Ok(signed(&body))
     }
 
     /// Whether `text` is as `to_text` wrote it. A save that was edited still loads; the caller
@@ -1258,27 +1252,11 @@ impl Snapshot {
 
     pub fn from_text(text: &str) -> Result<Self, LoadError> {
         check_snapshot_text(text)?;
-        // A save from before a setting existed has no value for it: it takes the player's default
-        // (`with_fallback` set by the caller), else the shipped one. A save that lacks anything else
+        // A save from before a setting existed has no value for it; one that lacks anything else
         // fails to parse.
-        let read = || ron::from_str::<Self>(text).map_err(|e| LoadError::Parse(e.to_string()));
-        let mut snapshot = if f4x_def::settings::has_fallback() {
-            read()?
-        } else {
-            f4x_def::settings::with_fallback(f4x_def::settings::GameSettings::default(), read)?
-        };
-        snapshot.upgrade();
-        Ok(snapshot)
-    }
-
-    /// Apply the [`UPGRADES`] newer than the game version that wrote this snapshot.
-    fn upgrade(&mut self) {
-        let written = version_parts(&self.game_version);
-        for (from, convert) in UPGRADES {
-            if written < version_parts(from) {
-                convert(self);
-            }
-        }
+        with_setting_fallback(|| {
+            ron::from_str::<Self>(text).map_err(|e| LoadError::Parse(e.to_string()))
+        })
     }
 
     /// Rebuild the game, resolving every id against `content`. Refuses a save whose settings are
@@ -1367,15 +1345,12 @@ impl Snapshot {
         }
         let mut world = World::new(self.seed);
         world.set_content(content);
-        world.turn = self.turn;
         world.settings = self.settings.normalised();
         world.apply_content_settings();
-        world.game_over = self.game_over;
+        world.mastery = self.mastery.map(PlayerId);
         world.override_log = self.override_log;
         world.prefab_taken = self.prefab_taken;
         world.threat = self.threat;
-        world.flow = self.flow;
-        world.plans = self.plans;
         world.locations = self.locations;
         world.next_serial = self.next_serial;
         // Resume the random stream where it stopped.
@@ -2077,8 +2052,5 @@ fn restore_fog(f: FogSave, map: Option<&Map>) -> Result<Fog, LoadError> {
 }
 
 pub mod file;
-mod race_player;
 
-pub use file::{
-    load_game, load_game_with, save_game, summarize_save, Loaded, SaveError, SaveSummary,
-};
+pub use file::{load_game, save_game, SaveError};

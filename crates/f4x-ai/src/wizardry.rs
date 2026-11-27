@@ -1738,7 +1738,7 @@ mod tests {
         let t = w.treasury_mut(P1).ok_or("a treasury")?;
         t.gold = HalfInt::from_int(gold);
         t.mana = HalfInt::from_int(mana);
-        let wanted = mana_wanted(&PlayerView::new(&w, P1), &[], w.turn);
+        let wanted = mana_wanted(&PlayerView::new(&w, P1), &[], w.round());
         Ok((w, wanted))
     }
 
@@ -1813,7 +1813,7 @@ mod tests {
         assert!(!crate::meld::spirit_wanted(
             &ai,
             &PlayerView::new(&w, P1),
-            w.turn
+            w.round()
         ));
         let feature = w
             .content()
@@ -1841,7 +1841,7 @@ mod tests {
         assert!(crate::meld::spirit_wanted(
             &ai,
             &PlayerView::new(&w, P1),
-            w.turn
+            w.round()
         ));
         cast(&ai, &mut w, &mut Vec::new());
         let view = PlayerView::new(&w, P1);
@@ -2139,7 +2139,7 @@ mod tests {
                 .0
                 .push(ids[1]);
             assert!(!PlayerView::new(&w, P0).research_choices().is_empty());
-            w.turn = turn;
+            w.set_round(turn);
             split(&Ai::new(P0), &mut w, &mut Vec::new());
             let s = w.wizard(P0).ok_or("player 0 is a wizard")?.power_split();
             Ok((s.mana, s.research, s.skill))
@@ -2355,18 +2355,20 @@ mod tests {
         }
         wizard.set_split(55, 0, 45).map_err(|e| format!("{e:?}"))?;
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         let _ = (Crossing::Sea, Role::Reinforce);
         Ok((w, ai))
     }
 
     /// `units` wait for a ship to the east shore, as the dispatcher leaves them.
-    fn wait_for_a_ship(ai: &mut Ai, w: &World, units: &[hecs::Entity]) {
+    fn wait_for_a_ship(ai: &mut Ai, w: &Game, units: &[hecs::Entity]) {
         use crate::roles::{Crossing, Role};
         let view = PlayerView::new(w, P0);
         for &u in units {
             let s = view.serial_of(u);
-            let _ = ai.roles.claim(s, Role::Reinforce, w.turn, Some(at(30, 6)));
+            let _ = ai
+                .roles
+                .claim(s, Role::Reinforce, w.round(), Some(at(30, 6)));
             ai.roles.set_crossing(s, Some(Crossing::Sea));
         }
     }
@@ -2385,7 +2387,7 @@ mod tests {
         let (mut w, mut ai) = strait_wizard(&[8 /* water_walking */])?;
         let ship = spawn(&mut w, P0, at(25, 1), 36 /* galley */, 1)[0];
         let walkers = spawn(&mut w, P0, at(9, 6), 104 /* spearmen */, 3);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         wait_for_a_ship(&mut ai, &w, &walkers);
         // One has a ship coming: it is not the one.
         {
@@ -2409,7 +2411,7 @@ mod tests {
             strait_wizard(&[8 /* water_walking */, 63 /* wind_walking */])?;
         let walkers = spawn(&mut w, P0, at(9, 6), 104 /* spearmen */, 2);
         let flier = spawn(&mut w, P0, at(9, 6), 164 /* great_drake */, 1)[0];
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         // Nobody waits for a ship.
         cast(&ai, &mut w, &mut Vec::new());
         for &u in &walkers {
@@ -2430,7 +2432,7 @@ mod tests {
         let (mut w, mut ai) = strait_wizard(&[63 /* wind_walking */])?;
         let lone = spawn(&mut w, P0, at(8, 6), 104 /* spearmen */, 1);
         let stack = spawn(&mut w, P0, at(9, 6), 104 /* spearmen */, 3);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         wait_for_a_ship(&mut ai, &w, &[lone[0], stack[0], stack[1], stack[2]]);
         cast(&ai, &mut w, &mut Vec::new());
         let carriers: Vec<_> = stack
@@ -2455,7 +2457,7 @@ mod tests {
         let (mut w, mut ai) =
             strait_wizard(&[63 /* wind_walking */, 8 /* water_walking */])?;
         let units = spawn(&mut w, P0, at(9, 6), 104 /* spearmen */, 2);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         wait_for_a_ship(&mut ai, &w, &units);
         cast(&ai, &mut w, &mut Vec::new());
         assert!(units.iter().any(|&u| has(&w, u, 8) == Ok(true)));
@@ -2469,7 +2471,7 @@ mod tests {
     fn flight_goes_to_the_walker_that_waits_for_a_ship() -> TestResult {
         let (mut w, mut ai) = strait_wizard(&[56 /* flight */])?;
         let units = spawn(&mut w, P0, at(9, 6), 104 /* spearmen */, 3);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         // The last one waits: by serial order the buff would go to the first.
         wait_for_a_ship(&mut ai, &w, &units[2..]);
         cast(&ai, &mut w, &mut Vec::new());
@@ -2484,7 +2486,7 @@ mod tests {
     fn a_floating_island_is_raised_in_the_strait_for_units_that_wait_for_a_ship() -> TestResult {
         let (mut w, mut ai) = strait_wizard(&[43 /* floating_island */])?;
         let units = spawn(&mut w, P0, at(9, 6), 104 /* spearmen */, 2);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         let islands = |w: &World| {
             let view = PlayerView::new(w, P0);
             view.my_units()
@@ -2499,7 +2501,7 @@ mod tests {
         cast(&ai, &mut w, &mut Vec::new());
         assert_eq!(islands(&w), 1, "an island for the waiting units");
         // It has no work yet: no second one is raised.
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         wait_for_a_ship(&mut ai, &w, &units);
         cast(&ai, &mut w, &mut Vec::new());
         assert_eq!(islands(&w), 1, "one island at a time");
@@ -2864,7 +2866,7 @@ mod tests {
     #[test]
     fn the_mana_owed_for_the_spell_of_mastery_is_mana_to_buy_with_gold() -> TestResult {
         let (mut w, _) = summoner(50_000, 0)?;
-        let before = mana_wanted(&PlayerView::new(&w, P1), &[], w.turn);
+        let before = mana_wanted(&PlayerView::new(&w, P1), &[], w.round());
         let mastery = w
             .content()
             .rules
@@ -2876,7 +2878,7 @@ mod tests {
         w.cheat_learn_spell(P1, mastery);
         w.scenario_casting(P1, mastery, 3000);
         assert_eq!(
-            mana_wanted(&PlayerView::new(&w, P1), &[], w.turn),
+            mana_wanted(&PlayerView::new(&w, P1), &[], w.round()),
             before + 3000,
             "what is still owed is wanted on top"
         );

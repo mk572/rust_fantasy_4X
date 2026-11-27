@@ -54,14 +54,14 @@ pub trait Contestant {
     fn settler_failures(&self) -> Vec<(&'static str, u32)> {
         Vec::new()
     }
-    /// What the AI has in mind, as text for a save (`World::set_plans`); `None` for a version that
+    /// What the AI has in mind, as text for a save; `None` for a version that
     /// cannot write it (a reference forked before plans existed).
     fn plans(&self) -> Option<String> {
         None
     }
-    /// Take back the plans a loaded game carries for this player (`World::plans`); a version that
-    /// cannot read them starts afresh.
-    fn recall(&mut self, _world: &World) {}
+    /// Take back the plans a loaded game carries for this player; a version that cannot read them
+    /// starts afresh.
+    fn recall(&mut self, _plans: &[(PlayerId, String)]) {}
     /// Join the game's table of memories (`f4x_ai::Diplomats`), and hear the events of the turns, as
     /// the live AI does; the reference copy has neither.
     fn join(&mut self, _diplomats: &f4x_ai::Diplomats) {}
@@ -139,8 +139,8 @@ macro_rules! contestant {
                 fn plans(&self) -> Option<String> {
                     self.$plans().ok()
                 }
-                fn recall(&mut self, world: &World) {
-                    $krate::Ai::recall(world, std::slice::from_mut(self));
+                fn recall(&mut self, plans: &[(PlayerId, String)]) {
+                    $krate::Ai::recall(plans, std::slice::from_mut(self));
                 }
             )?
         }
@@ -235,7 +235,7 @@ impl Neutrals {
         }
     }
 
-    /// What the neutral players have in mind, as text for a save (`World::set_plans`).
+    /// What the neutral players have in mind, as text for a save.
     pub fn plans(&self) -> Vec<(PlayerId, String)> {
         match self.version {
             Version::New => self.new.plans(),
@@ -243,6 +243,13 @@ impl Neutrals {
             Version::Reference => self.reference.plans(),
             #[cfg(not(feature = "reference"))]
             Version::Reference => without_reference(),
+        }
+    }
+
+    /// Give the neutral players the plans a loaded game carries.
+    pub fn recall(&mut self, plans: &[(PlayerId, String)]) {
+        if self.version == Version::New {
+            self.new.recall(plans);
         }
     }
 

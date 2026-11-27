@@ -68,9 +68,9 @@ pub enum Stage {
 pub struct Pair {
     pub contacted: bool,
     pub status: Treaty,
-    /// The turn the war began, while the two are at war (the AI weighs a war by its age).
+    /// The rounds the war has lasted, while the two are at war (the AI weighs a war by its age).
     #[serde(default)]
-    pub war_since: Option<u32>,
+    pub war_age: Option<u32>,
     /// The cities each held when the war began, the lower player number first.
     #[serde(default)]
     pub war_cities: [u16; 2],
@@ -469,7 +469,7 @@ impl Diplomacy {
         self.pairs.entry(key(a, b)).or_insert_with(|| Pair {
             contacted: false,
             status: Treaty::None,
-            war_since: None,
+            war_age: None,
             war_cities: [0, 0],
         })
     }
@@ -484,17 +484,23 @@ impl Diplomacy {
     }
 
     /// How many turns the two have been at war (none when they are not).
-    pub fn war_age(&self, view: &World, a: PlayerId, b: PlayerId) -> Option<u32> {
-        self.pair(a, b)
-            .and_then(|p| p.war_since)
-            .map(|since| view.turn.saturating_sub(since))
+    pub fn war_age(&self, a: PlayerId, b: PlayerId) -> Option<u32> {
+        self.pair(a, b).and_then(|p| p.war_age)
+    }
+
+    /// Every war is `rounds` older (younger, if negative); none is younger than new.
+    pub(crate) fn age_wars(&mut self, rounds: i64) {
+        for age in self.pairs.values_mut().filter_map(|p| p.war_age.as_mut()) {
+            let older = i64::from(*age).saturating_add(rounds);
+            *age = older.clamp(0, i64::from(u32::MAX)) as u32;
+        }
     }
 
     /// How many cities `a` has gained since its war with `b` began (negative: lost). None when
     /// they are not at war.
     pub fn war_gain(&self, view: &World, a: PlayerId, b: PlayerId) -> Option<i32> {
         let pair = self.pair(a, b)?;
-        pair.war_since?;
+        pair.war_age?;
         let at_start = pair.war_cities[usize::from(a.0 > b.0)];
         Some(view.economy().city_count(a) as i32 - i32::from(at_start))
     }
@@ -571,7 +577,6 @@ impl Diplomacy {
     // ---- treaties and war ------------------------------------------------------
 
     fn set_status(&mut self, ctx: &mut DiplomacyCtx<'_>, a: PlayerId, b: PlayerId, treaty: Treaty) {
-        let turn = ctx.view.turn;
         let count =
             |p: PlayerId| ctx.view.economy().city_count(p).min(usize::from(u16::MAX)) as u16;
         let cities = if a.0 <= b.0 {
@@ -581,10 +586,10 @@ impl Diplomacy {
         };
         let pair = self.pair_mut(ctx.view, a, b);
         pair.status = treaty;
-        if treaty == Treaty::War && pair.war_since.is_none() {
+        if treaty == Treaty::War && pair.war_age.is_none() {
             pair.war_cities = cities;
         }
-        pair.war_since = (treaty == Treaty::War).then(|| pair.war_since.unwrap_or(turn));
+        pair.war_age = (treaty == Treaty::War).then(|| pair.war_age.unwrap_or(0));
         self.queue
             .push(DiplomacyEvent::TreatyChanged { a, b, treaty });
     }
@@ -1173,7 +1178,7 @@ impl Diplomacy {
             if destroyed {
                 let pair = self.pair_mut(ctx.view, other, loser);
                 pair.status = Treaty::None;
-                pair.war_since = None;
+                pair.war_age = None;
                 pair.contacted = false;
             }
         }
@@ -1312,7 +1317,7 @@ impl World {
 
     /// How many turns the two have been at war (none when they are not).
     pub fn war_age(&self, a: PlayerId, b: PlayerId) -> Option<u32> {
-        self.diplomacy.war_age(self, a, b)
+        self.diplomacy.war_age(a, b)
     }
 
     /// The cities `a` has gained since its war with `b` began (negative: lost).

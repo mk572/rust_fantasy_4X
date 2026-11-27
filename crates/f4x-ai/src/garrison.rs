@@ -223,7 +223,7 @@ mod tests {
         let coast = at(COAST_CITY.0, COAST_CITY.1);
         spawn(&mut w, P0, coast, 104 /* high_men_spearmen */, 6);
         let paladins = spawn(&mut w, P0, coast, 113 /* high_men_paladins */, 2);
-        w.turn = 400;
+        w.set_round(400);
         let mut ai = Ai::new(P0);
         thin_out(&mut ai, &mut w, &mut Vec::new());
         let view = PlayerView::new(&w, P0);
@@ -240,11 +240,11 @@ mod tests {
         let mut w = two_cities()?;
         let coast = at(COAST_CITY.0, COAST_CITY.1);
         spawn(&mut w, P0, coast, 104 /* high_men_spearmen */, 6);
-        w.turn = 20;
+        w.set_round(20);
         let mut ai = Ai::new(P0);
         thin_out(&mut ai, &mut w, &mut Vec::new());
         assert_eq!(held(&w, coast), 6);
-        w.turn = 400;
+        w.set_round(400);
         ai.threatened = vec![coast];
         thin_out(&mut ai, &mut w, &mut Vec::new());
         assert_eq!(held(&w, coast), 6);
@@ -263,9 +263,9 @@ mod tests {
         let inland = at(INLAND_CITY.0, INLAND_CITY.1);
         let spearmen = spawn(&mut w, P0, inland, 104 /* high_men_spearmen */, 6);
         let paladin = spawn(&mut w, P0, inland, 113 /* high_men_paladins */, 1)[0];
-        w.turn = 250;
+        w.set_round(250);
         let all: Vec<hecs::Entity> = spearmen.iter().copied().chain([paladin]).collect();
-        let kept = |w: &World| post(&PlayerView::new(w, P0), inland, &all, w.turn);
+        let kept = |w: &Game| post(&PlayerView::new(w, P0), inland, &all, w.round());
         let rebels = |w: &World| -> Result<u32, Box<dyn std::error::Error>> {
             let view = PlayerView::new(w, P0);
             let city = view.city_at(inland).ok_or("no city")?;
@@ -297,23 +297,23 @@ mod tests {
         let mut w = two_cities()?;
         let inland = at(INLAND_CITY.0, INLAND_CITY.1);
         spawn(&mut w, P0, inland, 104 /* high_men_spearmen */, 1);
-        w.turn = 1;
+        w.set_round(1);
         let building = {
             let view = PlayerView::new(&w, P0);
             assert_eq!(
-                crate::phase::phase(&view, w.turn),
+                crate::phase::phase(&view, w.round()),
                 crate::phase::Phase::Build
             );
-            wanted_strength(&view, inland, w.turn)
+            wanted_strength(&view, inland, w.round())
         };
-        w.turn = 250;
+        w.set_round(250);
         let settled = {
             let view = PlayerView::new(&w, P0);
             assert_eq!(
-                crate::phase::phase(&view, w.turn),
+                crate::phase::phase(&view, w.round()),
                 crate::phase::Phase::Secure
             );
-            wanted_strength(&view, inland, w.turn)
+            wanted_strength(&view, inland, w.round())
         };
         assert!(building < settled, "{building} against {settled}");
         Ok(())

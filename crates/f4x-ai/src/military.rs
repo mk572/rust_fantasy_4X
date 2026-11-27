@@ -275,10 +275,10 @@ mod tests {
     #[test]
     fn the_same_wizard_asks_a_smaller_edge_late_in_the_game_than_early() {
         let mut w = crate::testworld::game(crate::testworld::COAST_CITY, 8 /* high_men */);
-        w.turn = 1;
-        let early = campaign_ratio(&w, crate::testworld::P0, w.turn);
-        w.turn = 400;
-        let late = campaign_ratio(&w, crate::testworld::P0, w.turn);
+        w.set_round(1);
+        let early = campaign_ratio(&w, crate::testworld::P0, w.round());
+        w.set_round(400);
+        let late = campaign_ratio(&w, crate::testworld::P0, w.round());
         assert!(late < early, "{late} against {early}");
     }
 

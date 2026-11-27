@@ -402,7 +402,6 @@ Callers is a text count and an upper bound.
 | task | f4x-core | `crates/f4x-core/src/world/access.rs:41` | `World::explored_corners` | `corners` | 2 | Keep | hides a private representation (component, map or cache) |
 | task | f4x-core | `crates/f4x-core/src/world/access.rs:87` | `World::city_farmers` | `map_or` | 3 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-core | `crates/f4x-core/src/world/cheat.rs:200` | `World::cheat_defeat_player` | `defeat` | 1 | Keep | cheat or test hook |
-| task | f4x-core | `crates/f4x-core/src/world/endgame.rs:219` | `World::win_by_mastery` | `finish` | 3 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/world/stable_ref.rs` | `deserialize` | `entity_of` | 3 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-core | `crates/f4x-core/src/world/serial.rs:26` | `World::serial_of` | `map_or` | 323 | Done | changed by task 660: duplicate in Game and UnitView: see Findings 3 |
 | task | f4x-core | `crates/f4x-core/src/world/serial.rs:31` | `World::sort_by_serial` | `sort_by_key` | 41 | Done | changed by task 660: duplicate in Game and UnitView: see Findings 3 |

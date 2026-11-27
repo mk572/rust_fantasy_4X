@@ -253,19 +253,21 @@ one point.
 
 ## 8. Saving and loading
 
-`World::snapshot()` captures a whole game as a `Snapshot`; `Snapshot::restore(content)` builds
-the game again. `f4x_core::world::save::{save_game, load_game}` do the file work. Code:
-`f4x-core/src/world/save.rs`, `world/save/file.rs`.
+`World::snapshot()` captures a whole world as a `Snapshot`; `Snapshot::restore(content)` builds
+the world again. A saved game (`f4x_master::SaveFile`, from `Game::save_file`) holds the game's
+own state, that snapshot and the computer players' plans; `f4x_master::{save_game, load_game}` do
+the file work. Code: `f4x-core/src/world/save.rs`, `world/save/file.rs`,
+`f4x-master/src/game/save.rs`.
 
 **What a save holds:** the seed and how many random numbers have been drawn (so the random
-stream resumes exactly), the turn, the creation counter, the map (terrain, features, roads),
+stream resumes exactly), the round, the end of the game, the creation counter, the map (terrain, features, roads),
 each player's explored area (bit-packed), the players, every unit (with moves, damage,
 experience and any standing order) and every city (population, farmers, buildings,
 enchantments, race, current item and progress).
 
-**Where the game is in its round:** the optional `flow` (`World::flow`), written by `f4x-master` after every step and cleared by every step of the turn order, says which phase and seat come next; a save without it was made on the human's turn. The client's autosave is made at the start of a round. What each AI has in mind (`World::plans`) is saved with it.
+**Where the game is in its round:** the optional `phase` of the game, written by `f4x-master` after every step and cleared by every step of the turn order, says which phase and seat come next; a save without it was made on the human's turn. The client's autosave is made at the start of a round. What each AI has in mind (the `plans`) is saved beside the game.
 
-**What it does not hold:** content definitions, events, the command log, or the AI's own memory (targets, campaigns). A save is a game
+**What it does not hold:** content definitions, events, the command log, or the undo history. A save is a game
 state, not a content pack.
 
 **References by name.** Everything that points at content (a unit's definition, a building,
@@ -293,16 +295,18 @@ saves with the long form still load. `save_game` writes to `<file>.tmp` and rena
 damages an existing one. Saves live in `saves/` (gitignored). What the player chose (preferences, default game settings, hotkeys, language) lives in `settings/` (gitignored), not in `saves/`; files an older version kept in `saves/` are moved over at the first start (`player_files.rs`).
 
 **Versions.** `SAVE_VERSION` is bumped when the layout changes incompatibly. Adding optional
-fields does not need a bump. Migrating older versions would be added as a conversion step
-before `restore`. Version 3 saves (names for spells, items and powers) are refused with the version message; the converter is task 462.
+fields does not need a bump. Version 4 saves are converted to version 5 when they are read
+(`f4x-master/src/convert.rs`, to be retired by task 823). Version 3 saves (names for spells, items
+and powers) are refused with the version message; the converter is task 462.
 
-**Game version.** The game has one version, the workspace `version` in `Cargo.toml` (now 0.0.6),
-read as `save::GAME_VERSION`. Every save records it in `Snapshot.game_version` and in the header
-comment (`// f4x save, version 4, game 0.0.6`). A load reads a save or replay when `SAVE_VERSION`
+**Game version.** The game has one version, the workspace `version` in `Cargo.toml` (now 0.0.8),
+read as `save::GAME_VERSION`. Every save records it in `game_version` and in the header
+comment (`// f4x save, version 5, game 0.0.8`). A load reads a save or replay when `SAVE_VERSION`
 matches and its game version lies from `save::OLDEST_COMPATIBLE_VERSION` up to `GAME_VERSION`
-(compared as numbers). Raise `OLDEST_COMPATIBLE_VERSION` when a change makes older files unreadable;
-leave it when they still load. A newer or unparsable version is refused. An older save is read as it is, then each entry of `save::UPGRADES` newer than its game version converts the numbers whose meaning changed. Bump the game version in
-`Cargo.toml` for each release.
+(compared as numbers); the converter reads the older ones, replays excepted. Raise
+`OLDEST_COMPATIBLE_VERSION` when a change makes older files unreadable; leave it when they still
+load. A newer or unparsable version is refused. Bump the game version in `Cargo.toml` for each
+release.
 
 ## 9. What the client does with this
 

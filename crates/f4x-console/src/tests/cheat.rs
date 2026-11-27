@@ -97,7 +97,7 @@ fn eliminating_the_rival_wins_by_conquest() {
     let r = c.execute(&mut w, "eliminate 1");
     assert!(r.ok, "{}", r.text());
     assert!(r.text().contains("GAME OVER"), "{}", r.text());
-    assert_eq!(w.game_over.expect("the game is over").winner, HUMAN);
+    assert_eq!(w.game_over().expect("the game is over").winner, HUMAN);
 }
 
 #[test]

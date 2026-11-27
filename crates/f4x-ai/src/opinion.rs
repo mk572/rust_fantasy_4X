@@ -697,19 +697,19 @@ mod tests {
     fn a_good_deed_counts_for_more_when_it_is_needed_and_a_bad_one_when_it_is_not() {
         let w = pair(8, 8, 100);
         let mut low = mind(&w, -40);
-        low.change(&w, P0, P1, 5, Action::Friendship, w.turn);
+        low.change(&w, P0, P1, 5, Action::Friendship, w.round());
         assert!(
             low.friendship(&w, P0, P1) >= -40 + 10,
             "doubled when it is negative"
         );
         let mut high = mind(&w, 60);
-        high.change(&w, P0, P1, -5, Action::AttackedCity, w.turn);
+        high.change(&w, P0, P1, -5, Action::AttackedCity, w.round());
         assert!(
             high.friendship(&w, P0, P1) <= 60 - 10,
             "doubled when it is positive"
         );
         let mut warm = mind(&w, 60);
-        warm.change(&w, P0, P1, 10, Action::Friendship, w.turn);
+        warm.change(&w, P0, P1, 10, Action::Friendship, w.round());
         assert!(
             warm.friendship(&w, P0, P1) < 70,
             "less when it is already good"
@@ -720,17 +720,17 @@ mod tests {
     fn the_feeling_is_capped_and_a_war_is_not_made_worse() {
         let mut w = pair(8, 8, 100);
         let mut m = mind(&w, 60);
-        m.change(&w, P0, P1, 100, Action::Friendship, w.turn);
+        m.change(&w, P0, P1, 100, Action::Friendship, w.round());
         assert!(m.friendship(&w, P0, P1) <= 65, "no treaty: at most 65");
         w.declare_war(P1, P0);
         let mut m = mind(&w, -50);
-        m.change(&w, P0, P1, -20, Action::AttackedCity, w.turn);
+        m.change(&w, P0, P1, -20, Action::AttackedCity, w.round());
         assert_eq!(
             m.friendship(&w, P0, P1),
             -50,
             "a war is not made worse by what is done in it"
         );
-        m.change(&w, P0, P1, 30, Action::Friendship, w.turn);
+        m.change(&w, P0, P1, 30, Action::Friendship, w.round());
         assert!(
             m.friendship(&w, P0, P1) <= -25,
             "in a war it stays at -25 or below"
@@ -747,14 +747,14 @@ mod tests {
             to: P1,
         };
         let mut loser = mind(&w, 0);
-        loser.feel(&w, P0, &event, w.turn);
+        loser.feel(&w, P0, &event, w.round());
         assert!(
             loser.friendship(&w, P0, P1) <= -40,
             "{}",
             loser.friendship(&w, P0, P1)
         );
         let mut taker = mind(&w, 0);
-        taker.feel(&w, P1, &event, w.turn);
+        taker.feel(&w, P1, &event, w.round());
         assert_eq!(taker.friendship(&w, P0, P1), 0);
     }
 
@@ -766,7 +766,7 @@ mod tests {
             f4x_core::diplomacy::DiplomacyCommand::DeclareWar { player: P1, on: P0 },
         ));
         for e in &events {
-            m.feel(&w, P0, e, w.turn);
+            m.feel(&w, P0, e, w.round());
         }
         assert_eq!(m.friendship(&w, P0, P1), -87);
         assert!(m.opinion(&w, P0, P1).war);
@@ -775,9 +775,9 @@ mod tests {
             b: P1,
             treaty: Treaty::None,
         });
-        m.feel(&w, P0, &peace, w.turn);
+        m.feel(&w, P0, &peace, w.round());
         assert_eq!(m.friendship(&w, P0, P1), -47);
-        m.feel(&w, P0, &peace, w.turn);
+        m.feel(&w, P0, &peace, w.round());
         assert_eq!(
             m.friendship(&w, P0, P1),
             -47,
@@ -794,14 +794,14 @@ mod tests {
             treaty: Treaty::Alliance,
         });
         let mut victim = mind(&w, 30);
-        victim.feel(&w, P0, &broke, w.turn);
+        victim.feel(&w, P0, &broke, w.round());
         let o = victim.opinion(&w, P0, P1);
         assert!(o.broken && o.hidden <= -20 && o.friendship < 30, "{o:?}");
         let mut other = Memory::default();
-        other.feel(&w, PlayerId(2), &broke, w.turn);
+        other.feel(&w, PlayerId(2), &broke, w.round());
         assert_eq!(other.opinion(&w, PlayerId(2), P1).hidden, -5);
         let mut breaker = mind(&w, 30);
-        breaker.feel(&w, P1, &broke, w.turn);
+        breaker.feel(&w, P1, &broke, w.round());
         assert_eq!(
             breaker.friendship(&w, P0, P1),
             30,
@@ -822,7 +822,7 @@ mod tests {
                 to: P0,
                 spell,
             }),
-            w.turn,
+            w.round(),
         );
         let o = m.opinion(&w, P0, P1);
         assert!(o.friendship > 0 && o.hidden == 5, "{o:?}");
@@ -835,7 +835,7 @@ mod tests {
                 to: P0,
                 spell,
             }),
-            w.turn,
+            w.round(),
         );
         assert_eq!(
             other.friendship(&w, P0, P1),
@@ -860,15 +860,15 @@ mod tests {
             })
         };
         let mut m = mind(&w, 0);
-        m.feel(&w, P0, &demand(true), w.turn);
+        m.feel(&w, P0, &demand(true), w.round());
         assert_eq!(m.friendship(&w, P0, P1), 0);
-        m.feel(&w, P0, &demand(false), w.turn);
+        m.feel(&w, P0, &demand(false), w.round());
         assert!(m.friendship(&w, P0, P1) < 0);
     }
 
-    fn felt(w: &World, event: DiplomacyEvent) -> i32 {
+    fn felt(w: &Game, event: DiplomacyEvent) -> i32 {
         let mut m = mind(w, 0);
-        m.feel(w, P0, &Event::Diplomacy(event), w.turn);
+        m.feel(w, P0, &Event::Diplomacy(event), w.round());
         m.friendship(w, P0, P1)
     }
 
@@ -909,7 +909,7 @@ mod tests {
         let judged = |event: DiplomacyEvent, winner: i32, loser: i32| {
             let mut m = mind(&w, winner);
             m.set_friendship(&w, P0, third, loser);
-            m.feel(&w, P0, &Event::Diplomacy(event), w.turn);
+            m.feel(&w, P0, &Event::Diplomacy(event), w.round());
             m.friendship(&w, P0, P1) - winner
         };
         let taken = DiplomacyEvent::FortressTaken {
@@ -966,8 +966,8 @@ mod tests {
             ),
         ] {
             let mut m = mind(&w, 50);
-            m.notice(P0, &w, w.turn, &[Event::Diplomacy(event)]);
-            assert_eq!(m.ruthlessness(P1, w.turn, k.ruth_half), points);
+            m.notice(P0, &w, w.round(), &[Event::Diplomacy(event)]);
+            assert_eq!(m.ruthlessness(P1, w.round(), k.ruth_half), points);
         }
     }
 
@@ -1009,8 +1009,8 @@ mod tests {
     /// P0's feeling for P1 over `turns` looks, from `start` (a fresh turn each time).
     fn looks(w: &mut Game, m: &mut Memory, turns: u32) {
         for _ in 0..turns {
-            w.turn += 1;
-            m.look(w, P0, w.turn);
+            w.set_round(w.round() + 1);
+            m.look(w, P0, w.round());
         }
     }
 
@@ -1046,7 +1046,7 @@ mod tests {
         );
         // A second look in the same turn changes nothing.
         let before = m.friendship(&w, P0, P1);
-        m.look(&w, P0, w.turn);
+        m.look(&w, P0, w.round());
         assert_eq!(m.friendship(&w, P0, P1), before);
     }
 
@@ -1082,8 +1082,8 @@ mod tests {
         );
         let mut m = mind(&w, 0);
         let step = |w: &mut Game, m: &mut Memory| {
-            w.turn += 1;
-            m.look(w, P0, w.turn);
+            w.set_round(w.round() + 1);
+            m.look(w, P0, w.round());
             (m.opinion(w, P0, P1).trespass, m.friendship(w, P0, P1))
         };
         let (n1, f1) = step(&mut w, &mut m);

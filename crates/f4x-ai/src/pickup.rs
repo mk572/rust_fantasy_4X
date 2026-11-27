@@ -367,7 +367,8 @@ fn needs_the_sea(world: &World, unit: hecs::Entity, to: Position) -> bool {
 /// unit goes into the refused-order log (`BadPassenger`), so a soak shows the job that left a
 /// passenger behind (the strike that walked one into a city) instead of a ship that waits for it
 /// for hundreds of turns. Last, the ships that have nobody left to fetch are released.
-pub(crate) fn tidy_unit_registry(ai: &mut Ai, world: &World) {
+pub(crate) fn tidy_unit_registry(ai: &mut Ai, game: &Game) {
+    let world: &World = game;
     // (unit, whether to clear its sea tag, what to say about it)
     let mut broken: Vec<(Serial, bool, Option<String>)> = Vec::new();
     {
@@ -432,7 +433,7 @@ pub(crate) fn tidy_unit_registry(ai: &mut Ai, world: &World) {
     for (s, clear_tag, why) in broken {
         if let Some(why) = why {
             ai.note_failure(
-                world,
+                game,
                 format!("passenger {s:?} booked on a ship"),
                 crate::with_detail("BadPassenger".to_string(), Some(why)),
             );
@@ -864,11 +865,11 @@ mod tests {
 
     /// Send the units to `dest` with no way to walk there: their job's target and the tag the
     /// dispatcher puts on them.
-    fn strand(ai: &mut Ai, w: &World, units: &[hecs::Entity], dest: Position) {
+    fn strand(ai: &mut Ai, w: &Game, units: &[hecs::Entity], dest: Position) {
         let view = PlayerView::new(w, P0);
         for &u in units {
             let s = view.serial_of(u);
-            let _ = ai.roles.claim(s, Role::Reinforce, w.turn, Some(dest));
+            let _ = ai.roles.claim(s, Role::Reinforce, w.round(), Some(dest));
             ai.roles.set_crossing(s, Some(Crossing::Sea));
         }
     }
@@ -1307,7 +1308,7 @@ mod tests {
         strand(&mut ai, &w, &soldiers, a);
         let view = PlayerView::new(&w, P0);
         let s = view.serial_of(settler[0]);
-        let _ = ai.roles.claim(s, Role::Settle, w.turn, Some(b));
+        let _ = ai.roles.claim(s, Role::Settle, w.round(), Some(b));
         ai.roles.set_crossing(s, Some(Crossing::Sea));
         drop(view);
         run_turns(&mut ai, &mut w, 1);
@@ -1376,7 +1377,7 @@ mod tests {
                 .collect()
         };
         for &(_, s, to) in &serials {
-            let _ = ai.roles.claim(s, Role::Settle, w.turn, Some(to));
+            let _ = ai.roles.claim(s, Role::Settle, w.round(), Some(to));
             ai.roles.set_crossing(s, Some(Crossing::Sea));
         }
         crate::pickup::run(&mut ai, &mut w, &mut Vec::new());
@@ -1397,7 +1398,7 @@ mod tests {
         let ship = spawn(w, P0, port(), 36 /* galley */, 1)[0];
         let view = PlayerView::new(w, P0);
         let (s, ship_serial) = (view.serial_of(soldier), view.serial_of(ship));
-        let _ = ai.roles.claim(s, Role::Reinforce, w.turn, Some(port()));
+        let _ = ai.roles.claim(s, Role::Reinforce, w.round(), Some(port()));
         ai.roles.set_crossing(s, Some(Crossing::Sea));
         ai.roles.board_at(s, ship_serial, tile);
         soldier
@@ -1500,7 +1501,7 @@ mod tests {
             .into_iter()
             .last()
             .ok_or("another square on the island")?;
-        let _ = ai.roles.claim(s, Role::Reinforce, w.turn, Some(near));
+        let _ = ai.roles.claim(s, Role::Reinforce, w.round(), Some(near));
         ai.roles.set_crossing(s, Some(Crossing::Sea));
         tidy_unit_registry(&mut ai, &w);
         assert!(said(&ai).is_empty());
@@ -1508,7 +1509,7 @@ mod tests {
         // One whose target is over the sea keeps it.
         let far = spawn(&mut w, P0, land, 104 /* spearmen */, 1)[0];
         let f = PlayerView::new(&w, P0).serial_of(far);
-        let _ = ai.roles.claim(f, Role::Reinforce, w.turn, Some(port()));
+        let _ = ai.roles.claim(f, Role::Reinforce, w.round(), Some(port()));
         ai.roles.set_crossing(f, Some(Crossing::Sea));
         tidy_unit_registry(&mut ai, &w);
         assert_eq!(ai.roles.crossing_of(f), Some(Crossing::Sea));
@@ -1527,7 +1528,7 @@ mod tests {
         let soldier = booked(&mut w, &mut ai, land, land);
         let s = PlayerView::new(&w, P0).serial_of(soldier);
         ai.roles.set_crossing(s, None);
-        let _ = ai.roles.claim(s, Role::Reinforce, w.turn, None);
+        let _ = ai.roles.claim(s, Role::Reinforce, w.round(), None);
         ai.roles.set_target(s, Role::Reinforce, None);
         tidy_unit_registry(&mut ai, &w);
         assert!(said(&ai).is_empty());

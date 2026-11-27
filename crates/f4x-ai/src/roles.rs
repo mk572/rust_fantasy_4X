@@ -1243,7 +1243,7 @@ mod tests {
         let home = at(COAST_CITY.0, COAST_CITY.1);
         let soldiers = spawn(&mut w, P0, home, 104 /* spearmen */, 2);
         let mut ai = Ai::new(P0);
-        register(&mut ai, &w, w.turn);
+        register(&mut ai, &w, w.round());
         let view = PlayerView::new(&w, P0);
         for &u in &soldiers {
             let s = view.serial_of(u);

@@ -1,8 +1,7 @@
 //! Command logs and replays.
 //!
-//! A [`Replay`] is a snapshot of the world plus every command and every step of the turn order
-//! since, so the same game can be played again from that point (the random stream is part of the
-//! snapshot). Units and cities are written as creation numbers (`f4x_core::world::stable_ref`).
+//! A [`Replay`] is a saved game plus every command and every step of the turn order since, so
+//! the same game can be played again from that point (the random stream is part of the save). Units and cities are written as creation numbers (`f4x_core::world::stable_ref`).
 //!
 //! Recording is local play's tool for replays and for saving a game with its history; it does
 //! not make a network protocol (see task 811, the multiplayer item).
@@ -13,10 +12,11 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use f4x_core::world::save::{check_versions, LoadError, Snapshot, SAVE_VERSION};
+use f4x_core::world::save::{check_versions, ContentCheck, LoadError, SAVE_VERSION};
 use f4x_core::world::{Command, Event};
 use f4x_def::content::Content;
 
+use super::save::SaveFile;
 use super::step::Step;
 use super::Game;
 
@@ -24,7 +24,8 @@ use super::Game;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Replay {
     pub version: u32,
-    pub start: Snapshot,
+    /// The game it started from, with no plans: a replay needs no computer players.
+    pub start: SaveFile,
     /// What was done, in order.
     pub entries: Vec<Entry>,
 }
@@ -51,7 +52,7 @@ pub enum ReplayError {
 
 /// The recording in progress.
 pub(super) struct Recording {
-    start: Snapshot,
+    start: SaveFile,
     entries: Vec<Entry>,
 }
 
@@ -62,7 +63,7 @@ mod header {
     use serde::Deserialize;
 
     #[derive(Deserialize)]
-    pub struct Snapshot {
+    pub struct Start {
         #[serde(default)]
         pub game_version: String,
     }
@@ -70,7 +71,7 @@ mod header {
     #[derive(Deserialize)]
     pub struct Replay {
         pub version: u32,
-        pub start: Snapshot,
+        pub start: Start,
     }
 }
 
@@ -78,7 +79,7 @@ impl Game {
     /// Start recording from the game as it is now.
     pub fn start_recording(&mut self) {
         self.recording = Some(Recording {
-            start: self.world.snapshot(),
+            start: self.save_file(Vec::new()),
             entries: Vec::new(),
         });
     }
@@ -158,12 +159,12 @@ impl Replay {
         content: impl Into<Arc<Content>>,
         count: usize,
     ) -> Result<(Game, Vec<Vec<Event>>), ReplayError> {
-        let world = self
+        let mut game = self
             .start
             .clone()
-            .restore(content)
-            .map_err(|e| ReplayError::Load(format!("{e:?}")))?;
-        let mut game = Game::new(world);
+            .restore(content, ContentCheck::Strict)
+            .map_err(|e| ReplayError::Load(format!("{e:?}")))?
+            .game;
         game.start_recording();
         let mut all = Vec::new();
         for (i, entry) in self.entries.iter().take(count).enumerate() {

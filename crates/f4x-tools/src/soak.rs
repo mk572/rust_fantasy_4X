@@ -14,7 +14,6 @@ use std::sync::{Mutex, PoisonError};
 use std::time::Instant;
 
 use f4x_core::player::PlayerId;
-use f4x_core::world::endgame::GameOver;
 use f4x_core::world::World;
 use f4x_core::world_event::EventKind;
 use f4x_def::content::Content;
@@ -26,7 +25,7 @@ use crate::metrics::{
     casts_line, failure_lines, spell_table, unmet_line, Metrics, Standing, Tally,
 };
 use crate::report::{self, Played};
-use f4x_master::Game;
+use f4x_master::{Game, GameOver};
 
 pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE | --no-refused-log] [--snapshots-every N] [--out DIR] [--jobs N] [--from SAVE] [--map WxH] [--land PERCENT] [--magic 0..2] [--difficulty 0..4] [--rules 1.31|1.6|mk] [--mastery all|human|off] [--return all|human|off]";
 
@@ -188,9 +187,9 @@ impl Options {
             }
             let text =
                 std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-            let saved = f4x_core::world::save::Snapshot::from_text(&text)
+            let saved = f4x_master::SaveFile::from_text(&text)
                 .map_err(|e| format!("{}: {e}", path.display()))?;
-            (o.first, o.last) = (saved.seed, saved.seed);
+            (o.first, o.last) = (saved.world.seed, saved.world.seed);
         }
         Ok(o)
     }
@@ -428,17 +427,19 @@ pub fn game(
     refused_out: &RefusedLog,
 ) -> Result<GameResult, String> {
     let players = opts.players;
-    let mut game = Game::new(match &opts.from {
+    let (mut game, saved_plans) = match &opts.from {
         Some(path) => {
-            let (world, integrity) = f4x_core::world::save::load_game(path, content.clone())
+            let check = f4x_core::world::save::ContentCheck::Strict;
+            let loaded = f4x_master::load_game(path, content.clone(), check)
                 .map_err(|e| format!("{}: {e}", path.display()))?;
-            if integrity != f4x_core::world::save::Integrity::Intact {
+            if loaded.integrity != f4x_core::world::save::Integrity::Intact {
                 eprintln!("{}: was edited after it was saved", path.display());
             }
-            let seated = world
+            let seated = loaded
+                .game
                 .player_ids()
                 .into_iter()
-                .filter(|&p| world.is_wizard(p))
+                .filter(|&p| loaded.game.is_wizard(p))
                 .count();
             if seated != roster.versions.len() {
                 return Err(format!(
@@ -446,7 +447,7 @@ pub fn game(
                     path.display()
                 ));
             }
-            world
+            (loaded.game, loaded.plans)
         }
         None => {
             let mut spec = NewGame {
@@ -477,9 +478,9 @@ pub fn game(
             if let Some(magic) = opts.magic {
                 basic.magic_strength = magic;
             }
-            new_game(content, &spec)?
+            (Game::new(new_game(content, &spec)?), Vec::new())
         }
-    });
+    };
     // A game that was loaded has its own seed: the one asked for here is only the default range.
     let seed = game.seed();
     let tag = if label.is_empty() {
@@ -513,6 +514,7 @@ pub fn game(
         ai.join(&diplomats);
     }
     neutrals.share(&diplomats);
+    neutrals.recall(&saved_plans);
     neutrals.record_refusals(
         refused_out
             .lock()
@@ -521,7 +523,7 @@ pub fn game(
     );
     for ai in &mut ais {
         // A game that was saved carries what its AIs had in mind.
-        ai.recall(&game);
+        ai.recall(&saved_plans);
         ai.record_refusals(
             refused_out
                 .lock()
@@ -561,7 +563,7 @@ pub fn game(
     // The time of each phase since the last `--every` line, in order: one per wizard, the
     // neutrals, the rest (turn changes, other players' turn ends).
     let mut phases = vec![std::time::Duration::ZERO; usize::from(players) + 2];
-    while game.round() <= opts.turns && game.game_over.is_none() {
+    while game.round() <= opts.turns && game.game_over().is_none() {
         if opts.grant_mastery == Some(game.round()) {
             grant_mastery_to_all(game.world_mut());
         }
@@ -645,12 +647,9 @@ pub fn game(
                     .filter_map(|ai| Some((ai.player(), ai.plans()?)))
                     .chain(neutrals.plans())
                     .collect();
-                if !plans.is_empty() {
-                    game.world_mut().set_plans(plans);
-                }
                 fingerprints.push((
                     game.round(),
-                    save_snapshot(&game, game.round(), snapshot_dir.as_deref())?,
+                    save_snapshot(&game, plans, snapshot_dir.as_deref())?,
                 ));
             }
         }
@@ -658,7 +657,7 @@ pub fn game(
     if opts.detail {
         city_lines(&game);
     }
-    let outcome = match game.game_over {
+    let outcome = match game.game_over() {
         Some(o) => format!(
             "won by player {} ({:?}) on turn {}",
             o.winner.0, o.kind, o.turn
@@ -710,7 +709,7 @@ pub fn game(
     for line in empire_lines(&game) {
         logln!(log, "{line}");
     }
-    if game.game_over.is_none() {
+    if game.game_over().is_none() {
         for line in scout_lines(&game) {
             logln!(log, "{line}");
         }
@@ -900,7 +899,7 @@ pub fn game(
         .map(|p| (p, Standing::of(&game, p, game.round())))
         .collect();
     Ok(GameResult {
-        over: game.game_over,
+        over: game.game_over(),
         tally,
         standing,
         fingerprints,
@@ -980,14 +979,14 @@ impl EventWatch {
 
 /// Fingerprint the saved game (without its checksum line) and, when `dir` is given, write it as
 /// `tNNNN.f4x`.
-fn save_snapshot(world: &World, round: u32, dir: Option<&Path>) -> Result<u64, String> {
-    let text = world.snapshot().to_text().map_err(|e| e.to_string())?;
+fn save_snapshot(game: &Game, plans: f4x_master::Plans, dir: Option<&Path>) -> Result<u64, String> {
+    let text = game.save_file(plans).to_text().map_err(|e| e.to_string())?;
     let mut hasher = DefaultHasher::new();
     text.split_once('\n')
         .map_or(&*text, |(_, body)| body)
         .hash(&mut hasher);
     if let Some(dir) = dir {
-        let path = dir.join(format!("t{:04}.f4x", round));
+        let path = dir.join(format!("t{:04}.f4x", game.round()));
         std::fs::write(&path, text).map_err(|e| format!("{}: {e}", path.display()))?;
     }
     Ok(hasher.finish())

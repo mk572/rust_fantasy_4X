@@ -11,13 +11,15 @@
 use f4x_core::world::save::Snapshot;
 use f4x_core::world::{Command, Event};
 
+use super::save::GameState;
 use super::Game;
 
 /// How many commands back one can go.
 const DEPTH: usize = 32;
 
-/// One step of history: the world as it was before the command.
+/// One step of history: the game as it was before the command.
 struct Entry {
+    state: GameState,
     snapshot: Snapshot,
     label: String,
 }
@@ -85,6 +87,7 @@ impl Game {
         }
         let ends_history = matches!(command, Command::Battle(_) | Command::EnterSite { .. });
         let label = label_of(&command);
+        let state = self.state;
         let snapshot = (!ends_history).then(|| self.world.snapshot());
         let (draws, explored) = (self.world.draws(), self.world.explored_total());
         let events = self.world.apply(command);
@@ -102,7 +105,11 @@ impl Game {
         if irreversible {
             self.history.entries.clear();
         } else if let Some(snapshot) = snapshot {
-            self.history.entries.push(Entry { snapshot, label });
+            self.history.entries.push(Entry {
+                state,
+                snapshot,
+                label,
+            });
             if self.history.entries.len() > DEPTH {
                 self.history.entries.remove(0);
             }
@@ -121,6 +128,7 @@ impl Game {
                 // A save carries no name lists: the caller gave them, and they stay.
                 world.set_names(self.world.names().clone());
                 self.world = world;
+                self.state = entry.state;
                 self.forget_last_command();
                 Ok(entry.label)
             }

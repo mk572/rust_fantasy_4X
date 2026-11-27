@@ -441,13 +441,13 @@ mod tests {
         w.make_contact(P0, P1);
         w.explore(P0, at(RIVAL.0, RIVAL.1), HalfInt::from_raw(3));
         w.explore(P1, at(COAST_CITY.0, COAST_CITY.1), HalfInt::from_raw(3));
-        w.turn = 100;
+        w.set_round(100);
         let events = w.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
             player: P0,
             on: P1,
         }));
         assert!(!events.iter().any(|e| matches!(e, Event::Rejected(_))));
-        w.turn = turn;
+        w.set_round(turn);
         w
     }
 
@@ -481,9 +481,9 @@ mod tests {
         }
     }
 
-    fn told(w: &World, events: &[Event]) -> Memory {
+    fn told(w: &Game, events: &[Event]) -> Memory {
         let mut m = Memory::default();
-        m.notice(P0, w, w.turn, events);
+        m.notice(P0, w, w.round(), events);
         m
     }
 
@@ -491,19 +491,19 @@ mod tests {
     fn weariness_rises_with_losses_falls_with_wins_and_is_never_below_zero() {
         let w = war(8, 8, 110);
         let m = told(&w, &[battle_lost(), battle_lost(), city_lost()]);
-        let lost = weariness(&w, P0, P1, &m, w.turn);
+        let lost = weariness(&w, P0, P1, &m, w.round());
         assert!(lost > 0, "losses wear it down");
         let m = told(
             &w,
             &[battle_lost(), battle_won(), battle_won(), city_taken()],
         );
         assert_eq!(
-            weariness(&w, P0, P1, &m, w.turn),
+            weariness(&w, P0, P1, &m, w.round()),
             0,
             "wins bring it down to 0 and no lower"
         );
         let m = told(&w, &[city_lost(), city_taken(), battle_lost()]);
-        let after_wins = weariness(&w, P0, P1, &m, w.turn);
+        let after_wins = weariness(&w, P0, P1, &m, w.round());
         assert!(after_wins < lost, "a city and a battle won ease it");
     }
 
@@ -511,32 +511,32 @@ mod tests {
     fn a_quiet_war_wears_down_and_a_clash_starts_the_count_again() {
         let mut w = war(8, 8, 110);
         let empty = Memory::default();
-        let w10 = weariness(&w, P0, P1, &empty, w.turn);
-        w.turn = 160;
-        let w60 = weariness(&w, P0, P1, &empty, w.turn);
+        let w10 = weariness(&w, P0, P1, &empty, w.round());
+        w.set_round(160);
+        let w60 = weariness(&w, P0, P1, &empty, w.round());
         assert!(w60 > w10, "{w10} then {w60}");
         // A battle at turn 160 puts the quiet back to zero; only what it moved remains.
         let m = told(&w, &[battle_lost()]);
         assert!(
-            weariness(&w, P0, P1, &m, w.turn) < w60,
+            weariness(&w, P0, P1, &m, w.round()) < w60,
             "a clash starts the count again"
         );
         // A memory of an earlier war does not count in a new one.
         let peace = told(&w, &[city_lost()]);
         w.declare_peace(P0, P1);
         assert_eq!(
-            weariness(&w, P0, P1, &peace, w.turn),
+            weariness(&w, P0, P1, &peace, w.round()),
             0,
             "no war, no weariness"
         );
-        w.turn = 170;
+        w.set_round(170);
         w.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
             player: P0,
             on: P1,
         }));
-        w.turn = 175;
+        w.set_round(175);
         assert!(
-            weariness(&w, P0, P1, &peace, w.turn) < w10,
+            weariness(&w, P0, P1, &peace, w.round()) < w10,
             "the new war starts at nothing, not at the old city lost"
         );
     }
@@ -546,8 +546,8 @@ mod tests {
         let w = war(1, 30, 140);
         let m0 = told(&w, &[battle_lost(), city_lost()]);
         let m1 = Memory::default();
-        let loser = peace_wish(&w, P0, P1, &m0, w.turn);
-        let winner = peace_wish(&w, P1, P0, &m1, w.turn);
+        let loser = peace_wish(&w, P0, P1, &m0, w.round());
+        let winner = peace_wish(&w, P1, P0, &m1, w.round());
         assert!(loser > winner, "loser {loser}, winner {winner}");
         assert!(winner < 0, "the winner does not want it: {winner}");
     }
@@ -557,14 +557,14 @@ mod tests {
         let w = war(1, 30, 140);
         let scene0 = Scene::new(&w, P0);
         let scene1 = Scene::new(&w, P1);
-        let weak = regard(&w, P0, P1, &scene0, &Memory::default(), w.turn);
-        let strong = regard(&w, P1, P0, &scene1, &Memory::default(), w.turn);
+        let weak = regard(&w, P0, P1, &scene0, &Memory::default(), w.round());
+        let strong = regard(&w, P1, P0, &scene1, &Memory::default(), w.round());
         assert!(weak.fear > 0, "near and strong: {weak:?}");
         assert_eq!(strong.fear, 0, "a weak neighbour is no fear: {strong:?}");
         // The same wizard with nothing to fear wants the peace less.
         let even = war(30, 30, 140);
-        let calm = peace_wish(&even, P0, P1, &Memory::default(), w.turn);
-        let afraid = peace_wish(&w, P0, P1, &Memory::default(), w.turn);
+        let calm = peace_wish(&even, P0, P1, &Memory::default(), w.round());
+        let afraid = peace_wish(&w, P0, P1, &Memory::default(), w.round());
         assert!(afraid > calm, "afraid {afraid}, calm {calm}");
     }
 
@@ -575,22 +575,22 @@ mod tests {
         let mut ai = Ai::new(P0);
         let mut turn = 110;
         // Until the wish reaches the mark nothing is offered.
-        while peace_wish(&w, P0, P1, &ai.memory.get(), w.turn) < k.offer {
-            assert!(!offer_due(&ai, &w, P1, w.turn));
+        while peace_wish(&w, P0, P1, &ai.memory.get(), w.round()) < k.offer {
+            assert!(!offer_due(&ai, &w, P1, w.round()));
             turn += 5;
-            w.turn = turn;
+            w.set_round(turn);
             assert!(turn < 2000, "a quiet war reaches the mark in the end");
         }
-        assert!(offer_due(&ai, &w, P1, w.turn));
+        assert!(offer_due(&ai, &w, P1, w.round()));
         let scene = Scene::new(&w, P0);
         let mut events = Vec::new();
         wars(&mut ai, &mut w, &mut events, &scene);
         assert_eq!(ai.memory.get().with(P1).map(|d| d.offered), Some(turn));
         // It does not ask again at once, and asks again when the cool-down is over.
-        w.turn = turn + 1;
-        assert!(!offer_due(&ai, &w, P1, w.turn), "cool-down");
-        w.turn = turn + k.cool;
-        assert!(offer_due(&ai, &w, P1, w.turn) || w.treaty(P0, P1) != Treaty::War);
+        w.set_round(turn + 1);
+        assert!(!offer_due(&ai, &w, P1, w.round()), "cool-down");
+        w.set_round(turn + k.cool);
+        assert!(offer_due(&ai, &w, P1, w.round()) || w.treaty(P0, P1) != Treaty::War);
     }
 
     #[test]
@@ -600,13 +600,16 @@ mod tests {
             &w,
             &[battle_lost(), city_lost(), city_lost(), battle_lost()],
         );
-        assert!(accepts(&w, P0, P1, &m, w.turn), "the loser says yes");
+        assert!(accepts(&w, P0, P1, &m, w.round()), "the loser says yes");
         let winner = Memory::default();
-        assert!(!accepts(&w, P1, P0, &winner, w.turn), "the winner says no");
+        assert!(
+            !accepts(&w, P1, P0, &winner, w.round()),
+            "the winner says no"
+        );
         // And at peace everyone accepts what is not a war's peace.
         let mut at_peace = war(1, 30, 160);
         at_peace.declare_peace(P0, P1);
-        assert!(accepts(&at_peace, P1, P0, &winner, w.turn));
+        assert!(accepts(&at_peace, P1, P0, &winner, w.round()));
     }
 
     fn razed() -> Event {
@@ -626,7 +629,7 @@ mod tests {
         m.notice(
             P0,
             &w,
-            w.turn,
+            w.round(),
             &[
                 razed(),
                 Event::Diplomacy(DiplomacyEvent::WarDeclared {
@@ -648,18 +651,18 @@ mod tests {
         // The acts of a wizard that has not been met are not its business.
         let stranger = game(COAST_CITY, 8 /* high_men */);
         let mut m = Memory::default();
-        m.notice(P0, &stranger, stranger.turn, &[razed()]);
-        assert_eq!(m.ruthlessness(P1, stranger.turn, k.ruth_half), 0);
+        m.notice(P0, &stranger, stranger.round(), &[razed()]);
+        assert_eq!(m.ruthlessness(P1, stranger.round(), k.ruth_half), 0);
     }
 
     #[test]
     fn a_ruthless_neighbour_is_feared_more() {
         let w = war(10, 10, 140);
         let scene = Scene::new(&w, P0);
-        let calm = regard(&w, P0, P1, &scene, &Memory::default(), w.turn);
+        let calm = regard(&w, P0, P1, &scene, &Memory::default(), w.round());
         let mut m = Memory::default();
-        m.notice(P0, &w, w.turn, &[razed(), razed()]);
-        let ruthless = regard(&w, P0, P1, &scene, &m, w.turn);
+        m.notice(P0, &w, w.round(), &[razed(), razed()]);
+        let ruthless = regard(&w, P0, P1, &scene, &m, w.round());
         assert!(ruthless.fear > calm.fear, "{ruthless:?} against {calm:?}");
     }
 
@@ -709,7 +712,7 @@ mod tests {
             &w,
             &[battle_lost(), city_lost(), city_lost(), battle_lost()],
         );
-        assert!(peace_wish(&w, P0, P1, &ai.memory.get(), w.turn) >= k.offer);
+        assert!(peace_wish(&w, P0, P1, &ai.memory.get(), w.round()) >= k.offer);
         let mut events = Vec::new();
         crate::statecraft::run(&mut ai, &mut w, &mut events);
         assert_eq!(
@@ -723,7 +726,7 @@ mod tests {
     fn the_detail_note_names_the_system_the_enemy_and_what_was_seen() {
         let w = war(8, 8, 110);
         let mut ai = Ai::new(P0);
-        let first = ai.diplomacy_note(&w, w.turn);
+        let first = ai.diplomacy_note(&w, w.round());
         assert!(
             first.starts_with("diplomacy B, enemy -, weary [], seen [], regard ["),
             "{first}"
@@ -736,7 +739,7 @@ mod tests {
         );
         ai.notice(&w, &[razed()]);
         ai.memory.put().enemy = Some((P1, 100));
-        let note = ai.diplomacy_note(&w, w.turn);
+        let note = ai.diplomacy_note(&w, w.round());
         assert!(
             note.starts_with("diplomacy B, enemy p1 since 100"),
             "{note}"

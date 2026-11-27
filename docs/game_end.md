@@ -1,7 +1,8 @@
 # Game end
 
 Code: `crates/f4x-core/src/endgame.rs` (the rules and the score), `wizard/fortress.rs` (`defeat`,
-`capture_city`), `spell/cast.rs` (the Spell of Mastery hook); client: `game_over_screen.rs`.
+`capture_city`), `spell/cast.rs` (the Spell of Mastery hook); the verdict: `f4x-master`,
+`game/end.rs`; client: `game_over_screen.rs`.
 The original's rules come from ReMoM's `CONQUEST.c`, `SCORE.c` and `SPLMASTR.c` and the review
 notes under `~/projects/ReMoM/doc/@CodeReview/` (`CONQUEST-Resolve_Wizard_Conquest.md`,
 `CONQUEST-CP_Is_Dead.md`, `CONQUEST-End_Of_Game_Score.md`, `SPLMASTR-*.md`).
@@ -26,13 +27,18 @@ until they too have lost every city.
 
 ## 2. What the engine does
 
-- `World::game_over: Option<GameOver { winner, kind, turn }>`, saved with the game (as is
-  `World::human`, which the client sets; saves from before it load with the human unset and the
-  client fills it in).
-- `Event::GameOver { winner, kind, turn }` is emitted once, at the moment of the winning
-  event, inside the same event list (so `WizardDefeated` comes first).
-- **Afterwards every command is refused** with `Rejection::GameOver` (`World::apply`). The game
-  can still be saved and looked at.
+- The world keeps the facts: who is defeated and by whom, who has completed the Spell of Mastery
+  (`World::mastered_by`) and who the human wizard is (`World::human`, which the client sets; a
+  save without it loads with the human unset and the client fills it in).
+- The game looks at them after each command and each step of the turn order (`Game::check_end`;
+  whoever changes the world by hand calls it) and keeps `GameOver { winner, kind, turn }`
+  (`Game::game_over`), saved with the game. Of two conditions met at once the first of these
+  counts: the human wizard has fallen, the Spell of Mastery is complete, at most one wizard is
+  left.
+- `Event::GameOver { winner, kind, turn }` is emitted once, at the end of the events of that
+  command or step (so `WizardDefeated` comes first).
+- **Afterwards every command and step is refused** with `Rejection::GameOver` (`Game::apply`). The
+  game can still be saved and looked at.
 - The Spell of Mastery is a custom spell hook (`spell_of_mastery`, set by the importer for the
   spell of that name). It is cast like any overland spell, over as many turns as its cost needs
   (5000 mana in the original data), and wins the game when it is paid for. It has no target.
@@ -75,7 +81,7 @@ the game over screen shows the scale. The original draws a bar of `min(score / 4
 
 ## 5. The client
 
-`Screen::GameOver` opens when `World::game_over` is set (after any battle on screen ends). It
+`Screen::GameOver` opens when `Game::game_over` is set (after any battle on screen ends). It
 shows the headline (victory or defeat and why), the turn and the human's score breakdown, and
 offers *New game*, *Look at the map* (the map stays visible; commands are refused) and *Quit*.
 

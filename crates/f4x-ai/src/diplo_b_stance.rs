@@ -360,21 +360,21 @@ pub(crate) mod tests {
         w.make_contact(P0, P1);
         w.explore(P0, at(RIVAL.0, RIVAL.1), HalfInt::from_raw(3));
         w.explore(P1, at(COAST_CITY.0, COAST_CITY.1), HalfInt::from_raw(3));
-        w.turn = turn;
+        w.set_round(turn);
         w
     }
 
-    fn value(w: &World, me: PlayerId, other: PlayerId, reach: bool) -> Values {
+    fn value(w: &Game, me: PlayerId, other: PlayerId, reach: bool) -> Values {
         let scene = Scene::new(w, me);
-        values(w, me, other, &scene, &Memory::default(), reach, w.turn)
+        values(w, me, other, &scene, &Memory::default(), reach, w.round())
     }
 
     #[test]
     fn a_pact_or_alliance_partner_is_never_chosen_as_the_enemy() {
         let mut w = pair(30, 1, 100);
-        let enemy = |w: &World, memory: &Memory| {
+        let enemy = |w: &Game, memory: &Memory| {
             let scene = Scene::new(w, P0);
-            choose_enemy(w, P0, &scene, memory, &|_| true, w.turn).map(|(p, _)| p)
+            choose_enemy(w, P0, &scene, memory, &|_| true, w.round()).map(|(p, _)| p)
         };
         assert_eq!(
             enemy(&w, &Memory::default()),
@@ -385,7 +385,7 @@ pub(crate) mod tests {
             w.start_treaty(P0, P1, treaty);
             assert_eq!(enemy(&w, &Memory::default()), None, "{treaty:?}");
             let mut kept = Memory::default();
-            kept.enemy = Some((P1, w.turn));
+            kept.enemy = Some((P1, w.round()));
             assert_eq!(
                 enemy(&w, &kept),
                 None,

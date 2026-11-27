@@ -37,8 +37,10 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let content =
         f4x_def::load::load_content_layers(&[&dir, std::path::Path::new(f4x_def::SHIPPED_CONTENT)])
             .map_err(|e| e.to_string())?;
-    let (world, _) = f4x_core::world::save::load_game(&path, content)
-        .map_err(|e| format!("{}: {e}", path.display()))?;
+    let check = f4x_core::world::save::ContentCheck::Strict;
+    let world = f4x_master::load_game(&path, content, check)
+        .map_err(|e| format!("{}: {e}", path.display()))?
+        .game;
     let human = PlayerId(player);
     println!(
         "{}: {} units, {} cities, player {player}",

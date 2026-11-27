@@ -7,7 +7,8 @@
 
 use std::path::{Path, PathBuf};
 
-use f4x_core::world::save::Snapshot;
+use f4x_core::world::save::ContentCheck;
+use f4x_master::SaveFile;
 
 use crate::cache;
 use crate::contestant::Version;
@@ -139,17 +140,18 @@ pub fn diff(args: &[String]) -> Result<(), String> {
         |path: &Path| std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()));
     let (text_a, text_b) = (read(a)?, read(b)?);
     for (path, text) in [(a, &text_a), (b, &text_b)] {
-        let world = Snapshot::from_text(text)
-            .and_then(|s| s.restore(content.clone()))
-            .map_err(|e| format!("{}: {e}", path.display()))?;
-        println!("{} (turn {}):", path.display(), world.turn);
+        let world = SaveFile::from_text(text)
+            .and_then(|s| s.restore(content.clone(), ContentCheck::Strict))
+            .map_err(|e| format!("{}: {e}", path.display()))?
+            .game;
+        println!("{} (turn {}):", path.display(), world.round());
         println!("  {}", soak::status(&world));
         for p in world
             .player_ids()
             .into_iter()
             .filter(|&p| world.is_wizard(p))
         {
-            let line: Vec<String> = Standing::of(&world, p, world.turn)
+            let line: Vec<String> = Standing::of(&world, p, world.round())
                 .rows()
                 .iter()
                 .map(|(name, v)| format!("{name} {v}"))

@@ -55,7 +55,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         out
     };
     for (pos, units) in out {
-        if game.game_over.is_some() {
+        if game.game_over().is_some() {
             return;
         }
         let (next_to, city_next, candidates, strength) = {
@@ -617,19 +617,19 @@ mod tests {
             );
         }
         // The party has been out for 90 turns when it clears the site.
-        ai.drop_stale_plans(w.turn);
-        w.turn += 90;
-        ai.drop_stale_plans(w.turn);
+        ai.drop_stale_plans(w.round());
+        w.set_round(w.round() + 90);
+        ai.drop_stale_plans(w.round());
         let mut events = Vec::new();
         run(&mut ai, &mut w, &mut events);
         assert!(events
             .iter()
             .any(|e| matches!(e, Event::SiteCleared { player, .. } if *player == P0)));
         // Twenty turns later it would be 110 turns out, but the clear started the time again.
-        w.turn += 20;
-        ai.drop_stale_plans(w.turn);
-        w.turn += 20;
-        ai.drop_stale_plans(w.turn);
+        w.set_round(w.round() + 20);
+        ai.drop_stale_plans(w.round());
+        w.set_round(w.round() + 20);
+        ai.drop_stale_plans(w.round());
         assert!(ai.roles.any(crate::roles::Role::Raid), "not dropped");
         assert_eq!(ai.plans_dropped().iter().map(|(_, n)| n).sum::<u32>(), 0);
         Ok(())
@@ -900,13 +900,13 @@ mod tests {
         // Control: free, they raid.
         let mut w = world(6, guards.clone(), false)?;
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         run(&mut ai, &mut w, &mut Vec::new());
         assert!(ai.roles.any(crate::roles::Role::Raid), "free soldiers raid");
         // Mustering for the campaign, they stay out of it.
         let mut w = world(6, guards, false)?;
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         let members = serials(&w);
         assert!(ai
             .roles
@@ -915,7 +915,7 @@ mod tests {
                 city,
                 Some(at(4, 4)),
                 &members,
-                w.turn,
+                w.round(),
             )
             .is_some());
         run(&mut ai, &mut w, &mut Vec::new());

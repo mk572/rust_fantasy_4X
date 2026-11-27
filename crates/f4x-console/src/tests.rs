@@ -114,10 +114,10 @@ fn access_limits_what_a_front_end_can_ever_do() {
     let mut spectator = console_for(Access::ReadOnly);
     assert!(spectator.execute(&mut w, "status").ok);
     assert!(!spectator.execute(&mut w, "end").ok);
-    assert_eq!(w.turn, 1);
+    assert_eq!(w.round(), 1);
     let mut player = console_for(Access::Play);
     assert!(player.execute(&mut w, "end").ok);
-    assert_eq!(w.turn, 2);
+    assert_eq!(w.round(), 2);
     assert!(
         !player.execute(&mut w, "new 5").ok,
         "a player may not replace the game"
@@ -175,7 +175,7 @@ fn a_player_can_run_a_turn_by_text() {
     assert!(c.execute(&mut w, "power 34 33 33").ok);
     let end = c.execute(&mut w, "end");
     assert!(end.ok);
-    assert_eq!(w.turn, 2);
+    assert_eq!(w.round(), 2);
     assert!(end.text().contains("Turn 2"));
     assert!(
         c.execute(&mut w, "undo").error.is_some(),
@@ -291,8 +291,9 @@ fn moving_into_an_enemy_starts_a_battle_you_can_fight_by_text() -> TestResult {
 #[test]
 fn a_finished_game_makes_the_console_refuse_play() {
     let (mut w, mut c) = (game(), console());
-    assert!(!w.win_by_mastery(HUMAN).is_empty());
-    assert!(w.game_over.is_some());
+    w.world_mut().complete_mastery(HUMAN);
+    assert!(!w.check_end().is_empty());
+    assert!(w.game_over().is_some());
     assert!(c.execute(&mut w, "status").text().contains("GAME OVER"));
     assert!(!c.execute(&mut w, "end").ok);
     assert!(c.execute(&mut w, "score").ok);
@@ -312,10 +313,10 @@ fn read_only_mode_runs_queries_and_nothing_else() {
             "{line}: {r:?}"
         );
     }
-    assert_eq!(w.turn, 1);
+    assert_eq!(w.round(), 1);
     assert!(c.execute(&mut w, "mode legal").ok);
     assert!(c.execute(&mut w, "end").ok);
-    assert_eq!(w.turn, 2);
+    assert_eq!(w.round(), 2);
     // A console limited to read-only access starts there and cannot leave.
     let mut spectator = console_for(Access::ReadOnly);
     assert_eq!(spectator.session.mode, Mode::ReadOnly);
@@ -3299,7 +3300,7 @@ fn an_offer_can_be_listed_and_taken_by_number() {
     w.treasury_mut(HUMAN)
         .expect("the player has a treasury")
         .gold += 5000;
-    let round = w.turn;
+    let round = w.round();
     let made = w.cheat_offer(HUMAN, f4x_core::player::offer::OfferKind::Hero, round);
     assert!(made.is_some());
     let listed = c.execute(&mut w, "offers");
@@ -3325,7 +3326,7 @@ fn an_offer_can_be_listed_and_taken_by_number() {
     w.treasury_mut(HUMAN)
         .expect("the player has a treasury")
         .gold += 50_000;
-    let round = w.turn;
+    let round = w.round();
     assert!(w
         .cheat_offer(HUMAN, f4x_core::player::offer::OfferKind::Item, round)
         .is_some());
@@ -3350,7 +3351,7 @@ fn a_recorded_game_is_played_again_by_text() {
     let r = c.execute(&mut w, &format!("record stop {name}"));
     assert!(r.ok, "{}", r.text());
     let (turn, tax) = (
-        w.turn,
+        w.round(),
         w.player_component::<f4x_core::player::Tax>(HUMAN)
             .expect("the entity has it")
             .0,
@@ -3361,7 +3362,7 @@ fn a_recorded_game_is_played_again_by_text() {
     assert!(r.ok, "{}", r.text());
     assert_eq!(
         (
-            fresh.turn,
+            fresh.round(),
             fresh
                 .player_component::<f4x_core::player::Tax>(HUMAN)
                 .expect("the entity has it")
@@ -3459,7 +3460,7 @@ fn items_are_listed_equipped_and_scrapped_by_place() -> TestResult {
     w.treasury_mut(HUMAN)
         .expect("the player has a treasury")
         .gold += 5000;
-    let round = w.turn;
+    let round = w.round();
     w.cheat_offer(HUMAN, f4x_core::player::offer::OfferKind::Hero, round)
         .ok_or("no hero can be offered")?;
     assert!(c.execute(&mut w, "accept 1 Rex").ok);
@@ -3543,7 +3544,7 @@ fn a_dead_hero_is_listed_and_raised_from_the_console() -> TestResult {
     w.treasury_mut(HUMAN)
         .expect("the player has a treasury")
         .gold += 5000;
-    let round = w.turn;
+    let round = w.round();
     w.cheat_offer(HUMAN, f4x_core::player::offer::OfferKind::Hero, round)
         .ok_or("no hero can be offered")?;
     assert!(c.execute(&mut w, "accept 1 Rex").ok);

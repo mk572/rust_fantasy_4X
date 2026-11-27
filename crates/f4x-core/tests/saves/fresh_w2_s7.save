@@ -1,10 +1,9 @@
-// f4x save, version 4, game 0.0.7, checksum bbfe96b27444d5bc
+// f4x save, version 5, game 0.0.8, checksum 6a56483a163a8e17
 (
-    version: 4,
-    game_version: "0.0.7",
+    version: 5,
+    game_version: "0.0.8",
     seed: 7,
     draws: 173,
-    turn: 1,
     next_serial: 161,
     settings: (
         basic: (difficulty: 2, opponents: 1, land_percent: 30, magic_strength: 1, map_width: 60, map_height: 40, towers: None, neutral_cities: None, diagonal_extra_cost: false, original_map_generator: false),
@@ -16,7 +15,6 @@
         scoring: (score_percent: 100),
     ),
     content: "ed86f45f71337273d5effeda006b32bcdcfea7495ab926f719402e9c58ecab91",
-    game_over: None,
     human: None,
     diplomacy: (
         pairs: [],
@@ -34,8 +32,6 @@
         raider_clock: 0,
         monster_clock: 0,
     ),
-    flow: None,
-    plans: [],
     override_log: [],
     prefab_taken: [],
     map: Some((

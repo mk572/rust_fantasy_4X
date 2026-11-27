@@ -7,11 +7,11 @@
 use std::path::{Path, PathBuf};
 
 use f4x_core::player::PlayerId;
-use f4x_core::world::save::Snapshot;
+use f4x_core::world::save::ContentCheck;
 use f4x_core::world::{Command, World};
 use f4x_def::content::Content;
 use f4x_def::testdir::TestResult;
-use f4x_master::Game;
+use f4x_master::{Game, SaveFile};
 use f4x_newgame::setup::{new_game, NewGame};
 
 fn shipped() -> &'static Content {
@@ -129,11 +129,11 @@ fn money(w: &World, id: PlayerId) -> String {
 /// and squares, spells, gold and mana), then how many units there are of each kind. A change shows
 /// as the line that moved, so the diff of a target says what a change did (the save text itself
 /// is not compared: a new field in the format is not a change of a rule).
-fn digest(w: &World) -> Result<String, Box<dyn std::error::Error>> {
+fn digest(w: &Game) -> Result<String, Box<dyn std::error::Error>> {
     let snap = w.snapshot();
     let mut out = format!(
         "turn {}\ndraws {}\ncities {}\nunits {}\nspells {}\nitems {}\n",
-        snap.turn,
+        w.round(),
         snap.draws,
         snap.cities.len(),
         snap.units.len(),
@@ -213,7 +213,7 @@ fn check(name: &str, build: fn() -> Result<Game, String>) -> TestResult {
     let refresh = refresh();
     if refresh.as_deref() == Some("saves") {
         std::fs::create_dir_all(&saves)?;
-        std::fs::write(&save, build()?.snapshot().to_text()?)?;
+        std::fs::write(&save, build()?.save_file(Vec::new()).to_text()?)?;
     }
     let text = std::fs::read_to_string(&save).map_err(|e| {
         format!(
@@ -221,7 +221,9 @@ fn check(name: &str, build: fn() -> Result<Game, String>) -> TestResult {
             save.display()
         )
     })?;
-    let mut w = Game::new(Snapshot::from_text(&text)?.restore(shipped().clone())?);
+    let mut w = SaveFile::from_text(&text)?
+        .restore(shipped().clone(), ContentCheck::Strict)?
+        .game;
     play(name, &mut w);
     let got = digest(&w)?;
     if refresh.is_some() {

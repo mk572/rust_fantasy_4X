@@ -1,7 +1,7 @@
 //! Class 9, the turn: the four phases and what each one touches (the round's start and end, one player's
 //! start and end), Time Stop, standing orders, standby, and a treasury that cannot pay.
 
-use crate::support::{around, text, worlds};
+use crate::support::{around, text};
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::player::{PlayerId, MONSTERS};
 use f4x_core::unit::movement::MoveError;
@@ -9,6 +9,14 @@ use f4x_core::unit::Standby;
 use f4x_core::world::{Command, Event, Rejection, World};
 use f4x_def::half_int::HalfInt;
 use f4x_master::Game;
+
+/// The fresh worlds, each in a game, so that time can pass in them.
+fn worlds() -> Vec<(String, Game)> {
+    crate::support::worlds()
+        .into_iter()
+        .map(|(name, w)| (name, Game::new(w)))
+        .collect()
+}
 
 fn wizards(w: &World) -> Vec<PlayerId> {
     w.player_ids()
@@ -47,17 +55,18 @@ fn people(w: &World, p: PlayerId) -> Vec<(u32, u32)> {
 #[test]
 fn only_the_start_of_a_round_advances_the_round_counter() {
     for (name, mut w) in worlds() {
-        let turn = w.turn;
+        let turn = w.round();
         let p = wizards(&w)[0];
         w.end_player_turn(p);
-        w.start_player_turn(p, w.turn);
+        w.start_player_turn(p);
         w.end_round();
         assert_eq!(
-            w.turn, turn,
+            w.round(),
+            turn,
             "{name}: a player's turn or the round's end moved it"
         );
-        let events = w.start_round(w.turn + 1);
-        assert_eq!(w.turn, turn + 1, "{name}");
+        let events = w.start_round();
+        assert_eq!(w.round(), turn + 1, "{name}");
         assert!(
             events.contains(&Event::TurnStarted { turn: turn + 1 }),
             "{name}: {events:?}"
@@ -107,15 +116,15 @@ fn the_start_of_a_player_turn_grows_only_their_cities_and_not_in_the_first_round
             people(&w, p),
             others.iter().map(|&o| people(&w, o)).collect::<Vec<_>>(),
         );
-        assert_eq!(w.turn, 1, "{name}: the world is not at its first round");
-        w.start_player_turn(p, w.turn);
+        assert_eq!(w.round(), 1, "{name}: the world is not at its first round");
+        w.start_player_turn(p);
         assert_eq!(
             people(&w, p),
             first.0,
             "{name}: the first round has no growth"
         );
-        w.start_round(w.turn + 1);
-        w.start_player_turn(p, w.turn);
+        w.start_round();
+        w.start_player_turn(p);
         grew += usize::from(people(&w, p) != first.0);
         for (i, &o) in others.iter().enumerate() {
             assert_eq!(
@@ -138,7 +147,7 @@ fn the_start_of_a_player_turn_refills_only_their_units_moves() {
         for &u in mine.iter().chain(&theirs) {
             w.scenario_set_moves_left(u, HalfInt::ZERO);
         }
-        w.start_player_turn(o, w.turn);
+        w.start_player_turn(o);
         for &u in &mine {
             assert_eq!(w.units().unit_moves_left(u), HalfInt::ZERO, "{name}");
         }
@@ -168,8 +177,8 @@ fn standby_done_lasts_the_turn_and_patrol_stays() {
             });
             assert_eq!(w.units().unit_standby(u), Some(s), "{name}");
         }
-        w.start_round(w.turn + 1);
-        w.start_player_turn(p, w.turn);
+        w.start_round();
+        w.start_player_turn(p);
         assert_eq!(
             w.units().unit_standby(done),
             None,
@@ -197,7 +206,7 @@ fn the_player_of_the_monsters_has_no_turn_end() {
 }
 
 /// Wizard 0 keeps Time Stop (spell 80, `time_stop`) with mana to pay for it.
-fn stopped() -> Vec<(String, World, Vec<PlayerId>)> {
+fn stopped() -> Vec<(String, Game, Vec<PlayerId>)> {
     worlds()
         .into_iter()
         .map(|(name, mut w)| {
@@ -217,8 +226,7 @@ fn stopped() -> Vec<(String, World, Vec<PlayerId>)> {
 
 #[test]
 fn time_stop_halts_growth_gold_and_mana_for_the_others_and_gold_for_the_keeper() {
-    for (name, w, ids) in stopped() {
-        let mut w = Game::new(w);
+    for (name, mut w, ids) in stopped() {
         assert_eq!(w.time_stopper(), Some(ids[0]), "{name}");
         let (keeper, others) = (ids[0], &ids[1..]);
         let before: Vec<_> = ids
@@ -253,7 +261,7 @@ fn a_standing_order_does_not_move_a_unit_while_another_wizard_keeps_time_stop() 
     let mut tried = 0;
     for (name, mut w, ids) in stopped() {
         let (keeper, other) = (ids[0], ids[1]);
-        let walk = |w: &mut World, p: PlayerId| {
+        let walk = |w: &mut Game, p: PlayerId| {
             let u = w.units().player_units(p).into_iter().find(|&u| {
                 w.units().unit_max_moves(u) > HalfInt::ZERO
                     && w.units()
@@ -287,14 +295,14 @@ fn a_standing_order_does_not_move_a_unit_while_another_wizard_keeps_time_stop() 
             continue;
         };
         tried += 1;
-        w.start_round(w.turn + 1);
-        w.start_player_turn(other, w.turn);
+        w.start_round();
+        w.start_player_turn(other);
         assert_eq!(
             w.units().unit_position(theirs),
             Some(their_at),
             "{name}: a unit walked in stopped time"
         );
-        w.start_player_turn(keeper, w.turn);
+        w.start_player_turn(keeper);
         assert_ne!(
             w.units().unit_position(own),
             Some(own_at),

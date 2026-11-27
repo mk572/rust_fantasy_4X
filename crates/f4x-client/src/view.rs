@@ -1236,8 +1236,8 @@ impl App {
 
     /// Write the game to `path`, reporting the outcome in the message log.
     pub fn save_to(&mut self, path: &Path) {
-        f4x_ai::Ai::remember(&mut self.game, &self.ais);
-        match f4x_core::world::save::save_game(path, &self.game) {
+        let plans = f4x_ai::Ai::plans_of(&self.ais);
+        match f4x_master::save_game(path, &self.game, plans) {
             Ok(()) => {
                 let args = Args::new()
                     .count("turn", self.game.round())
@@ -1268,7 +1268,7 @@ impl App {
         let content = self.game.content().clone();
         // A setting the save does not name is the player's default (`default_game.rs`).
         let loaded = f4x_def::settings::with_fallback(self.default_game.settings, || {
-            f4x_core::world::save::load_game_with(path, content, check)
+            f4x_master::load_game(path, content, check)
         });
         let loaded = match loaded {
             Ok(l) => l,
@@ -1282,21 +1282,25 @@ impl App {
             }
             Err(e) => return Err(e.to_string()),
         };
-        let (world, integrity, notes) = (loaded.world, loaded.integrity, loaded.notes);
+        let (mut game, plans) = (loaded.game, loaded.plans);
+        let (integrity, notes) = (loaded.integrity, loaded.notes);
         if !notes.is_empty() {
             self.issue_dialog = Some(crate::issue_screen::Dialog::notes(&notes, &self.texts));
         }
         // The next new game keeps its own seed; a loaded game does not set it.
         // Keep playing the same race: the human player's capital race.
-        if let Some(r) = world.wizard(HUMAN).and_then(|w| w.capital_race()) {
+        if let Some(r) = game.wizard(HUMAN).and_then(|w| w.capital_race()) {
             self.race = r.num() as usize;
         }
-        self.game = crate::revised::Revised::new(Self::played(world));
+        // The human can take orders back, as in a new game.
+        game.set_undo(true);
+        self.game = crate::revised::Revised::new(game);
         self.game.world_mut().set_names(self.names.bundle());
         self.game.world_mut().ensure_human(HUMAN);
         self.ais = self.rival_wizards();
-        f4x_ai::Ai::recall(&self.game, &mut self.ais);
+        f4x_ai::Ai::recall(&plans, &mut self.ais);
         self.reset_master();
+        self.neutral_seat.recall(&plans);
         // A game saved in a battle comes back in it: the frame loop opens the battle screen.
         self.close_page(&Screen::Battle);
         self.game_over_seen = false;
@@ -1353,7 +1357,7 @@ impl App {
         }
     }
 
-    /// The master goes on where the game says it is (`World::flow`, saved with the game): a game
+    /// The master goes on where the game says it is (`Game::phase`, saved with the game): a game
     /// without one, a new game or one saved on the human's turn, waits for the human. Nothing
     /// else is held up.
     fn reset_master(&mut self) {
@@ -1367,8 +1371,8 @@ impl App {
         };
         self.master_state = self
             .game
-            .flow()
-            .and_then(|text| State::from_text(text).ok())
+            .phase()
+            .map(|phase| State { phase })
             .filter(|state| match state.phase {
                 Phase::TurnStart(i) | Phase::Acting(i) | Phase::TurnEnd(i) => i < seats,
                 Phase::Over => false,
@@ -1427,7 +1431,7 @@ impl App {
                 return;
             }
         }
-        if self.game.game_over.is_none() {
+        if self.game.game_over().is_none() {
             // The rivals now say what they have to say to the human: offers, requests, war.
             let undo = self.game.undo_enabled();
             self.game.set_undo(false);
@@ -1494,7 +1498,9 @@ impl App {
                         stopped: progress.stopped,
                     };
                 }
-                if let Err(e) = f4x_core::world::save::save_game(Path::new(AUTOSAVE), &self.game) {
+                if let Err(e) =
+                    f4x_master::save_game(Path::new(AUTOSAVE), &self.game, master.plans())
+                {
                     autosave_failed = Some(e.to_string());
                 }
             };
@@ -1789,7 +1795,7 @@ impl App {
             self.check_hero_levels();
         }
         self.maybe_ask_for_research();
-        if self.game.game_over.is_some()
+        if self.game.game_over().is_some()
             && !self.game_over_seen
             && !self.game.in_battle()
             && !matches!(self.screen, Screen::GameOver | Screen::Console)

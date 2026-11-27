@@ -125,7 +125,7 @@ fn end(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     // The master runs the rest of the round: the other wizards pass (the console plays one
     // wizard), the independent cities are run by their AI, then the round ends and the next
     // begins.
-    if ctx.game.game_over.is_some() {
+    if ctx.game.game_over().is_some() {
         // The game refuses every command once it is over; say so the usual way.
         return Err(ConsoleError::Refused(format!("{:?}", Rejection::GameOver)));
     }

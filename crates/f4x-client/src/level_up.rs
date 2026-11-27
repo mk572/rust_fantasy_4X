@@ -235,12 +235,14 @@ mod tests {
             app.modals.is_empty(),
             "the same turn is not looked at twice"
         );
-        app.game.turn += 1;
+        let next = app.game.round() + 1;
+        app.game.set_round(next);
         app.check_hero_levels();
         assert!(!app.modals.is_empty());
         let mut again = App::for_test();
         again.check_hero_levels();
-        again.game.turn += 1;
+        let next = again.game.round() + 1;
+        again.game.set_round(next);
         again.check_hero_levels();
         assert!(
             again.modals.is_empty(),

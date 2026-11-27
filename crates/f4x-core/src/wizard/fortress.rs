@@ -604,7 +604,6 @@ impl World {
         self.conquest_relations(winner, loser, true);
         let mut events = vec![Event::WizardDefeated { player: loser }];
         events.extend(self.take_spoils(loser, winner, fall));
-        events.extend(self.check_conquest(winner));
         events
     }
 

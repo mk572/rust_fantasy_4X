@@ -154,7 +154,7 @@ mod tests {
     #[test]
     fn a_young_game_has_no_forge_cities() -> TestResult {
         let w = game(COAST_CITY, 8 /* high_men */);
-        assert!(forges(&PlayerView::new(&w, P0), w.turn).is_empty());
+        assert!(forges(&PlayerView::new(&w, P0), w.round()).is_empty());
         Ok(())
     }
 

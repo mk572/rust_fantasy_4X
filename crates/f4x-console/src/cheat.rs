@@ -468,15 +468,11 @@ fn eliminate(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 
 fn win(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let id = parse_player(a.need(0, "player")?)?;
-    let events = ctx.game.world_mut().win_by_mastery(id);
-    if events.is_empty() {
+    if ctx.game.game_over().is_some() {
         return Err(ConsoleError::Refused("the game is already over".into()));
     }
-    for e in &events {
-        let line = describe::event(ctx.game, e);
-        ctx.say(line);
-    }
-    ctx.events.extend(events);
+    // The dispatcher has the game see that it is decided, and tells of it.
+    ctx.game.world_mut().complete_mastery(id);
     Ok(())
 }
 

@@ -252,7 +252,7 @@ mod tests {
         use crate::roles::Role;
         let (mut w, units) = island_with_settlers(1);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         settlers(&mut ai, &mut w, &mut Vec::new());
         let serial = PlayerView::new(&w, P0).serial_of(units[0]);
         ai.roles
@@ -287,7 +287,7 @@ mod tests {
         );
         let serial = PlayerView::new(&w, P0).serial_of(units[0]);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         settlers(&mut ai, &mut w, &mut Vec::new());
         assert!(!ai.roles.has_role(serial), "no site, no settle role");
         assert!(ai.roles.targets(crate::roles::Role::Settle).is_empty());
@@ -342,7 +342,7 @@ mod tests {
         let before = PlayerView::new(&w, P0).my_cities().len();
         for _ in 0..40 {
             let mut events = Vec::new();
-            crate::roles::register(&mut ai, &w, w.turn);
+            crate::roles::register(&mut ai, &w, w.round());
             crate::dispatch::revalidate(&mut ai, &mut w, &mut events);
             settlers(&mut ai, &mut w, &mut events);
             crate::pickup::run(&mut ai, &mut w, &mut events);

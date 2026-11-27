@@ -394,7 +394,7 @@ mod tests {
         spawn(&mut w, P0, at(8, 6), 104, 1);
         spawn(&mut w, P0, at(9, 6), 111 /* high_men_settlers */, 1);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         let wanted =
             crate::view::garrison_wanted(&f4x_core::player::view::PlayerView::new(&w, P0), city);
         let counted = pool(&ai, &w);
@@ -500,7 +500,7 @@ mod tests {
         let walker = spawn(&mut w, P0, at(9, 6), 104, 1)[0];
         let stopped = spawn(&mut w, P0, at(9, 7), 104, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         let view = f4x_core::player::view::PlayerView::new(&w, P0);
         let (a, b) = (view.serial_of(walker), view.serial_of(stopped));
         assert!(!view.explored(target), "unexplored ground to scout");
@@ -544,7 +544,7 @@ mod tests {
         let target = at(5, 9);
         let scout = spawn(&mut w, P0, at(9, 7), 104, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         let view = f4x_core::player::view::PlayerView::new(&w, P0);
         let serial = view.serial_of(scout);
         assert!(!view.explored(target), "unexplored ground to scout");
@@ -574,7 +574,7 @@ mod tests {
         let walker = spawn(&mut w, P0, sea, 104 /* high_men_spearmen */, 1)[0];
         w.explore(P0, sea, HalfInt::from_raw(3));
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         let view = f4x_core::player::view::PlayerView::new(&w, P0);
         let (ship, rider) = (view.serial_of(boat), view.serial_of(walker));
         assert!(view.explored(sea), "arriving explored the target");
@@ -598,7 +598,7 @@ mod tests {
         target.plane = f4x_core::map::Plane::Myrror;
         let scout = spawn(&mut w, P0, at(9, 7), 104, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         let view = f4x_core::player::view::PlayerView::new(&w, P0);
         let serial = view.serial_of(scout);
         assert!(!view.explored(target));
@@ -621,7 +621,7 @@ mod tests {
         target.plane = f4x_core::map::Plane::Myrror;
         let demon = spawn(&mut w, P0, at(9, 7), 171 /* shadow_demons */, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         let serial = f4x_core::player::view::PlayerView::new(&w, P0).serial_of(demon);
         let _ = ai.roles.claim(serial, Role::Scout, 1, Some(target));
         let mut events = Vec::new();
@@ -653,7 +653,7 @@ mod tests {
             .at;
         let settler = spawn(&mut w, P0, at(9, 7), 111 /* high_men_settlers */, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         let serial = f4x_core::player::view::PlayerView::new(&w, P0).serial_of(settler);
         let _ = ai.roles.claim(serial, Role::Settle, 1, Some(site));
         let mut events = Vec::new();
@@ -678,7 +678,7 @@ mod tests {
         let site = at(ENEMY_CITY.0, ENEMY_CITY.1);
         let settler = spawn(&mut w, P0, at(9, 7), 111 /* high_men_settlers */, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         let serial = f4x_core::player::view::PlayerView::new(&w, P0).serial_of(settler);
         let _ = ai.roles.claim(serial, Role::Settle, 1, Some(site));
         assert_eq!(revalidate(&mut ai, &mut w, &mut Vec::new()), 1);
@@ -700,7 +700,7 @@ mod tests {
         let site = at(COAST_CITY.0 + 1, COAST_CITY.1);
         let settler = spawn(&mut w, P0, at(9, 7), 111 /* high_men_settlers */, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         let serial = f4x_core::player::view::PlayerView::new(&w, P0).serial_of(settler);
         let _ = ai.roles.claim(serial, Role::Settle, 1, Some(site));
         assert_eq!(revalidate(&mut ai, &mut w, &mut Vec::new()), 1);
@@ -723,7 +723,7 @@ mod tests {
         let charge = spawn(&mut w, P0, at(9, 6), 104, 1)[0];
         let escort = spawn(&mut w, P0, at(7, 6), 104, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         let view = f4x_core::player::view::PlayerView::new(&w, P0);
         let (e, c, s) = (
             view.serial_of(engineer),

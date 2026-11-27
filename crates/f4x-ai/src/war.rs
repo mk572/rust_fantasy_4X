@@ -981,11 +981,11 @@ mod tests {
     ) -> TestResult {
         let sent = |turn: u32| -> Result<usize, Box<dyn std::error::Error>> {
             let mut w = rival_with_a_seat((4, 4))?;
-            w.turn = turn;
+            w.set_round(turn);
             spawn(&mut w, P0, at(5, 9), 113 /* high_men_paladins */, 9);
             w.reveal_map(P0);
             let mut ai = Ai::new(P0);
-            crate::roles::register(&mut ai, &w, w.turn);
+            crate::roles::register(&mut ai, &w, w.round());
             run(&mut ai, &mut w, &mut Vec::new());
             let musters = ai.roles.musters();
             Ok(musters.first().map_or(0, |(_, _, members)| members.len()))
@@ -1005,7 +1005,7 @@ mod tests {
         let troops = spawn(&mut w, P0, at(5, 9), 113 /* high_men_paladins */, 9);
         w.reveal_map(P0);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         run(&mut ai, &mut w, &mut Vec::new());
         assert_eq!(ai.campaign, Some(at(4, 4)));
         let musters = ai.roles.musters();
@@ -1031,7 +1031,7 @@ mod tests {
         for &u in &sent {
             w.cheat_move_unit(u, capital);
         }
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         run(&mut ai, &mut w, &mut Vec::new());
         assert!(
             ai.roles.musters().is_empty(),
@@ -1057,7 +1057,7 @@ mod tests {
         }
         w.reveal_map(P0);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         run(&mut ai, &mut w, &mut Vec::new());
         let view = PlayerView::new(&w, P0);
         for &u in hurt {
@@ -1106,7 +1106,7 @@ mod tests {
         let tile = w.max_tile();
         let troops = spawn(&mut w, P0, capital, 113 /* high_men_paladins */, tile);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         run(&mut ai, &mut w, &mut Vec::new());
         assert_eq!(ai.campaign, Some(town));
         assert!(ai.roles.any(Role::March), "the march left");
@@ -1123,7 +1123,7 @@ mod tests {
             let view = PlayerView::new(&w, P0);
             troops.iter().map(|&u| view.unit_position(u)).collect()
         };
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         run(&mut ai, &mut w, &mut Vec::new());
         assert_ne!(ai.campaign, Some(town), "the taken town is no target");
         assert!(!ai.roles.any(Role::March), "the march is over");
@@ -1226,9 +1226,9 @@ mod tests {
         let beside = spawn(&mut w, P0, at(COAST_CITY.0 - 1, COAST_CITY.1), 113, 2);
         w.reveal_map(P0);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         run(&mut ai, &mut w, &mut Vec::new());
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         let view = PlayerView::new(&w, P0);
         let marching: Vec<_> = stack
             .iter()
@@ -1375,7 +1375,7 @@ mod tests {
         let troops = spawn(&mut w, P0, at(COAST_CITY.0, COAST_CITY.1), 104, 6);
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         run(&mut ai, &mut w, &mut events);
         assert_eq!(
             ai.crossing,
@@ -1508,19 +1508,19 @@ mod tests {
         spawn(&mut w, P0, capital, 113 /* high_men_paladins */, tile);
         w.reveal_map(P0);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         run(&mut ai, &mut w, &mut Vec::new());
         assert!(ai.roles.any(Role::March), "the march left");
         let target = ai.campaign.ok_or("a campaign")?;
         let trip = distance(&PlayerView::new(&w, P0), capital, target).ok_or("a way")?;
         assert!(trip > 3, "the target is far from the rally: {trip}");
         // Past the usual time, within the walk on top of it.
-        ai.march_started = w.turn;
+        ai.march_started = w.round();
         for _ in 0..=MARCH_TURNS {
             w.play_round();
         }
         let mut events = Vec::new();
-        ai.march_started = w.turn - (MARCH_TURNS + 1);
+        ai.march_started = w.round() - (MARCH_TURNS + 1);
         let before = events.len();
         run(&mut ai, &mut w, &mut events);
         assert!(
@@ -1590,7 +1590,7 @@ mod tests {
         let (mut w, mut ai) = landing_world(6)?;
         assert_ne!(w.treaty(P0, P1), f4x_core::diplomacy::Treaty::War);
         for _ in 0..3 {
-            crate::roles::register(&mut ai, &w, w.turn);
+            crate::roles::register(&mut ai, &w, w.round());
             crate::naval::run(&mut ai, &mut w, &mut Vec::new());
             run(&mut ai, &mut w, &mut Vec::new());
         }
@@ -1614,7 +1614,7 @@ mod tests {
         let (mut w, mut ai) = landing_world(6)?;
         w.start_treaty(P0, P1, f4x_core::diplomacy::Treaty::Pact);
         for _ in 0..3 {
-            crate::roles::register(&mut ai, &w, w.turn);
+            crate::roles::register(&mut ai, &w, w.round());
             crate::naval::run(&mut ai, &mut w, &mut Vec::new());
             run(&mut ai, &mut w, &mut Vec::new());
         }
@@ -1634,7 +1634,7 @@ mod tests {
         for _ in 0..60 {
             let mut events = Vec::new();
             w.balance_farmers(P0);
-            crate::roles::register(&mut ai, &w, w.turn);
+            crate::roles::register(&mut ai, &w, w.round());
             crate::dispatch::revalidate(&mut ai, &mut w, &mut events);
             crate::naval::run(&mut ai, &mut w, &mut events);
             run(&mut ai, &mut w, &mut events);
@@ -1687,7 +1687,7 @@ mod tests {
         for _ in 0..60 {
             let mut events = Vec::new();
             w.balance_farmers(P0);
-            crate::roles::register(&mut ai, &w, w.turn);
+            crate::roles::register(&mut ai, &w, w.round());
             crate::dispatch::revalidate(&mut ai, &mut w, &mut events);
             crate::naval::run(&mut ai, &mut w, &mut events);
             run(&mut ai, &mut w, &mut events);

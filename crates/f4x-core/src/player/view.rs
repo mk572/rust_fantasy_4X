@@ -123,10 +123,6 @@ impl<'a> PlayerView<'a> {
         self.world.city_name_for(race, index)
     }
 
-    pub fn game_over(&self) -> bool {
-        self.world.game_over.is_some()
-    }
-
     /// The player's gold and mana.
     pub fn treasury(&self) -> Treasury {
         self.world.player(self.me).map_or(

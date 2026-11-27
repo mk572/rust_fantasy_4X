@@ -204,7 +204,7 @@ mod tests {
             n,
         );
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         Ok((w, ai))
     }
 
@@ -215,7 +215,7 @@ mod tests {
         run(&mut ai, &mut w, &mut Vec::new());
         assert_eq!(ai.roles.targets(Role::Reinforce), vec![inland]);
         // The one on its way is counted as held: the next turn sends no more.
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         run(&mut ai, &mut w, &mut Vec::new());
         assert_eq!(ai.roles.count(Role::Reinforce), 1);
         Ok(())
@@ -250,7 +250,7 @@ mod tests {
     fn a_stronger_enemy_near_a_city_brings_the_spare_soldiers_into_it() {
         let (mut w, spare) = besieged();
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         run(&mut ai, &mut w, &mut Vec::new());
         let view = PlayerView::new(&w, P0);
         for &u in &spare {
@@ -268,7 +268,7 @@ mod tests {
         let (mut w, _) = besieged();
         let extra = spawn(&mut w, P0, at(10, 6), 105, 2);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         run(&mut ai, &mut w, &mut Vec::new());
         let view = PlayerView::new(&w, P0);
         let held = extra
@@ -304,7 +304,7 @@ mod tests {
         let (mut w, overseas) = overseas()?;
         let city = at(COAST_CITY.0, COAST_CITY.1);
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         run(&mut ai, &mut w, &mut Vec::new());
         let view = PlayerView::new(&w, P0);
         let tagged: Vec<_> = overseas
@@ -328,7 +328,7 @@ mod tests {
         let (mut w, overseas) = overseas()?;
         let walker = spawn(&mut w, P0, at(8, 6), 104, 1)[0];
         let mut ai = Ai::new(P0);
-        crate::roles::register(&mut ai, &w, w.turn);
+        crate::roles::register(&mut ai, &w, w.round());
         run(&mut ai, &mut w, &mut Vec::new());
         let view = PlayerView::new(&w, P0);
         assert_eq!(

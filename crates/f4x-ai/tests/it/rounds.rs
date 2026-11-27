@@ -20,7 +20,7 @@ fn rounds_with_two_ais_advance_the_round_counter_once_each() {
         .expect("a new game"),
     );
     let mut ais = vec![Ai::new(PlayerId(0)), Ai::new(PlayerId(1))];
-    let start = w.turn;
+    let start = w.round();
     let mut started = 0;
     for _ in 0..8 {
         let events = play_round(&mut w, &mut ais);
@@ -29,7 +29,7 @@ fn rounds_with_two_ais_advance_the_round_counter_once_each() {
             .filter(|e| matches!(e, Event::TurnStarted { .. }))
             .count();
     }
-    assert_eq!(w.turn, start + 8);
+    assert_eq!(w.round(), start + 8);
     assert_eq!(
         started, 8,
         "the round start runs once per round, not once per wizard"
@@ -55,14 +55,15 @@ fn the_second_ai_plays_on_the_board_the_first_left() {
         for _ in 0..15 {
             play_round(&mut w, &mut ais);
         }
-        (w.turn, w.units().all_units().len(), w.next_u64())
+        (w.round(), w.units().all_units().len(), w.next_u64())
     };
     assert_eq!(play(), play());
 }
 
 #[test]
 fn a_game_loaded_with_the_ais_plans_plays_on_as_the_saved_one_would_have() {
-    use f4x_core::world::save::Snapshot;
+    use f4x_core::world::save::ContentCheck;
+    use f4x_master::SaveFile;
     let mut w = Game::new(
         new_game(
             f4x_def::testdir::shipped(),
@@ -78,16 +79,14 @@ fn a_game_loaded_with_the_ais_plans_plays_on_as_the_saved_one_would_have() {
     for _ in 0..40 {
         play_round(&mut w, &mut ais);
     }
-    Ai::remember(&mut w, &ais);
-    let text = w.snapshot().to_text().expect("saves");
-    let mut loaded = Game::new(
-        Snapshot::from_text(&text)
-            .expect("reads")
-            .restore(w.content().clone())
-            .expect("loads"),
-    );
+    let text = w.save_file(Ai::plans_of(&ais)).to_text().expect("saves");
+    let restored = SaveFile::from_text(&text)
+        .expect("reads")
+        .restore(w.content().clone(), ContentCheck::Strict)
+        .expect("loads");
+    let (mut loaded, plans) = (restored.game, restored.plans);
     let mut fresh = vec![Ai::new(PlayerId(0)), Ai::new(PlayerId(1))];
-    Ai::recall(&loaded, &mut fresh);
+    Ai::recall(&plans, &mut fresh);
     for (a, b) in fresh.iter().zip(&ais) {
         assert_eq!(a.to_text().ok(), b.to_text().ok(), "the plans come back");
     }
@@ -103,7 +102,7 @@ fn a_game_loaded_with_the_ais_plans_plays_on_as_the_saved_one_would_have() {
 }
 
 #[test]
-fn the_master_hands_the_ais_plans_to_the_game_at_every_round_start() {
+fn the_master_collects_the_ais_plans_to_be_saved() {
     use f4x_ai::AiSeat;
     use f4x_master::{Master, Seat, Stopped, Until};
     let mut w = Game::new(
@@ -127,10 +126,11 @@ fn the_master_hands_the_ais_plans_to_the_game_at_every_round_start() {
     let mut master = Master::new(seats).checkpoints();
     let progress = master.run(&mut w, Until::Rounds(5));
     assert_eq!(progress.stopped, Stopped::RoundStart);
+    let plans = master.plans();
     drop(master);
-    let saved: Vec<_> = w.plans().iter().map(|(p, _)| *p).collect();
+    let saved: Vec<_> = plans.iter().map(|(p, _)| *p).collect();
     assert_eq!(&saved[..2], &[PlayerId(0), PlayerId(1)]);
-    for ((_, text), ai) in w.plans().iter().zip(&ais) {
+    for ((_, text), ai) in plans.iter().zip(&ais) {
         assert_eq!(Some(text.clone()), ai.to_text().ok(), "the AI as it stands");
     }
     // The neutral players keep plans too, like any AI.

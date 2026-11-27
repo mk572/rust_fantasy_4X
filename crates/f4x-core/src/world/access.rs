@@ -324,6 +324,12 @@ impl World {
         self.add_global(player, spell);
     }
 
+    /// Make every war this many rounds older (younger, if negative), as a scenario that skips
+    /// rounds sets it up.
+    pub fn scenario_age_wars(&mut self, rounds: i64) {
+        self.diplomacy.age_wars(rounds);
+    }
+
     /// Set the spell a wizard is casting and the mana still owed, as a scenario sets it up (no
     /// checks; a cast already in progress is replaced).
     pub fn scenario_casting(&mut self, player: PlayerId, spell: SpellId, owed: i32) {

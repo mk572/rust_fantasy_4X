@@ -2,9 +2,9 @@
 
 use crate::support::games;
 use crate::support::{busy_round, content, shape, text, worlds};
-use f4x_core::world::save::{Integrity, LoadError, Snapshot};
+use f4x_core::world::save::{ContentCheck, Integrity, LoadError, Snapshot};
 use f4x_core::world::World;
-use f4x_master::Game;
+use f4x_master::SaveFile;
 
 fn restored(w: &World) -> World {
     Snapshot::from_text(&text(w))
@@ -30,7 +30,12 @@ fn a_loaded_game_goes_on_as_the_saved_one_would_have() {
         for _ in 0..8 {
             busy_round(&mut live, 6);
         }
-        let mut loaded = Game::new(restored(&live));
+        let saved = live.save_file(Vec::new()).to_text().expect("saves");
+        let mut loaded = SaveFile::from_text(&saved)
+            .expect("reads")
+            .restore(content(), ContentCheck::Strict)
+            .expect("restores")
+            .game;
         for round in 0..15 {
             let a = shape(&busy_round(&mut live, 6));
             let b = shape(&busy_round(&mut loaded, 6));
@@ -116,7 +121,6 @@ fn a_save_of_another_layout_or_game_version_is_refused_by_name() {
 
 #[test]
 fn a_save_of_other_content_is_refused_unless_the_player_chose_to_load_it() {
-    use f4x_core::world::save::ContentCheck;
     let snapshot = Snapshot::from_text(&saved()).expect("reads");
     let mut other = content();
     other.fingerprint = "f".repeat(64);
@@ -154,7 +158,7 @@ fn settings_out_of_range_are_refused_and_say_which() {
 fn an_edited_save_is_noticed() {
     let full = saved();
     assert_eq!(Snapshot::integrity(&full), Integrity::Intact);
-    let edited = full.replacen("turn: ", "turn: 1", 1);
+    let edited = full.replacen("next_serial: ", "next_serial: 1", 1);
     assert_eq!(Snapshot::integrity(&edited), Integrity::Edited);
     assert!(
         load(&edited, "edited").is_ok(),
@@ -353,73 +357,6 @@ fn a_refusal_says_what_is_wrong_in_words() {
     let said = format!("{e:?}");
     assert!(said.contains("abcdef012345"), "{said}");
     assert!(!said.contains("abcdef0123456"), "{said}");
-}
-
-#[test]
-fn a_save_of_a_version_with_one_player_for_each_city_is_brought_to_one_for_each_race() {
-    use f4x_def::half_int::HalfInt;
-    let base = Snapshot::from_text(&saved()).expect("reads");
-    let race_player = base
-        .players
-        .iter()
-        .find(|p| {
-            p.neutral
-                && (100..255).contains(&p.id)
-                && base.cities.iter().filter(|c| c.owner == p.id).count() >= 2
-        })
-        .expect("a player of two independent cities, one of which gets a player of its own")
-        .clone();
-    let city_at = base
-        .cities
-        .iter()
-        .find(|c| c.owner == race_player.id)
-        .expect("a city of it")
-        .pos;
-    // The old game: that city has a player of its own, with a treasury of its own.
-    let own = (100..255u8)
-        .find(|id| base.players.iter().all(|p| p.id != *id))
-        .expect("a free player number");
-    let old_form = |version: &str| {
-        let mut s = base.clone();
-        s.game_version = version.to_string();
-        let mut extra = race_player.clone();
-        extra.id = own;
-        extra.gold = HalfInt::from_int(7);
-        s.players.push(extra);
-        s.cities
-            .iter_mut()
-            .find(|c| c.pos == city_at)
-            .expect("the city")
-            .owner = own;
-        // The upgrade is part of reading a save from text.
-        Snapshot::from_text(&s.to_text().expect("writes")).expect("reads")
-    };
-    // Written before the change: the city goes to the player of its race, the gold is added up.
-    let w = old_form("0.0.5")
-        .restore(content())
-        .expect("an old save loads");
-    assert!(
-        w.player(f4x_core::player::PlayerId(own)).is_none(),
-        "the old player is still there"
-    );
-    let city = w.economy().city_at(city_at).expect("the city");
-    assert_eq!(
-        w.economy().city_owner(city),
-        Some(f4x_core::player::PlayerId(race_player.id))
-    );
-    let gold = w
-        .player(f4x_core::player::PlayerId(race_player.id))
-        .expect("the player")
-        .treasury()
-        .gold;
-    assert_eq!(gold, race_player.gold + HalfInt::from_int(7));
-    // Written in the version of the change: it is not touched.
-    let w = old_form("0.0.6").restore(content()).expect("loads");
-    let city = w.economy().city_at(city_at).expect("the city");
-    assert_eq!(
-        w.economy().city_owner(city),
-        Some(f4x_core::player::PlayerId(own))
-    );
 }
 
 #[test]

@@ -3,12 +3,21 @@
 //! end of its range, a city at its size cap, a game played far past its usual end.
 
 use crate::support::games;
-use crate::support::{text, worlds};
+use crate::support::text;
 use f4x_core::check::world_problems;
 use f4x_core::player::PlayerId;
+use f4x_core::world::save::ContentCheck;
 use f4x_core::world::{Event, World};
 use f4x_def::half_int::HalfInt;
-use f4x_master::turn_players;
+use f4x_master::{turn_players, Game, SaveFile};
+
+/// The fresh worlds, each in a game, so that time can pass in them.
+fn worlds() -> Vec<(String, Game)> {
+    crate::support::worlds()
+        .into_iter()
+        .map(|(name, w)| (name, Game::new(w)))
+        .collect()
+}
 
 /// The players that keep a treasury: the wizards.
 fn wizards(w: &World) -> Vec<PlayerId> {
@@ -69,8 +78,8 @@ fn the_budget_is_the_sum_of_what_the_cities_yield() {
 }
 
 /// The turn of one player as the master runs it: the player's start, then the player's end.
-fn play_turn_of(w: &mut World, p: PlayerId) -> Vec<Event> {
-    let mut events = w.start_player_turn(p, w.turn);
+fn play_turn_of(w: &mut Game, p: PlayerId) -> Vec<Event> {
+    let mut events = w.start_player_turn(p);
     events.extend(w.end_player_turn(p));
     events
 }
@@ -81,9 +90,9 @@ fn the_treasury_after_a_turn_is_what_the_budget_said_once() {
     for (name, mut w) in worlds() {
         idle_cities(&mut w);
         for round in 0..10 {
-            w.start_round(w.turn + 1);
+            w.start_round();
             for p in turn_players(&w) {
-                let mut events = w.start_player_turn(p, w.turn);
+                let mut events = w.start_player_turn(p);
                 if w.is_neutral_player(p) || w.wizard(p).is_none() {
                     events.extend(w.end_player_turn(p));
                     continue;
@@ -122,12 +131,15 @@ fn the_order_of_the_players_does_not_change_the_treasuries() {
             w.play_round();
         }
         idle_cities(&mut w);
-        let saved = w.snapshot();
-        let mut forward = saved
-            .clone()
-            .restore(crate::support::content())
-            .expect("restores");
-        let mut backward = saved.restore(crate::support::content()).expect("restores");
+        let saved = w.save_file(Vec::new());
+        let again = |saved: SaveFile| {
+            saved
+                .restore(crate::support::content(), ContentCheck::Strict)
+                .expect("restores")
+                .game
+        };
+        let mut forward = again(saved.clone());
+        let mut backward = again(saved);
         let mut order = turn_players(&forward);
         for p in order.clone() {
             play_turn_of(&mut forward, p);
@@ -220,7 +232,7 @@ fn cities_at_the_size_cap_stay_there_and_hold_together() {
 #[test]
 fn a_game_played_far_past_its_usual_end_holds_together() {
     let (name, mut w) = games().remove(0);
-    let start = w.turn;
+    let start = w.round();
     for turn in 1..=400 {
         w.play_round();
         if turn % 50 == 0 {
@@ -229,7 +241,7 @@ fn a_game_played_far_past_its_usual_end_holds_together() {
         }
     }
     assert!(
-        w.turn >= start + 400 || w.game_over.is_some(),
+        w.round() >= start + 400 || w.game_over().is_some(),
         "the turns were not counted"
     );
     // What 400 turns left still saves and loads as itself.

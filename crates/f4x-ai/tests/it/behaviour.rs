@@ -32,7 +32,7 @@ fn game(seed: u64) -> Result<Game, Box<dyn std::error::Error>> {
 fn play(game: &mut Game, turns: u32) {
     let mut ais = vec![Ai::new(P0), Ai::new(P1)];
     for _ in 0..turns {
-        if game.game_over.is_some() {
+        if game.game_over().is_some() {
             break;
         }
         play_round(game, &mut ais);
@@ -83,7 +83,7 @@ fn a_wizard_that_knows_the_spell_of_mastery_casts_it_and_wins() -> TestResult {
     w.treasury_mut(P0).ok_or("player 0 has a treasury")?.mana =
         f4x_def::half_int::HalfInt::from_int(20_000);
     play(&mut w, 80);
-    let over = w.game_over.ok_or("the game ended")?;
+    let over = w.game_over().ok_or("the game ended")?;
     assert_eq!(over.winner, P0);
     assert_eq!(over.kind, EndKind::SpellOfMastery);
     Ok(())

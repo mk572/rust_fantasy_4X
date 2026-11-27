@@ -17,7 +17,7 @@ impl World {
     /// opening work runs (the event draw, the raiders' and monsters' clocks). See
     /// `docs/turn-structure.md` section 7.1 for what belongs to which phase.
     pub fn start_round(&mut self, round: u32) -> Vec<Event> {
-        self.turn = round;
+        self.diplomacy.age_wars(1);
         let mut events = vec![Event::TurnStarted { turn: round }];
         events.extend(self.process_events(round));
         events.extend(self.process_threats(round));

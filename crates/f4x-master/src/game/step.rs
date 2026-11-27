@@ -10,7 +10,9 @@ use f4x_core::player::{PlayerId, MONSTERS};
 use f4x_core::world::{Event, Rejection, World};
 use serde::{Deserialize, Serialize};
 
+use super::end::{judge, GameOver};
 use super::Game;
+use crate::Phase;
 
 /// One step of the turn order, or the whole change of rounds at once.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -40,7 +42,18 @@ pub fn turn_players(world: &World) -> Vec<PlayerId> {
 impl Game {
     /// The round the game is in, the first being 1.
     pub fn round(&self) -> u32 {
-        self.world.turn
+        self.state.round
+    }
+
+    /// Where the master was in the round, as it last wrote it: `None` when nothing has, or a step
+    /// has been made since.
+    pub fn phase(&self) -> Option<Phase> {
+        self.state.phase
+    }
+
+    /// Record where the master is in the round, to be saved with the game.
+    pub(crate) fn set_phase(&mut self, phase: Phase) {
+        self.state.phase = Some(phase);
     }
 
     /// [`turn_players`] of the game's world.
@@ -78,7 +91,7 @@ impl Game {
     /// Make a step. A game that has ended, or a player the game does not have, refuses it, and
     /// a refused step changes nothing and is not recorded.
     pub(super) fn take(&mut self, step: Step) -> Vec<Event> {
-        if self.world.game_over.is_some() {
+        if self.state.game_over.is_some() {
             return vec![Event::Rejected(Rejection::GameOver)];
         }
         if let Step::StartTurn(player) | Step::EndTurn(player) = step {
@@ -88,32 +101,47 @@ impl Game {
         }
         self.record_step(step);
         self.forget_history();
-        self.world.set_flow(None);
+        self.state.phase = None;
         let players = match step {
             Step::PlayRound => self.turn_players(),
             _ => Vec::new(),
         };
         let round = self.round();
-        self.world.advance(|world| match step {
-            Step::StartRound => world.start_round(round + 1),
+        let next = match step {
+            Step::StartRound | Step::PlayRound => round + 1,
+            _ => round,
+        };
+        let over = &mut self.state.game_over;
+        let mut events = self.world.advance(|world| match step {
+            Step::StartRound => world.start_round(next),
             Step::StartTurn(player) => world.start_player_turn(player, round),
             Step::EndTurn(player) => world.end_player_turn(player),
             Step::EndRound => world.end_round(),
-            Step::PlayRound => whole_round(world, &players, round + 1),
-        })
+            Step::PlayRound => whole_round(world, &players, round, over),
+        });
+        self.state.round = next;
+        events.extend(self.check_end());
+        events
     }
 }
 
-/// [`Game::play_round`] on the world, which begins round `next`.
-fn whole_round(world: &mut World, players: &[PlayerId], next: u32) -> Vec<Event> {
+/// [`Game::play_round`] on the world, which ends round `round` and begins the next. A game decided
+/// by the end of the round ended in it.
+fn whole_round(
+    world: &mut World,
+    players: &[PlayerId],
+    round: u32,
+    over: &mut Option<GameOver>,
+) -> Vec<Event> {
     let mut events = Vec::new();
     for &p in players {
         events.extend(world.end_player_turn(p));
     }
     events.extend(world.end_round());
-    events.extend(world.start_round(next));
+    events.extend(judge(world, round, over));
+    events.extend(world.start_round(round + 1));
     for &p in players {
-        events.extend(world.start_player_turn(p, next));
+        events.extend(world.start_player_turn(p, round + 1));
     }
     events
 }
