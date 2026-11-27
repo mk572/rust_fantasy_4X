@@ -1,4 +1,8 @@
-use macroquad::{prelude::*, ui::Ui};
+use macroquad::{
+    hash,
+    prelude::*,
+    ui::{root_ui, Ui},
+};
 use std::{fs::File, io::BufWriter};
 
 const PREVIEW_X: f32 = 360.0;
@@ -251,8 +255,8 @@ async fn main() {
             }
         }
 
-        let ui = root_ui();
-        ui.window(hash!(), vec2(12.0, 12.0), vec2(330.0, screen_height() - 24.0), |ui| {
+        // The handle is dropped at the end of this statement: the frame's end needs the UI itself.
+        root_ui().window(hash!(), vec2(12.0, 12.0), vec2(330.0, screen_height() - 24.0), |ui| {
             ui.label(None, "STONE GEN / VGA TEXTURE LAB");
             ui.separator();
 
