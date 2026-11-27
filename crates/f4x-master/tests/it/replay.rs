@@ -1,10 +1,12 @@
 //! A recorded game plays again to the same game.
 
+use f4x_battle::battle::BattleCommand;
+use f4x_core::battle::world::BattleBrain;
 use f4x_core::world::save::GAME_VERSION;
-use f4x_core::world::Command;
+use f4x_core::world::{Command, Event, World};
 use f4x_master::{Entry, Replay, ReplayError};
 
-use crate::support::{all_farm, busy_round, content, games, text};
+use crate::support::{all_farm, busy_round, content, field, games, text};
 
 #[test]
 fn a_recorded_game_plays_again_to_the_same_game() {
@@ -126,5 +128,81 @@ fn a_replay_of_a_game_version_this_game_cannot_read_is_refused() {
             matches!(Replay::from_text(&edited), Err(ReplayError::Load(_))),
             "{version}"
         );
+    }
+}
+
+/// A brain that ends its side's turn `waits` times and then flees: what it answers depends on how
+/// often it was asked.
+struct Fickle {
+    waits: u32,
+}
+
+impl BattleBrain for Fickle {
+    fn command(&mut self, _: &World) -> BattleCommand {
+        match self.waits.checked_sub(1) {
+            Some(left) => {
+                self.waits = left;
+                BattleCommand::EndTurn
+            }
+            None => BattleCommand::Flee,
+        }
+    }
+}
+
+/// The test games have no scripted battle AI, and a replay no brain: only the recorded orders
+/// make the defender flee. Without them the attacker would, as the side to play first.
+#[test]
+fn an_auto_resolved_battle_is_replayed_with_its_orders_and_no_brain() {
+    for answered in [false, true] {
+        let mut f = field();
+        f.game.world_mut().set_human(answered.then_some(f.b));
+        for (player, waits) in [(f.a, 10), (f.b, 1)] {
+            let brain = Box::new(Fickle { waits });
+            f.game.world_mut().set_battle_brain(player, Some(brain));
+        }
+        f.game.start_recording();
+        let attack = Command::AutoResolve {
+            attackers: f.attackers.clone(),
+            defenders: f.defenders.clone(),
+            mana_budget: None,
+        };
+        let mut events = f.game.apply(f.a, attack);
+        if answered {
+            let defend = Command::Defend {
+                attackers: f.attackers.clone(),
+                fighters: f.defenders.clone(),
+                auto: true,
+                mana: None,
+            };
+            events = f.game.apply(f.b, defend);
+        }
+        let lost = |e: &Event| matches!(e, Event::BattleEnded { loser, .. } if *loser == f.b);
+        assert!(events.iter().any(lost), "{events:?}");
+
+        let replay = f.game.replay_so_far().expect("a recording");
+        let mut replay = Replay::from_text(&replay.to_text().expect("writes")).expect("reads");
+        let orders = match replay.entries.last() {
+            Some(Entry::AutoBattle(_, _, orders)) => orders.clone(),
+            other => panic!("no orders were recorded: {other:?}"),
+        };
+        assert_eq!(orders.last(), Some(&BattleCommand::Flee));
+        assert!(orders.len() > 1, "{orders:?}");
+        let (played, all) = replay.play(content(), usize::MAX).expect("plays");
+        let fight = |events: &[Event]| -> Vec<Event> {
+            let battle = events.iter().filter(|e| matches!(e, Event::Battle(_)));
+            battle.cloned().collect()
+        };
+        assert_eq!(all.last().map(|e| fight(e)), Some(fight(&events)));
+        assert_eq!(text(played.world()), text(f.game.world()));
+        // A replay of the replay carries the orders on.
+        let again = played.replay_so_far().expect("a recording");
+        assert_eq!(again.entries, replay.entries);
+
+        // The command alone asks again, and nobody answers as the brains did.
+        if let Some(Entry::AutoBattle(player, command, _)) = replay.entries.pop() {
+            replay.entries.push(Entry::Command(player, command));
+        }
+        let (other, _) = replay.play(content(), usize::MAX).expect("plays");
+        assert_ne!(text(other.world()), text(f.game.world()));
     }
 }

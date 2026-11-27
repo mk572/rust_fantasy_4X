@@ -5,74 +5,13 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use f4x_core::battle::world::BattleStartError;
-use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::Position;
 use f4x_core::player::PlayerId;
 use f4x_core::world::save::ContentCheck;
 use f4x_core::world::{Command, Event, Rejection};
-use f4x_def::rules::{UnitId, UnitKind};
 use f4x_master::{Controller, Game, Master, Phase, SaveFile, Seat, Status, Stopped, Until};
 
-use crate::support::{content, games, text};
-
-/// Two soldiers of `a` beside two of `b`, who is the human.
-struct Field {
-    game: Game,
-    a: PlayerId,
-    b: PlayerId,
-    attackers: Vec<hecs::Entity>,
-    defenders: Vec<hecs::Entity>,
-}
-
-fn field() -> Field {
-    let (_, mut game) = games().remove(0);
-    let wizards: Vec<PlayerId> = game
-        .turn_players()
-        .iter()
-        .copied()
-        .filter(|&p| game.is_wizard(p))
-        .collect();
-    let (a, b) = (wizards[0], wizards[1]);
-    game.world_mut().set_human(Some(b));
-    let map = game.map().expect("a map");
-    let free = |p: Position| {
-        game.units().units_at(p).is_empty()
-            && game.economy().terrain_class_at(p) == Some(TerrainClass::Grassland)
-            && game.economy().city_at(p).is_none()
-    };
-    let plane = game
-        .units()
-        .player_units(a)
-        .first()
-        .and_then(|&u| game.units().unit_position(u))
-        .expect("a unit")
-        .plane;
-    let (here, there) = (1..map.height() - 1)
-        .flat_map(|y| (1..map.width() - 1).map(move |x| Position { x, y, plane }))
-        .map(|p| (p, Position { x: p.x + 1, ..p }))
-        .find(|&(p, q)| free(p) && free(q))
-        .expect("two squares of grassland");
-    let normal = game.content().rules.units.defs().iter();
-    let kind = normal
-        .filter(|d| d.kind == UnitKind::Normal && d.race.is_some())
-        .map(|d| UnitId::new(d.num))
-        .next()
-        .expect("a unit of a race");
-    let mut stack = |owner, pos| -> Vec<hecs::Entity> {
-        (0..2)
-            .map(|_| game.world_mut().spawn_unit(owner, pos, kind))
-            .collect()
-    };
-    let attackers = stack(a, here);
-    let defenders = stack(b, there);
-    Field {
-        game,
-        a,
-        b,
-        attackers,
-        defenders,
-    }
-}
+use crate::support::{content, field, text, Field};
 
 impl Field {
     fn attack(&self) -> Command {

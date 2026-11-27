@@ -240,7 +240,7 @@ The **world** (`f4x-core`'s `World`, named `Game` until 26 November 2026) says w
 |---|---|---|
 | `ecs`, `map`, `fog`, `content`, `names`, `player_index`, `monsters`, `next_serial`, `settings` | world | |
 | `rng` (seed and draws) | game | passed to the world operations (10.10) |
-| `diplomacy`, `events`, `threat`, `battle`, `battle_brains`, `item_awards`, `prefab_taken`, `locations` | world | the clocks of the events and threats are state of the world |
+| `diplomacy`, `events`, `threat`, `battle`, `battle_brains`, `auto_orders`, `item_awards`, `prefab_taken`, `locations` | world | the clocks of the events and threats are state of the world |
 | `vision`, `net_gold_memo`, `budget_parts`, `tile_watch`, `confirmed` | world | caches and command state |
 | `undo_on`, `undo_stack` | game | beside the replay log (10.9) |
 | `recording` | game | replays move to the game (10.9) |
@@ -372,7 +372,7 @@ No command takes a round.
 
 ### 10.9 Replays, undo and tests (decided 26 November 2026)
 
-- **Replays belong to the game**, since a log with turn and round steps cannot be played on a world alone. The log is the starting game followed by entries: a player's command with its sender, or a turn or round step. Playback goes through the `Game` and needs no controllers or AI. Writing units and cities as creation numbers stays in core. Cheats are not recorded, as today.
+- **Replays belong to the game**, since a log with turn and round steps cannot be played on a world alone. The log is the starting game followed by entries: a player's command with its sender, or a turn or round step. A command that auto-resolved a battle carries the orders given in it (task 812). Playback goes through the `Game` and needs no controllers or AI. Writing units and cities as creation numbers stays in core. Cheats are not recorded, as today.
 - **Old replay files are refused**; the converter (10.8) is for saves. A replay written by a 0.0.8 build from before the commands carried their sender is not read either.
 - **Undo belongs to the game** too: it restores the whole `Game`, open reactions included, and takes the command out of the replay log. What cannot be taken back stays as today (a command that explored, drew a random number or started a battle, and everything before it; the end of a turn); the game sees the draws itself, and the world tells it the other facts.
 - **Turn-order, replay and undo tests** move to `f4x-master`.

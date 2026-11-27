@@ -155,7 +155,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 809 | Low | Rules | More interesting strategies for underplayed or underpowered races |
 | 810 | Low | Magic | Neutral cities: their own mana and spells |
 | 811 | Low | Meta | Multiplayer: scope and design (to be discussed) |
-| 812 | Low | AI | Record the battle AI's orders for replays |
 | 813 | Low | Rules | Casting mod: half the casting distance penalty, a Channeler that costs one pick, Lo Pan's fifth sorcery book back |
 | 814 | Low | Rules | Life and death nodes |
 | 815 | Low | Content | Free sounds: effects for events that have none, and replacements for the original's sound and music |
@@ -749,13 +748,6 @@ Needs: the data (20 spells for each of the 14 races), a `Magic`-like record for 
 - **What exists for it.** Recording and replay for local play (task 74, `f4x-master`'s `game/replay.rs`): a command log with creation numbers in place of entities, a start snapshot, and replay from it. That is a base for turn files and for resynchronising a client, but not a network protocol.
 - **What is missing.** A wire format and versioning for commands and events; per-player views of events (a wizard must not be told what its fog hides: `player/view.rs` limits what a player may read of the game, but there is no filter for the events a command returns); the hidden information in the random stream (a client must not run the generator ahead); battles in progress are not saved, so a dropped connection loses them; undo; handing control of a wizard to the AI when its player leaves; cheats and the console in a shared game; chat and diplomacy messages between humans (the wizard diplomacy of `diplomacy.rs` is for AI and human alike).
 - **Open questions.** Which scope first; peer to peer or a central server; how to settle disconnects and timeouts; whether the AI may be replaced by a human mid-game; how saves, replays and the Hall of Fame treat multiplayer games.
-
-**812. Record the battle AI's orders for replays.** Replays (task 74, `f4x-master`'s `game/replay.rs`) record the commands the game is given, and every order a person or the scripted battle AI gives goes through `Game::apply` and is recorded. A learned battle brain (`set_battle_brain`, `next_battle_command`, `f4x-learn`) is asked for its orders inside the core (the auto-resolve loop in `battle/world.rs` calls `battle_command` directly), so those orders are not recorded, and a replay asks the brain again, which gives the same battle only if the brain answers the same way every time.
-
-- **Aim.** A replay of a game with a learned brain plays the same battles whether or not that brain is present, in the same version or another.
-- **How.** Record each order the brain gives, in order, with the battle's start, as part of the recording (the commands become `Battle` orders in the log, or a list kept with the `BeginBattle`/`AutoResolve` entry), and on replay feed the recorded orders back in place of asking the brain. The replay then needs no network weights.
-- **Needs.** The record hook in the auto-resolve loop and in the client's brain-driven battle (`battle_screen.rs`), a replay that takes orders from the log when it finds them, a test with a fake brain whose answers change between runs, and the file format note in `docs/console.md`.
-- **Priority.** Low: the learned AI is not part of feature parity with the original (decided 17 October 2026).
 
 **813. Casting mod.** Three changes that belong together, to make the wizards that cast from afar
 playable and to restore a preset the base game shortens: a decision per change whether it becomes

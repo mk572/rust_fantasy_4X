@@ -865,9 +865,11 @@ impl World {
             net_gold_memo: _,
             tile_watch: _,
             budget_parts: _,
-            // What belongs to the session, not the game: learned battle players, the confirmation of
-            // one command, and the items of the last command that the client has yet to tell about.
+            // What belongs to the session, not the game: learned battle players, the orders of the
+            // last auto-resolved battle, the confirmation of one command, and the items of the last
+            // command that the client has yet to tell about.
             battle_brains: _,
+            auto_orders: _,
             confirmed: _,
             item_awards: _,
         } = self;

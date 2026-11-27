@@ -100,6 +100,16 @@ pub trait BattleBrain {
     fn command(&mut self, world: &World) -> BattleCommand;
 }
 
+/// The orders of auto-resolved battles, which a replay records and gives back
+/// (`f4x-master`, `game/replay.rs`). Not part of a save.
+#[derive(Default)]
+pub(crate) struct AutoOrders {
+    /// Orders for the next auto-resolved battle, given in place of asking for them.
+    script: Option<Vec<BattleCommand>>,
+    /// The orders asked for in the last one.
+    given: Option<Vec<BattleCommand>>,
+}
+
 /// The scripted battle player that plays every side no brain was set for.
 static BATTLE_AI: std::sync::OnceLock<fn(&World) -> Option<BattleCommand>> =
     std::sync::OnceLock::new();
@@ -144,6 +154,19 @@ impl World {
             return Some(c);
         }
         BATTLE_AI.get().and_then(|ai| ai(self))
+    }
+
+    /// Give the next auto-resolved battle these orders, in place of asking the brains and the
+    /// battle AI; when they run out, the battle ends as it does with nobody to ask. `None` goes
+    /// back to asking.
+    pub fn script_battle_orders(&mut self, orders: Option<Vec<BattleCommand>>) {
+        self.auto_orders.script = orders;
+    }
+
+    /// The orders asked for in the last auto-resolved battle, in order, the one the rules
+    /// refused included; `None` when none was fought since they were last taken.
+    pub fn take_battle_orders(&mut self) -> Option<Vec<BattleCommand>> {
+        self.auto_orders.given.take()
     }
 
     /// Is a battle being fought?
@@ -1317,7 +1340,8 @@ impl World {
         events
     }
 
-    /// Fight a battle to the end with the battle AI playing both sides.
+    /// Fight a battle to the end with the battle AI playing both sides, or with the orders of
+    /// [`World::script_battle_orders`].
     pub fn auto_resolve(
         &mut self,
         attackers: &[hecs::Entity],
@@ -1336,6 +1360,8 @@ impl World {
         mana_budget: Option<(PlayerId, u32)>,
         rng: &mut GameRng,
     ) -> Vec<Event> {
+        // A script is for this battle, whether it starts or not.
+        let mut script = self.auto_orders.script.take().map(Vec::into_iter);
         if self.stacks_near(attackers, defenders) == Some(false) {
             return vec![Event::Rejected(crate::world::Rejection::BattleStart(
                 BattleStartError::NotAdjacent,
@@ -1351,10 +1377,16 @@ impl World {
                 self.set_battle_mana_budget(side, Some(mana));
             }
         }
+        let mut given = Vec::new();
         for _ in 0..20_000 {
-            let Some(command) = self.next_battle_command() else {
+            let next = match script.as_mut() {
+                Some(orders) => orders.next(),
+                None => self.next_battle_command(),
+            };
+            let Some(command) = next else {
                 break;
             };
+            given.push(command.clone());
             match self.battle_command(command, rng) {
                 Ok(e) => events.extend(e),
                 Err(_) => break,
@@ -1368,6 +1400,7 @@ impl World {
             }
         }
         self.finish_if_over(&mut events, rng);
+        self.auto_orders.given = Some(given);
         events
     }
 }

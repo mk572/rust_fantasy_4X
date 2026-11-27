@@ -101,6 +101,8 @@ pub struct World {
     pub(crate) prefab_taken: Vec<crate::rules::ItemId>,
     /// Players of battles that play for some wizards (a learned one; see `battle::world`).
     pub(crate) battle_brains: Vec<(hecs::Entity, Box<dyn battle::world::BattleBrain>)>,
+    /// The orders of auto-resolved battles, for replays.
+    pub(crate) auto_orders: battle::world::AutoOrders,
     /// Set while a command the caster confirmed runs (`Command::Anyway`): a spell that would do
     /// nothing is cast anyway.
     pub(crate) confirmed: bool,
@@ -202,6 +204,7 @@ impl World {
             override_log: Vec::new(),
             prefab_taken: Vec::new(),
             battle_brains: Vec::new(),
+            auto_orders: Default::default(),
             confirmed: false,
         }
     }

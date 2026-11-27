@@ -657,6 +657,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 783 | AI | (done) The AI's own per-turn look: treaty growth, army too strong, too many cities, trespass, Aura of Majesty, AI-to-AI gravitation, drift and returning patience; no dice *Needs:* 780 |
 | 784 | Client | (done) The client and the console read the AI's friendliness for the human (diplomacy list and screen, wizard sheet, `talk`, `describe`); a parity test of the AI's opinion against the core's table *Needs:* 780, 782, 783 |
 | 786 | Movement | (done) Faster movement along rivers |
+| 812 | AI | Record the battle AI's orders for replays (done) |
 | 824 | AI | (done) Decide whether to raze a captured city by whether the wizard wants to keep it, without a random roll |
 
 ## Descriptions
@@ -1148,5 +1149,13 @@ ships ever sail them. Make it a rule in data (a movement cost modifier per river
 be switched off, and show river-assisted paths in the path preview. Needs a decision on
 direction (up or down stream) before any asymmetric rule; the river layer currently has no flow
 direction.
+
+**812. Record the battle AI's orders for replays (done).** Replays (task 74, `f4x-master`'s `game/replay.rs`) record the commands the game is given. A battle order given as its own command (by a person, or by a client or AI that fights a battle order by order) goes through `Game::apply` and is recorded. An auto-resolved battle (`AutoResolve`, and `Defend` with `auto`) is one command: the loop in the core (`World::auto_resolve_with`, `battle/world.rs`) asks the scripted battle AI or a wizard's learned brain (`set_battle_brain`) for each order and runs it directly, so those orders are not recorded. A replay asks again: it gives another battle when the battle AI has changed since, when the brain answers differently, or when the brain is not there (brains are not saved).
+
+- **Aim.** A replay plays the same auto-resolved battles whatever the battle AI or brain answers now, and without any network weights.
+- **How.** The core keeps the orders asked for in an auto-resolved battle; the recording keeps them with the command that started it; a replay gives them back in place of asking.
+- **Needs.** The record hook in the auto-resolve loop, a replay that takes orders from the log when it finds them, a test with a fake brain that the replay does not have, and the note on the replay file in `docs/console.md`.
+- **Priority.** Low: the learned AI is not part of feature parity with the original (decided 17 October 2026).
+- **Done** (27 November 2026). `World::take_battle_orders` and `script_battle_orders`, the replay entry `AutoBattle`, the test in `crates/f4x-master/tests/it/replay.rs`. The client needed no hook: its orders are commands. A replay written before holds no orders and asks the battle AI again.
 
 **824. (done) Raze by choice, not by chance.** Asked for by the user, 26 November 2026. Today `f4x-ai/src/raze.rs` scores a captured city (temper, fewer than three units in it, the cities each side holds within 14 squares) and razes it if a roll of 100 from the game's random stream is within the score. The roll goes: the AI razes or keeps a city according to whether it wants it, judged by the relations between the city's race and the wizard's, its strategic location, how well it can be defended, the wizard's personality and the troops available to garrison it. It sees only what a human would (`docs/design.md` section 8); its weights are AI settings, tested on the shipped content; update the `raze` row of `docs/ai-design.md`. No random number is drawn, which task 822 relies on. *Needs:* nothing. Done 26 November 2026: `raze.rs` adds up the points of each reason and razes above a threshold (weights `AIK_RAZE_*`); the land's neutral value is the median land worth of the cities of 40 new games. More citizens and costlier buildings speak for keeping the city. Not run: a soak for how often cities are razed.

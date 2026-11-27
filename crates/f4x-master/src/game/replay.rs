@@ -2,6 +2,8 @@
 //!
 //! A [`Replay`] is a saved game plus every command and every step of the turn order since, so
 //! the same game can be played again from that point (the random stream is part of the save). Units and cities are written as creation numbers (`f4x_core::world::stable_ref`).
+//! A battle the command auto-resolved is written with its orders, so that a replay asks neither
+//! the battle AI nor a learned brain.
 //!
 //! Recording is local play's tool for replays and for saving a game with its history; it does
 //! not make a network protocol (see task 811, the multiplayer item).
@@ -12,6 +14,7 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
+use f4x_battle::battle::BattleCommand;
 use f4x_core::player::PlayerId;
 use f4x_core::world::save::{check_versions, ContentCheck, LoadError, SAVE_VERSION};
 use f4x_core::world::{Command, Event};
@@ -37,6 +40,8 @@ pub enum Entry {
     /// A command with the player who sent it; the command as text with creation numbers in
     /// place of entities.
     Command(PlayerId, String),
+    /// A command that auto-resolved a battle, with the orders given in it, in order.
+    AutoBattle(PlayerId, String, Vec<BattleCommand>),
     /// A step of the turn order.
     Step(Step),
 }
@@ -122,6 +127,20 @@ impl Game {
         }
     }
 
+    /// The command just written down auto-resolved a battle with `orders`.
+    pub(super) fn record_battle_orders(&mut self, orders: Vec<BattleCommand>) {
+        let Some(recording) = self.recording.as_mut() else {
+            return;
+        };
+        match recording.entries.pop() {
+            Some(Entry::Command(player, text)) => {
+                let entry = Entry::AutoBattle(player, text, orders);
+                recording.entries.push(entry);
+            }
+            other => recording.entries.extend(other),
+        }
+    }
+
     /// Write a step down.
     pub(super) fn record_step(&mut self, step: Step) {
         if let Some(recording) = self.recording.as_mut() {
@@ -170,16 +189,21 @@ impl Replay {
         game.start_recording();
         let mut all = Vec::new();
         for (i, entry) in self.entries.iter().take(count).enumerate() {
-            all.push(match entry {
-                Entry::Command(player, text) => {
-                    let command = game
-                        .world
-                        .command_from_text(text)
-                        .ok_or(ReplayError::Unresolved(i))?;
-                    game.apply(*player, command)
+            let (player, text, orders) = match entry {
+                Entry::Command(player, text) => (*player, text, None),
+                Entry::AutoBattle(player, text, orders) => (*player, text, Some(orders)),
+                Entry::Step(step) => {
+                    all.push(game.take(*step));
+                    continue;
                 }
-                Entry::Step(step) => game.take(*step),
-            });
+            };
+            let command = game
+                .world
+                .command_from_text(text)
+                .ok_or(ReplayError::Unresolved(i))?;
+            game.world.script_battle_orders(orders.cloned());
+            all.push(game.apply(player, command));
+            game.world.script_battle_orders(None);
         }
         Ok((game, all))
     }

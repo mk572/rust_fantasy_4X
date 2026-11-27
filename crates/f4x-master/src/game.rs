@@ -92,6 +92,8 @@ impl Game {
             return vec![Event::Rejected(why)];
         }
         self.record_command(player, &command);
+        // Orders of a battle fought by hand, outside a command, are not this command's.
+        self.world.take_battle_orders();
         let reacting = self.turn().is_some_and(|active| active != player);
         let requests = self.world.diplomacy.proposals().to_vec();
         let answered = self.answered_attack(&command);
@@ -109,6 +111,9 @@ impl Game {
         if events.iter().any(|e| matches!(e, Event::Rejected(_))) {
             self.forget_last_command();
         } else {
+            if let Some(orders) = self.world.take_battle_orders() {
+                self.record_battle_orders(orders);
+            }
             if let Some(at) = answered {
                 self.state.attacks.remove(at);
             }

@@ -52,7 +52,8 @@ World                                  (world/mod.rs; the owner and the orchestr
 ├── next_serial                        the counter behind `Serial` (section 5)
 ├── events, item_awards                random events going on; items that fell to wizards from slain heroes
 ├── override_log                       the console's override (cheat) commands that changed the game, saved; a game with entries is `cheated` and does not enter the Hall of Fame
-└── battle_brains                      the learned players of battles
+├── battle_brains                      the learned players of battles
+└── auto_orders                        the orders of the last auto-resolved battle, and those given to the next in a replay
 ```
 
 In the code `World` is the game's world (the map and everything on it), `ecs` is its entity store and `hecs::World` is always written in full.
