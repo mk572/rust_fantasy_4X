@@ -193,6 +193,7 @@ levers!(
         recall_percent: u32,
         lycanthropy_edge: f32,
         min_shift: usize,
+        shift_squares: usize,
         gate_far: u32,
         gates_max: usize,
         gold_kept: i32,

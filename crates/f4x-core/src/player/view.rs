@@ -394,6 +394,11 @@ impl<'a> PlayerView<'a> {
         self.world.units().unit_stat(unit, stat)
     }
 
+    /// The movement the unit has in a turn.
+    pub fn unit_max_moves(&self, unit: hecs::Entity) -> HalfInt {
+        self.world.units().unit_max_moves(unit)
+    }
+
     /// How far the unit sees, in squares.
     pub fn unit_sight(&self, unit: hecs::Entity) -> HalfInt {
         self.world.units().unit_sight(unit)
@@ -515,6 +520,17 @@ impl<'a> PlayerView<'a> {
     /// has none.
     pub fn path(&self, units: &[hecs::Entity], to: Position) -> Option<Vec<Position>> {
         self.world.find_path(units, to)
+    }
+
+    /// The way the stack would walk from `from` (its square or another) to `to`, each square
+    /// with the turns until it stands there (`World::way`).
+    pub fn way(
+        &self,
+        units: &[hecs::Entity],
+        from: Position,
+        to: Position,
+    ) -> Option<Vec<(Position, u32)>> {
+        self.world.way(units, from, to)
     }
 
     /// The units aboard a ship (they stay aboard in a port until they step ashore).

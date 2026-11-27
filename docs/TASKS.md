@@ -173,7 +173,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 833 | Medium | Core / Def | Check the rules outside the battle for numbers that stand in the code, and move them into the content |
 | 834 | Low | Housekeeping | Decide what becomes of the old branch `claude/content-packs-units-buildings` |
 | 835 | Medium | AI | Move the tuning numbers written inside the strategic AI's functions into `ai_strategy.ron` |
-| 837 | High | AI | Strike forces, step 2: a force gathers at a rally point and moves to one square beside its target |
 
 ## Descriptions
 
@@ -931,10 +930,4 @@ situation is a target, not a need (Earth Lore and Raise Volcano nearly always ha
 - Smaller ones: payments, demands and gifts (`diplo_b_talk.rs`), the strength limits and treaty shares (`diplo_b_stance.rs`), fighters per ship and the poor treasury (`economy.rs`), what a place is worth to a battle's mana (`budget.rs`), the building worths (`builder.rs`), the party sizes of raids and the scouts wanted (`raid.rs`, `scout.rs`).
 - A rule of the game or a fact of the code (the order of roles, the limits of the land and sea searches) stays and is listed with the reason in `docs/constants-review.md`; the name lists (`WIDE_RACES` and its like) are looked at too.
 - No change of value: the pinned scripted plays move only in the content fingerprint of their files, and soaks on the same seeds give the same logs, timings aside. Tests read the values from the content.
-*Needs:* nothing.
-
-**837. Strike forces, step 2: rally point and one square beside the target.** Planned 27 November 2026: [`ai-strike-force.md`](ai-strike-force.md) section 5.
-- A new module, `assembly.rs`, used by the campaign, the raids and the walk repair: travel time with gates, one square beside each target, the force picked by who is soonest at the target, a rally point on the way of the last-arriving unit that is never a city, and the march from it.
-- The special routes of section 5.6: across the sea, raids, tower crossing, Astral Gate, Plane Shift, and where the AI casts its gates.
-- Tests and documents as in sections 7 and 8, as far as they concern this step.
 *Needs:* nothing.

@@ -92,13 +92,24 @@ impl World {
     /// excluding the start tile. Hostile tiles other than the destination are avoided.
     /// Returns `None` if there is no way there.
     pub fn find_path(&self, units: &[hecs::Entity], to: Position) -> Option<Vec<Position>> {
-        let path = self.grid_path(units, to, false)?;
+        let from = self.units().unit_position(*units.first()?)?;
+        self.find_path_from(units, from, to)
+    }
+
+    /// [`World::find_path`] as if the stack stood on `from`.
+    fn find_path_from(
+        &self,
+        units: &[hecs::Entity],
+        from: Position,
+        to: Position,
+    ) -> Option<Vec<Position>> {
+        let path = self.grid_path(units, from, to, false)?;
         // A step into a square that has no room for the stack fails, and the order is lost at its
         // edge for ever: when the path crosses one, search again without such squares. Looking at
         // the squares of the path is cheap; the set of all full squares is not, and only a path
         // like that needs it.
         if self.path_crosses_full_square(units, &path, to) {
-            return self.grid_path(units, to, true);
+            return self.grid_path(units, from, to, true);
         }
         Some(path)
     }
@@ -168,16 +179,45 @@ impl World {
         })
     }
 
+    /// The way of the stack from `from` (where it stands, or any other square) to `to` on the
+    /// same plane: every square after `from` with the turns that pass until the stack stands on
+    /// it. Empty when `from` is `to`; `None` when there is no way. A stack that starts elsewhere
+    /// than it stands has its full movement there.
+    pub fn way(
+        &self,
+        units: &[hecs::Entity],
+        from: Position,
+        to: Position,
+    ) -> Option<Vec<(Position, u32)>> {
+        if from == to {
+            return Some(Vec::new());
+        }
+        let path = self.find_path_from(units, from, to)?;
+        let turns = self.step_turns(units, from, &path);
+        Some(path.into_iter().zip(turns).collect())
+    }
+
     /// Turns the stack needs for `path` at its slowest mover's full allowance. Land units that
     /// ride a ship of the stack (aboard it, or boarding as it sails out) cost nothing and do
     /// not slow it: the ship's speed decides.
     pub fn path_turns(&self, units: &[hecs::Entity], path: &[Position]) -> u32 {
+        units
+            .first()
+            .and_then(|&u| self.units().unit_position(u))
+            .and_then(|from| self.step_turns(units, from, path).last().copied())
+            .unwrap_or(0)
+    }
+
+    /// For each square of `path`, walked from `from`, the turns that pass until the stack stands
+    /// on it ([`World::path_turns`] is the last of them).
+    fn step_turns(&self, units: &[hecs::Entity], from: Position, path: &[Position]) -> Vec<u32> {
         let Some(&first) = units.first() else {
-            return 0;
+            return Vec::new();
         };
-        let Some(mut at) = self.units().unit_position(first) else {
-            return 0;
+        let Some(stands) = self.units().unit_position(first) else {
+            return Vec::new();
         };
+        let mut at = from;
         let flies = self.economy().stack_traits(units);
         let economy = self.economy();
         let sails = flies.sea_lift && path.iter().any(|&p| economy.is_sea(p));
@@ -197,25 +237,31 @@ impl World {
             .min()
             .unwrap_or(FULL_MOVE)
             .max(HalfInt::HALF);
-        let mut left = movers
-            .iter()
-            .map(|&u| self.units().unit_moves_left(u))
-            .min()
-            .unwrap_or(HalfInt::ZERO);
-        let mut turns = 0;
-        for &next in path {
-            if left == 0 {
-                turns += 1;
-                left = allowance;
-            }
-            let cost = movers
+        let mut left = if from == stands {
+            movers
                 .iter()
-                .filter_map(|&u| self.economy().step_cost(u, at, next, flies).ok())
-                .max()
-                .unwrap_or(FULL_MOVE);
-            left = left.saturating_sub(cost);
-            at = next;
-        }
-        turns
+                .map(|&u| self.units().unit_moves_left(u))
+                .min()
+                .unwrap_or(HalfInt::ZERO)
+        } else {
+            allowance
+        };
+        let mut turns = 0;
+        path.iter()
+            .map(|&next| {
+                if left == 0 {
+                    turns += 1;
+                    left = allowance;
+                }
+                let cost = movers
+                    .iter()
+                    .filter_map(|&u| self.economy().step_cost(u, at, next, flies).ok())
+                    .max()
+                    .unwrap_or(FULL_MOVE);
+                left = left.saturating_sub(cost);
+                at = next;
+                turns
+            })
+            .collect()
     }
 }

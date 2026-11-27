@@ -618,7 +618,7 @@ unit tests in `wizardry.rs` and `f4x-ai/src/battle/order.rs`, `crates/f4x-learn/
 - **No city holds more than nine** (`garrison.rs`, 11 November 2026). More than one stack adds
   nothing to the defence. Each turn `disperse` sends the strongest of the excess to the nearest
   city with fewer defenders than `garrison_wanted`, else on a raid (`site::deploy`), else to
-  scouting; the army's rally point takes no more than `city_cap` either. (The summoning circle's
+  scouting. (The summoning circle's
   city once also kept a slot free and walked the weakest fighter out before a summoning: removed 22
   November 2026, a summoning is no longer refused for a full square, `divergences.md`.)
 - **Cities built the same unit for ever.** A city that finishes a unit starts the same unit again
@@ -638,12 +638,8 @@ unit tests in `wizardry.rs` and `f4x-ai/src/battle/order.rs`, `crates/f4x-learn/
   force of four plus half a fighter per city, then buildings, then more army. The gold on hand,
   over a hundred turns, counts as income, so a full treasury is spent instead of hoarded.
 - **War.** A march is a state, not a mood: units that set out are not sent home when they stop
-  next to the target; a force attacks at 1.1 times the defence once marched; units within two
-  squares of the rally city count as gathered (a full city, nine units, left every later unit
-  outside, so no force ever formed); the gathered units march as one stack for each square they stand on, nine at most (an order
-  to move needs units on one square, and the first version of the wider gathering broke this: the
-  force never left); a target that no
-  march could reach is dropped for 40 turns and the next nearest city is tried.
+  next to the target, and a target that no march could reach is put aside for a while and another
+  city is tried. How a force gathers and when it attacks: "Gathering a force" and "Attacks" below.
 - **Magic** (`wizardry.rs`). The power split is set each turn: the smallest mana share that
   covers the upkeep, the rest research, a fifth skill; while the Spell of Mastery is being
   cast, half mana and half skill. Research takes the cheapest in turns, adjusted by the original's
@@ -892,8 +888,8 @@ destination it wants, and ships take units that go to the same landmass, whateve
 
 Asked for on 17 November 2026. What is there (`war::run`): diplomacy (`statecraft.rs`,
 `diplomacy.rs`) decides *whether* to fight. Then one campaign target is chosen, the enemy city with the
-lowest "distance plus remembered garrison". The units that happen to be free gather at the own city
-nearest it and march when `force_wanted` is met. Everything else (a stack next to a weaker stack, the
+lowest "distance plus remembered garrison". The units that happen to be free gathered at the own city
+nearest it and marched when `force_wanted` was met (since task 837: "Gathering a force"). Everything else (a stack next to a weaker stack, the
 perimeter, raids) is a reaction. Nothing sits between "we are at war with X" and "these units go
 there". So the AI attacks the nearest city. It cannot take the weak city behind the front, make a
 pincer, go for the production bases or the fortress by a chosen path, or look before it commits.
@@ -954,8 +950,8 @@ arrival turn of the slowest group minus its own trip. A group that has made no p
 turns, a destroyed stack, or a target that is no longer worth it makes the plan revise. A better target
 must beat the one in progress by a margin, so the plan does not swing between two.
 
-**What it replaces.** `ai.campaign`, `best_enemy_city`, `planar_target`, `march_called_off`, the rally
-choice and the target selection in `war::run`; the builder's `war_force` becomes the plan's
+**What it replaces.** `ai.campaign`, `best_enemy_city`, `planar_target`, `march_called_off` and
+the target selection in `war::run`; the builder's `war_force` becomes the plan's
 missing strength. Step 1 of the army (a stack hits a weaker stack next to it) and the perimeter stay as
 reactions. They take their units from the pool but may not take a group's reserved units.
 
@@ -1052,5 +1048,29 @@ A stack beside a target attacks when the units that may attack it are at least `
 - A stack makes one attack in each of the two rounds; the targets its units were sent against come first.
 - A city's garrison joins only when no other enemy is near the city, and its soldiers walk home at once. An empty city is walked into.
 - The work after an assault is here: a lost one is remembered with the party's strength, a cleared site restarts the party's plan clock.
-- The attack changes no role or target. The engine needs all attackers on one square, so gathering from several squares first is the next step ([`ai-strike-force.md`](ai-strike-force.md), task 837).
+- The attack changes no role or target. The engine needs all attackers on one square, so a force gathers on one square first ("Gathering a force").
+
+## Gathering a force (task 837, 27 November 2026)
+
+The jobs only **build up a force** that can take a target; whether it attacks is `attack.rs`'s. `assembly.rs` holds how a force gets there, for the campaign (`war.rs`), the raids (`raid.rs`), the perimeter and the walk repair (`dispatch::resend`). Where the idea came from and what is left for later: [`ai-strike-force.md`](ai-strike-force.md).
+
+**Travel time** to a square is the shorter of the walk and the way through a door: from an own Earth Gate city to another on the same plane, through an own Astral Gate city or the campaign's crossing to the other plane, or where the units stand when all of them travel between the planes by themselves. Going through counts as a turn. A unit whose way through a door is the shorter one takes it (`Travel::send`); one standing on a crossing that is not open yet (a Plane Shift not yet cast) waits there. The walk from a square a unit does not stand on is `PlayerView::way`.
+
+**The square beside the target.** One for each target, and every unit sent against it goes there: the last square before the target on the way of the unit that arrives last. It holds no enemy, lair, city or tower and has room for the force. It is kept until it is blocked; then the open square nearest to it takes its place.
+
+**The force** is picked by need: until the strength wanted (`war_plan::strength_wanted`) and `min_march` units are there, at most what a battle holds a side; in the win phase every free soldier up to that. The members of the campaign's muster come first (they are not swapped for others every turn), then the soldiers who are at the target soonest. With fewer than `min_march` soldiers free and marching, nothing is gathered.
+
+**The rally point** is the first square on the way of the unit that arrives last that every unit of the force stands on no later than that unit (a way that begins with a door starts at its exit), so the gathering does not slow the army. It is never a city, a lair, a tower, a square with an enemy or without room, or one beside the target. With no such square the force goes straight to the square beside the target. It is chosen once for a target, kept while it can be used, and saved with the AI (`Ai::assemblies`, dropped when nothing is bound for the target).
+
+**The march.** When what stands on the rally point, together with what stands beside the target or marches to it, is enough, the units on the rally point march (`Role::March`). A force at the target that has become too weak (losses, a stronger defence) gets more units the same way. A march that takes longer than `march_turns` and the walk, or whose target changes, is called off.
+
+**Special routes.**
+
+- *Across the sea* (`war::land_on`): the landing site is where the force gathers. War is declared when the soldiers that can be sent are enough (a pact or an alliance is not broken: the city is given up), and walkers with no way there are tagged `Crossing::Sea` where they stand, so that the ships fetch them (`pickup.rs`). What has landed marches when it is enough. When the landing site is not beside the target, the force goes on to the square beside it.
+- *Raids* (`raid::gather`): when no square's soldiers could take a site but the best of them together with the wizard's spells could, they gather on the rally point of that site, or beside it. `raid::form` sends them on from there.
+- *A tower or an Astral Gate*: the soldiers walk to it and cross in parties of at least `min_crossing`; the rally point is chosen on the far side once a unit is across.
+- *Plane Shift*: the spell moves the stack of one square, so the army gathers on a square that is no city (`wizardry::crossing_square`: round the soldiers, the own cities and the square across from the target, at most `shift_squares` of them walked), the one that serves the most soldiers and gets the last of them over and on to the target soonest. It is cast when `min_shift` fighters stand there.
+- *Gates the AI casts*: an Earth Gate in the own city nearest the rally point first, then in far cities; an Astral Gate in the city the army crosses from.
+
+Open: whether the squares a force gathers on are safe from other enemy units is not looked at.
 

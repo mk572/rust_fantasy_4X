@@ -79,6 +79,16 @@ Non-obvious findings, one rule up front in bold. General lessons (shell, tools) 
   `GoTo` that finds no moves left is accepted and walks later: code that then frees whatever carried
   the unit (a ship) has to check that the unit has left the square (`pickup.rs`, `advance`).
 
+## A gathering force changes what a test sees (task 837)
+
+- **A force that stands together marches in the same turn.** Since task 837 the soldiers gather on the way of the one
+  that arrives last, so soldiers on one square need no muster turn and a weak town falls within a few turns. A test
+  that watches the army hold its soldiers must look while the town is still the enemy's.
+- **Blocking a gathering square in a test:** fill it with the AI's own units up to `max_tile`; an enemy put beside
+  the test target changes more than the square.
+- **The speed guard's game is not the same game after an AI change.** The snapshots are fixed, but the AI plays other
+  turns from them (more battles, more marches), so compare the profile by function, not only the ms a turn.
+
 ## Orders that stop (tasks 515, 555)
 
 - **A step that fails must be reported, not dropped.** `follow_orders` used to end a `GoTo` on any refused

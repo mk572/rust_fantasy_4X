@@ -180,7 +180,7 @@ impl World {
                 return NoPath::Target(blocker);
             }
         }
-        if self.grid_path(units, to, false).is_some() {
+        if self.grid_path(units, start, to, false).is_some() {
             return NoPath::OnlyThroughFullSquares;
         }
         let Some(map) = self.map.as_ref() else {

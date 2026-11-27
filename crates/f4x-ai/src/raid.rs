@@ -1,8 +1,9 @@
 //! The raid job (task 646, job 5 of the dispatcher): the parties that clear the sites. A party out
-//! already stays beside a site it is enough for (the attack is `attack.rs`'s), walks to one or ends
+//! already walks to the square beside a site it is enough for (the attack is `attack.rs`'s) or ends
 //! its raid; new parties form from the soldiers the war left over, and soldiers that cannot take a
-//! tower alone muster for it with the wizard's spells (`spellhelper::spell_power`). What a site is
-//! worth and where the sites are is `site.rs`.
+//! tower alone muster for it with the wizard's spells (`spellhelper::spell_power`), on the way of
+//! the one that arrives last (`assembly.rs`). What a site is worth and where the sites are is
+//! `site.rs`.
 
 use crate::lever::Levered;
 use f4x_core::map::Position;
@@ -11,7 +12,7 @@ use f4x_core::player::PlayerId;
 use f4x_core::world::serial::Serial;
 use f4x_core::world::{Event, World};
 
-use crate::assault::march;
+use crate::assembly::{self, Travel};
 use crate::site::{lost_before, sites_near, unarmed_share};
 use crate::view::{distance, is_fighter, party, stack_strength, unit_strength};
 use crate::Ai;
@@ -82,19 +83,18 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             let view = PlayerView::new(game, me);
             units.iter().map(|&u| view.serial_of(u)).collect()
         };
-        // A party beside its site stays there; otherwise it walks to the first it can.
+        // The party goes to the square beside the first site it can get to; one beside a site it
+        // cannot gather at stays where it is.
         let chosen = candidates.iter().copied().find(|&t| {
-            if beside(game, me, pos, t) {
-                return true;
-            }
-            match march(ai, game, &units, t, events) {
+            match assembly::march(ai, game, &units, t, events) {
                 Ok(()) => true,
+                Err(_) if beside(game, me, pos, t) => true,
                 Err(why) => {
                     // A site the party cannot walk to is passed over by design (the next
                     // candidate is tried), so it is not a refused order worth logging.
-                    if !matches!(why, crate::assault::MarchError::Unreachable) {
-                        let detail = matches!(why, crate::assault::MarchError::Refused(_))
-                            .then(|| crate::assault::march_detail(ai, game, &units, t));
+                    if !matches!(why, assembly::MarchError::Unreachable) {
+                        let detail = matches!(why, assembly::MarchError::Refused(_))
+                            .then(|| assembly::march_detail(ai, game, &units, t));
                         ai.note_failure(
                             game,
                             format!("march to {t:?}"),
@@ -156,12 +156,10 @@ fn beside(world: &World, me: PlayerId, pos: Position, site: Position) -> bool {
 /// the spells (`gather`). Returns whether any party left.
 pub fn form(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
     let me = ai.player;
-    release(ai, game, game.round());
+    release(ai, game, events);
     let free = crate::dispatch::soldiers(ai, game, |roles, s| roles.is_free(s));
     let by_square = crate::military::stacks(&PlayerView::new(game, me), free.clone());
     let mut left = false;
-    // Parties of one kind on one square find the same sites out of reach.
-    let mut reached = crate::view::ReachCache::default();
     for (pos, mut units) in by_square {
         // The best nine first: a battle holds nine a side, and the hardest sites need the best.
         {
@@ -187,9 +185,8 @@ pub fn form(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
                 sites
             };
             for site in sites {
-                if beside(game, me, pos, site)
-                    || crate::assault::march_with(&mut reached, ai, game, party, site, events)
-                        .is_ok()
+                if assembly::march(ai, game, party, site, events).is_ok()
+                    || beside(game, me, pos, site)
                 {
                     let view = PlayerView::new(game, me);
                     let serials: Vec<Serial> = party.iter().map(|&u| view.serial_of(u)).collect();
@@ -215,50 +212,62 @@ pub fn form(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
 }
 
 /// End a muster whose soldiers have come (or waited long enough): they are free soldiers again,
-/// and `raid::form` sends the best nine of the square they stand on.
-pub(crate) fn release(ai: &mut Ai, world: &World, round: u32) {
+/// and `raid::form` sends the best nine of the square they stand on. A soldier of a muster that
+/// stands is sent on when it has no order.
+pub(crate) fn release(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     use crate::roles::MusterKind;
     if !ai.roles.any_muster(MusterKind::Raid) {
         return;
     }
-    let view = PlayerView::new(world, ai.player);
+    let me = ai.player;
     for (party, muster, members) in ai.roles.musters() {
         if muster.kind != MusterKind::Raid {
             continue;
         }
-        let alive: Vec<_> = view
-            .my_units()
-            .into_iter()
-            .filter(|&u| members.contains(&view.serial_of(u)))
-            .collect();
-        let arrived = alive.iter().all(|&u| {
-            view.unit_position(u)
-                .is_some_and(|p| distance(&view, p, muster.rally).is_some_and(|d| d <= 1))
-        });
-        if alive.is_empty()
-            || arrived
-            || round.saturating_sub(muster.since) > view.levers().sites.muster_turns
-        {
-            ai.roles.end_muster(party);
+        let idle: Vec<hecs::Entity> = {
+            let view = PlayerView::new(game, me);
+            let alive: Vec<_> = view
+                .my_units()
+                .into_iter()
+                .filter(|&u| members.contains(&view.serial_of(u)))
+                .collect();
+            let arrived = alive
+                .iter()
+                .all(|&u| view.unit_position(u) == Some(muster.rally));
+            if alive.is_empty()
+                || arrived
+                || game.round().saturating_sub(muster.since) > view.levers().sites.muster_turns
+            {
+                ai.roles.end_muster(party);
+                continue;
+            }
+            alive
+                .into_iter()
+                .filter(|&u| !view.unit_has_order(u) && view.unit_position(u) != Some(muster.rally))
+                .collect()
+        };
+        let mut travel = Travel::new(ai, game);
+        for u in idle {
+            // One that cannot go on now is tried again next turn, until the muster's time is up.
+            let _ = travel.send(ai, game, &[u], muster.rally, events);
         }
     }
 }
 
 /// The free soldiers of the empire cannot take a tower from any one square, but the best nine of
-/// them with the wizard's spells could: send those nine to the own city nearest the tower. They
-/// are kept apart from raids while they walk (`Ai::muster`).
+/// them with the wizard's spells could: those nine gather on the way of the one that arrives last,
+/// or beside the site. They are kept apart from raids while they walk (`Ai::muster`).
 pub(crate) fn gather(
     ai: &mut Ai,
     game: &mut Game,
     free: &[hecs::Entity],
     events: &mut Vec<f4x_core::world::Event>,
 ) {
-    use f4x_core::world::Command;
     let me = ai.player;
     if ai.roles.any_muster(crate::roles::MusterKind::Raid) {
         return;
     }
-    let (rally, objective, orders) = {
+    let (objective, best) = {
         let view = PlayerView::new(game, me);
         if crate::phase::phase(&view, game.round()) == crate::phase::Phase::Build {
             return;
@@ -280,13 +289,13 @@ pub(crate) fn gather(
                 .then(view.serial_of(a).cmp(&view.serial_of(b)))
         });
         best.truncate(view.max_battle_side());
-        if best.len() < 3 {
+        if best.len() < view.levers().sites.site_party {
             return;
         }
         let strength =
             crate::view::stack_strength(&view, &best) + crate::spellhelper::spell_power(&view);
         // The easiest site (a lair, a tower on a plane with no rival's city) the
-        // nine could take, reached from the own city nearest to it.
+        // nine could take, looked for from each own city.
         let cities: Vec<Position> = view.my_cities().into_iter().map(|(_, p)| p).collect();
         let mut found: Vec<(f32, u32, Position, Position)> = Vec::new();
         for &city in &cities {
@@ -315,45 +324,38 @@ pub(crate) fn gather(
             a.0.total_cmp(&b.0)
                 .then((a.1, a.2.y, a.2.x, a.3.y, a.3.x).cmp(&(b.1, b.2.y, b.2.x, b.3.y, b.3.x)))
         });
-        let Some((_, _, tower, rally)) = chosen else {
+        let Some((_, _, site, _)) = chosen else {
             return;
         };
-        let mut reached = crate::view::ReachCache::default();
-        let orders: Vec<hecs::Entity> = best
-            .into_iter()
-            .filter(|&u| {
-                view.unit_position(u).is_some_and(|p| {
-                    distance(&view, p, rally).is_none_or(|d| d > 1) && !view.unit_has_order(u)
-                })
-            })
-            .filter(|&u| reached.can_reach(&view, &[u], rally))
-            .collect();
-        (rally, tower, orders)
+        (site, best)
     };
-    if orders.is_empty() {
-        return;
-    }
-    let serials: Vec<_> = {
+    let mut travel = Travel::new(ai, game);
+    let members: Vec<hecs::Entity> = {
         let view = PlayerView::new(game, me);
-        orders.iter().map(|&u| view.serial_of(u)).collect()
+        best.into_iter()
+            .filter(|&u| !view.unit_has_order(u) && travel.trip(&view, &[u], objective).is_some())
+            .collect()
     };
-    for u in orders {
-        if Ai::room_at(game, rally, 1) {
-            let _ = ai.send(
-                game,
-                Command::GoTo {
-                    units: vec![u],
-                    to: rally,
-                },
-                events,
-            );
+    let Ok(beside) = assembly::beside(ai, game, &mut travel, objective, &members) else {
+        return;
+    };
+    let rally =
+        assembly::rally(ai, game, &mut travel, objective, beside, &members).unwrap_or(beside);
+    let mut gathering: Vec<Serial> = Vec::new();
+    for u in members {
+        let (serial, at) = {
+            let view = PlayerView::new(game, me);
+            (view.serial_of(u), view.unit_position(u))
+        };
+        if at == Some(rally) || travel.send(ai, game, &[u], rally, events).is_ok() {
+            gathering.push(serial);
         }
     }
     ai.roles.begin_muster(
         crate::roles::MusterKind::Raid,
         rally,
         Some(objective),
-        &serials,
+        &gathering,
         game.round(),
     );
 }
@@ -554,26 +556,26 @@ mod tests {
 
     #[test]
     fn a_march_that_cannot_be_ordered_says_why() -> TestResult {
-        use crate::assault::{march, MarchError};
+        use crate::assembly::{march, MarchError};
         let mut w = game(COAST_CITY, 8 /* high_men */);
         spawn_tower(&mut w, at(30, 9), true)?;
         w.reveal_map(P0);
         let party = spawn(&mut w, P0, at(5, 8), 113 /* high_men_paladins */, 3);
-        let ai = Ai::new(P0);
+        let mut ai = Ai::new(P0);
         let mut events = Vec::new();
         assert_eq!(
-            march(&ai, &mut w, &party, at(30, 9), &mut events),
+            march(&mut ai, &mut w, &party, at(30, 9), &mut events),
             Err(MarchError::Unreachable),
             "over the sea"
         );
         assert_eq!(
-            march(&ai, &mut w, &[], at(30, 9), &mut events),
+            march(&mut ai, &mut w, &[], at(30, 9), &mut events),
             Err(MarchError::NoUnits)
         );
         // A site on the party's own island can be marched on.
         let site = at(3, 3);
         spawn_site(&mut w, site, Vec::new(), Vec::new())?;
-        assert_eq!(march(&ai, &mut w, &party, site, &mut events), Ok(()));
+        assert_eq!(march(&mut ai, &mut w, &party, site, &mut events), Ok(()));
         Ok(())
     }
 

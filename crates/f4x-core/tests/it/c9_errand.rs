@@ -284,6 +284,51 @@ fn another_players_unit_ends_an_order_only_at_war() {
     }
 }
 
+/// `World::way` is the walk a stack has from its square, and from any other square the walk the
+/// same units standing there would have, each square with the turn it is reached.
+#[test]
+fn the_way_from_another_square_is_the_way_of_the_same_units_standing_there() {
+    for mut s in scenes() {
+        let walker = s.unit(s.p, s.home, SPEARMEN);
+        let to = *s.open_squares(&[walker], 5).first().expect("a far square");
+        let path = s.w.find_path(&[walker], to).expect("a way");
+        let way = s.w.way(&[walker], s.home, to).expect("a way");
+        let squares = |way: &[(Position, u32)]| way.iter().map(|w| w.0).collect::<Vec<_>>();
+        assert_eq!(squares(&way), path, "{}", s.name);
+        assert_eq!(
+            way.last().map(|w| w.1),
+            Some(s.w.path_turns(&[walker], &path)),
+            "{}",
+            s.name
+        );
+        assert!(way.windows(2).all(|w| w[0].1 <= w[1].1), "{}", s.name);
+        assert_eq!(s.w.way(&[walker], to, to), Some(Vec::new()), "{}", s.name);
+        // From the first square of the way, without moving there.
+        let from = path[0];
+        let elsewhere = s.w.way(&[walker], from, to).expect("a way");
+        let twin = s.unit(s.p, from, SPEARMEN);
+        let twins = s.w.find_path(&[twin], to).expect("a way");
+        assert_eq!(squares(&elsewhere), twins, "{}", s.name);
+        assert_eq!(
+            elsewhere.last().map(|w| w.1),
+            Some(s.w.path_turns(&[twin], &twins)),
+            "{}",
+            s.name
+        );
+        // A stack that has used its movement needs a turn more from where it stands, not from
+        // elsewhere.
+        s.spend(&[walker]);
+        let tired = s.w.way(&[walker], s.home, to).expect("a way");
+        assert_eq!(
+            tired.last().map(|w| w.1),
+            way.last().map(|w| w.1 + 1),
+            "{}",
+            s.name
+        );
+        assert_eq!(s.w.way(&[walker], from, to), Some(elsewhere), "{}", s.name);
+    }
+}
+
 #[test]
 fn a_scout_goes_from_patch_to_patch_until_nothing_is_left() {
     for mut s in scenes() {

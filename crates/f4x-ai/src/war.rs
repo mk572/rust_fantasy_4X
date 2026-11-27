@@ -1,20 +1,18 @@
-//! The war job (task 646, `docs/ai-design.md` sections 14 and 15): the target the war plan names, the
-//! rally city, the soldiers gathered by need and the march. `military.rs` keeps what the war jobs
-//! share: the stacks, the battle and the strength a defence is expected to have; the attack is
-//! `attack.rs`'s.
+//! The war job (task 646, `docs/ai-design.md` sections 14, 15 and "Gathering a force"): the target
+//! the war plan names, the soldiers it needs, gathered on the way of the one that arrives last, and
+//! the march on the square beside the target. How a force gathers is `assembly.rs`'s, the attack is
+//! `attack.rs`'s, and `military.rs` keeps what the war jobs share: the stacks, the battle and the
+//! strength a defence is expected to have.
 
-//! The army: keep cities garrisoned, hit enemies that are weaker, gather a force and march
-//! it on the nearest enemy city, and send spare units to explore.
-
+use crate::assembly::{self, mirror, Travel};
 use crate::lever::Levered;
-use crate::military::{average_strength, expected_defence, neighbours, stacks};
-use crate::roles::MusterKind;
-use crate::view::{distance, fighting_strength, is_fighter, party, stack_strength, unit_strength};
+use crate::military::{average_strength, stacks};
+use crate::roles::{MusterKind, Role};
+use crate::view::{distance, fighting_strength, is_fighter, stack_strength, unit_strength};
 use crate::{race, Ai};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
-use f4x_core::unit::pathing::ReachSignature;
 use f4x_core::world::serial::Serial;
 use f4x_core::world::{Command, Event};
 use f4x_master::Game;
@@ -48,7 +46,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         return;
     };
 
-    choose_target(ai, game, events, capital);
+    choose_target(ai, game, events, capital, &free);
     let Some(target) = ai.campaign else {
         // Nothing to march on: the army raids the sites and towers, which also opens the way to
         // the other plane.
@@ -60,12 +58,18 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         return;
     };
 
-    march_on(ai, game, events, &free, &own_cities, capital, target);
+    march_on(ai, game, events, &free, capital, target);
 }
 
 /// Choose (or keep) the city to attack, in `ai.campaign`: the war plan's, or a city across a
 /// plane, or the landing in preparation. What is seen of enemy cities is remembered.
-fn choose_target(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, capital: Position) {
+fn choose_target(
+    ai: &mut Ai,
+    game: &mut Game,
+    events: &mut Vec<Event>,
+    capital: Position,
+    free: &[hecs::Entity],
+) {
     let me = ai.player;
     let mut new_crossing: Option<Position> = None;
     {
@@ -82,6 +86,14 @@ fn choose_target(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, capital:
                 .is_none_or(|o| o == me || !crate::attack::may_target(&view, o))
         }) {
             ai.campaign = None;
+        }
+        // A crossing square that can no longer be used: the campaign across is chosen anew.
+        if ai
+            .crossing
+            .is_some_and(|c| !crate::wizardry::crossing_stands(&view, c))
+        {
+            ai.campaign = None;
+            ai.crossing = None;
         }
         // A campaign against another wizard's city gives way to one against the wizard casting
         // the Spell of Mastery, when a city of theirs can be reached.
@@ -150,33 +162,22 @@ fn choose_target(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, capital:
                 new_crossing = Some(city);
             }
         }
-        // No tower to cross by: a wizard that knows Plane Shift carries the army over from the
-        // capital, to a rival's city on the other plane.
-        let gather = ai
-            .campaign
-            .is_none()
-            .then(|| crate::wizardry::shift_gather(&view))
-            .flatten();
-        if let Some(gather) = gather {
-            let other = match gather.plane {
-                f4x_core::map::Plane::Arcanus => f4x_core::map::Plane::Myrror,
-                f4x_core::map::Plane::Myrror => f4x_core::map::Plane::Arcanus,
-            };
-            let far = Position {
-                plane: other,
-                ..gather
-            };
-            if let Some(city) = best_enemy_city(
+        // No tower to cross by: a wizard that knows Plane Shift or Astral Gate carries the army
+        // over, to a rival's city on the other plane.
+        if ai.campaign.is_none() {
+            let far = mirror(capital);
+            if let Some((city, square)) = best_enemy_city(
                 &view,
                 far,
                 &ai.unreachable,
                 &ai.city_memory,
                 race::enemy(ai, &view),
             )
-            .filter(|c| c.plane == other)
+            .filter(|c| c.plane == far.plane)
+            .and_then(|city| Some((city, crate::wizardry::crossing_square(&view, free, city)?)))
             {
                 ai.campaign = Some(city);
-                ai.crossing = Some(gather);
+                ai.crossing = Some(square);
             }
         }
         // A landing in preparation is the campaign.
@@ -200,13 +201,13 @@ fn choose_target(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, capital:
     }
 }
 
-/// Gather the soldiers at the rally city and march on `target` when they are enough.
+/// Call a march off when it is time, then gather the soldiers the target needs and march on it
+/// when they are enough: over land, or to a landing for the ships (`land_on`).
 fn march_on(
     ai: &mut Ai,
     game: &mut Game,
     events: &mut Vec<Event>,
     free: &[hecs::Entity],
-    own_cities: &[Position],
     capital: Position,
     target: Position,
 ) {
@@ -215,416 +216,466 @@ fn march_on(
     if game.round().saturating_sub(ai.unreachable_since) > game.levers().attack.unreachable_turns {
         ai.unreachable.clear();
     }
-    // Gather at the rally city the war plan names; march when strong enough.
-    let (rally, wanted, at_rally, elsewhere, force) = {
+    // A march that has gone on too long, or whose target has changed, is called off. A far
+    // target gets the walk to it on top of the usual time (the slowest unit covers a square
+    // a turn), or the stack would turn back before it arrived.
+    let trip = {
         let view = PlayerView::new(game, me);
-        let rally = crate::war_plan::rally(
-            &view,
-            own_cities,
-            capital,
-            target,
-            ai.naval.filter(|p| p.target == target).map(|p| p.port),
-            ai.crossing,
-        );
-        // A march that has gone on too long, or whose target has changed, is called off. A far
-        // target gets the walk to it on top of the usual time (the slowest unit covers a square
-        // a turn), or the stack would turn back before it arrived.
-        let trip = distance(&view, rally, target).unwrap_or(0);
-        let too_long = march_called_off(
+        let from = assembly::rally_of(ai, target).unwrap_or(capital);
+        distance(&view, from, target).unwrap_or(0)
+    };
+    let too_long = ai.roles.any(Role::March)
+        && march_called_off(
             game.round(),
             ai.march_started,
             trip,
             game.levers().attack.march_turns,
         );
-        if too_long || ai.march_target != Some(target) {
-            if ai.roles.any(crate::roles::Role::March) {
-                events.push(Event::MarchCalledOff {
-                    player: me,
-                    target: ai.march_target.unwrap_or(target),
-                    units: ai.roles.count(crate::roles::Role::March) as u32,
-                    turns: game.round().saturating_sub(ai.march_started),
-                    target_changed: !too_long,
-                });
-            }
-            ai.roles.release_role(crate::roles::Role::March);
-            ai.roles.end_musters(crate::roles::MusterKind::Campaign);
-            ai.march_target = Some(target);
-        }
-        let wanted = crate::war_plan::strength_wanted(&view, &ai.city_memory, game.round(), target);
-        // The army attacks as one stack from one square: the units on the rally square, the
-        // strongest of them up to what a square holds. The rest of them stay available.
-        let (mut at_rally, elsewhere): (Vec<_>, Vec<_>) = free
-            .iter()
-            .copied()
-            .filter(|&u| !ai.roles.is(view.serial_of(u), crate::roles::Role::March))
-            .partition(|&u| view.unit_position(u) == Some(rally));
-        at_rally.sort_by(|&a, &b| {
-            unit_strength(&view, b)
-                .total_cmp(&unit_strength(&view, a))
-                .then(view.serial_of(a).cmp(&view.serial_of(b)))
-        });
-        at_rally.truncate(view.max_battle_side());
-        let force = stack_strength(&view, &at_rally);
-        (rally, wanted, at_rally, elsewhere, force)
-    };
-    // The port of a landing keeps a slot free: a ship cannot enter a city holding a full tile.
-    let naval_rally = ai.naval.is_some_and(|p| p.target == target);
-    // No city is crowded beyond `garrison::city_cap`: there is no defence in more.
-    let mut room = {
-        let view = PlayerView::new(game, me);
-        let cap = crate::garrison::city_cap(&view, rally);
-        let limit = if naval_rally {
-            cap.min(view.max_tile() - 1)
-        } else {
-            cap
-        };
-        limit.saturating_sub(view.garrison(rally).len())
-    };
-    let mut at_tower: Vec<hecs::Entity> = Vec::new();
-    // Set when the tower's square refused a unit for want of room: no other unit is sent this
-    // turn (a full square stays full, and each refusal was one more ignored order).
-    let mut tower_full = false;
-    // Units of a kind on a square get one path search between them (nothing moves meanwhile:
-    // the orders given here only start a walk).
-    let mut reached = crate::view::ReachCache::default();
-    // The units sent to the rally this turn (they hold `Muster` from now on).
-    let mut sent_to_rally: Vec<hecs::Entity> = Vec::new();
-    // The force wanted is gathered by need: the nearest units are sent while the strength at the
-    // rally and on its way is below what the march needs (and fewer than three). The others stay
-    // where they are, available to the dispatcher's other jobs, as do the units of a town just
-    // taken: nothing sends them anywhere.
-    // In the win phase the wizard sends every free soldier it has, up to a full party: stacks that
-    // wait for more than the march needs while the rivals build theirs stall the late game
-    // (task 697). The march itself still leaves only when the force at the rally is strong enough.
-    let needed = if crate::phase::phase(&PlayerView::new(game, me), game.round())
-        == crate::phase::Phase::Win
-    {
-        f32::INFINITY
-    } else {
-        wanted
-    };
-    let mut elsewhere = elsewhere;
-    let (mut have, mut have_units) = {
-        let view = PlayerView::new(game, me);
-        elsewhere.sort_by_key(|&u| {
-            (
-                view.unit_position(u)
-                    .and_then(|p| distance(&view, p, rally))
-                    .unwrap_or(u32::MAX),
-                view.serial_of(u),
-            )
-        });
-        let on_its_way = elsewhere.iter().copied().filter(|&u| {
-            view.unit_has_order(u) && ai.roles.in_muster(view.serial_of(u), MusterKind::Campaign)
-        });
-        let (strength, units) = on_its_way.fold((force, at_rally.len()), |(s, n), u| {
-            (s + unit_strength(&view, u), n + 1)
-        });
-        (strength, units)
-    };
-    let available = at_rally.len() + elsewhere.len();
-    let mut counted = 0;
-    for u in &elsewhere {
-        for &sent in &sent_to_rally[counted..] {
-            have += unit_strength(&PlayerView::new(game, me), sent);
-            have_units += 1;
-        }
-        counted = sent_to_rally.len();
-        if let Some(tower) = ai.crossing.filter(|t| t.plane != rally.plane) {
-            let (here, ordered, reach) = {
-                let view = PlayerView::new(game, me);
-                let here = view.unit_position(*u);
-                let ordered = view.unit_has_order(*u);
-                // Only a unit that is not at the tower, has no order and is on the tower's plane
-                // needs to know whether it can walk there.
-                let asks =
-                    here != Some(tower) && !ordered && here.is_some_and(|p| p.plane == tower.plane);
-                (
-                    here,
-                    ordered,
-                    asks && reached.can_reach(&view, &[*u], tower),
-                )
-            };
-            if here == Some(tower) {
-                at_tower.push(*u);
-            } else if !ordered
-                && reach
-                && !tower_full
-                && Ai::room_at(game, tower, 1)
-                && at_tower.len() < PlayerView::new(game, me).max_battle_side()
-                && here.is_some_and(|p| p.plane == tower.plane)
-            {
-                let sent = ai.send(
-                    game,
-                    Command::GoTo {
-                        units: vec![*u],
-                        to: tower,
-                    },
-                    events,
-                );
-                if sent.is_ok() {
-                    sent_to_rally.push(*u);
-                }
-                tower_full = sent.is_err_and(|why| why.is_no_room());
-            }
-            continue;
-        }
-        // Nothing is sent while too few units are free to make a march at all.
-        // The party is full at the most a battle holds (more only crowd the squares), or strong
-        // enough, or there are too few free units to make a march at all.
-        let party_size = PlayerView::new(game, me).max_battle_side();
-        if (have >= needed && have_units >= game.levers().attack.min_march)
-            || have_units >= party_size
-            || available < game.levers().attack.min_march
-        {
-            continue;
-        }
-        // A gate is quicker than the road: an Earth Gate city sends its troops to the rally
-        // city when that has one too, and an Astral Gate city sends those on the wrong plane
-        // across (the original's AI does the second, `AIMOVE.c`).
-        let ordered = PlayerView::new(game, me).unit_has_order(*u);
-        let here = game.units().unit_position(*u);
-        if !ordered {
-            if game.can_use_earth_gate(&[*u], rally).is_ok() {
-                ai.order(
-                    game,
-                    Command::EarthGate {
-                        units: vec![*u],
-                        to: rally,
-                    },
-                    events,
-                );
-                sent_to_rally.push(*u);
-                continue;
-            }
-            if here.is_some_and(|p| {
-                p.plane != rally.plane
-                    && game
-                        .economy()
-                        .has_gate(p, me, f4x_core::city::gate::ASTRAL_GATE)
-            }) {
-                ai.order(game, Command::ShiftPlane { units: vec![*u] }, events);
-                sent_to_rally.push(*u);
-                continue;
-            }
-        }
-        let comes_home = {
-            let view = PlayerView::new(game, me);
-            !view.unit_has_order(*u)
-                && view
-                    .unit_position(*u)
-                    .is_some_and(|p| p.plane == rally.plane)
-                && reached.can_reach(&view, &[*u], rally)
-        };
-        if comes_home && room > 0 {
-            // The room in the rally square is taken only by a unit that goes.
-            let sent = ai.send(
-                game,
-                Command::GoTo {
-                    units: vec![*u],
-                    to: rally,
-                },
-                events,
-            );
-            if sent.is_ok() {
-                room = room.saturating_sub(1);
-                sent_to_rally.push(*u);
-            }
-        }
-    }
-    // The gathering is a muster of the registry: the units at the rally and on their way to it.
-    // (A landing gathers at the port for the ship, `naval.rs`: not labelled.)
-    if !naval_rally {
-        let members: Vec<Serial> = {
-            let view = PlayerView::new(game, me);
-            at_rally
-                .iter()
-                .chain(&sent_to_rally)
-                .chain(
-                    elsewhere
-                        .iter()
-                        .filter(|&&u| ai.roles.in_muster(view.serial_of(u), MusterKind::Campaign)),
-                )
-                .map(|&u| view.serial_of(u))
-                .collect()
-        };
-        let stale = ai
-            .roles
-            .musters()
-            .into_iter()
-            .find(|(_, m, _)| m.kind == MusterKind::Campaign)
-            .filter(|(_, m, _)| m.rally != rally || m.objective != Some(target))
-            .map(|(id, ..)| id);
-        if let Some(id) = stale {
-            ai.roles.end_muster(id);
-        }
-        match ai
-            .roles
-            .musters()
-            .into_iter()
-            .find(|(_, m, _)| m.kind == MusterKind::Campaign)
-        {
-            Some((id, ..)) => {
-                ai.roles.join_muster(id, &members, game.round());
-            }
-            None => {
-                ai.roles.begin_muster(
-                    MusterKind::Campaign,
-                    rally,
-                    Some(target),
-                    &members,
-                    game.round(),
-                );
-            }
-        }
-    }
-    // The troops at the tower cross in stacks of what a square holds.
-    let stack = game.max_battle_side();
-    for chunk in at_tower.chunks(stack) {
-        if chunk.len() < game.levers().attack.min_crossing.min(elsewhere.len()) {
-            continue;
-        }
-        if !PlayerView::new(game, me).can_shift_plane(chunk) {
-            continue;
-        }
-        {
-            ai.order(
-                game,
-                Command::ShiftPlane {
-                    units: chunk.to_vec(),
-                },
-                events,
-            );
-        }
-    }
-    // Troops for a landing gather at the port; when strong enough they are tagged for a ship
-    // (`pickup.rs`). Those already ashore on the target's land mass march on it when they are
-    // strong enough.
-    if ai.naval.is_some_and(|p| p.target == target) {
-        if force >= wanted && at_rally.len() >= game.levers().attack.min_march {
-            set_sail(ai, game, target, &at_rally, events);
-        }
-        march_landed(ai, game, free, target, events);
-        return;
-    }
-    if force >= wanted && at_rally.len() >= game.levers().attack.min_march {
-        let mut launched: Vec<Serial> = Vec::new();
-        let mut refused = false;
-        // Units march as stacks: those on one square, as many as a square holds at most.
-        let mut by_square: Vec<(Position, Vec<hecs::Entity>)> = Vec::new();
-        {
-            let view = PlayerView::new(game, me);
-            for &u in &at_rally {
-                let Some(p) = view.unit_position(u) else {
-                    continue;
-                };
-                match by_square.iter_mut().find(|(q, _)| *q == p) {
-                    Some((_, list)) => list.push(u),
-                    None => by_square.push((p, vec![u])),
-                }
-            }
-        }
-        for (_, units) in &by_square {
-            for chunk in units.chunks(game.max_battle_side()) {
-                let serials: Vec<Serial> = {
-                    let view = PlayerView::new(game, me);
-                    chunk.iter().map(|&u| view.serial_of(u)).collect()
-                };
-                // A stack already next to the target has arrived: it attacks from where it is.
-                let beside = {
-                    let view = PlayerView::new(game, me);
-                    chunk.iter().all(|&u| {
-                        view.unit_position(u)
-                            .and_then(|p| distance(&view, p, target))
-                            .is_some_and(|d| d <= 1)
-                    })
-                };
-                if beside {
-                    launched.extend(serials);
-                    continue;
-                }
-                match crate::assault::march(ai, game, chunk, target, events) {
-                    Ok(()) => launched.extend(serials),
-                    Err(crate::assault::MarchError::Refused(_)) => refused = true,
-                    Err(_) => {}
-                }
-            }
-        }
-        if launched.is_empty() && !refused {
-            // No square next to the target can be reached: give it up for a while and go for
-            // the next nearest city (ships or a gate may open the way later).
-            ai.unreachable.push(target);
-            ai.unreachable_since = game.round();
-            ai.campaign = None;
-        } else if !launched.is_empty() {
-            events.push(Event::MarchLaunched {
+    if too_long || ai.march_target != Some(target) {
+        if ai.roles.any(Role::March) {
+            events.push(Event::MarchCalledOff {
                 player: me,
-                target,
-                units: launched.len() as u32,
+                target: ai.march_target.unwrap_or(target),
+                units: ai.roles.count(Role::March) as u32,
+                turns: game.round().saturating_sub(ai.march_started),
+                target_changed: !too_long,
             });
-            ai.roles.end_musters(MusterKind::Campaign);
-            ai.roles.assign(
-                crate::roles::Role::March,
-                launched.iter().copied(),
-                game.round(),
-            );
-            for &s in &launched {
-                ai.roles
-                    .set_target(s, crate::roles::Role::March, Some(target));
-            }
-            ai.march_started = game.round();
         }
+        ai.roles.release_role(Role::March);
+        ai.roles.end_musters(MusterKind::Campaign);
+        ai.march_target = Some(target);
+    }
+    match ai.naval.filter(|p| p.target == target) {
+        Some(plan) => land_on(ai, game, events, free, target, plan.land),
+        None => gather(ai, game, events, free, target),
     }
 }
 
-/// The units at the port are bound for a city across the sea: war is declared (a pact or an
-/// alliance is not broken for a landing: the city is given up), and they hold `March` with the
-/// city as target, tagged `Crossing::Sea`. The pickup planner sends them a ship.
-fn set_sail(
+/// What the campaign has against its target already, and what it asks for.
+struct Need {
+    /// The strength and number of the units on the march against the target.
+    strength: f32,
+    units: usize,
+    /// The strength the march waits for.
+    wanted: f32,
+    /// The strength soldiers are gathered up to.
+    gathered: f32,
+}
+
+impl Need {
+    fn of(ai: &Ai, view: &PlayerView, round: u32, target: Position) -> Self {
+        let marching: Vec<hecs::Entity> = view
+            .my_units()
+            .into_iter()
+            .filter(|&u| ai.roles.target_of(view.serial_of(u), Role::March) == Some(target))
+            .collect();
+        let wanted = crate::war_plan::strength_wanted(view, &ai.city_memory, round, target);
+        // In the win phase the wizard sends every free soldier it has, up to a full party:
+        // stacks that wait for more than the march needs while the rivals build theirs stall the
+        // late game (task 697). The march itself still leaves only when the force is strong
+        // enough.
+        let gathered = if crate::phase::phase(view, round) == crate::phase::Phase::Win {
+            f32::INFINITY
+        } else {
+            wanted
+        };
+        Self {
+            strength: stack_strength(view, &marching),
+            units: marching.len(),
+            wanted,
+            gathered,
+        }
+    }
+
+    /// Whether a force of `count` units of `strength`, the marching ones included, may march.
+    fn enough(&self, view: &PlayerView, strength: f32, count: usize) -> bool {
+        strength >= self.wanted && count >= view.levers().attack.min_march
+    }
+
+    /// The force picked by need from `candidates`, which come in the order they are wanted:
+    /// until the strength to gather and a march's units are there, at most what a battle holds.
+    fn pick(&self, view: &PlayerView, candidates: &[hecs::Entity]) -> Vec<hecs::Entity> {
+        let (mut strength, mut count) = (self.strength, self.units);
+        let mut picked = Vec::new();
+        for &u in candidates {
+            if (strength >= self.gathered && count >= view.levers().attack.min_march)
+                || count >= view.max_battle_side()
+            {
+                break;
+            }
+            strength += unit_strength(view, u);
+            count += 1;
+            picked.push(u);
+        }
+        picked
+    }
+}
+
+/// The soldiers of the campaign's muster come first (they are not swapped for others every turn),
+/// then those that are there soonest.
+fn by_arrival(
+    ai: &Ai,
+    view: &PlayerView,
+    mut timed: Vec<(u32, hecs::Entity)>,
+) -> Vec<hecs::Entity> {
+    timed.sort_by_key(|&(turns, u)| {
+        let serial = view.serial_of(u);
+        let member = ai.roles.in_muster(serial, MusterKind::Campaign);
+        (!member, turns, serial)
+    });
+    timed.into_iter().map(|(_, u)| u).collect()
+}
+
+/// The army over land, a tower or a gate: the soldiers that are there soonest gather at the rally
+/// point, and march on the square beside the target when what is there and on the march is enough.
+fn gather(
     ai: &mut Ai,
     game: &mut Game,
-    target: Position,
-    units: &[hecs::Entity],
     events: &mut Vec<Event>,
+    free: &[hecs::Entity],
+    target: Position,
 ) {
     let me = ai.player;
+    // The units on the march that came beside the target on another square join the others.
+    let stragglers: Vec<hecs::Entity> = {
+        let view = PlayerView::new(game, me);
+        view.my_units()
+            .into_iter()
+            .filter(|&u| ai.roles.target_of(view.serial_of(u), Role::March) == Some(target))
+            .filter(|&u| !view.unit_has_order(u))
+            .filter(|&u| {
+                view.unit_position(u)
+                    .is_some_and(|p| distance(&view, p, target) == Some(1))
+            })
+            .collect()
+    };
+    if !stragglers.is_empty() {
+        // One that cannot get to the square attacks from where it is, when that is enough.
+        let _ = assembly::march(ai, game, &stragglers, target, events);
+    }
+    let mut candidates: Vec<hecs::Entity> = {
+        let view = PlayerView::new(game, me);
+        free.iter()
+            .copied()
+            .filter(|&u| !ai.roles.is(view.serial_of(u), Role::March))
+            .collect()
+    };
+    let crossing = ai.crossing.filter(|c| c.plane != target.plane);
+    if let Some(square) = crossing {
+        candidates = cross(ai, game, events, &candidates, target, square);
+    }
+    let mut travel = Travel::new(ai, game);
+    let (need, force, none_gets_there) = {
+        let view = PlayerView::new(game, me);
+        let need = Need::of(ai, &view, game.round(), target);
+        let timed: Vec<(u32, hecs::Entity)> = candidates
+            .iter()
+            .filter_map(|&u| Some((travel.trip(&view, &[u], target)?.turns, u)))
+            .collect();
+        let min = view.levers().attack.min_march;
+        let none_gets_there = timed.is_empty() && candidates.len() >= min;
+        // Nothing is sent while too few units are free to make a march at all.
+        let force = if timed.len() + need.units < min {
+            Vec::new()
+        } else {
+            need.pick(&view, &by_arrival(ai, &view, timed))
+        };
+        (need, force, none_gets_there)
+    };
+    if force.is_empty() {
+        if none_gets_there && need.units == 0 {
+            give_up(ai, game, target);
+        }
+        return;
+    }
+    let Ok(beside) = assembly::beside(ai, game, &mut travel, target, &force) else {
+        give_up(ai, game, target);
+        return;
+    };
+    // Those beside the target are there; the others gather on the rally point, or go straight
+    // to the square beside the target when no square serves as one.
+    let (near, away): (Vec<hecs::Entity>, Vec<hecs::Entity>) = {
+        let view = PlayerView::new(game, me);
+        force.iter().copied().partition(|&u| {
+            view.unit_position(u)
+                .is_some_and(|p| distance(&view, p, target) == Some(1))
+        })
+    };
+    let point = assembly::rally(ai, game, &mut travel, target, beside, &away).unwrap_or(beside);
+    let mut members: Vec<Serial> = Vec::new();
+    for (units, to) in [(&near, beside), (&away, point)] {
+        for &u in units {
+            let (serial, at, ordered) = {
+                let view = PlayerView::new(game, me);
+                (
+                    view.serial_of(u),
+                    view.unit_position(u),
+                    view.unit_has_order(u),
+                )
+            };
+            let going =
+                at == Some(to) || ordered || travel.send(ai, game, &[u], to, events).is_ok();
+            if going || near.contains(&u) {
+                members.push(serial);
+            }
+        }
+    }
+    let rallies: Vec<Position> = [Some(point), crossing].into_iter().flatten().collect();
+    assembly::campaign_muster(ai, target, point, &rallies, &members, game.round());
+    let ready: Vec<hecs::Entity> = {
+        let view = PlayerView::new(game, me);
+        let mut ready: Vec<hecs::Entity> = force
+            .iter()
+            .copied()
+            .filter(|&u| near.contains(&u) || view.unit_position(u) == Some(point))
+            .collect();
+        let strength = need.strength + stack_strength(&view, &ready);
+        if !need.enough(&view, strength, need.units + ready.len()) {
+            return;
+        }
+        view.sort_by_serial(&mut ready);
+        ready
+    };
+    set_out(ai, game, events, &ready, target);
+}
+
+/// The units march on the square beside the target.
+fn set_out(
+    ai: &mut Ai,
+    game: &mut Game,
+    events: &mut Vec<Event>,
+    units: &[hecs::Entity],
+    target: Position,
+) {
+    let me = ai.player;
+    let serials: Vec<Serial> = {
+        let view = PlayerView::new(game, me);
+        units.iter().map(|&u| view.serial_of(u)).collect()
+    };
+    match assembly::march(ai, game, units, target, events) {
+        Ok(()) => {}
+        // A square that is full for now: the next turn tries again.
+        Err(assembly::MarchError::Refused(_)) => return,
+        Err(_) => {
+            give_up(ai, game, target);
+            return;
+        }
+    }
+    events.push(Event::MarchLaunched {
+        player: me,
+        target,
+        units: serials.len() as u32,
+    });
+    ai.roles.end_musters(MusterKind::Campaign);
+    ai.roles
+        .assign(Role::March, serials.iter().copied(), game.round());
+    for &s in &serials {
+        ai.roles.set_target(s, Role::March, Some(target));
+    }
+    ai.march_started = game.round();
+}
+
+/// No way leads to the target: it is put aside for a while and the army goes for another city
+/// (ships or a gate may open the way later).
+fn give_up(ai: &mut Ai, game: &Game, target: Position) {
+    ai.unreachable.push(target);
+    ai.unreachable_since = game.round();
+    ai.campaign = None;
+}
+
+/// The soldiers on the near side of the campaign's crossing walk to it and cross: through a
+/// tower or an Astral Gate in parties, or with the Plane Shift cast on them there
+/// (`wizardry::shift_target`). Returns the soldiers on the target's side, those that have just
+/// crossed among them.
+fn cross(
+    ai: &mut Ai,
+    game: &mut Game,
+    events: &mut Vec<Event>,
+    candidates: &[hecs::Entity],
+    target: Position,
+    square: Position,
+) -> Vec<hecs::Entity> {
+    let me = ai.player;
+    let near: Vec<hecs::Entity> = {
+        let view = PlayerView::new(game, me);
+        candidates
+            .iter()
+            .copied()
+            .filter(|&u| {
+                view.unit_position(u)
+                    .is_some_and(|p| p.plane == square.plane)
+            })
+            .collect()
+    };
+    let mut travel = Travel::new(ai, game);
+    let side = game.max_battle_side();
+    let mut there: Vec<hecs::Entity> = Vec::new();
+    let mut members: Vec<Serial> = Vec::new();
+    // Set when the square refused a unit for want of room: no other unit is sent this turn (a
+    // full square stays full, and each refusal was one more ignored order).
+    let mut full = false;
+    for &u in &near {
+        let (serial, at, ordered, by_itself) = {
+            let view = PlayerView::new(game, me);
+            (
+                view.serial_of(u),
+                view.unit_position(u),
+                view.unit_has_order(u),
+                view.unit_has_flag(u, f4x_def::rules::unit_flag::UnitFlag::PlanarTravel)
+                    && view.can_shift_plane(&[u]),
+            )
+        };
+        // A unit that travels between the planes by itself needs no crossing square.
+        if by_itself {
+            ai.order(game, Command::ShiftPlane { units: vec![u] }, events);
+            continue;
+        }
+        if at == Some(square) {
+            there.push(u);
+            members.push(serial);
+        } else if ordered {
+            if ai.roles.in_muster(serial, MusterKind::Campaign) {
+                members.push(serial);
+            }
+        } else if !full && members.len() < side && Ai::room_at(game, square, 1) {
+            match travel.send(ai, game, &[u], square, events) {
+                Ok(()) => members.push(serial),
+                Err(why) => {
+                    full = why
+                        == assembly::MarchError::Refused(
+                            f4x_core::unit::movement::MoveError::StackFull,
+                        );
+                }
+            }
+        }
+    }
+    let point = assembly::rally_of(ai, target);
+    let rallies: Vec<Position> = [Some(square), point].into_iter().flatten().collect();
+    assembly::campaign_muster(ai, target, square, &rallies, &members, game.round());
+    // The troops cross in stacks of what a battle holds.
+    let min = game.levers().attack.min_crossing.min(near.len());
+    for chunk in there.chunks(side) {
+        if chunk.len() < min || !PlayerView::new(game, me).can_shift_plane(chunk) {
+            continue;
+        }
+        ai.order(
+            game,
+            Command::ShiftPlane {
+                units: chunk.to_vec(),
+            },
+            events,
+        );
+    }
+    let view = PlayerView::new(game, me);
+    candidates
+        .iter()
+        .copied()
+        .filter(|&u| {
+            view.unit_position(u)
+                .is_some_and(|p| p.plane == target.plane)
+        })
+        .collect()
+}
+
+/// The army across the sea: the landing site `land` is where it gathers and where it attacks
+/// from. When the soldiers it can send are enough, war is declared (a pact or an alliance is not
+/// broken for a landing: the city is given up) and they gather there, those that cannot walk
+/// tagged for a ship (`pickup.rs`). What has landed marches when it is enough.
+fn land_on(
+    ai: &mut Ai,
+    game: &mut Game,
+    events: &mut Vec<Event>,
+    free: &[hecs::Entity],
+    target: Position,
+    land: Position,
+) {
+    let me = ai.player;
+    let (need, force, begun) = {
+        let view = PlayerView::new(game, me);
+        let need = Need::of(ai, &view, game.round(), target);
+        let timed: Vec<(u32, hecs::Entity)> = free
+            .iter()
+            .copied()
+            .filter(|&u| !ai.roles.is(view.serial_of(u), Role::March))
+            .filter_map(|u| {
+                let p = view.unit_position(u)?;
+                Some((distance(&view, p, land)?, u))
+            })
+            .collect();
+        let force = need.pick(&view, &by_arrival(ai, &view, timed));
+        let begun = need.units > 0
+            || ai.roles.musters().iter().any(|(_, m, _)| {
+                m.kind == MusterKind::Campaign && m.objective == Some(target) && m.rally == land
+            });
+        let strength = need.strength + stack_strength(&view, &force);
+        if force.is_empty() || !(begun || need.enough(&view, strength, need.units + force.len())) {
+            return;
+        }
+        (need, force, begun)
+    };
     if !crate::naval::declare_war_on_city(ai, game, target, events) {
         ai.naval_bad.push(target);
         ai.naval = None;
         ai.campaign = None;
         return;
     }
-    let (serials, walkers): (Vec<Serial>, Vec<Serial>) = {
+    let beside_target = distance(&PlayerView::new(game, me), land, target) == Some(1);
+    if beside_target {
+        assembly::set_beside(ai, target, land);
+    }
+    let members: Vec<Serial> = {
         let view = PlayerView::new(game, me);
-        (
-            units.iter().map(|&u| view.serial_of(u)).collect(),
-            units
-                .iter()
-                .filter(|&&u| view.is_walker(u))
-                .map(|&u| view.serial_of(u))
-                .collect(),
-        )
+        force.iter().map(|&u| view.serial_of(u)).collect()
     };
-    events.push(Event::MarchLaunched {
-        player: me,
-        target,
-        units: serials.len() as u32,
-    });
-    for &s in &serials {
-        if ai
-            .roles
-            .claim(s, crate::roles::Role::March, game.round(), Some(target))
-            .is_ok()
-        {
-            ai.roles
-                .set_target(s, crate::roles::Role::March, Some(target));
+    assembly::campaign_muster(ai, target, land, &[land], &members, game.round());
+    if !begun {
+        events.push(Event::MarchLaunched {
+            player: me,
+            target,
+            units: members.len() as u32,
+        });
+    }
+    let mut travel = Travel::new(ai, game);
+    for (&u, &serial) in force.iter().zip(&members) {
+        let (at, ordered, walker, walks) = {
+            let view = PlayerView::new(game, me);
+            (
+                view.unit_position(u),
+                view.unit_has_order(u),
+                view.is_walker(u),
+                travel.trip(&view, &[u], land).is_some(),
+            )
+        };
+        if at == Some(land) {
+            ai.roles.set_crossing(serial, None);
+        } else if !walks && walker {
             // Only walkers wait for the ships; the fliers and swimmers cross by themselves.
-            if walkers.contains(&s) {
-                ai.roles.set_crossing(s, Some(crate::roles::Crossing::Sea));
-            }
+            ai.roles
+                .set_crossing(serial, Some(crate::roles::Crossing::Sea));
+        } else if !ordered {
+            // A square that is full for now: the next turn tries again.
+            let _ = travel.send(ai, game, &[u], land, events);
         }
     }
-    ai.march_started = game.round();
+    // What has landed marches when it is enough: from the landing site, or on to the square
+    // beside the target.
+    let ashore: Vec<hecs::Entity> = {
+        let view = PlayerView::new(game, me);
+        let ashore: Vec<hecs::Entity> = force
+            .iter()
+            .copied()
+            .filter(|&u| {
+                view.unit_position(u)
+                    .is_some_and(|p| p == land || distance(&view, p, target) == Some(1))
+            })
+            .collect();
+        let strength = need.strength + stack_strength(&view, &ashore);
+        if !need.enough(&view, strength, need.units + ashore.len()) {
+            return;
+        }
+        ashore
+    };
+    set_out(ai, game, events, &ashore, target);
 }
 
 /// Has a march gone on too long? It has `march_turns` and the walk to a far target on top (the
@@ -745,156 +796,6 @@ fn best_enemy_city(
         .map(|(_, p)| p)
 }
 
-/// Troops that came ashore (they can walk to the target, which the rest cannot) march on the city
-/// when together they are strong enough for what is expected there.
-/// Set `F4X_CHECK_REACH` to make the search for every unit anyway and compare it with the
-/// answer from the region of an earlier search that found nothing (slow).
-fn check_regions() -> bool {
-    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ON.get_or_init(|| std::env::var_os("F4X_CHECK_REACH").is_some())
-}
-
-fn march_landed(
-    ai: &mut Ai,
-    game: &mut Game,
-    free: &[hecs::Entity],
-    target: Position,
-    events: &mut Vec<Event>,
-) {
-    let me = ai.player;
-    let (landed, expected) = {
-        let view = PlayerView::new(game, me);
-        let open: Vec<Position> = neighbours(&view, target)
-            .into_iter()
-            .filter(|&s| view.hostile_at(s).is_none())
-            .collect();
-        // Units of one kind on one square walk to the same places: one search (that stops at the
-        // first square next to the target it finds) serves them all. A search that finds none
-        // has run over the whole region the unit can walk to, and a unit of the same kind
-        // standing anywhere in that region cannot reach one either (the squares it can walk to
-        // are the same, as every step costs the same both ways): the second search is not made.
-        let mut known: std::collections::HashMap<_, bool> = std::collections::HashMap::new();
-        let mut regions: Vec<(ReachSignature, f4x_core::fast::FastSet<Position>)> = Vec::new();
-        let check = check_regions();
-        let landed: Vec<hecs::Entity> = free
-            .iter()
-            .copied()
-            .filter(|&u| !ai.roles.is(view.serial_of(u), crate::roles::Role::March))
-            .filter(|&u| {
-                if open.is_empty() {
-                    return false;
-                }
-                let Some(at) = view.unit_position(u) else {
-                    return false;
-                };
-                let squares: Vec<Position> = open.iter().copied().filter(|&s| s != at).collect();
-                if squares.is_empty() {
-                    return false;
-                }
-                let Some(key) = view.reach_signature(&[u]) else {
-                    return view.reaches_any(&[u], &squares);
-                };
-                let in_region = regions
-                    .iter()
-                    .any(|(sig, region)| sig.moves_like(&key) && region.contains(&key.at()));
-                if in_region && !check {
-                    return false;
-                }
-                let known_key = key.clone();
-                let reached = *known.entry(key.clone()).or_insert_with(|| {
-                    match view.unreached_region(&[u], &squares) {
-                        Some(region) => {
-                            // A unit that stands on a square next to the target left it out of
-                            // its targets, and the region then holds a target for the others.
-                            if !open.contains(&at) {
-                                regions.push((key.clone(), region));
-                            }
-                            false
-                        }
-                        None => true,
-                    }
-                });
-                if in_region && reached {
-                    let from = regions
-                        .iter()
-                        .find(|(sig, region)| sig.moves_like(&known_key) && region.contains(&known_key.at()))
-                        .map(|(sig, r)| (sig.at(), r.len()));
-                    panic!(
-                        "a unit in the region of a failed search reached the target: unit {:?} target {target:?} region from {from:?} open {open:?}",
-                        known_key.at()
-                    );
-                }
-                reached
-            })
-            .collect();
-        let expected = expected_defence(&view, &ai.city_memory, game.round(), target);
-        (landed, expected)
-    };
-    // One battle is one square's party: each square is judged on its own best nine, and the
-    // soldiers beyond them stay where they are.
-    let mut by_square: Vec<(Position, Vec<hecs::Entity>)> = Vec::new();
-    {
-        let view = PlayerView::new(game, me);
-        for &u in &landed {
-            let Some(p) = view.unit_position(u) else {
-                continue;
-            };
-            match by_square.iter_mut().find(|(q, _)| *q == p) {
-                Some((_, list)) => list.push(u),
-                None => by_square.push((p, vec![u])),
-            }
-        }
-    }
-    let mut launched: Vec<Serial> = Vec::new();
-    for (_, units) in &by_square {
-        let band = {
-            let view = PlayerView::new(game, me);
-            party(&view, units)
-        };
-        let strong_enough = {
-            let view = PlayerView::new(game, me);
-            band.len() >= 2
-                && stack_strength(&view, &band) >= expected * view.levers().attack.attack_force
-        };
-        if !strong_enough {
-            continue;
-        }
-        let serials: Vec<Serial> = {
-            let view = PlayerView::new(game, me);
-            band.iter().map(|&u| view.serial_of(u)).collect()
-        };
-        // A band already beside the city stays: it attacks from where it is (`attack.rs`).
-        let beside = {
-            let view = PlayerView::new(game, me);
-            band.iter().all(|&u| {
-                view.unit_position(u)
-                    .and_then(|p| distance(&view, p, target))
-                    .is_some_and(|d| d <= 1)
-            })
-        };
-        if beside || crate::assault::march(ai, game, &band, target, events).is_ok() {
-            launched.extend(serials);
-        }
-    }
-    if !launched.is_empty() {
-        events.push(Event::MarchLaunched {
-            player: me,
-            target,
-            units: launched.len() as u32,
-        });
-        ai.roles.assign(
-            crate::roles::Role::March,
-            launched.iter().copied(),
-            game.round(),
-        );
-        for &s in &launched {
-            ai.roles
-                .set_target(s, crate::roles::Role::March, Some(target));
-        }
-        ai.march_started = game.round();
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -983,21 +884,32 @@ mod tests {
         assert_eq!(pick(&w), Some(east));
     }
 
-    /// The same soldiers, the same target: a wizard that wins the game sends them all to the rally,
-    /// one that builds up only the few the march needs (task 697).
+    /// How many of the units the campaign has taken: gathering or on the march.
+    fn taken(ai: &Ai, w: &World, units: &[hecs::Entity]) -> usize {
+        use crate::roles::Role;
+        let view = PlayerView::new(w, P0);
+        units
+            .iter()
+            .filter(|&&u| {
+                let s = view.serial_of(u);
+                ai.roles.is(s, Role::Muster) || ai.roles.is(s, Role::March)
+            })
+            .count()
+    }
+
+    /// The same soldiers, the same target: a wizard that wins the game sends them all, one that
+    /// builds up only the few the march needs (task 697).
     #[test]
-    fn in_the_win_phase_every_free_soldier_is_sent_to_the_rally_and_early_only_those_needed(
-    ) -> TestResult {
+    fn in_the_win_phase_every_free_soldier_is_sent_and_early_only_those_needed() -> TestResult {
         let sent = |turn: u32| -> Result<usize, Box<dyn std::error::Error>> {
             let mut w = rival_with_a_seat((4, 4))?;
             w.set_round(turn);
-            spawn(&mut w, P0, at(5, 9), 113 /* high_men_paladins */, 9);
+            let troops = spawn(&mut w, P0, at(5, 9), 113 /* high_men_paladins */, 9);
             w.reveal_map(P0);
             let mut ai = Ai::new(P0);
             crate::roles::register(&mut ai, &w, w.round());
             run(&mut ai, &mut w, &mut Vec::new());
-            let musters = ai.roles.musters();
-            Ok(musters.first().map_or(0, |(_, _, members)| members.len()))
+            Ok(taken(&ai, &w, &troops))
         };
         let (early, late) = (sent(1)?, sent(400)?);
         assert_eq!(early, min_march());
@@ -1008,37 +920,44 @@ mod tests {
     #[test]
     fn soldiers_gathering_for_the_campaign_hold_a_muster_until_the_march_leaves() -> TestResult {
         use crate::roles::Role;
-        // A rival city on the west island, and soldiers away from the own city.
+        // A rival city on the west island, and soldiers apart from each other.
         let mut w = rival_with_a_seat((4, 4))?;
-        let capital = at(COAST_CITY.0, COAST_CITY.1);
-        let troops = spawn(&mut w, P0, at(5, 9), 113 /* high_men_paladins */, 9);
+        let target = at(4, 4);
+        let mut troops = Vec::new();
+        for p in [at(9, 9), at(9, 3), at(7, 10), at(10, 9), at(10, 3)] {
+            troops.extend(spawn(&mut w, P0, p, 113 /* high_men_paladins */, 1));
+        }
         w.reveal_map(P0);
         let mut ai = Ai::new(P0);
         crate::roles::register(&mut ai, &w, w.round());
         run(&mut ai, &mut w, &mut Vec::new());
-        assert_eq!(ai.campaign, Some(at(4, 4)));
+        assert_eq!(ai.campaign, Some(target));
         let musters = ai.roles.musters();
         assert_eq!(musters.len(), 1, "one muster");
         let (_, muster, members) = &musters[0];
         assert_eq!(muster.kind, MusterKind::Campaign);
-        assert_eq!(muster.objective, Some(at(4, 4)));
-        assert_eq!(muster.rally, capital);
-        // Only the units the march needs are sent; the others stay where they are, available.
+        assert_eq!(muster.objective, Some(target));
+        assert_eq!(
+            Some(muster.rally),
+            crate::assembly::rally_of(&ai, target),
+            "the rally point"
+        );
+        // Only the units the march needs are taken; the others stay where they are, available.
         assert_eq!(members.len(), min_march(), "{members:?}");
         let view = PlayerView::new(&w, P0);
-        let sent: Vec<_> = troops
+        assert!(view.city_at(muster.rally).is_none(), "no city: {muster:?}");
+        let (sent, left): (Vec<_>, Vec<_>) = troops
             .iter()
             .copied()
-            .filter(|&u| ai.roles.is(view.serial_of(u), Role::Muster))
-            .collect();
+            .partition(|&u| ai.roles.is(view.serial_of(u), Role::Muster));
         assert_eq!(sent.len(), min_march());
-        for &u in troops.iter().filter(|u| !sent.contains(u)) {
+        for u in left {
             assert!(!view.unit_has_order(u), "left alone");
-            assert_eq!(view.unit_position(u), Some(at(5, 9)));
         }
         // They arrive and are strong enough: the march leaves and the muster is over.
+        let rally = muster.rally;
         for &u in &sent {
-            w.cheat_move_unit(u, capital);
+            w.cheat_move_unit(u, rally);
         }
         crate::roles::register(&mut ai, &w, w.round());
         run(&mut ai, &mut w, &mut Vec::new());
@@ -1049,6 +968,60 @@ mod tests {
             ai.campaign
         );
         assert!(ai.roles.any(Role::March), "the march left");
+        Ok(())
+    }
+
+    /// A force that stands together needs no rally point of its own: it marches at once.
+    #[test]
+    fn a_force_that_stands_together_marches_at_once() -> TestResult {
+        use crate::roles::Role;
+        let mut w = rival_with_a_seat((4, 4))?;
+        let troops = spawn(&mut w, P0, at(8, 9), 113 /* high_men_paladins */, 3);
+        w.reveal_map(P0);
+        let mut ai = Ai::new(P0);
+        crate::roles::register(&mut ai, &w, w.round());
+        let mut events = Vec::new();
+        run(&mut ai, &mut w, &mut events);
+        let view = PlayerView::new(&w, P0);
+        assert!(
+            troops
+                .iter()
+                .all(|&u| ai.roles.target_of(view.serial_of(u), Role::March) == Some(at(4, 4))),
+            "{events:?}"
+        );
+        Ok(())
+    }
+
+    /// A force beside its target that is too weak gets more soldiers: they march to its square.
+    #[test]
+    fn a_weak_force_at_the_target_gets_more_units() -> TestResult {
+        use crate::roles::Role;
+        let mut w = rival_with_a_seat((4, 4))?;
+        let target = at(4, 4);
+        spawn(&mut w, P1, target, 113 /* high_men_paladins */, 3);
+        let front = at(5, 5);
+        let weak = spawn(&mut w, P0, front, 104 /* high_men_spearmen */, 1);
+        w.reveal_map(P0);
+        let mut ai = Ai::new(P0);
+        crate::roles::register(&mut ai, &w, w.round());
+        let marching = PlayerView::new(&w, P0).serial_of(weak[0]);
+        let _ = ai
+            .roles
+            .claim(marching, Role::March, w.round(), Some(target));
+        ai.march_target = Some(target);
+        ai.march_started = w.round();
+        crate::assembly::set_beside(&mut ai, target, front);
+        let more = spawn(&mut w, P0, at(8, 9), 113 /* high_men_paladins */, 8);
+        crate::roles::register(&mut ai, &w, w.round());
+        let mut events = Vec::new();
+        run(&mut ai, &mut w, &mut events);
+        let view = PlayerView::new(&w, P0);
+        let sent = more
+            .iter()
+            .filter(|&&u| ai.roles.target_of(view.serial_of(u), Role::March) == Some(target))
+            .count();
+        assert!(sent > 0, "{events:?} {:?}", ai.roles);
+        assert!(sent < w.max_battle_side(), "one battle party");
         Ok(())
     }
 
@@ -1080,11 +1053,11 @@ mod tests {
                 "hurt unit marched"
             );
         }
-        let sent = healthy
-            .iter()
-            .filter(|&&u| ai.roles.is(view.serial_of(u), Role::Muster))
-            .count();
-        assert_eq!(sent, min_march(), "the healthy ones are sent");
+        assert_eq!(
+            taken(&ai, &w, healthy),
+            min_march(),
+            "the healthy ones are sent"
+        );
         Ok(())
     }
 
@@ -1490,9 +1463,15 @@ mod tests {
         let mut events = Vec::new();
         run(&mut ai, &mut w, &mut events);
         assert_eq!(ai.campaign, Some(far_city), "{events:?}");
-        assert_eq!(ai.crossing, Some(at(COAST_CITY.0, COAST_CITY.1)));
-        // The spell is paid for over some turns.
+        let square = ai.crossing.ok_or("a square to cross by")?;
+        assert!(
+            PlayerView::new(&w, P0).city_at(square).is_none(),
+            "no city: {square:?}"
+        );
+        assert_eq!(square.plane, Plane::Arcanus);
+        // The army walks to the square and the spell is paid for over some turns.
         for _ in 0..30 {
+            run(&mut ai, &mut w, &mut events);
             crate::wizardry::run(&mut ai, &mut w, &mut events);
             if events
                 .iter()
@@ -1577,8 +1556,8 @@ mod tests {
         assert!(!march_called_off(5, 100, 0, march_turns()));
     }
 
-    /// A rival's city across the sea: the army at the port, strong enough, is tagged for a ship
-    /// and the war is declared (task 647). Nothing is loaded by hand any more.
+    /// A rival's city across the sea: the army, strong enough, is tagged for a ship to the
+    /// landing site and the war is declared (task 647). Nothing is loaded by hand any more.
     fn landing_world(n: usize) -> Result<(Game, Ai), Box<dyn std::error::Error>> {
         use crate::testworld::{build, ENEMY_CITY};
         let mut w = game(COAST_CITY, 8 /* high_men */);
@@ -1618,8 +1597,8 @@ mod tests {
     }
 
     #[test]
-    fn the_army_at_the_port_is_tagged_for_a_ship_and_the_war_is_declared() -> TestResult {
-        use crate::roles::{Crossing, Role};
+    fn the_army_is_tagged_for_a_ship_to_the_landing_site_and_the_war_is_declared() -> TestResult {
+        use crate::roles::Crossing;
         let (mut w, mut ai) = landing_world(6)?;
         assert_ne!(w.treaty(P0, P1), f4x_core::diplomacy::Treaty::War);
         for _ in 0..3 {
@@ -1630,13 +1609,11 @@ mod tests {
         assert_eq!(w.treaty(P0, P1), f4x_core::diplomacy::Treaty::War);
         let tagged = ai.roles.needing(Crossing::Sea);
         assert!(tagged.len() >= min_march(), "{:?}", ai.roles);
-        let enemy = at(
-            crate::testworld::ENEMY_CITY.0,
-            crate::testworld::ENEMY_CITY.1,
-        );
+        // Their muster is the landing site, which they are bound for.
+        let land = ai.naval.ok_or("a landing")?.land;
         assert!(tagged
             .iter()
-            .all(|&(s, to)| to == enemy && ai.roles.is(s, Role::March)));
+            .all(|&(s, to)| to == land && ai.roles.in_muster(s, MusterKind::Campaign)));
         Ok(())
     }
 
@@ -1656,13 +1633,19 @@ mod tests {
         Ok(())
     }
 
-    /// The whole landing: the army gathers, is tagged, a ship fetches it and puts it ashore beside
-    /// the city, and it is free there for the war job to judge.
+    /// The whole landing: the army is tagged, a ship fetches it and puts it ashore beside the
+    /// city, and from there it attacks.
     #[test]
     fn the_army_is_carried_across_the_sea_and_lands_beside_the_city() -> TestResult {
         use crate::testworld::ENEMY_CITY;
         let (mut w, mut ai) = landing_world(6)?;
         let enemy = at(ENEMY_CITY.0, ENEMY_CITY.1);
+        let theirs = w
+            .economy()
+            .cities_of(P1)
+            .first()
+            .ok_or("the enemy has a city")?
+            .0;
         let mut landed = false;
         for _ in 0..60 {
             let mut events = Vec::new();
@@ -1687,6 +1670,21 @@ mod tests {
         assert!(
             landed,
             "no soldier came ashore near the enemy city: {:?}",
+            ai.roles
+        );
+        for _ in 0..20 {
+            if w.economy().city_owner(theirs) != Some(P1) {
+                break;
+            }
+            let mut events = Vec::new();
+            w.balance_farmers(P0);
+            crate::dispatch::run(&mut ai, &mut w, &mut events);
+            w.play_round();
+        }
+        assert_ne!(
+            w.economy().city_owner(theirs),
+            Some(P1),
+            "the army ashore did not attack: {:?}",
             ai.roles
         );
         Ok(())

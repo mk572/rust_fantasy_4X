@@ -32,7 +32,10 @@ EVERY = 20
 # Limit in ms a turn (mean over the window), about 1.6 times what the code took on 13 November 2026
 # (2 wizards 44 ms, 5 wizards 88 ms; before the speedups of task 512 it was 57 and 131). Lower a
 # limit when a speedup lands; raise it only with a reason.
-LIMITS_MS = {2: 70, 5: 140}
+# 5 wizards: 140 to 160 on 27 November 2026, by the project owner. Since the AI gathers strike
+# forces (task 837) the window plays a busier game (151 ms); over turns 401 to 520 the mean was
+# the same as before.
+LIMITS_MS = {2: 70, 5: 160}
 
 LINE = re.compile(r"turn (\d+): (.*?) \(\d+ entities\) \[[0-9.]+s, (\d+) ms a turn\]")
 PHASES = re.compile(r"ms a turn by phase: (.*)")

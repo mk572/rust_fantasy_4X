@@ -664,6 +664,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 831 | AI | A settings file for the strategic AI's levers (`ai_strategy.ron`) (done) |
 | 832 | AI | (done) A settings file for the battle AI's levers (`ai_battle.ron`), with no change of behaviour |
 | 836 | AI | Strike forces, step 1: one attack module decides and carries out every AI attack, at one threshold (done) |
+| 837 | AI | Strike forces, step 2: a force gathers at a rally point and moves to one square beside its target (done) |
 
 ## Descriptions
 
@@ -711,5 +712,11 @@ Done 27 November 2026: `ai_battle.ron` holds 52 levers, the constants and the tu
 - One lever, `attack_force` (1.2), replaces the attack thresholds by place, role and phase.
 - War targets are no longer skipped; war is declared by the AI's own decision before an attack on a player it is not at war with: the campaign on the owner of its target (never a partner, nor in a peace period), the perimeter only when the AI is open to war on that player (`diplo_b_stance::open_to_war`).
 - `raid.rs` and `perimeter.rs` lose their attack calls; raids no longer target cities.
+- Tests and documents as in sections 7 and 8, as far as they concern this step.
+*Needs:* nothing.
+
+**837. (done) Strike forces, step 2: rally point and one square beside the target.** Planned 27 November 2026: [`ai-strike-force.md`](ai-strike-force.md). *Done 27 November 2026:* [`ai-design.md`](ai-design.md), "Gathering a force"; the plan's section numbers below are of the plan as it was.
+- A new module, `assembly.rs`, used by the campaign, the raids and the walk repair: travel time with gates, one square beside each target, the force picked by who is soonest at the target, a rally point on the way of the last-arriving unit that is never a city, and the march from it.
+- The special routes of section 5.6: across the sea, raids, tower crossing, Astral Gate, Plane Shift, and where the AI casts its gates.
 - Tests and documents as in sections 7 and 8, as far as they concern this step.
 *Needs:* nothing.

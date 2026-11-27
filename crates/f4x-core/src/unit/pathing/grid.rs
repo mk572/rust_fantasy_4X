@@ -103,8 +103,13 @@ impl World {
     /// stack. `None` for no units, no map, or a unit that cannot move at all. Kept for the turn
     /// of a computer wizard (see `unit/kept.rs`).
     pub fn stack_grid(&self, units: &[hecs::Entity]) -> Option<Rc<PathGrid>> {
+        let plane = self.units().unit_position(*units.first()?)?.plane;
+        self.stack_grid_on(units, plane)
+    }
+
+    /// [`World::stack_grid`] on either plane.
+    fn stack_grid_on(&self, units: &[hecs::Entity], plane: Plane) -> Option<Rc<PathGrid>> {
         let first = *units.first()?;
-        let start = self.units().unit_position(first)?;
         let owner = self.units().unit_owner(first)?;
         let traits = self.economy().stack_traits(units);
         let economy = self.economy();
@@ -119,14 +124,14 @@ impl World {
         signatures.dedup();
         let key = GridKey {
             owner,
-            plane: start.plane,
+            plane,
             profiles: signatures,
             traits,
         };
         let make = || -> Option<PathGrid> {
             let grids: Vec<PathGrid> = profiles
                 .iter()
-                .map(|p| economy.unit_grid(p, traits, start.plane).ok())
+                .map(|p| economy.unit_grid(p, traits, plane).ok())
                 .collect::<Option<_>>()?;
             // One kind of unit: its own grid is the stack's.
             match <[PathGrid; 1]>::try_from(grids) {
@@ -198,22 +203,21 @@ impl World {
         }
     }
 
-    /// [`World::find_path`]'s search over the stack's grid: the cheapest path for the stack to
-    /// `to` (not through hostile squares or guarded sites; with `avoid_full`, not through squares
+    /// [`World::find_path`]'s search over the stack's grid: the cheapest path for the stack from
+    /// `start` to `to` (not through hostile squares or guarded sites; with `avoid_full`, not through squares
     /// with no room for it), without the start.
     pub(super) fn grid_path(
         &self,
         units: &[hecs::Entity],
+        start: Position,
         to: Position,
         avoid_full: bool,
     ) -> Option<Vec<Position>> {
-        let first = *units.first()?;
-        let start = self.units().unit_position(first)?;
-        let owner = self.units().unit_owner(first)?;
+        let owner = self.units().unit_owner(*units.first()?)?;
         if start.plane != to.plane || start == to {
             return None;
         }
-        let grid = self.stack_grid(units)?;
+        let grid = self.stack_grid_on(units, start.plane)?;
         let width = grid.width();
         let economy = self.economy();
         let hostile = economy.hostile_squares(owner);

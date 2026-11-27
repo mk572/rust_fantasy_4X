@@ -6,6 +6,7 @@
 
 use f4x_def::rules::ai_strategy::{SplitLevers, StrategyAiRules};
 
+use crate::assembly::mirror;
 use crate::lever::Levered;
 use f4x_core::diplomacy::Treaty;
 use f4x_core::map::Position;
@@ -971,30 +972,119 @@ pub(crate) fn astral_gate_spell(view: &PlayerView) -> Option<SpellId> {
         .find(|&s| kind(view.spell(s)) == Kind::Gate)
 }
 
-/// The own city the army can cross from: Plane Shift would put its stack on a free square the
-/// units can stand on (the square on the other plane may be sea), or an Astral Gate stands in it
-/// or can be raised in it. The fortress first.
-pub(crate) fn shift_gather(view: &PlayerView) -> Option<Position> {
+/// The square the army crosses by to attack `target` on the other plane, from the soldiers'
+/// plane: an own city an Astral Gate stands in or can be raised in, or the square to cast Plane
+/// Shift on, which is no city. The one with the shortest way for the last of the `soldiers` to it
+/// and on from its other side to the target (one with a walk there first); `None` when no spell
+/// or gate takes them across.
+pub(crate) fn crossing_square(
+    view: &PlayerView,
+    soldiers: &[hecs::Entity],
+    target: Position,
+) -> Option<Position> {
     let shift = plane_shift_spell(view);
     let gate = astral_gate_spell(view);
     if shift.is_none() && gate.is_none() {
         return None;
     }
-    let fortress = view.fortress();
-    let mut cities = view.my_cities();
-    cities.sort_by_key(|&(c, p)| (Some(p) != fortress, view.serial_of(c)));
-    cities.into_iter().find_map(|(c, p)| {
-        let shifts = shift.is_some_and(|spell| {
-            view.garrison(p)
+    let near: Vec<hecs::Entity> = soldiers
+        .iter()
+        .copied()
+        .filter(|&u| {
+            view.unit_position(u)
+                .is_some_and(|p| p.plane != target.plane)
+        })
+        .collect();
+    let cities = view.my_cities();
+    let gated: Vec<Position> = cities
+        .iter()
+        .filter(|&&(c, p)| {
+            p.plane != target.plane
+                && view.city_at(mirror(p)).is_none()
+                && gate.is_some_and(|spell| {
+                    view.city_enchantments(c).contains(&spell)
+                        || view.can_aim(spell, Some(Target::City(c)))
+                })
+        })
+        .map(|&(_, p)| p)
+        .collect();
+    // The squares a Plane Shift could be cast on: round the soldiers, round the own cities and
+    // round the square across from the target; the most promising by the crow's flight are
+    // walked.
+    let mut shifts: Vec<Position> = Vec::new();
+    if shift.is_some() {
+        let centres = near
+            .iter()
+            .filter_map(|&u| view.unit_position(u))
+            .chain(cities.iter().map(|&(_, p)| p))
+            .chain([mirror(target)])
+            .filter(|p| p.plane != target.plane);
+        for centre in centres {
+            for p in crate::military::neighbours(view, centre)
                 .into_iter()
-                .find(|&u| is_fighter(view, u))
-                .is_some_and(|u| view.can_aim(spell, Some(Target::Unit(u))))
+                .chain([centre])
+            {
+                if !shifts.contains(&p) && crossing_stands(view, p) && view.city_at(p).is_none() {
+                    shifts.push(p);
+                }
+            }
+        }
+        shifts.sort_by_key(|&p| {
+            let to_it = near
+                .iter()
+                .filter_map(|&u| view.distance(view.unit_position(u)?, p))
+                .max()
+                .unwrap_or(u32::MAX);
+            let on = view.distance(mirror(p), target).unwrap_or(u32::MAX);
+            (to_it.saturating_add(on), p.y, p.x)
         });
-        let gated = gate.is_some_and(|spell| {
-            view.city_enchantments(c).contains(&spell) || view.can_aim(spell, Some(Target::City(c)))
-        });
-        (shifts || gated).then_some(p)
-    })
+        shifts.truncate(view.levers().magic.shift_squares);
+    }
+    gated
+        .into_iter()
+        .chain(shifts)
+        .filter_map(|square| {
+            let turns: Vec<u32> = near
+                .iter()
+                .filter_map(|&u| {
+                    let from = view.unit_position(u)?;
+                    Some(view.way(&[u], from, square)?.last().map_or(0, |w| w.1))
+                })
+                .collect();
+            let last = turns.iter().copied().max()?;
+            let walk = near.iter().find_map(|&u| {
+                let way = view.way(&[u], mirror(square), target)?;
+                Some(way.last().map_or(0, |w| w.1))
+            });
+            // With no walk from the other side (water in between), how far it is.
+            let on = walk.or_else(|| view.distance(mirror(square), target))?;
+            // The square that serves the most soldiers, then one the walk goes on from, then
+            // the soonest.
+            let left_behind = near.len() - turns.len();
+            Some((
+                (left_behind, walk.is_none(), last + on, square.y, square.x),
+                square,
+            ))
+        })
+        .min_by_key(|&(rank, _)| rank)
+        .map(|(_, square)| square)
+}
+
+/// Whether the campaign can still cross by `square`: a tower or an own city, or a square with no
+/// lair and no enemy on either plane and no city on the other.
+pub(crate) fn crossing_stands(view: &PlayerView, square: Position) -> bool {
+    if view.towers().iter().any(|&(p, _)| p == square) {
+        return true;
+    }
+    if let Some(city) = view.city_at(square) {
+        return view.city_owner(city) == Some(view.me()) && view.city_at(mirror(square)).is_none();
+    }
+    view.city_at(mirror(square)).is_none()
+        && !view.has_lair(square)
+        && !view.has_lair(mirror(square))
+        && [square, mirror(square)]
+            .into_iter()
+            .all(|p| view.hostile_at(p).is_none_or(|u| u.is_empty()))
 }
 
 /// The city to raise an Astral Gate in: the army is gathered in the city it crosses from
@@ -1017,23 +1107,33 @@ fn gate_target(ai: &Ai, view: &PlayerView, spell: SpellId) -> Option<Target> {
         .filter(|&t| view.can_aim(spell, Some(t)))
 }
 
-/// The city to raise an Earth Gate in: with a campaign on, the rally city the army gathers in
-/// (`war_plan::rally`) first, then the own city on its plane that is farthest from it, at least
-/// `gate_far` away, the largest of those (it makes the most troops); `war::march_on` sends a
-/// unit through a pair of gates when it can. At most `gates_max` cities have one.
+/// The city to raise an Earth Gate in: with a campaign on, the own city nearest the rally point
+/// of the army (`assembly.rs`; without one nearest the crossing or the target) first, then the own
+/// city on its plane that is farthest from it, at least `gate_far` away, the largest of those (it
+/// makes the most troops); a unit goes through a pair of gates when that is quicker
+/// (`assembly::Travel`). At most `gates_max` cities have one.
 fn earth_gate_target(ai: &Ai, view: &PlayerView, spell: SpellId) -> Option<Target> {
     let campaign = ai.campaign?;
     let cities = view.my_cities();
     let positions: Vec<Position> = cities.iter().map(|&(_, p)| p).collect();
     let capital = view.fortress().or_else(|| positions.first().copied())?;
-    let rally = crate::war_plan::rally(
-        view,
-        &positions,
-        capital,
-        campaign,
-        ai.naval.filter(|p| p.target == campaign).map(|p| p.port),
+    let near = [
+        crate::assembly::rally_of(ai, campaign),
         ai.crossing,
-    );
+        Some(campaign),
+    ]
+    .into_iter()
+    .flatten()
+    .find(|p| positions.iter().any(|c| c.plane == p.plane));
+    let rally = near
+        .and_then(|near| {
+            positions
+                .iter()
+                .copied()
+                .filter(|c| c.plane == near.plane)
+                .min_by_key(|&c| (crate::view::distance(view, c, near), c.y, c.x))
+        })
+        .unwrap_or(capital);
     let gated = |c: hecs::Entity| view.city_enchantments(c).contains(&spell);
     if cities.iter().filter(|&&(c, _)| gated(c)).count() >= view.levers().magic.gates_max {
         return None;
@@ -1073,13 +1173,13 @@ fn earth_gate_target(ai: &Ai, view: &PlayerView, spell: SpellId) -> Option<Targe
     Some(Target::City(pick)).filter(|&t| view.can_aim(spell, Some(t)))
 }
 
-/// The unit to cast Plane Shift on: the army is gathered in the city it crosses from
-/// (`Ai::crossing`), with the garrison and at least `min_shift` fighters over, and its campaign
-/// is on the other plane. The whole stack goes, so the strongest unit is named.
+/// The unit to cast Plane Shift on: at least `min_shift` fighters are gathered on the square the
+/// army crosses by (`Ai::crossing`), which is no city, and the campaign is on the other plane. The
+/// whole stack goes, so the strongest unit is named.
 fn shift_target(ai: &Ai, view: &PlayerView, spell: SpellId) -> Option<Target> {
     let gather = ai.crossing?;
     let campaign = ai.campaign?;
-    if campaign.plane == gather.plane || view.city_at(gather).is_none() {
+    if campaign.plane == gather.plane || view.city_at(gather).is_some() {
         return None;
     }
     let fighters: Vec<hecs::Entity> = view
@@ -1087,7 +1187,7 @@ fn shift_target(ai: &Ai, view: &PlayerView, spell: SpellId) -> Option<Target> {
         .into_iter()
         .filter(|&u| is_fighter(view, u))
         .collect();
-    if fighters.len() < crate::view::garrison_wanted(view, gather) + view.levers().magic.min_shift {
+    if fighters.len() < view.levers().magic.min_shift {
         return None;
     }
     fighters

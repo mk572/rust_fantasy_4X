@@ -73,32 +73,6 @@ pub(crate) fn units_for(view: &PlayerView, strength: f32) -> usize {
     )
 }
 
-/// The city where the army gathers to march on `target`: the own city nearest to it, the port of
-/// a landing (`port`), or the far side of the tower the army crosses by (`tower`).
-pub(crate) fn rally(
-    view: &PlayerView,
-    own_cities: &[Position],
-    capital: Position,
-    target: Position,
-    port: Option<Position>,
-    tower: Option<Position>,
-) -> Position {
-    if let Some(tower) = tower.filter(|t| target.plane != t.plane) {
-        return Position {
-            plane: target.plane,
-            ..tower
-        };
-    }
-    port.unwrap_or_else(|| {
-        own_cities
-            .iter()
-            .copied()
-            .filter(|&c| distance(view, c, target).is_some())
-            .min_by_key(|&c| distance(view, c, target))
-            .unwrap_or(capital)
-    })
-}
-
 /// What a town is worth to take.
 pub(crate) fn worth(levers: &TargetLevers, t: &Town) -> f32 {
     let mut worth =
@@ -467,36 +441,6 @@ mod tests {
         );
         assert_eq!(plan.next, Some(much.pos));
         Ok(())
-    }
-
-    /// The army gathers at the own city nearest the target; a landing gathers at its port, and an
-    /// army crossing by a tower on the far side of it.
-    #[test]
-    fn the_rally_is_the_nearest_own_city_the_port_of_a_landing_or_the_far_side_of_a_tower() {
-        let w = game(COAST_CITY, 8 /* high_men */);
-        let view = PlayerView::new(&w, P0);
-        let (near, far) = (at(5, 9), at(10, 6));
-        let target = at(4, 4);
-        let (dn, df) = (
-            distance(&view, near, target).expect("a walk"),
-            distance(&view, far, target).expect("a walk"),
-        );
-        assert_ne!(dn, df, "the two cities are not equally far");
-        let nearest = if dn < df { near } else { far };
-        let cities = [far, near];
-        assert_eq!(rally(&view, &cities, far, target, None, None), nearest);
-        let port = at(8, 6);
-        assert_eq!(rally(&view, &cities, far, target, Some(port), None), port);
-        let mut across = target;
-        across.plane = f4x_core::map::Plane::Myrror;
-        let tower = at(7, 7);
-        assert_eq!(
-            rally(&view, &cities, far, across, Some(port), Some(tower)),
-            Position {
-                plane: f4x_core::map::Plane::Myrror,
-                ..tower
-            }
-        );
     }
 
     /// The strength the war asks for grows with the defence expected, and the cities build at

@@ -11,6 +11,7 @@
 
 mod alchemy;
 mod assault;
+mod assembly;
 mod attack;
 pub mod battle;
 mod bridge;
@@ -278,9 +279,14 @@ pub struct Ai {
     /// cannot hurt, say), so only a party much stronger goes again (`raid.rs`).
     #[serde(default)]
     site_losses: Vec<(Position, f32)>,
-    /// The open tower an army crosses by to reach a rival's city on the other plane (`military.rs`).
+    /// The square an army crosses by to reach a rival's city on the other plane: an open tower,
+    /// an Astral Gate city or the square a Plane Shift is cast on (`war.rs`).
     #[serde(default)]
     crossing: Option<Position>,
+    /// The gathering against each target: the square the force attacks from and its rally point
+    /// (`assembly.rs`).
+    #[serde(default)]
+    assemblies: Vec<assembly::Assembly>,
     /// Own cities the engineers found no road to build at, and how many cities there were then
     /// (`road.rs`).
     #[serde(default)]
@@ -485,6 +491,7 @@ impl Ai {
             planar_tower: None,
             tower_blocked: Vec::new(),
             crossing: None,
+            assemblies: Vec::new(),
             site_losses: Vec::new(),
             road_checked: Vec::new(),
             road_cities: 0,
@@ -1128,7 +1135,7 @@ mod send_tests {
         let party = spawn(&mut w, P0, at(5, 8), 113 /* high_men_paladins */, 2);
         let limit = w.max_tile();
         spawn(&mut w, P0, at(5, 10), 113, limit);
-        let said = crate::assault::march_detail(&Ai::new(P0), &w, &party, at(5, 11));
+        let said = crate::assembly::march_detail(&Ai::new(P0), &w, &party, at(5, 11));
         assert!(
             said.contains(&format!("(5, 10) holds {limit}")) && said.starts_with("party of 2"),
             "{said}"

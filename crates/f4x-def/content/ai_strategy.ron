@@ -273,9 +273,13 @@
         recall_percent: 50,
         // How many times as strong as a unit a werewolf must be for Lycanthropy.
         lycanthropy_edge: 1.5,
-        // The fewest fighters beyond the garrisons that Plane Shift is cast for.
+        // The fewest fighters gathered that Plane Shift is cast for (an Astral Gate: beyond the
+        // garrison of its city).
         min_shift: 6,
-        // Cities at least this far from the rally city get an Earth Gate.
+        // The most squares weighed to find the one the army gathers on for a Plane Shift.
+        shift_squares: 12,
+        // With a campaign on, the first Earth Gate goes up in the own city nearest the army's
+        // rally point; further cities at least this far from it get one too.
         gate_far: 8,
         // The most cities with an Earth Gate.
         gates_max: 3,

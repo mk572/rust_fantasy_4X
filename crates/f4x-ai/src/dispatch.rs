@@ -114,8 +114,8 @@ fn resend(
         shift_by_itself(ai, game, unit, target, events);
         // `Err(true)`: no walk leads there; `Err(false)`: refused for another reason.
         let sent: Result<(), bool> = match role {
-            Role::Raid | Role::March => crate::assault::march(ai, game, &[unit], target, events)
-                .map_err(|why| why == crate::assault::MarchError::Unreachable),
+            Role::Raid | Role::March => crate::assembly::march(ai, game, &[unit], target, events)
+                .map_err(|why| why == crate::assembly::MarchError::Unreachable),
             _ => ai
                 .probe(
                     game,
@@ -332,6 +332,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     // The sweep of the ship ties (and the sanity check of the passengers), before any job moves
     // one of them.
     crate::pickup::tidy_unit_registry(ai, game);
+    crate::assembly::tidy(ai);
     // The attacks come first: no unit has used a move or got an order yet.
     crate::attack::run(ai, game, events);
     // First the units whose mission is over, so the jobs below see them waiting.
@@ -442,7 +443,7 @@ mod tests {
                 P0,
                 at(COAST_CITY.0, COAST_CITY.1),
                 113, /* paladins */
-                6,
+                8,
             );
             crate::testworld::spawn_site(
                 &mut w,
@@ -453,27 +454,27 @@ mod tests {
             w.reveal_map(P0);
             Ok((w, Ai::new(P0)))
         };
-        // Whether a raid party was formed in any of the turns (a short one may be over by the end).
+        // Whether a raid party was formed in any of the turns, and whether the campaign held
+        // soldiers in any (either may be over by the end).
         let turns = |w: &mut Game, ai: &mut Ai, turns_run: usize| {
-            let mut raided = false;
+            let (mut raided, mut campaigned) = (false, false);
             for _ in 0..turns_run {
                 w.balance_farmers(P0);
                 run(ai, w, &mut Vec::new());
                 raided |= ai.roles.any(Role::Raid);
+                campaigned |=
+                    ai.roles.any_muster(MusterKind::Campaign) || ai.roles.any(Role::March);
                 w.play_round();
             }
-            raided
+            (raided, campaigned)
         };
         let (mut w, mut ai) = build(false)?;
-        assert!(turns(&mut w, &mut ai, 6), "at peace the soldiers raid");
-        assert!(!ai.roles.any_muster(MusterKind::Campaign));
+        assert!(turns(&mut w, &mut ai, 6).0, "at peace the soldiers raid");
         let (mut w, mut ai) = build(true)?;
-        let raided = turns(&mut w, &mut ai, 6);
+        // While the campaign is on: the town falls after a few turns.
+        let (raided, campaigned) = turns(&mut w, &mut ai, 3);
         assert!(!raided, "at war the lair is a distraction");
-        assert!(
-            ai.roles.any_muster(MusterKind::Campaign) || ai.roles.any(Role::March),
-            "at war the campaign holds them"
-        );
+        assert!(campaigned, "at war the campaign holds them");
         let view = f4x_core::player::view::PlayerView::new(&w, P0);
         for s in ai.roles.members(Role::Raid) {
             assert!(!ai.roles.in_muster(s, MusterKind::Campaign));

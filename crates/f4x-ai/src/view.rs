@@ -13,15 +13,13 @@ use f4x_def::rules::{MovementType, Stat};
 #[derive(Default)]
 pub struct ReachCache {
     squares: std::collections::HashMap<(f4x_core::unit::pathing::ReachSignature, Position), bool>,
-    /// Whether any square round a site can be reached, by the site.
-    around: std::collections::HashMap<(f4x_core::unit::pathing::ReachSignature, Position), bool>,
 }
 
 impl ReachCache {
     /// How many searches the cache has made (one for each stack signature and target).
     #[cfg(test)]
     pub fn searches(&self) -> usize {
-        self.squares.len() + self.around.len()
+        self.squares.len()
     }
 
     pub fn can_reach(&mut self, view: &PlayerView, units: &[hecs::Entity], to: Position) -> bool {
@@ -31,23 +29,6 @@ impl ReachCache {
                 .entry((key, to))
                 .or_insert_with(|| view.can_reach(units, to)),
             None => view.can_reach(units, to),
-        }
-    }
-
-    /// Whether the stack can walk to any of `squares`, which are the free squares round `site`.
-    pub fn can_reach_round(
-        &mut self,
-        view: &PlayerView,
-        units: &[hecs::Entity],
-        site: Position,
-        squares: &[Position],
-    ) -> bool {
-        match view.reach_signature(units) {
-            Some(key) => *self
-                .around
-                .entry((key, site))
-                .or_insert_with(|| view.reaches_any(units, squares)),
-            None => view.reaches_any(units, squares),
         }
     }
 }
@@ -255,10 +236,6 @@ mod tests {
                     );
                 }
             }
-            assert_eq!(
-                cache.can_reach_round(&view, stack, inland, &squares),
-                view.reaches_any(stack, &squares)
-            );
         }
         // Spearmen on one square share a signature; a ship does not share theirs.
         assert_eq!(

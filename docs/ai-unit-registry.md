@@ -62,7 +62,7 @@ Listed in priority order (the lower number wins a claim, section 4). The roles w
 | `Reinforce` | a soldier on its way to an under-defended own city, or kept in a threatened one (`to` = the city; released on arrival unless the city is threatened) | soldiers | `reinforce.rs` |
 | `Raid` | out on a tower, node or encounter site (`to` = the site) | soldiers | `site.rs`, `naval.rs` |
 | `March` | on the march against a city | soldiers | `military.rs` |
-| `Muster` | walking to the rally square of a party being assembled (`to` = the rally, `party` = the muster) | soldiers | `raid.rs`, `military.rs` |
+| `Muster` | walking to the rally point of a party being assembled (`to` = the rally, `party` = the muster) | soldiers | `raid.rs`, `war.rs` |
 | `Escort` | going with a settler, an engineer or a spirit (`with` = the unit it guards) | soldiers | `escort.rs` |
 | `Meld` | a spirit on its way to an open node (`to` = the node) | spirits | `meld.rs` |
 | `Road` | engineers building a road or walking to where it starts (`to` = the city or frontier it leads to) | engineers | `road.rs` |
@@ -257,15 +257,22 @@ A party is assembled before it sets off. The registry holds one record per muste
 kind, rally square, objective, start turn) and the members hold `Muster` with the record's id as
 their `party` and the rally as `to`.
 
+Where a party gathers is `assembly.rs`'s (`ai-design.md`, "Gathering a force"): on the way of
+the unit that arrives last, never in a city.
+
 - `MusterKind::Raid` (`raid::gather`): free soldiers spread over the empire, none of whose squares
-  could take a site alone but the best nine with the wizard's spells could, go to the own city
-  nearest the easiest site they could take (a lair, or a tower on a plane with no rival city). `raid::release` ends it when all are within a square of the rally or after 20 turns;
-  `raid::form` then sends the party from there. No new raid starts while one is mustering.
-- `MusterKind::Campaign` (`war::run`): the free soldiers sent to the rally city of the
-  campaign (the own city nearest the target, or the far side of a tower) and those already there
-  hold `Muster`. They stay the army's (`stacks` counts them). The muster ends when the march
-  leaves (they become `March`), when the target changes or is called off, or when there is no
-  campaign. A rally or target that changed ends the old muster and begins a new one.
+  could take a site alone but the best nine with the wizard's spells could, go to the rally point
+  for the easiest site they could take (a lair, or a tower on a plane with no rival city), or to the
+  square beside it when no rally point serves. `raid::release` ends it when all stand on the rally
+  point or after `muster_turns`, and sends on a member with no order; `raid::form` then sends the
+  party from there. No new raid starts while one is mustering.
+- `MusterKind::Campaign` (`war::run`): the soldiers picked for the campaign hold `Muster` while
+  they gather: on the rally point (those already beside the target hold it with the square beside
+  it as their goal), at the landing site, or on the near side of a crossing. They stay the army's
+  (`stacks` counts them). The muster ends when the march leaves (they become `March`), when the
+  target changes or is called off, or when there is no campaign. A rally or target that changed
+  ends the old muster and begins a new one. A landing's muster stays at the landing site while the
+  ships fetch its walkers.
 
 ## 8. Plans and ends
 
@@ -312,7 +319,6 @@ their `party` and the rally as `to`.
 
 ## 10. Known gaps
 
-- A landing's gathering at the port is not labelled `Muster` (the ships and `naval.rs` read it).
 - A second engineer works the roads only when the roads are long (`road::engineers_wanted`); it
   takes a link or stretch no other engineer is on, but the stretch toward a far target is built by
   one engineer at a time.

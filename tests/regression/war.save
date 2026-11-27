@@ -1,4 +1,4 @@
-// f4x save, version 5, game 0.0.8, checksum 70cce18f1a16b06a
+// f4x save, version 5, game 0.0.8, checksum 8bc927cedd0aeb5e
 (
     version: 5,
     game_version: "0.0.8",
@@ -25,7 +25,7 @@
             events: (random_events: true, pressure_percent: 75, frequency: Normal, start_turn: 6),
             scoring: (score_percent: 100),
         ),
-        content: "8a13a62d602336e3b43e8a02e737aa87354f63ac6a84c804791006e7d7d54aba",
+        content: "0e1be409a7a95d86ab118006193f953ac4c99e64eddb0e20db6fca65233d6ae5",
         human: None,
         diplomacy: (
             pairs: [(0, 1, (contacted: true, status: War, war_age: None, war_cities: (0, 0)))],

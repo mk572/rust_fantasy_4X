@@ -12,7 +12,6 @@ use f4x_core::player::view::PlayerView;
 use f4x_core::player::MONSTERS;
 use f4x_core::world::{Command, Event};
 
-use crate::assault::march;
 use crate::military::{engage, expected_defence};
 use crate::scout::best_target;
 use crate::view::{distance, stack_strength};
@@ -192,6 +191,88 @@ fn act(
             }
         }
     }
+}
+
+/// Why a party could not be sent to a site.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MarchError {
+    /// There is no party.
+    NoUnits,
+    /// No square next to the site is free of units and lairs.
+    NoOpenSquare,
+    /// The party cannot walk to any square next to the site (the sea, guarded ground, a full
+    /// square in the way).
+    Unreachable,
+    /// A way exists but the game refused the order, for the reason given.
+    Refused(f4x_core::unit::movement::MoveError),
+}
+
+/// Send a band of monsters to the free square next to `site` that it can reach and is nearest to
+/// it; the error says why it could not be sent.
+fn march(
+    ai: &Ai,
+    game: &mut Game,
+    units: &[hecs::Entity],
+    site: Position,
+    events: &mut Vec<Event>,
+) -> Result<(), MarchError> {
+    let Some(&first) = units.first() else {
+        return Err(MarchError::NoUnits);
+    };
+    let spots = {
+        let view = PlayerView::new(game, ai.player);
+        let from = view.unit_position(first).unwrap_or(site);
+        let open: Vec<Position> = crate::military::neighbours(&view, site)
+            .into_iter()
+            .filter(|&p| view.hostile_at(p).is_none() && !view.has_lair(p) && p != from)
+            .collect();
+        // One search that stops at the first square found tells whether any of them can be
+        // reached: when none can (a site across the water) the party does not search once for
+        // each square, each of them over the whole plane.
+        if open.is_empty() {
+            return Err(MarchError::NoOpenSquare);
+        }
+        if !view.reaches_any(units, &open) {
+            return Err(MarchError::Unreachable);
+        }
+        let mut spots = open;
+        spots.sort_by_key(|&p| (distance(&view, from, p), p.y, p.x));
+        spots
+    };
+    // The nearest square that can be reached, asked one at a time: the first that can is the one
+    // the party is sent to, so the others need no search.
+    let mut refused = None;
+    for spot in spots {
+        if !PlayerView::new(game, ai.player).can_reach(units, spot) {
+            continue;
+        }
+        // A square with no room for the party is left alone (a way exists: it may be free later).
+        if !Ai::room_at(game, spot, units.len()) {
+            refused = Some(f4x_core::unit::movement::MoveError::StackFull);
+            continue;
+        }
+        let sent = ai.send(
+            game,
+            Command::GoTo {
+                units: units.to_vec(),
+                to: spot,
+            },
+            events,
+        );
+        // The reason the game gave, for the caller; a square that cannot take the party (full,
+        // no room) is tried with the next one round the site.
+        match sent {
+            Ok(()) => return Ok(()),
+            Err(
+                crate::SendError::Rejected(f4x_core::world::Rejection::Move(why))
+                | crate::SendError::Stopped(why),
+            ) => {
+                refused = Some(why);
+            }
+            Err(_) => {}
+        }
+    }
+    Err(refused.map_or(MarchError::Unreachable, MarchError::Refused))
 }
 
 #[cfg(test)]

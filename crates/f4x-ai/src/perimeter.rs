@@ -21,7 +21,7 @@ use crate::view::{is_fighter, stack_strength};
 use crate::Ai;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
-use f4x_core::world::{Command, Event};
+use f4x_core::world::Event;
 use f4x_master::Game;
 
 /// A stack of the enemy in the zone of one of our cities.
@@ -187,7 +187,7 @@ fn gather(
     events: &mut Vec<Event>,
 ) {
     let me = ai.player;
-    let walkers: Vec<hecs::Entity> = {
+    let (walkers, standing): (Vec<hecs::Entity>, Option<Position>) = {
         let view = PlayerView::new(game, me);
         let mut groups: Vec<(Position, Vec<hecs::Entity>)> = Vec::new();
         for &u in idle {
@@ -214,67 +214,22 @@ fn gather(
             .map(|(_, list)| list)
             .unwrap_or_default();
         // Everyone else (all of them, when no group is enough yet) gathers on one square beside
-        // the enemy: the free square nearest to the first of them.
-        idle.iter()
-            .copied()
-            .filter(|u| !ready.contains(u))
-            .collect()
-    };
-    let stage = {
-        let view = PlayerView::new(game, me);
-        walkers.first().and_then(|&first| {
-            let from = view.unit_position(first)?;
-            (-1i32..=1)
-                .flat_map(|dy| (-1i32..=1).map(move |dx| (dx, dy)))
-                .filter(|&d| d != (0, 0))
-                .filter_map(|(dx, dy)| view.shift(threat.square, dx, dy))
-                .filter(|&p| view.hostile_at(p).is_none() && view.can_reach(&[first], p))
-                .min_by_key(|&p| (view.distance(from, p).unwrap_or(u32::MAX), p.y, p.x))
-        })
-    };
-    let Some(stage) = stage else {
-        return;
-    };
-    // Units on the stage square wait there; the others go.
-    let go: Vec<hecs::Entity> = {
-        let view = PlayerView::new(game, me);
-        walkers
+        // the enemy.
+        let standing = ready.first().and_then(|&u| view.unit_position(u));
+        let walkers = idle
             .iter()
             .copied()
-            .filter(|&u| view.unit_position(u) != Some(stage))
-            .collect()
+            .filter(|u| !ready.contains(u))
+            .collect();
+        (walkers, standing)
     };
-    send_by_square(ai, game, &go, stage, events);
-}
-
-/// Send the units to one square, those standing together as a stack.
-fn send_by_square(
-    ai: &mut Ai,
-    game: &mut Game,
-    units: &[hecs::Entity],
-    to: Position,
-    events: &mut Vec<Event>,
-) {
-    let me = ai.player;
-    let mut by_square: Vec<(Position, Vec<hecs::Entity>)> = Vec::new();
-    {
-        let view = PlayerView::new(game, me);
-        for &u in units {
-            let Some(p) = view.unit_position(u) else {
-                continue;
-            };
-            match by_square.iter_mut().find(|(q, _)| *q == p) {
-                Some((_, list)) => list.push(u),
-                None => by_square.push((p, vec![u])),
-            }
-        }
+    // The square the force attacks from: the one a group that is enough stands on already, else
+    // the last one on the way of the unit that arrives last (`assembly.rs`).
+    if let Some(square) = standing {
+        crate::assembly::set_beside(ai, threat.square, square);
     }
-    by_square.sort_by_key(|(p, _)| (p.plane as u8, p.y, p.x));
-    for (_, group) in by_square {
-        if PlayerView::new(game, me).can_reach(&group, to) && Ai::room_at(game, to, group.len()) {
-            let _ = ai.send(game, Command::GoTo { units: group, to }, events);
-        }
-    }
+    // Soldiers that cannot get there now are tried again next turn.
+    let _ = crate::assembly::march(ai, game, &walkers, threat.square, events);
 }
 
 #[cfg(test)]
