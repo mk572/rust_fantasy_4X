@@ -14,7 +14,7 @@ use f4x_def::rules::unit_flag::UnitFlag;
 use f4x_def::rules::{Ability, Rules, SpellId, UnitId};
 
 use crate::attack::{self, Combatant, DefenderState, Mode};
-use crate::map::{Mover, Pos, OPEN_COST};
+use crate::map::{Mover, Pos};
 use crate::side::Side;
 use crate::special::SpecialAttacks;
 
@@ -233,9 +233,6 @@ fn dangling() -> hecs::Entity {
     hecs::Entity::DANGLING
 }
 
-/// The moves a shot costs (see `BattleUnit::spend_ranged_moves`).
-pub const RANGED_ATTACK_COST: HalfInt = HalfInt::from_int(10);
-
 #[cfg(any(test, feature = "testutil"))]
 impl BattleUnit {
     /// For tests: put a lasting spell on the unit, with what the shipped rules say it does.
@@ -366,7 +363,7 @@ impl BattleUnit {
         ]
         .into_iter()
         .map(|(s, v)| (s, HalfInt::from_int(v)))
-        .chain([(Stat::Moves, OPEN_COST * 2)])
+        .chain([(Stat::Moves, HalfInt::from_int(2))])
         .collect();
         Self::from_sheet(side, Sheet::plain(side, base), figures)
     }
@@ -586,11 +583,11 @@ impl BattleUnit {
         self.is_active() && !self.attacked && self.moves_left > 0
     }
 
-    /// A shot costs ten moves, or all that is left (ReMoM `Combat.c`, `Battle_Unit_Attack`: 20
-    /// half-moves; wiki article "Ranged Attack"). Only a unit with a great allowance, a Hasted
-    /// one or a hero with items, has moves left after it.
-    pub fn spend_ranged_moves(&mut self) {
-        self.spend_moves(RANGED_ATTACK_COST);
+    /// A shot costs `shot_moves` of `battle.ron`, or all that is left (ReMoM `Combat.c`,
+    /// `Battle_Unit_Attack`; wiki article "Ranged Attack"). Only a unit with a great allowance, a
+    /// Hasted one or a hero with items, has moves left after it.
+    pub fn spend_ranged_moves(&mut self, shot_moves: HalfInt) {
+        self.spend_moves(shot_moves);
     }
 
     /// The blows of a melee attack use up half the allowance (rounded up to a half), or all that
@@ -804,9 +801,9 @@ impl BattleUnit {
         bonus: FieldBonus,
     ) -> Combatant {
         let special = self.special_attacks();
-        // Doom damage that an item or a spell gives is half as strong.
+        // Doom damage that an item or a spell gives is weaker.
         let strength = if self.granted.contains(&Ability::new(101 /* doom_damage */)) {
-            strength / 2
+            strength * rules.battle.touches.given_doom_percent / 100
         } else {
             strength
         };
@@ -861,7 +858,7 @@ impl BattleUnit {
         self.combatant(
             Mode::Melee,
             (self.own_melee + bonus.melee).max(0),
-            self.own_to_hit + bonus.to_hit + self.weapon_plus() + self.melee_plus,
+            self.own_to_hit + bonus.to_hit + self.weapon_plus(rules) + self.melee_plus,
             rules,
             magic_exceptions,
             bonus,
@@ -869,8 +866,12 @@ impl BattleUnit {
     }
 
     /// The plus to hit the unit's weapons give.
-    pub fn weapon_plus(&self) -> i32 {
-        i32::from(self.weapon_quality > 0 || self.has(Ability::new(19 /* eldritch_weapon */)))
+    pub fn weapon_plus(&self, rules: &Rules) -> i32 {
+        if self.weapon_quality > 0 || self.has(Ability::new(19 /* eldritch_weapon */)) {
+            rules.battle.to_hit.magic_weapon_bonus
+        } else {
+            0
+        }
     }
 
     pub fn thrown_combatant(
@@ -885,7 +886,7 @@ impl BattleUnit {
         (self.ranged_kind == RangedKind::Short && (ranged > 0 || gazes)).then(|| {
             // Only a thrown weapon gains the plus, not breath or a gaze.
             let plus = if self.weapon_shot(rules) == Some(RangedKind::Short) {
-                self.weapon_plus()
+                self.weapon_plus(rules)
             } else {
                 0
             };

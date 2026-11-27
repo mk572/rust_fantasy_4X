@@ -16,7 +16,7 @@ use f4x_def::rules::{SpellId, UnitKind};
 
 use super::caster::SpellAim;
 use super::error::SpellError;
-use super::spell_type::{only_against, slay_allows, CityWall, SpellType};
+use super::spell_type::{may_be_thrown_at, slay_allows, CityWall, SpellType};
 use crate::battle::Battle;
 use crate::side::Side;
 use crate::unit::{BattleUnit, Fate, Status};
@@ -98,9 +98,7 @@ impl Battle {
                         return Err(SpellError::Target(TargetError::NothingToHit));
                     }
                     SpellType::Damage { all: true, .. }
-                        if only_against(spell).is_some_and(|realms| {
-                            !hits(&|u| u.realm.is_some_and(|r| realms.contains(&r)))
-                        }) =>
+                        if !def.only_against.is_empty() && !hits(&|u| may_be_thrown_at(def, u)) =>
                     {
                         return Err(SpellError::Target(TargetError::NothingToHit));
                     }
@@ -302,10 +300,8 @@ impl Battle {
                 if matches!(kind, SpellType::Warp { .. }) && u.warp.is_some() {
                     return Err(SpellError::Target(TargetError::AlreadyWarped));
                 }
-                if let Some(realms) = only_against(spell) {
-                    if !u.realm.is_some_and(|r| realms.contains(&r)) {
-                        return Err(SpellError::Target(TargetError::NotAffected));
-                    }
+                if !may_be_thrown_at(def, u) {
+                    return Err(SpellError::Target(TargetError::NotAffected));
                 }
                 if let SpellType::Slay {
                     only, all: false, ..

@@ -3,8 +3,11 @@
 //!
 //! Tests: none, because it only declares modules.
 
+pub mod ai_battle;
 pub mod ai_site;
 pub mod attack_nature;
+pub mod battle_number;
+pub mod combat_die;
 pub mod counter_effect;
 pub mod damage_type;
 pub mod defs;
@@ -25,6 +28,7 @@ pub mod target_error;
 pub mod unit_effect;
 pub mod unit_flag;
 
+pub use combat_die::CombatDie;
 pub use defs::*;
 pub use ids::Id;
 

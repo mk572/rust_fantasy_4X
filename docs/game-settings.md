@@ -184,7 +184,7 @@ in the `ai` group are AI-only by nature, as in the original; a custom switch, `a
 
 `rules.ron` keeps the base values as the defaults of the ruleset; the settings **override** them
 (`max_city_size` and `min_city_distance` are read through `world.settings()` instead of
-`content.rules`). Combat constants (`to_hit_percent`, `block_percent`) and tax tables are left as
+`content.rules`). Combat numbers (`battle.ron`) and tax tables are left as
 ruleset data on purpose: changing them changes what every unit and spell means, which is modding
 (task 788), not a game setting.
 

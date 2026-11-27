@@ -28,19 +28,22 @@ fn combatant(strength: i32, to_hit: i32) -> Combatant {
 }
 
 #[test]
-fn a_die_hits_thirty_percent_and_each_plus_adds_ten() {
+fn the_dice_succeed_as_often_as_the_die_of_the_rules_says() {
     let mut r = rng(1);
     let n = 20_000;
-    for (pluses, expected) in [(0, 30), (1, 40), (3, 60), (-1, 20), (-5, 10), (9, 100)] {
-        let hits = roll_successes(n, pluses, &mut r);
-        let pct = f64::from(hits) / f64::from(n) * 100.0;
+    let die = rules().combat_die;
+    // From so few pluses that only the highest side is left to so many that every side succeeds.
+    for pluses in [-die.sides, -1, 0, 1, 3, die.sides] {
+        let hits = roll_successes(die, n, pluses, &mut r);
+        let share = hits as f32 / n as f32;
+        let odds = die.odds(pluses);
         assert!(
-            (pct - f64::from(expected)).abs() < 1.5,
-            "{pluses} pluses: {pct:.1}% vs {expected}%"
+            (share - odds).abs() < 0.015,
+            "{pluses} pluses: {share} against {odds}"
         );
     }
-    assert_eq!(roll_successes(0, 0, &mut r), 0);
-    assert_eq!(roll_successes(-3, 0, &mut r), 0);
+    assert_eq!(roll_successes(die, 0, 0, &mut r), 0);
+    assert_eq!(roll_successes(die, -3, 0, &mut r), 0);
 }
 
 #[test]
@@ -220,17 +223,11 @@ fn thrown_attacks_open_the_exchange() {
 }
 
 #[test]
-fn shooting_draws_no_reply_and_range_costs_accuracy() {
+fn shooting_draws_no_reply() {
     let mut r = rng(8);
     let mut d = def(4, 2, 0);
     let shot = ranged_attack(&rules(), &doomed(3), 2, &mut d, &mut r);
     assert_eq!(shot.points, 6);
-    assert_eq!(range_penalty(0, false), 0);
-    assert_eq!(range_penalty(2, false), 0);
-    assert_eq!(range_penalty(3, false), 1);
-    assert_eq!(range_penalty(9, false), 3);
-    assert_eq!(range_penalty(9, true), 1, "long range caps the penalty");
-    assert_eq!(range_penalty(2, true), 0);
 }
 
 #[test]
@@ -376,16 +373,16 @@ fn a_touch_that_is_not_resisted_kills_a_figure_for_each_attacker() {
     };
     let d = mean_kills(&touch(death), 6, || soft(40, 100, 4));
     assert!((d - 5.4).abs() < 0.3, "{d}");
-    // From an item or a spell the touches are weaker: 3 more for death, 1 more for stoning, so
-    // a resistance of 4 at -6 (or -4) never holds.
+    // From an item or a spell the touches cost the target more (`touches` of the rules), so that a
+    // resistance of 4 never holds.
     let by_item = SpecialAttacks {
-        death_extra: 3,
+        death_given: true,
         ..death
     };
     let g = mean_kills(&touch(by_item), 6, || soft(40, 100, 4));
     assert!(g > 5.95, "{g}");
     let stone_item = SpecialAttacks {
-        stoning_extra: 1,
+        stoning_given: true,
         ..stoner
     };
     let g = mean_kills(&touch(stone_item), 6, || soft(40, 100, 4));
@@ -682,12 +679,12 @@ fn righteousness_and_bonuses_change_the_defense_a_bolt_meets() {
         ..combatant(5, 0)
     };
     let mut d = def(1, 10, 2);
-    assert_eq!(d.defense_versus(&bolt), Some(2));
+    assert_eq!(d.defense_versus(&bolt, &rules()), Some(2));
     d.put_enchantment(SpellId::new(21));
-    assert_eq!(d.defense_versus(&bolt), Some(12));
+    assert_eq!(d.defense_versus(&bolt, &rules()), Some(12));
     // Righteousness: a chaos bolt does nothing.
     d.put_enchantment(SpellId::new(144));
-    assert_eq!(d.defense_versus(&bolt), None);
+    assert_eq!(d.defense_versus(&bolt, &rules()), None);
 }
 
 #[test]
@@ -761,7 +758,7 @@ fn berserk_leaves_no_defense_whatever_the_bonuses() {
     let mut d = def(1, 10, 4);
     d.put_enchantment(SpellId::new(21));
     d.put_enchantment(SpellId::new(179));
-    assert_eq!(d.defense_versus(&bolt), Some(0));
+    assert_eq!(d.defense_versus(&bolt, &rules()), Some(0));
 }
 
 #[test]
@@ -1026,8 +1023,8 @@ fn fear_is_rolled_once_and_kept_for_the_second_blow() {
     for seed in 0..50 {
         let mut r = rng(seed);
         let mut cache = None;
-        let first = feared_once(&mut cache, &scary, &state, &mut r);
-        let second = feared_once(&mut cache, &scary, &state, &mut r);
+        let first = feared_once(&rules(), &mut cache, &scary, &state, &mut r);
+        let second = feared_once(&rules(), &mut cache, &scary, &state, &mut r);
         assert_eq!(first, second);
     }
 }

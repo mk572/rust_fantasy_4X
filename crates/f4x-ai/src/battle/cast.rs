@@ -14,14 +14,16 @@
 //!
 //! The wizard has no worth floor: it spends what it may, the best cast first. What it may spend
 //! is bounded by the casting skill of the battle, the reserve less the upkeep, and the budget of
-//! the strategic AI (`budget.rs`); the units' own casts (a hero's spell, a charge) keep a floor,
-//! [`WORTH_FLOOR`], because a unit that casts gives up its attack and a scratch is not worth that.
+//! the strategic AI (`budget.rs`); the units' own casts (a hero's spell, a charge) keep a floor
+//! (`worth_floor`), because a unit that casts gives up its attack and a scratch is not worth that.
+//! The numbers of the values are the levers of `ai_battle.ron`.
 //!
 //! A vortex of the side that has not moved yet is steered one square toward the enemy
 //! ([`steer_choice`]), as a human may (the original's computer never does).
 //!
 //! Tests: at the end of this file.
 
+use super::lever::levers;
 use super::order::{self as ai, worth};
 use f4x_battle::battle::{Battle, BattleCommand, RangedKind};
 use f4x_battle::battlemagic::caster::SpellAim;
@@ -34,81 +36,9 @@ use f4x_core::rules::unit_flag::UnitFlag;
 use f4x_core::rules::{ModOp, SpellDef, SpellId, Stat};
 use f4x_core::spell::unit_effect::UnitEffect;
 use f4x_core::world::World;
+use f4x_def::rules::ai_battle::BattleAiRules;
 use f4x_def::rules::immunity::Immunities;
 use f4x_def::rules::realm::Realm;
-
-/// A cast by a unit (a hero's spell, a charge) must be worth at least this share of the dearest
-/// enemy unit to be made. The wizard has no floor: it spends what it may (`cast_choice`).
-const WORTH_FLOOR: f32 = 0.12;
-/// What a spell on the whole field is worth, as a share of the worth of the units it falls on
-/// (our own for a gift, the enemy's for a curse).
-const PRAYER_SHARE: f32 = 0.15;
-const HIGH_PRAYER_SHARE: f32 = 0.25;
-const BLACK_PRAYER_SHARE: f32 = 0.2;
-const METAL_FIRES_SHARE: f32 = 0.2;
-const MASS_INVISIBILITY_SHARE: f32 = 0.25;
-const BLUR_SHARE: f32 = 0.3;
-const TERROR_SHARE: f32 = 0.3;
-const ENTANGLE_SHARE: f32 = 0.1;
-const WRACK_SHARE: f32 = 0.2;
-const LIGHTNING_SHARE: f32 = 0.25;
-const LIGHT_SHARE: f32 = 0.2;
-const WARP_REALITY_SHARE: f32 = 0.1;
-/// Mana Leak: a share of the dearest enemy, when the enemy wizard has mana to lose.
-const MANA_LEAK_SHARE: f32 = 0.05;
-/// A wall: a share of the worth of the units that stand behind it.
-const WALL_SHARE: f32 = 0.2;
-/// Counter Magic: a share of our dearest unit, when the enemy wizard has mana to cast with.
-const COUNTER_SHARE: f32 = 0.2;
-/// A dispel: a share of the worth of a unit for each lasting spell on it (at most three), half
-/// the time it works.
-const DISPEL_SHARE: f32 = 0.1;
-/// A recall of a unit that is nearly dead: a share of its worth, saved.
-const RECALL_SHARE: f32 = 0.6;
-/// Raise Dead and Animate Dead: a share of the worth of the unit that comes back.
-const RAISE_SHARE: f32 = 0.6;
-const ANIMATE_SHARE: f32 = 0.5;
-/// Earth to Mud: a share of the worth of the enemy ground units within three squares of the
-/// centre (entering mud costs six moves, so they are held back), less ours.
-const MUD_SHARE: f32 = 0.15;
-/// A fissure takes a unit that walks over it one time in four.
-const FISSURE_ODDS: f32 = 0.25;
-/// Breaking a wall section (Disrupt, Cracks Call), for the side that attacks the city: a share of
-/// the worth of its units, more with an enemy near the gap.
-const WALL_BREAK_SHARE: f32 = 0.1;
-/// Life Drain: a share of the worth of the unit drained.
-const DRAIN_SHARE: f32 = 0.2;
-/// A spell that holds a unit still (a web, confusion, black sleep), and one that takes it over
-/// (possession, creature binding): a share of its worth, or all of it as it changes sides.
-const HOLD_SHARE: f32 = 0.5;
-const STEAL_SHARE: f32 = 1.5;
-/// Hit points an average outcome of Call Chaos takes from an enemy unit (eight outcomes: nothing,
-/// five points of healing, two changes, a Fire Bolt, a Warp Lightning, a Doom Bolt, Disintegrate).
-const CHAOS_DAMAGE: f32 = 6.0;
-/// Squares from a raised vortex within which a unit is likely to be struck as it wanders.
-const VORTEX_REACH: u32 = 2;
-/// A struck unit's worth lost to one vortex, as a share of its worth. A vortex hits at random.
-const VORTEX_SHARE: f32 = 0.1;
-/// A lasting spell on a unit (a blessing, a curse, a gift of an ability) is worth this share of
-/// the unit's worth.
-const LASTING_SHARE: f32 = 0.25;
-/// A slaying spell: this share of the worth of each enemy it can touch, times the odds that the
-/// enemy fails its resistance check.
-const SLAY_SHARE: f32 = 0.35;
-/// Warp Wood takes a missile unit's arrows: a share of its worth.
-const WARP_WOOD_SHARE: f32 = 0.5;
-/// The odds at which a damage spell counts as one that kills.
-const KILL_ODDS: f32 = 0.6;
-/// A kill is worth more than the damage it does: the unit is gone, with what it would still do.
-const KILL_BONUS: f32 = 1.5;
-/// A harmful cast must take this share of the worth of the dearest enemy to be better than
-/// strengthening our own units.
-const WOUND_ENOUGH: f32 = 0.3;
-/// Mana added to a cost when weighing value against price, so cheap spells do not always win.
-const MANA_SOFTENING: f32 = 12.0;
-/// What making a unit's weapons magical is worth against enemies that normal weapons barely hurt,
-/// as a share of the unit's worth: the unit does little else in that fight without it.
-const ARM_SHARE: f32 = 2.0;
 
 /// The next command for the side to play: a cast if one is worth it, else a unit order.
 pub fn next_command(world: &World) -> Option<BattleCommand> {
@@ -135,7 +65,8 @@ pub fn unit_cast_choice(world: &World, battle: &Battle) -> Option<BattleCommand>
         .filter(|e| battle.seen_by(side, e.id))
         .collect();
     let friends: Vec<&BattleUnit> = battle.active_units(side).collect();
-    let floor = enemies.iter().map(|e| worth(battle, e)).fold(0.0, f32::max) * WORTH_FLOOR;
+    let choice = levers(&battle.content.rules).choice;
+    let floor = enemies.iter().map(|e| worth(battle, e)).fold(0.0, f32::max) * choice.worth_floor;
     // A demon is worth calling whenever the unit can: it is free and strong.
     if let Some(unit) = friends
         .iter()
@@ -165,8 +96,8 @@ pub fn unit_cast_choice(world: &World, battle: &Battle) -> Option<BattleCommand>
             if judged.value < scene.floor_for(&judged, floor) {
                 continue;
             }
-            let tier = judged.tier(dearest);
-            let score = judged.value / (mana as f32 + MANA_SOFTENING);
+            let tier = judged.tier(choice.wound_enough * dearest);
+            let score = judged.value / (mana as f32 + choice.mana_softening);
             if best
                 .as_ref()
                 .is_none_or(|(t, s, _)| (tier, score) > (*t, *s))
@@ -208,6 +139,7 @@ pub fn cast_choice(world: &World, battle: &Battle) -> Option<BattleCommand> {
         enemies: &enemies,
     };
     let dearest = enemies.iter().map(|e| worth(battle, e)).fold(0.0, f32::max);
+    let choice = levers(&battle.content.rules).choice;
     let mut best: Option<(Tier, f32, BattleCommand)> = None;
     for cast in world.legal_battle_casts() {
         let def = world.content().rules.spells.get(cast.spell);
@@ -222,8 +154,8 @@ pub fn cast_choice(world: &World, battle: &Battle) -> Option<BattleCommand> {
             if (reserve - mana as i32) < upkeep || judged.value <= 0.0 {
                 continue;
             }
-            let tier = judged.tier(dearest);
-            let score = judged.value / (mana as f32 + MANA_SOFTENING);
+            let tier = judged.tier(choice.wound_enough * dearest);
+            let score = judged.value / (mana as f32 + choice.mana_softening);
             if best
                 .as_ref()
                 .is_none_or(|(t, s, _)| (tier, score) > (*t, *s))
@@ -282,12 +214,13 @@ struct Judged {
 }
 
 impl Judged {
-    fn tier(&self, dearest_enemy: f32) -> Tier {
+    /// `wound_from`: the harm from which a cast counts as a wound.
+    fn tier(&self, wound_from: f32) -> Tier {
         if self.arms {
             Tier::Arm
         } else if self.kills {
             Tier::Kill
-        } else if self.harm >= WOUND_ENOUGH * dearest_enemy {
+        } else if self.harm >= wound_from {
             Tier::Wound
         } else if self.value > self.harm {
             Tier::Support
@@ -298,13 +231,18 @@ impl Judged {
 }
 
 impl Scene<'_> {
+    fn levers(&self) -> BattleAiRules {
+        levers(&self.battle.content.rules)
+    }
+
     /// The least a cast must be worth: for a blow, a share of the dearest enemy; for a gift to
     /// our own units (the fallback when no blow is worth it), a share of our dearest unit.
     fn floor_for(&self, judged: &Judged, blow_floor: f32) -> f32 {
-        if judged.harm * 2.0 >= judged.value {
+        let choice = self.levers().choice;
+        if judged.harm >= choice.blow_share * judged.value {
             blow_floor
         } else {
-            WORTH_FLOOR
+            choice.worth_floor
                 * self
                     .friends
                     .iter()
@@ -353,26 +291,28 @@ impl Scene<'_> {
                 .is_some_and(|b| b.field_spares(u, field))
         };
         let realm = |r: Realm| move |u: &BattleUnit| u.realm == Some(r);
+        let levers = self.levers();
+        let f = levers.field_spells;
         let (gain, harm) = match field {
-            Field::Prayer => (PRAYER_SHARE * self.sum(own, all), 0.0),
-            Field::HighPrayer => (HIGH_PRAYER_SHARE * self.sum(own, all), 0.0),
-            Field::BlackPrayer => (0.0, BLACK_PRAYER_SHARE * self.sum(foe, all)),
+            Field::Prayer => (f.prayer_share * self.sum(own, all), 0.0),
+            Field::HighPrayer => (f.high_prayer_share * self.sum(own, all), 0.0),
+            Field::BlackPrayer => (0.0, f.black_prayer_share * self.sum(foe, all)),
             Field::MetalFires => (
-                METAL_FIRES_SHARE * self.sum(own, |u| !u.is_fantastic())
-                    + ARM_SHARE * self.sum(&self.blocked(), |_| true),
+                f.metal_fires_share * self.sum(own, |u| !u.is_fantastic())
+                    + levers.unit_spells.arm_share * self.sum(&self.blocked(), |_| true),
                 0.0,
             ),
-            Field::MassInvisibility => (MASS_INVISIBILITY_SHARE * self.sum(own, all), 0.0),
+            Field::MassInvisibility => (f.mass_invisibility_share * self.sum(own, all), 0.0),
             // Blur only matters against shooters: scaled by their share of the enemy's worth.
             Field::Blur => {
                 let shooters = self.sum(foe, |u| u.ranged_kind != RangedKind::None);
                 let total = self.sum(foe, all).max(1.0);
-                (BLUR_SHARE * self.sum(own, all) * shooters / total, 0.0)
+                (f.blur_share * self.sum(own, all) * shooters / total, 0.0)
             }
-            Field::Terror => (0.0, TERROR_SHARE * self.sum(foe, |u| !spared(u))),
-            Field::Entangle => (0.0, ENTANGLE_SHARE * self.sum(foe, all)),
-            Field::Wrack => (0.0, WRACK_SHARE * self.sum(foe, |u| !spared(u))),
-            Field::CallLightning => (0.0, LIGHTNING_SHARE * self.sum(foe, all)),
+            Field::Terror => (0.0, f.terror_share * self.sum(foe, |u| !spared(u))),
+            Field::Entangle => (0.0, f.entangle_share * self.sum(foe, all)),
+            Field::Wrack => (0.0, f.wrack_share * self.sum(foe, |u| !spared(u))),
+            Field::CallLightning => (0.0, f.lightning_share * self.sum(foe, all)),
             Field::ManaLeak => {
                 let wizard = self.world.battle().map(|b| b.player_of(self.side.other()));
                 let has_mana = wizard
@@ -385,7 +325,7 @@ impl Scene<'_> {
                 (
                     0.0,
                     if has_mana {
-                        MANA_LEAK_SHARE * dearest
+                        f.mana_leak_share * dearest
                     } else {
                         0.0
                     },
@@ -400,14 +340,14 @@ impl Scene<'_> {
                 };
                 let up = self.sum(own, realm(good)) + self.sum(foe, realm(bad));
                 let down = self.sum(own, realm(bad)) + self.sum(foe, realm(good));
-                let hurt = LIGHT_SHARE * self.sum(foe, realm(bad));
-                (LIGHT_SHARE * (up - down), hurt)
+                let hurt = f.light_share * self.sum(foe, realm(bad));
+                (f.light_share * (up - down), hurt)
             }
             // Warp Reality weakens every unit but the chaos creatures.
             Field::WarpReality => {
                 let hit = |u: &BattleUnit| u.realm != Some(Realm::Chaos);
-                let foes = WARP_REALITY_SHARE * self.sum(foe, hit);
-                (foes - WARP_REALITY_SHARE * self.sum(own, hit), foes)
+                let foes = f.warp_reality_share * self.sum(foe, hit);
+                (foes - f.warp_reality_share * self.sum(own, hit), foes)
             }
         };
         let value = gain + harm;
@@ -426,19 +366,22 @@ impl Scene<'_> {
         let ours = |reach: u32| self.sum(self.friends, |u| walks(u) && near(&u, reach));
         let theirs = |reach: u32| self.sum(self.enemies, |u| walks(u) && near(&u, reach));
         let own_worth: f32 = self.friends.iter().map(|u| worth(self.battle, u)).sum();
+        let g = self.levers().ground_spells;
         // A section of wall comes down: the attacker's gain, more with the enemy at the gap.
         let breach = if self.side == Side::Attacker && battle.map.has_wall(cell) {
-            let gap = if self.enemies.iter().any(|u| near(u, 3)) {
+            let gap = if self.enemies.iter().any(|u| near(u, g.breach_reach)) {
                 1.0
             } else {
-                0.5
+                g.breach_far_part
             };
-            WALL_BREAK_SHARE * own_worth * gap
+            g.wall_break_share * own_worth * gap
         } else {
             0.0
         };
         match effect {
-            BattleEffect::EarthToMud => (MUD_SHARE * (theirs(3) - ours(3))).max(0.0),
+            BattleEffect::EarthToMud => {
+                (g.mud_share * (theirs(g.mud_reach) - ours(g.mud_reach))).max(0.0)
+            }
             BattleEffect::CracksCall => {
                 let over = |units: &[&BattleUnit]| {
                     self.sum(units, |u| {
@@ -447,7 +390,8 @@ impl Scene<'_> {
                             && !u.has(f4x_core::rules::Ability::new(43 /* merging */))
                     })
                 };
-                (FISSURE_ODDS * (over(self.enemies) - over(self.friends)) + breach).max(0.0)
+                let odds = battle.content.rules.battle.fissure_odds();
+                (odds * (over(self.enemies) - over(self.friends)) + breach).max(0.0)
             }
             _ => breach,
         }
@@ -460,7 +404,7 @@ impl Scene<'_> {
             .and_then(|p| self.world.player(p))
             .map_or(0, |p| p.treasury().mana.floor());
         if mana > 0 {
-            COUNTER_SHARE
+            self.levers().unit_spells.counter_share
                 * self
                     .friends
                     .iter()
@@ -491,15 +435,17 @@ impl Scene<'_> {
         let odds = self.world.preview_spell_damage(spell, target.id, 0)?;
         let left = target.hit_points().max(1) as f32;
         let hurt = |mean: f32| (mean.min(left) / left) * worth(self.battle, target);
-        if odds.kill_chance >= KILL_ODDS {
-            return Some((KILL_BONUS * worth(self.battle, target), true, least));
+        let choice = self.levers().choice;
+        let killed = || choice.kill_bonus * worth(self.battle, target);
+        if odds.kill_chance >= choice.kill_odds {
+            return Some((killed(), true, least));
         }
         // Not enough: more mana, if the spell takes it, until it is.
         let mut extra = 1;
         while least + extra <= most {
             if let Some(more) = self.world.preview_spell_damage(spell, target.id, extra) {
-                if more.kill_chance >= KILL_ODDS {
-                    return Some((KILL_BONUS * worth(self.battle, target), true, least + extra));
+                if more.kill_chance >= choice.kill_odds {
+                    return Some((killed(), true, least + extra));
                 }
             }
             extra += 1;
@@ -520,6 +466,7 @@ impl Scene<'_> {
             _ => None,
         };
         let own = BattleEffect::of(def);
+        let spells = self.levers().unit_spells;
         // A curse the enemy may resist is worth what it is likely to take: a unit with a high
         // resistance is left alone (a spell that also damages is judged by its own odds).
         let landing = match aimed {
@@ -547,7 +494,8 @@ impl Scene<'_> {
         // A lasting spell that only gives the unit defence rules (a blessing, Elemental Armor,
         // Righteousness): a share of the unit's worth, as any other lasting spell on a unit.
         if def.effects.is_empty() && !def.defence.is_empty() {
-            out.value += aimed.map_or(0.0, |u| LASTING_SHARE * worth(self.battle, u)) * landing;
+            out.value +=
+                aimed.map_or(0.0, |u| spells.lasting_share * worth(self.battle, u)) * landing;
         }
         for rule in &def.effects {
             let (value, harm) = match &rule.effect {
@@ -573,7 +521,7 @@ impl Scene<'_> {
                         .enemies
                         .iter()
                         .map(|u| {
-                            (CHAOS_DAMAGE.min(u.hit_points().max(1) as f32)
+                            (spells.chaos_damage.min(u.hit_points().max(1) as f32)
                                 / u.hit_points().max(1) as f32)
                                 * worth(self.battle, u)
                         })
@@ -596,7 +544,7 @@ impl Scene<'_> {
                                 && u.ranged_kind == RangedKind::Missile
                                 && u.ammo > 0
                         })
-                        .map_or(0.0, |u| WARP_WOOD_SHARE * worth(self.battle, u));
+                        .map_or(0.0, |u| spells.warp_wood_share * worth(self.battle, u));
                     (v, v)
                 }
                 Effect::Custom { name, .. } if name == "battlefield" => {
@@ -614,12 +562,12 @@ impl Scene<'_> {
                 {
                     out.arms = true;
                     (
-                        ARM_SHARE * aimed.map_or(0.0, |u| worth(self.battle, u)),
+                        spells.arm_share * aimed.map_or(0.0, |u| worth(self.battle, u)),
                         0.0,
                     )
                 }
                 Effect::Custom { name, .. } if name == "wall" => {
-                    let v = WALL_SHARE
+                    let v = spells.wall_share
                         * self
                             .friends
                             .iter()
@@ -631,9 +579,10 @@ impl Scene<'_> {
                     match args.first().map(String::as_str) {
                         Some("dispel") => {
                             let v = aimed.filter(|u| u.side != self.side).map_or(0.0, |u| {
-                                DISPEL_SHARE
+                                let most = spells.dispel_most_spells as usize;
+                                spells.dispel_share
                                     * worth(self.battle, u)
-                                    * u.enchantments.len().min(3) as f32
+                                    * u.enchantments.len().min(most) as f32
                             });
                             (v, v)
                         }
@@ -646,8 +595,8 @@ impl Scene<'_> {
                 Effect::Custom { name, .. } if name == "recall" => {
                     let v = aimed.filter(|u| u.side == self.side).map_or(0.0, |u| {
                         let left = u.health();
-                        if left < 0.4 {
-                            RECALL_SHARE * (1.0 - left) * worth(self.battle, u)
+                        if left < spells.recall_health {
+                            spells.recall_share * (1.0 - left) * worth(self.battle, u)
                         } else {
                             0.0
                         }
@@ -657,7 +606,7 @@ impl Scene<'_> {
                 Effect::Custom { .. } if own == Some(BattleEffect::LifeDrain) => {
                     let v = aimed
                         .filter(|u| u.side != self.side)
-                        .map_or(0.0, |u| DRAIN_SHARE * worth(self.battle, u));
+                        .map_or(0.0, |u| spells.drain_share * worth(self.battle, u));
                     (v, v)
                 }
                 Effect::Custom { .. }
@@ -681,9 +630,9 @@ impl Scene<'_> {
                     if matches!(own, Some(BattleEffect::Raise | BattleEffect::Animate)) =>
                 {
                     let share = if own == Some(BattleEffect::Raise) {
-                        RAISE_SHARE
+                        spells.raise_share
                     } else {
-                        ANIMATE_SHARE
+                        spells.animate_share
                     };
                     let v = match aim {
                         SpellAim::Unit(id) => self
@@ -704,11 +653,11 @@ impl Scene<'_> {
                         .iter()
                         .any(|a| a == "possession" || a == "creature_binding")
                     {
-                        STEAL_SHARE
+                        spells.steal_share
                     } else if args.iter().any(|a| a == "holds") {
-                        HOLD_SHARE
+                        spells.hold_share
                     } else {
-                        LASTING_SHARE
+                        spells.lasting_share
                     };
                     let v = aimed.map_or(0.0, |u| share * worth(self.battle, u));
                     (
@@ -750,14 +699,15 @@ fn vortex_reach_value(
     friends: &[&BattleUnit],
     enemies: &[&BattleUnit],
 ) -> f32 {
+    let ground = levers(&battle.content.rules).ground_spells;
     let sum = |units: &[&BattleUnit]| -> f32 {
         units
             .iter()
-            .filter(|u| map::distance(u.cell, cell) <= VORTEX_REACH)
+            .filter(|u| map::distance(u.cell, cell) <= ground.vortex_reach)
             .map(|u| worth(battle, u))
             .sum()
     };
-    VORTEX_SHARE * (sum(enemies) - sum(friends))
+    ground.vortex_share * (sum(enemies) - sum(friends))
 }
 
 /// The move of a vortex of the side to play that costs the enemy most, if any move is worth
@@ -769,6 +719,9 @@ pub fn steer_choice(battle: &Battle) -> Option<BattleCommand> {
         .filter(|e| battle.seen_by(side, e.id))
         .collect();
     let friends: Vec<&BattleUnit> = battle.active_units(side).collect();
+    let landing_share = levers(&battle.content.rules)
+        .ground_spells
+        .vortex_landing_share;
     let mut best: Option<(f32, BattleCommand)> = None;
     for (index, v) in battle.vortices.iter().enumerate() {
         if v.owner != side || v.steered {
@@ -788,7 +741,8 @@ pub fn steer_choice(battle: &Battle) -> Option<BattleCommand> {
                     let sign = if u.side == side { -1.0 } else { 1.0 };
                     sign * worth(battle, u)
                 });
-                let value = vortex_reach_value(battle, to, &friends, &enemies) + 0.3 * on_square;
+                let value =
+                    vortex_reach_value(battle, to, &friends, &enemies) + landing_share * on_square;
                 if value > 0.0 && best.as_ref().is_none_or(|(s, _)| value > *s) {
                     best = Some((value, BattleCommand::MoveVortex { index, to }));
                 }
@@ -825,6 +779,7 @@ fn rule_value(
 ) -> f32 {
     let on = victims(rule, aimed, friends, enemies);
     let ours = |u: &BattleUnit| u.side == side;
+    let spells = levers(&battle.content.rules).unit_spells;
     match &rule.effect {
         // A slaying spell: a share of the worth of each enemy it can touch, by the odds that
         // the enemy fails its resistance check.
@@ -847,14 +802,14 @@ fn rule_value(
                 let chance = world.battle().map_or(1.0, |b| {
                     b.failure_chance(u.id, Realm::of(*realm), *modifier)
                 });
-                SLAY_SHARE * worth(battle, u) * chance
+                spells.slay_share * worth(battle, u) * chance
             })
             .sum(),
         // Healing is kept for a unit that has lost half its hit points or more: a cast for a
         // scratch wastes the mana.
         Effect::Heal(points) => on
             .iter()
-            .filter(|u| ours(u) && u.health() <= 0.5)
+            .filter(|u| ours(u) && u.health() <= spells.heal_health)
             .map(|u| {
                 let missing = u.lost().max(0) as f32;
                 (missing.min(*points as f32) / u.max_hit_points().max(1) as f32) * worth(battle, u)
@@ -866,13 +821,15 @@ fn rule_value(
             let d = world.content().rules.units.get(*id);
             let stat = |s: Stat| d.stats.get(&s).map_or(0, |v| v.floor());
             let hp = stat(Stat::MaxHp).max(1) * stat(Stat::Figures).max(1);
-            // Fresh units fight at once but are an extra target: three quarters of their worth,
-            // on the footing of `worth` above (the strength of a unit as it stands in a fight).
-            0.75 * f4x_battle::battle::strength(
-                stat(Stat::Melee).max(stat(Stat::Ranged)),
-                stat(Stat::Defense),
-                hp,
-            ) * f32::from(*count)
+            // Fresh units fight at once but are an extra target: a share of their worth, on the
+            // footing of `worth` above (the strength of a unit as it stands in a fight).
+            spells.summon_share
+                * f4x_battle::battle::strength(
+                    stat(Stat::Melee).max(stat(Stat::Ranged)),
+                    stat(Stat::Defense),
+                    hp,
+                )
+                * f32::from(*count)
         }
         Effect::Modify { op, value, .. } => {
             // A blessing on the strongest of ours is worth a share of its strength; a curse on
@@ -884,14 +841,14 @@ fn rule_value(
                 *value >= zero && !(*op == ModOp::Set && *value == zero) && *op != ModOp::Max;
             on.iter()
                 .filter(|u| ours(u) == good)
-                .map(|u| LASTING_SHARE * worth(battle, u))
+                .map(|u| spells.lasting_share * worth(battle, u))
                 .sum()
         }
         // A gift of an ability the unit already has is worth nothing.
         Effect::GrantAbility(a) => on
             .iter()
             .filter(|u| ours(u) && !u.has(*a))
-            .map(|u| LASTING_SHARE * worth(battle, u))
+            .map(|u| spells.lasting_share * worth(battle, u))
             .sum(),
         _ => 0.0,
     }
@@ -997,10 +954,9 @@ mod tests {
                 };
                 let battle = w.battle().ok_or("battle is missing")?;
                 assert!(
-                    battle
-                        .units
-                        .iter()
-                        .any(|u| u.side == Side::Defender && map::distance(u.cell, cell) <= 2),
+                    battle.units.iter().any(|u| u.side == Side::Defender
+                        && map::distance(u.cell, cell)
+                            <= shipped().rules.ai_battle.ground_spells.vortex_reach),
                     "the vortex is raised among the enemy, not at {cell:?}"
                 );
             }
@@ -1807,6 +1763,7 @@ mod tests {
 
     #[test]
     fn a_kill_outranks_a_wound_which_outranks_a_blessing_which_outranks_a_scratch() {
+        let wound_from = 30.0;
         let j = |value, harm, kills| Judged {
             value,
             harm,
@@ -1814,9 +1771,9 @@ mod tests {
             mana: 5,
             arms: false,
         };
-        assert!(j(10.0, 10.0, true).tier(100.0) > j(50.0, 50.0, false).tier(100.0));
-        assert!(j(50.0, 50.0, false).tier(100.0) > j(20.0, 0.0, false).tier(100.0));
-        assert!(j(20.0, 0.0, false).tier(100.0) > j(5.0, 5.0, false).tier(100.0));
+        assert!(j(10.0, 10.0, true).tier(wound_from) > j(50.0, 50.0, false).tier(wound_from));
+        assert!(j(50.0, 50.0, false).tier(wound_from) > j(20.0, 0.0, false).tier(wound_from));
+        assert!(j(20.0, 0.0, false).tier(wound_from) > j(5.0, 5.0, false).tier(wound_from));
     }
 
     /// Rows 138, 148, 467, 683 and 684 of the 1.50 notes (zero-health units, repeated death,

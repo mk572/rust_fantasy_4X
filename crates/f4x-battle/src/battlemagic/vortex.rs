@@ -1,9 +1,10 @@
-//! Magic Vortex: a whirling object on the battlefield. At the start of each turn it moves three
+//! Magic Vortex: a whirling object on the battlefield. At the start of each turn it moves some
 //! squares at random, and its owner may move it one more square on their own turn. Each time it
-//! comes to a square, a unit standing there (not one with Magic Immunity or Righteousness) takes
-//! 5 points of damage whatever its defence, every unit next to the square has a one in three
-//! chance of being struck by a lightning bolt, and a vortex over the city area adds 5 to the
-//! city's damage. At most ten vortices can be on a battlefield. Units cannot walk through one.
+//! comes to a square, a unit standing there (not one with Magic Immunity or Righteousness) is
+//! crushed whatever its defence, every unit next to the square may be struck by a lightning bolt,
+//! and a vortex over the city area adds to the city's damage. Only so many vortices can be on a
+//! battlefield (the numbers are the `vortex_*` entries of `battle.ron`). Units cannot walk through
+//! one.
 //!
 //! This follows the original's `Vortex_Combat_Round` and `Vortex_Move_And_Attack`. In the
 //! original the computer's vortices never get the controlled move; here the scripted side
@@ -21,8 +22,6 @@ use crate::battle::{Battle, BattleError, BattleEvent};
 use crate::map::{self, Pos};
 use crate::side::Side;
 
-/// The most vortices on one battlefield.
-pub const MAX_VORTICES: usize = 10;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Vortex {
     pub cell: Pos,
@@ -43,7 +42,9 @@ impl Battle {
 
     /// Whether a vortex can be put on `cell`: room for another, and the square is free ground.
     pub fn can_make_vortex(&self, cell: Pos) -> bool {
-        self.vortices.len() < MAX_VORTICES && self.map.is_playable(cell) && !self.is_occupied(cell)
+        self.vortices.len() < self.rules().vortex_most
+            && self.map.is_playable(cell)
+            && !self.is_occupied(cell)
     }
 
     pub fn make_vortex(&mut self, side: Side, cell: Pos) -> BattleEvent {
@@ -55,7 +56,7 @@ impl Battle {
         BattleEvent::VortexMade { cell }
     }
 
-    /// The start of a turn: every vortex moves three times at random.
+    /// The start of a turn: every vortex moves at random (`vortex_random_moves` times).
     pub fn vortex_round(&mut self) -> Vec<BattleEvent> {
         let mut events = Vec::new();
         for index in 0..self.vortices.len() {
@@ -146,7 +147,10 @@ impl Battle {
                     }
                 }
             }
-            if cell != to && map::distance(cell, to) == 1 && self.roll(3) == 1 {
+            if cell != to
+                && map::distance(cell, to) == 1
+                && self.roll(self.rules().vortex_bolt_one_in) == 1
+            {
                 let dmg =
                     self.spell_damage(id, self.rules().vortex_bolt_strength, &bolt, bolt_nature);
                 events.extend(self.spell_events_for_damage(id, dmg, bolt_nature.types));

@@ -628,6 +628,7 @@ fn an_effect_that_names_something_that_does_not_exist_or_makes_no_sense_is_refus
         traits: Default::default(),
     });
     with(Effect::Slay {
+        undead_modifier: 0,
         realm: Id::new(NOWHERE),
         modifier: 0,
         types: vec![],
@@ -847,6 +848,78 @@ fn site_rules_that_are_not_numbers_are_refused() {
     refused::<SiteRules>("ai_sites.ron", "ai_sites.ron", |s| {
         s.land_values[0].1 = -2.0
     });
+}
+
+#[test]
+fn battle_rules_no_die_can_be_rolled_with_are_refused() {
+    let refuse = |what: &str, change: fn(&mut BattleRules)| {
+        refused::<BattleRules>("battle.ron", what, change)
+    };
+    refuse("sides", |r| r.combat_die.sides = 0);
+    refuse("success_from", |r| r.combat_die.success_from = 0);
+    refuse("success_from", |r| {
+        r.combat_die.success_from = r.combat_die.sides + 1
+    });
+    refuse("armor_piercing_defense_percent", |r| {
+        r.armor_piercing_defense_percent = 101
+    });
+    refuse("fissure_one_in", |r| r.fissure_one_in = 0);
+    refuse("open", |r| r.movement.open = HalfInt::ZERO);
+    refuse("jump", |r| r.movement.jump = -HalfInt::HALF);
+    refuse("diagonal_extra", |r| {
+        r.movement.diagonal_extra = -HalfInt::HALF
+    });
+    refuse("resistance_die", |r| r.resistance_die = 0);
+    refuse("dispel_die", |r| r.dispel_die = 0);
+    refuse("demon_squares", |r| r.demon_squares = 0);
+    refuse("vortex_bolt_one_in", |r| r.vortex_bolt_one_in = 0);
+    refuse("range_penalty_squares", |r| {
+        r.to_hit.range_penalty_squares = 0
+    });
+    refuse("life_drain_mana_per_penalty", |r| {
+        r.spells.life_drain_mana_per_penalty = 0
+    });
+    refuse("one_in", |r| r.fields.call_lightning.one_in = 0);
+    refuse("least_bolts", |r| {
+        r.fields.call_lightning.least_bolts = r.fields.call_lightning.most_bolts + 1
+    });
+    refuse("hero_loss_percent", |r| r.flee.hero_loss_percent = 101);
+    refuse("raise_dead_figures_percent", |r| {
+        r.spells.raise_dead_figures_percent = 101
+    });
+    refuse("background_mana_percent", |r| {
+        r.background_mana_percent = 101
+    });
+}
+
+#[test]
+fn battle_ai_levers_out_of_their_range_are_refused() {
+    use f4x_def::rules::ai_battle::BattleAiRules;
+    let refuse = |lever: &str, change: fn(&mut BattleAiRules)| {
+        refused::<BattleAiRules>("ai_battle.ron", lever, change)
+    };
+    refuse("flee_strength_ratio", |r| {
+        r.orders.flee_strength_ratio = -1.0
+    });
+    refuse("prayer_share", |r| r.field_spells.prayer_share = f32::NAN);
+    refuse("arm_share", |r| r.unit_spells.arm_share = f32::INFINITY);
+    refuse("kill_odds", |r| r.choice.kill_odds = 1.5);
+    refuse("mana_softening", |r| r.choice.mana_softening = 0.0);
+}
+
+#[test]
+fn a_battle_ai_lever_left_out_of_the_file_is_refused() {
+    let dir = copy_of_shipped("c1-lever");
+    let text = read(&dir, "ai_battle.ron");
+    let less: String = text
+        .lines()
+        .filter(|l| !l.trim_start().starts_with("flee_strength_ratio:"))
+        .map(|l| format!("{l}\n"))
+        .collect();
+    assert_ne!(text, less, "the file names the lever");
+    write(&dir, "ai_battle.ron", &less);
+    let e = load(&dir).expect_err("a file without a lever should be refused");
+    assert!(e.mentions("ai_battle.ron"), "{e}");
 }
 
 #[test]

@@ -13,6 +13,7 @@ use f4x_def::settings::RuleSettings;
 use super::Battle;
 use crate::map::{deployment_order, Pos};
 use crate::unit::BattleUnit;
+use f4x_def::rules::DeploymentRules;
 
 /// What decides where one side's units stand. Units are named by their index in the side's list.
 pub struct Placement<'a> {
@@ -25,6 +26,8 @@ pub struct Placement<'a> {
     pub carried_by: &'a [Option<usize>],
     /// Every deck square of both sides: the units that stand on no deck keep off them.
     pub deck_cells: &'a [Pos],
+    /// The deployment of `battle.ron`.
+    pub rules: &'a DeploymentRules,
 }
 
 /// Put a side's units on their squares and say which of them found one (a side may have more
@@ -37,8 +40,9 @@ pub fn place_side(units: &mut [BattleUnit], placement: Placement) -> Vec<bool> {
         decks,
         carried_by,
         deck_cells,
+        rules,
     } = placement;
-    let order = deployment_order(units);
+    let order = deployment_order(units, rules);
     let mut placed = vec![false; units.len()];
     let mut taken: Vec<Pos> = Vec::new();
     for (ship, deck) in decks {

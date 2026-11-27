@@ -8,9 +8,95 @@
     node_counter_strength: 50, node_aura_bonus: 2, counter_magic_drain: 5,
     shot_mana: 3, web_hits: 12, turn_limit: 100, power_drain_min: 2, power_drain_max: 20, freeing_modifier: -5,
     vortex_random_moves: 3, vortex_crush_damage: 5, vortex_bolt_strength: 5, vortex_city_damage: 5,
+    // The die a blow and a block roll: it succeeds on success_from or better, one lower for each plus
+    // to hit or to block, and its highest side always succeeds.
+    combat_die: (sides: 10, success_from: 8),
+    // The percent of its defence a unit rolls against an armour piercing attack (rounded down).
+    armor_piercing_defense_percent: 50,
+    // Cracks Call: a unit over the fissure falls in one time in this many.
+    fissure_one_in: 4,
+    // A resistance check rolls a die of this many sides and fails by what the roll is above the
+    // resistance. A dispel rolls 1 to dispel_die against dispel_die * strength / (strength + difficulty).
+    resistance_die: 10,
+    dispel_die: 250,
+    // To hit and to block. Arrows and boulders lose a point for each range_penalty_squares of
+    // distance, at most long_range_most_penalty for a long range shooter; an invisible target costs
+    // invisibility_penalty_per_square for each square, Blur blur_penalty. Magic weapons (and Eldritch
+    // Weapon) add magic_weapon_bonus; Eldritch Weapon takes eldritch_block_penalty off the blocks.
+    to_hit: (range_penalty_squares: 3, long_range_most_penalty: 1, invisibility_penalty_per_square: 1,
+        blur_penalty: 1, magic_weapon_bonus: 1, eldritch_block_penalty: 1),
+    // What weapons of each quality add to the attacks and the defence: magic, mithril, adamantium.
+    weapon_material_bonus: [0, 1, 2],
+    // The Lucky ability: what the unit gains, and what whoever attacks it loses to hit.
+    lucky: (to_hit: 1, to_block: 1, resistance: 1, attacker_to_hit: -1),
+    // The spells on the whole field: what they add to the numbers of the units they fall on.
+    fields: (
+        // True Light and Darkness: every number of a life or death creature, up or down.
+        light_and_darkness: 1,
+        warp_reality: (to_hit: -2),
+        black_prayer: (melee: -1, ranged: -1, defense: -1, resistance: -2),
+        prayer: (to_hit: 1, to_block: 1, resistance: 1),
+        // High Prayer takes the place of Prayer.
+        high_prayer: (melee: 2, defense: 2, resistance: 3, to_hit: 1, to_block: 1),
+        metal_fires: (melee: 1, ranged: 1),
+        // The part of a hero's Leadership that the ranged attacks get.
+        leadership_ranged_percent: 50,
+        // Call Lightning: this many bolts a turn; each try picks a unit, which is struck one time in
+        // one_in, and the bolts end after tries picks in a row that struck nothing.
+        call_lightning: (least_bolts: 3, most_bolts: 5, one_in: 2, tries: 30),
+        // Wrack and Terror: added to the resistance of the check; Wrack takes wrack_damage hit points
+        // for each figure that fails.
+        wrack_modifier: 1,
+        wrack_damage: 1,
+        terror_modifier: 1,
+        // The moves Entangle takes from a walker as its turn begins.
+        entangle_moves: 1,
+    ),
+    // Dispel Evil's touch is checked at a modifier to the resistance (the undead's is harder). A
+    // stoning or death touch an item or spell gives costs the target that much more resistance, and
+    // doom damage they give has this percent of the attack's strength.
+    touches: (dispel_evil_modifier: -4, dispel_evil_undead_modifier: -9, given_stoning_touch_penalty: 1,
+        given_death_touch_penalty: 3, given_doom_percent: 50),
+    // The battle spells that act in a way of their own.
+    spells: (
+        // Life Drain: this much extra mana makes it a point harder to resist; a wizard gets this much
+        // mana for each hit point drained.
+        life_drain_mana_per_penalty: 5,
+        life_drain_mana_per_point: 3,
+        // Earth to Mud reaches this many squares from its centre.
+        mud_radius: 2,
+        // The percent of its figures a unit comes back with from Raise Dead (rounded up).
+        raise_dead_figures_percent: 50,
+        // Warp Creature: the change of the attacks or the defence in percent, or the resistance set.
+        warp_creature: (attack_percent: -50, defense_percent: -50, resistance: 0),
+        // Call Chaos: the healing, the Fire Bolt, and the resistance below which Disintegrate kills.
+        call_chaos: (healing: 5, fire_bolt_strength: 15, disintegrate_below: 10),
+    ),
+    // The most Magic Vortices on a field, and the one in how many chance each unit next to one has of
+    // being struck by its bolt.
+    vortex_most: 10, vortex_bolt_one_in: 3,
+    // The hit points a regenerating unit gets back as its turn begins.
+    regeneration_heals: 1,
+    // The moves a shot costs (or all that are left).
+    shot_moves: 10,
+    // A summoned demon appears on one of this many free squares nearest its side's edge.
+    demon_squares: 9,
+    // The chance in a hundred that a unit fleeing a lost battle is lost.
+    flee: (loss_percent: 50, hero_loss_percent: 25),
+    // The percent of the mana reserve a wizard's battle in the background may spend unless the player
+    // says otherwise (never more than the casting skill).
+    background_mana_percent: 50,
     // The scenery of a battle field in percent of the original's (scaled to the field's area): more trees on
     // forest ground, more rocks on mountains.
     scenery: (forest_trees_percent: 150, mountain_rocks_percent: 300),
+    // The moves it takes to enter a square. On foot: open ground (grass and dirt), rough ground (and
+    // a river), and a road (a floating island's deck is one). Each tree or rock adds scenery_extra to
+    // a square cheaper than rough ground. A ship pays sail on the ocean and on rivers. A flier pays
+    // flying anywhere it can go; a teleporting unit pays teleport to appear on any free square. Mud (Earth to Mud) is
+    // to be more than any unit has. jump is the leap over the water between two ships' decks, and
+    // diagonal_extra is added to every diagonal step but into mud.
+    movement: (open: 1, rough: 2, road: 0.5, scenery_extra: 0.5, sail: 1, flying: 1, teleport: 1,
+        mud: 6, jump: 2, diagonal_extra: 0.5),
     // What the walls of a city do, as in the original: nobody enters a standing tower; a unit on foot cannot step
     // onto a standing wall section from outside, except through the gate; fliers, teleporters and non-corporeal
     // units cross the sections.
@@ -22,6 +108,9 @@
         defender: (columns: [12, 13, 14, 15, 16], rows: [12, 11, 13, 10]),
         city_attacker: (columns: [6, 5, 4], rows: [12, 11, 13, 10]),
         city_defender: (columns: [12, 13, 14], rows: [12, 11, 13, 10]),
+        // With more shooters than this the strongest in melee move to the front, until it holds
+        // front_units or that many shooters are left.
+        shooters_move_above: 5, front_units: 4,
     ),
     city_wall: (tower_enterable: false, section_enterable: false, passers_cross: true, gate_enterable: true,
         // The gate, counted from the corner of the city area: on the wall's side that faces the attackers.

@@ -1,4 +1,5 @@
 use super::*;
+use crate::testutil::{movement, open_map};
 use f4x_def::half_int::HalfInt;
 use f4x_def::testdir::TestResult;
 use rand::SeedableRng;
@@ -10,7 +11,7 @@ fn none(_: Pos) -> bool {
 
 #[test]
 fn the_field_holds_the_originals_squares_where_they_were_and_squares_beyond_them() {
-    let m = BattleMap::open();
+    let m = open_map();
     const { assert!(GRID_W >= layout::W && GRID_H >= layout::H) };
     assert_eq!(m.get((0, 0)), Some(Cell::Open));
     assert_eq!(m.get((GRID_W - 1, GRID_H - 1)), Some(Cell::Open));
@@ -27,60 +28,71 @@ fn the_field_holds_the_originals_squares_where_they_were_and_squares_beyond_them
 }
 
 #[test]
-fn walkers_pay_by_ground_and_flyers_pay_one_move_everywhere() {
-    let mut m = BattleMap::open();
+fn walkers_pay_by_ground_and_flyers_pay_the_flying_cost_everywhere() {
+    let mut m = open_map();
     m.set((5, 5), Cell::Rough);
     m.set((6, 5), Cell::Blocked);
-    assert_eq!(m.enter_cost((4, 5), false), Some(HalfInt::from_int(1)));
-    assert_eq!(m.enter_cost((5, 5), false), Some(HalfInt::from_int(2)));
+    let cost = movement();
+    assert_eq!(m.enter_cost((4, 5), false), Some(cost.open));
+    assert_eq!(m.enter_cost((5, 5), false), Some(cost.rough));
     assert_eq!(m.enter_cost((6, 5), false), None);
-    assert_eq!(m.enter_cost((5, 5), true), Some(HalfInt::from_int(1)));
-    assert_eq!(m.enter_cost((6, 5), true), Some(HalfInt::from_int(1)));
+    assert_eq!(m.enter_cost((5, 5), true), Some(cost.flying));
+    assert_eq!(m.enter_cost((6, 5), true), Some(cost.flying));
     assert_eq!(m.enter_cost((-1, 5), true), None, "nobody leaves the map");
 }
 
 #[test]
 fn reach_follows_move_points_diagonals_and_obstacles() {
-    let mut m = BattleMap::open();
-    // Two moves: two squares straight on. A diagonal step costs half a move more (wiki "Movement
-    // Type"), so two diagonal steps cost three, and a unit with any move left may take the second.
-    let r = m.reachable((10, 10), HalfInt::from_int(2), false, &none);
-    assert_eq!(r.get(&(12, 10)).map(|c| c.0), Some(HalfInt::from_int(2)));
-    assert_eq!(r.get(&(11, 11)).map(|c| c.0), Some(HalfInt::from_raw(3)));
-    assert_eq!(r.get(&(12, 12)).map(|c| c.0), Some(HalfInt::from_int(3)));
+    let mut m = open_map();
+    let cost = movement();
+    // Points for two squares straight on. A diagonal step costs the extra of the rules on top
+    // (wiki "Movement Type"), and a unit with any move left may take the step.
+    let two = cost.open + cost.open;
+    let slant = cost.open + cost.diagonal_extra;
+    assert!(slant < two && two < slant + slant);
+    let r = m.reachable((10, 10), two, false, &none);
+    assert_eq!(r.get(&(12, 10)).map(|c| c.0), Some(two));
+    assert_eq!(r.get(&(11, 11)).map(|c| c.0), Some(slant));
+    assert_eq!(r.get(&(12, 12)).map(|c| c.0), Some(slant + slant));
     assert!(!r.contains_key(&(13, 10)));
-    // Fliers pay the same extra half move for a diagonal.
-    let r = m.reachable((10, 10), HalfInt::from_int(2), true, &none);
-    assert_eq!(r.get(&(11, 11)).map(|c| c.0), Some(HalfInt::from_raw(3)));
-    assert_eq!(r.get(&(12, 10)).map(|c| c.0), Some(HalfInt::from_int(2)));
+    // Fliers pay the same extra for a diagonal.
+    let two_flown = cost.flying + cost.flying;
+    let r = m.reachable((10, 10), two_flown, true, &none);
+    assert_eq!(
+        r.get(&(11, 11)).map(|c| c.0),
+        Some(cost.flying + cost.diagonal_extra)
+    );
+    assert_eq!(r.get(&(12, 10)).map(|c| c.0), Some(two_flown));
     // A wall of rocks forces a detour (or stops the unit).
     for y in 8..=12 {
         m.set((11, y), Cell::Blocked);
     }
-    let r = m.reachable((10, 10), HalfInt::from_int(2), false, &none);
+    let r = m.reachable((10, 10), two, false, &none);
     assert!(
         !r.contains_key(&(12, 10)),
-        "cannot cross the rocks in two moves"
+        "cannot cross the rocks in two steps"
     );
     // Flyers pass over them.
-    let r = m.reachable((10, 10), HalfInt::from_int(2), true, &none);
+    let r = m.reachable((10, 10), two_flown, true, &none);
     assert!(r.contains_key(&(12, 10)));
     // Occupied squares block the way.
-    let m = BattleMap::open();
+    let m = open_map();
     let blocked = |p: Pos| p == (11, 10);
-    let r = m.reachable((10, 10), HalfInt::from_int(1), false, &blocked);
+    let r = m.reachable((10, 10), cost.open, false, &blocked);
     assert!(!r.contains_key(&(11, 10)));
     assert!(r.contains_key(&(11, 11)));
     assert!(r.contains_key(&(9, 10)));
 }
 
 #[test]
-fn rough_ground_costs_double_and_a_last_move_may_overrun() {
-    let mut m = BattleMap::open();
+fn rough_ground_costs_more_and_a_last_move_may_overrun() {
+    let mut m = open_map();
     m.set((11, 10), Cell::Rough);
-    // One move (two half-moves) is enough to step into rough ground, ending at zero.
-    let r = m.reachable((10, 10), HalfInt::from_int(1), false, &none);
-    assert_eq!(r.get(&(11, 10)).map(|c| c.0), Some(HalfInt::from_int(2)));
+    let cost = movement();
+    assert!(cost.rough > cost.open);
+    // The moves for one open square are enough to step into rough ground, using them all up.
+    let r = m.reachable((10, 10), cost.open, false, &none);
+    assert_eq!(r.get(&(11, 10)).map(|c| c.0), Some(cost.rough));
     // But nothing lies beyond it.
     assert!(!r.contains_key(&(12, 10)));
 }
@@ -89,7 +101,7 @@ fn rough_ground_costs_double_and_a_last_move_may_overrun() {
 fn the_generated_map_is_playable_everywhere_and_follows_the_terrain() {
     let counts = |t, seed| {
         let mut r = Pcg64Mcg::seed_from_u64(seed);
-        let m = BattleMap::generate(t, &mut r);
+        let m = BattleMap::generate(t, movement(), &mut r);
         let mut playable = 0;
         let mut dear = 0;
         for y in 0..GRID_H {
@@ -97,7 +109,9 @@ fn the_generated_map_is_playable_everywhere_and_follows_the_terrain() {
                 assert!(m.is_playable((x, y)), "({x},{y})");
                 if m.is_playable((x, y)) {
                     playable += 1;
-                    if m.enter_cost((x, y), false).is_some_and(|c| c > OPEN_COST) {
+                    if m.enter_cost((x, y), false)
+                        .is_some_and(|c| c > movement().open)
+                    {
                         dear += 1;
                     }
                 }
@@ -113,8 +127,16 @@ fn the_generated_map_is_playable_everywhere_and_follows_the_terrain() {
         .map(|s| counts(Some(TerrainClass::Grassland), s).1)
         .sum();
     assert!(mountains > grass * 2, "{mountains} vs {grass}");
-    let a = BattleMap::generate(Some(TerrainClass::Hills), &mut Pcg64Mcg::seed_from_u64(5));
-    let b = BattleMap::generate(Some(TerrainClass::Hills), &mut Pcg64Mcg::seed_from_u64(5));
+    let a = BattleMap::generate(
+        Some(TerrainClass::Hills),
+        movement(),
+        &mut Pcg64Mcg::seed_from_u64(5),
+    );
+    let b = BattleMap::generate(
+        Some(TerrainClass::Hills),
+        movement(),
+        &mut Pcg64Mcg::seed_from_u64(5),
+    );
     assert_eq!(a, b);
 }
 
@@ -122,6 +144,7 @@ fn the_generated_map_is_playable_everywhere_and_follows_the_terrain() {
 fn the_corners_the_original_shuts_can_be_entered_by_walkers_and_fliers() {
     let m = BattleMap::generate(
         Some(TerrainClass::Grassland),
+        movement(),
         &mut Pcg64Mcg::seed_from_u64(1),
     );
     assert!(m.enter_cost((20, 0), true).is_some());
@@ -140,9 +163,7 @@ fn city_wall() -> f4x_def::rules::CityWallRules {
 }
 
 fn walled() -> BattleMap {
-    BattleMap::open()
-        .with_city(true)
-        .with_wall_rules(city_wall())
+    open_map().with_city(true).with_wall_rules(city_wall())
 }
 
 fn walker() -> Mover {
@@ -180,10 +201,10 @@ fn a_city_has_wall_sites_round_its_inner_squares() {
     // The area with its walls is the ring and what it holds.
     assert!(in_city_area((X0, Y0)) && !in_city_area((X0 - 1, Y0)));
     // No walls: a city, but nothing to break or stand behind.
-    let open = BattleMap::open().with_city(false);
+    let open = open_map().with_city(false);
     assert!(open.is_city() && !open.is_walled());
     assert!(open.standing_walls().is_empty());
-    assert!(!BattleMap::open().is_city());
+    assert!(!open_map().is_city());
 }
 
 /// Setup: the city map the game builds, with the wall rules of the shipped `battle.ron`. Action: from a
@@ -198,7 +219,7 @@ fn a_standing_wall_section_is_entered_as_the_battle_rules_say() {
         through_walls: true,
         ..Mover::default()
     };
-    let mut m = BattleMap::open().with_city(true).with_wall_rules(rule);
+    let mut m = open_map().with_city(true).with_wall_rules(rule);
     let sections: Vec<Pos> = m
         .standing_walls()
         .into_iter()
@@ -287,7 +308,7 @@ fn a_standing_tower_is_entered_as_the_battle_rules_say() {
         m.reachable_as(from, HalfInt::from_int(3), mover, &none)
             .contains_key(&tower)
     };
-    let mut m = BattleMap::open().with_city(true).with_wall_rules(rule);
+    let mut m = open_map().with_city(true).with_wall_rules(rule);
     let towers = m.towers();
     assert!(!towers.is_empty(), "a walled city has towers");
     for &tower in &towers {
@@ -361,7 +382,7 @@ fn a_unit_inside_the_unbroken_walls_leaves_only_through_a_gate() {
 
 #[test]
 fn ships_sail_the_ocean_swimmers_take_either_way_and_walkers_stay_ashore() {
-    let ocean = BattleMap::generate(None, &mut Pcg64Mcg::seed_from_u64(1));
+    let ocean = BattleMap::generate(None, movement(), &mut Pcg64Mcg::seed_from_u64(1));
     let ship = Mover {
         sails: true,
         ..Mover::default()
@@ -371,17 +392,18 @@ fn ships_sail_the_ocean_swimmers_take_either_way_and_walkers_stay_ashore() {
         ..Mover::default()
     };
     let cell = (10, 10);
-    assert_eq!(ocean.enter_cost_as(cell, ship), Some(HalfInt::from_int(1)));
-    assert_eq!(
-        ocean.enter_cost_as(cell, swimmer),
-        Some(HalfInt::from_int(1))
-    );
+    assert_eq!(ocean.enter_cost_as(cell, ship), Some(movement().sail));
+    assert_eq!(ocean.enter_cost_as(cell, swimmer), Some(movement().sail));
     assert_eq!(ocean.enter_cost_as(cell, walker()), None);
-    assert_eq!(ocean.enter_cost_as(cell, flier()), Some(OPEN_COST));
-    assert_eq!(ocean.enter_cost_as((20, 0), flier()), Some(OPEN_COST));
+    assert_eq!(ocean.enter_cost_as(cell, flier()), Some(movement().flying));
+    assert_eq!(
+        ocean.enter_cost_as((20, 0), flier()),
+        Some(movement().flying)
+    );
     // On land it is the other way about.
     let land = BattleMap::generate(
         Some(TerrainClass::Grassland),
+        movement(),
         &mut Pcg64Mcg::seed_from_u64(1),
     );
     assert_eq!(land.enter_cost_as(cell, ship), None);
@@ -410,7 +432,7 @@ fn sea_with_two_decks() -> (BattleMap, Vec<Pos>, Vec<Pos>) {
         decks.attackers[0].clone().expect("clone succeeds"),
         decks.defenders[0].clone().expect("clone succeeds"),
     );
-    let mut spec = Spec::open(Set::Water);
+    let mut spec = Spec::open(Set::Water, movement());
     spec.ship_decks = a.iter().chain(&d).map(|&(x, y)| (20 - x, y)).collect();
     let mut rng = Pcg64Mcg::seed_from_u64(1);
     (
@@ -421,7 +443,7 @@ fn sea_with_two_decks() -> (BattleMap, Vec<Pos>, Vec<Pos>) {
 }
 
 #[test]
-fn a_walker_jumps_the_water_between_two_decks_for_two_moves() -> TestResult {
+fn a_walker_jumps_the_water_between_two_decks_at_the_jump_cost() -> TestResult {
     let (m, a, d) = sea_with_two_decks();
     // The attackers' deck square nearest the other one, and the square across the gap.
     let (from, to) = a
@@ -436,10 +458,10 @@ fn a_walker_jumps_the_water_between_two_decks_for_two_moves() -> TestResult {
     // The water in between is closed to walking.
     let gap = ((from.0 + to.0) / 2, (from.1 + to.1) / 2);
     assert_eq!(m.enter_cost(gap, false), None);
-    // With the jump's two moves, it is reachable; with one move left it still is (any move
+    // With the jump's moves it is reachable; with the least move left it still is (any move
     // left lets a unit take a step); with none it is not.
-    let reach = m.reachable(from, HalfInt::from_int(2), false, &none);
-    assert_eq!(reach.get(&to).map(|c| c.0), Some(JUMP_COST));
+    let reach = m.reachable(from, movement().jump, false, &none);
+    assert_eq!(reach.get(&to).map(|c| c.0), Some(movement().jump));
     assert!(m
         .reachable(from, HalfInt::from_raw(1), false, &none)
         .contains_key(&to));
@@ -467,7 +489,7 @@ fn a_walker_jumps_the_water_between_two_decks_for_two_moves() -> TestResult {
 #[test]
 fn every_square_of_an_ocean_map_is_open_to_ships_and_to_nobody_on_foot() {
     for seed in 0..5 {
-        let m = BattleMap::generate(None, &mut Pcg64Mcg::seed_from_u64(seed));
+        let m = BattleMap::generate(None, movement(), &mut Pcg64Mcg::seed_from_u64(seed));
         let ship = Mover {
             sails: true,
             ..Mover::default()
@@ -498,7 +520,8 @@ fn a_field_gets_the_trees_and_rocks_its_terrain_asks_for() {
     ] {
         let (mut t, mut r) = (0.0, 0.0);
         for seed in 0..300 {
-            let m = BattleMap::generate(Some(class), &mut Pcg64Mcg::seed_from_u64(seed));
+            let m =
+                BattleMap::generate(Some(class), movement(), &mut Pcg64Mcg::seed_from_u64(seed));
             let look = m.look().expect("a generated map has a look");
             // The original's count is of the cells of its band; the cells beyond get more.
             let in_band = |p: &&layout::Prop| layout::in_band(p.cell.0, p.cell.1);
@@ -516,7 +539,7 @@ fn a_field_gets_the_trees_and_rocks_its_terrain_asks_for() {
 #[test]
 fn the_original_battlefield_shuts_every_square_outside_the_original_band_and_nothing_else() {
     let mut r = Pcg64Mcg::seed_from_u64(1);
-    let mut map = BattleMap::generate(Some(TerrainClass::Grassland), &mut r);
+    let mut map = BattleMap::generate(Some(TerrainClass::Grassland), movement(), &mut r);
     let before = map.clone();
     map.shut_beyond_original();
     for y in 0..GRID_H {

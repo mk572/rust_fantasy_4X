@@ -183,9 +183,8 @@ from other enemy units.
 2. After each: `cargo nextest run --workspace --exclude f4x-learn`, `cargo fmt --all`,
    `cargo clippy --workspace --tests --exclude f4x-learn`, and the speed guard
    (`cargo build --release -p f4x-tools`, `python3 scripts/perf_guard.py`).
-3. Known before this work: `units_step_ashore_beside_a_guarded_site` fails in the AI and in the core
-   copy (core walks orders at the end of a turn), and the speed guard is over its limit with five
-   wizards (146 ms, limit 140).
+3. Known before this work: the speed guard is over its limit with five wizards (146 ms, limit
+   140).
 4. Rally points cost path searches (up to one for each member and square of a path, once for a
    target); the speed guard shows whether that matters.
 5. A pinned scripted play that moves is reviewed field by field before it is refreshed.

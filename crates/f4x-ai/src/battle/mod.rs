@@ -3,9 +3,10 @@
 //! asks for the next command through [`install`], which names [`cast::next_command`] as the
 //! scripted player of every side without a brain of its own (`World::set_battle_brain`).
 //!
-//! Tests: in the two modules.
+//! Tests: in the modules.
 
 pub mod cast;
+mod lever;
 pub mod order;
 
 use f4x_core::battle::world::set_battle_ai;

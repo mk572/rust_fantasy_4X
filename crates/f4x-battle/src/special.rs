@@ -6,15 +6,15 @@
 //! - **Poison:** each attacking figure makes the target resist once per point of poison
 //!   strength; each failure is one point of damage that no defence blocks.
 //! - **Stoning touch, death touch, destruction, dispel evil:** each attacking figure makes the
-//!   target resist (a stoning or death touch at a penalty, destruction at none, dispel evil at
-//!   -4 against creatures of chaos and death, -9 against the undead); a failure kills a whole
-//!   figure.
+//!   target resist (a stoning or death touch at a penalty, destruction at none, dispel evil at its
+//!   modifier against creatures of chaos and death and a harder one against the undead, `touches` of
+//!   `battle.ron`); a failure kills a whole figure.
 //! - **Life steal:** each attacking figure makes the target resist at a penalty; every point by
 //!   which it fails is a point of damage no defence blocks, and the attacker heals as much.
 //! - **Gazes** (stoning or death; the Chaos Spawn has both, as two abilities): used in the thrown and breath
 //!   step, once against each of the target's figures, each resisting at a penalty or dying.
 //! - **Chaos** (`doom_damage`): no to-hit roll, no defence: the attack strength is the damage.
-//! - **Armour piercing** halves the defence (`immunity::effective_defense`).
+//! - **Armour piercing** leaves a part of the defence (`immunity::effective_defense`).
 //!
 //! Magic immunity protects against all of these but poison, and each of the others is stopped
 //! by its own immunity (stoning, death, poison). The penalty is the size of the unit's special
@@ -23,7 +23,7 @@
 //!
 //! Tests: in battle/tests.rs.
 
-use f4x_def::rules::Ability;
+use f4x_def::rules::{Ability, BattleRules};
 
 /// The special attacks a unit has.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -43,11 +43,11 @@ pub struct SpecialAttacks {
     /// The penalty to the target's resistance for gazes, stoning and death touches and life
     /// steal.
     pub penalty: i32,
-    /// What more the touches cost the target's resistance when an item or a spell gives them:
-    /// stoning touch 1, death touch 3 (the original's `noninnate` attributes). Life steal has no
+    /// Whether an item or a spell gives the touch, which then costs the target more resistance
+    /// (`touches` of `battle.ron`; the original's `noninnate` attributes). Life steal has no
     /// extra: a Vampiric weapon costs the target no more resistance than the unit's own level.
-    pub stoning_extra: i32,
-    pub death_extra: i32,
+    pub stoning_given: bool,
+    pub death_given: bool,
     /// Gazes: a ranged attack that makes each of the target's figures resist. A unit can have
     /// both (the Chaos Spawn).
     pub stoning_gaze: bool,
@@ -62,13 +62,6 @@ impl SpecialAttacks {
         special_level: i32,
     ) -> SpecialAttacks {
         let has = |name: Ability| abilities.contains(&name);
-        let given = |name: Ability, extra: i32| {
-            if granted.contains(&name) {
-                extra
-            } else {
-                0
-            }
-        };
         let level = special_level.abs();
         SpecialAttacks {
             poison: if has(Ability::new(53 /* poison_touch */)) {
@@ -84,10 +77,28 @@ impl SpecialAttacks {
             create_undead: has(Ability::new(13 /* create_undead */)),
             power_drain: has(Ability::new(103 /* power_drain */)),
             penalty: level,
-            stoning_extra: given(Ability::new(66 /* stoning_touch */), 1),
-            death_extra: given(Ability::new(99 /* death_touch */), 3),
+            stoning_given: granted.contains(&Ability::new(66 /* stoning_touch */)),
+            death_given: granted.contains(&Ability::new(99 /* death_touch */)),
             stoning_gaze: has(Ability::new(64 /* stoning_gaze */)),
             death_gaze: has(Ability::new(15 /* death_gaze */)),
+        }
+    }
+
+    /// What more a stoning touch costs the target's resistance for being given.
+    pub fn stoning_extra(&self, rules: &BattleRules) -> i32 {
+        if self.stoning_given {
+            rules.touches.given_stoning_touch_penalty
+        } else {
+            0
+        }
+    }
+
+    /// What more a death touch costs the target's resistance for being given.
+    pub fn death_extra(&self, rules: &BattleRules) -> i32 {
+        if self.death_given {
+            rules.touches.given_death_touch_penalty
+        } else {
+            0
         }
     }
 

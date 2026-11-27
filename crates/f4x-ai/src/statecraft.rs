@@ -20,7 +20,7 @@
 //! the same race, shared books) that eases a pact, an alliance or a peace; it is balanced against
 //! the AI's own interest ([`self_interest`]: a friendly neighbour it is far ahead of is still a
 //! target, the leader is still left to the others). Every number is in [`Knobs`] and can be set
-//! from the environment for a soak (`AIK_DIPLO_<NAME>`, see `crate::knob`).
+//! from the environment for a soak (`AIS_DIPLO_<NAME>`, see `crate::knob`).
 
 use f4x_core::diplomacy::{army_strength, DiplomacyCommand, ProposalKind, Remark, Treaty};
 use f4x_core::player::view::PlayerView;
@@ -36,7 +36,7 @@ use f4x_master::Game;
 /// Every number of the statecraft in one place.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Knobs {
-    /// Switches (1 on, 0 off), to measure a part alone in a soak (`AIK_DIPLO_<NAME>`): the factors and
+    /// Switches (1 on, 0 off), to measure a part alone in a soak (`AIS_DIPLO_<NAME>`): the factors and
     /// self-interest of the willingness, and the arms-enemy refusal.
     pub on_factors: bool,
     pub on_arms: bool,

@@ -176,6 +176,7 @@ impl Battle {
     /// What the battlefield spells do to this unit's numbers now.
     pub fn field_bonus_for(&self, u: &BattleUnit) -> FieldBonus {
         let mine = u.side;
+        let fields = &self.rules().fields;
         let own = |f| self.has_field(mine, f);
         let theirs = |f| self.has_field(mine.other(), f);
         let mut b = FieldBonus::default();
@@ -192,7 +193,7 @@ impl Battle {
             _ => 0,
         };
         for _ in 0..swing.abs() {
-            let step = swing.signum();
+            let step = swing.signum() * fields.light_and_darkness;
             // A gain only helps an attack the creature has; a loss is felt anyway.
             b.melee += if step > 0 && u.own_melee <= 0 {
                 0
@@ -211,37 +212,23 @@ impl Battle {
             && u.realm != Some(Realm::Chaos)
             && !self.field_spares(u, Field::WarpReality)
         {
-            b.to_hit -= 2;
+            b.add(fields.warp_reality, true, true);
         }
         if theirs(Field::BlackPrayer) && !self.field_spares(u, Field::BlackPrayer) {
-            b.melee -= 1;
-            b.ranged -= 1;
-            b.defense -= 1;
-            b.resistance -= 2;
+            b.add(fields.black_prayer, true, true);
         }
+        // A gain only helps an attack the creature has.
         if own(Field::HighPrayer) {
-            b.to_hit += 1;
-            b.to_block += 1;
-            b.resistance += 3;
-            if u.own_melee > 0 {
-                b.melee += 2;
-            }
-            b.defense += 2;
+            b.add(fields.high_prayer, u.own_melee > 0, u.own_ranged > 0);
         } else if own(Field::Prayer) {
-            b.to_hit += 1;
-            b.to_block += 1;
-            b.resistance += 1;
+            b.add(fields.prayer, u.own_melee > 0, u.own_ranged > 0);
         }
         if own(Field::MetalFires)
             && !u.is_fantastic()
             && !u.enchantments.contains(&SpellId::new(94) /* flame_blade */)
         {
-            if u.own_melee > 0 {
-                b.melee += 1;
-            }
-            if u.weapon_shot(&self.content.rules).is_some() {
-                b.ranged += 1;
-            }
+            let shoots = u.weapon_shot(&self.content.rules).is_some();
+            b.add(fields.metal_fires, u.own_melee > 0, shoots);
             b.magical = true;
         }
         // Holy Bonus and Resistance to All: the highest level among the side's standing units,
@@ -269,7 +256,7 @@ impl Battle {
         if holy > 0 && u.own_melee > 0 {
             b.melee += holy;
         }
-        // Leadership: the best hero's bonus to the melee (and half of it to the ranged, but not
+        // Leadership: the best hero's bonus to the melee (and a part of it to the ranged, but not
         // magic) attack of every normal unit, not the fantastic ones or the undead.
         let lead = best(|x| x.leadership);
         if lead > 0 && !u.is_fantastic() && !u.undead {
@@ -277,7 +264,7 @@ impl Battle {
                 b.melee += lead;
             }
             if u.own_ranged > 0 && u.ranged_kind != RangedKind::Magic {
-                b.ranged += lead / 2;
+                b.ranged += lead * fields.leadership_ranged_percent / 100;
             }
         }
         b.defense += holy;
@@ -358,22 +345,28 @@ impl Battle {
         vec![BattleEvent::ManaLeaked { side: victim }]
     }
 
-    /// Three to five bolts of lightning strike random enemy units (each try has an even chance
-    /// of using the unit it lands on).
+    /// Bolts of lightning strike random enemy units: how many, and the odds that a try uses the
+    /// unit it lands on, are `fields.call_lightning` of `battle.ron`.
     pub fn call_lightning(&mut self, caster: Side) -> Vec<BattleEvent> {
         let mut events = Vec::new();
-        let mut bolts = self.rng.gen_range(3..=5);
+        let rules = self.rules().fields.call_lightning;
+        let mut bolts = self
+            .rng
+            .gen_range(rules.least_bolts as i32..=rules.most_bolts as i32);
         let mut tries = 0;
         let traits = DamageTraits {
             armor_piercing: true,
             ..Default::default()
         };
         let nature = AttackNature::magical(Realm::Nature, &[DamageType::Lightning]);
-        while bolts > 0 && tries < 30 && !self.units.is_empty() {
+        while bolts > 0 && tries < rules.tries && !self.units.is_empty() {
             tries += 1;
             let id = self.rng.gen_range(0..self.units.len());
             let u = &self.units[id];
-            if u.side == caster || !u.is_active() || self.rng.gen_range(1..=2) != 1 {
+            if u.side == caster
+                || !u.is_active()
+                || self.rng.gen_range(1..=rules.one_in.max(1) as i32) != 1
+            {
                 continue;
             }
             let dmg = self.spell_damage(id, self.rules().call_lightning_strength, &traits, nature);
@@ -385,8 +378,8 @@ impl Battle {
         events
     }
 
-    /// Every figure of every enemy unit without death immunity must resist at +1 or lose a hit
-    /// point. Wraith Form gives no shelter: the original's code skips such units and marks that
+    /// Every figure of every enemy unit without death immunity must resist (`wrack_modifier`) or
+    /// lose hit points (`wrack_damage`). Wraith Form gives no shelter: the original's code skips such units and marks that
     /// as a bug, and Call Lightning's identical skip is fixed by the Unofficial Patch.
     pub fn wrack(&mut self, caster: Side) -> Vec<BattleEvent> {
         let mut events = Vec::new();
@@ -397,10 +390,12 @@ impl Battle {
             }
             let mut state = u.defender_state(&self.content.rules, self.field_bonus_for(u));
             let rng: &mut dyn RngCore = &mut self.rng;
+            let battle = &self.content.rules.battle;
             let mut lost = Damage::default();
             for _ in 0..state.figures {
-                if state.resistance_failure(Some(Realm::Death), 1, rng) > 0 {
-                    lost += unblockable(&mut state, 1);
+                let modifier = battle.fields.wrack_modifier;
+                if state.resistance_failure(battle, Some(Realm::Death), modifier, rng) > 0 {
+                    lost += unblockable(&mut state, battle.fields.wrack_damage);
                 }
             }
             if lost.points > 0 {
@@ -435,7 +430,9 @@ impl Battle {
                 let state = self.units[id]
                     .defender_state(&self.content.rules, self.field_bonus_for(&self.units[id]));
                 let rng: &mut dyn RngCore = &mut self.rng;
-                if state.resistance_failure(Some(Realm::Death), 1, rng) > 0 {
+                let battle = &self.content.rules.battle;
+                let modifier = battle.fields.terror_modifier;
+                if state.resistance_failure(battle, Some(Realm::Death), modifier, rng) > 0 {
                     let u = &mut self.units[id];
                     u.end_moves();
                     u.attacked = true;
@@ -448,8 +445,8 @@ impl Battle {
                 && !self.units[id].flag(UnitFlag::Flies)
                 && !self.units[id].flag(UnitFlag::NonCorporeal)
             {
-                let u = &mut self.units[id];
-                u.spend_moves(crate::map::OPEN_COST);
+                let moves = self.content.rules.battle.fields.entangle_moves;
+                self.units[id].spend_moves(moves);
             }
             // A unit in a web spends its whole turn striking at it.
             if self.units[id].held_by_web(&self.content.rules) {
@@ -526,14 +523,15 @@ impl Battle {
         Some(BattleEvent::Confused { unit: id, act })
     }
 
-    /// A regenerating unit (the ability, or the Regeneration spell) heals one hit as its side's
-    /// turn begins.
+    /// A regenerating unit (the ability, or the Regeneration spell) heals as its side's turn
+    /// begins (`regeneration_heals`).
     pub fn regenerate(&mut self, id: usize) -> Option<BattleEvent> {
+        let heals = self.content.rules.battle.regeneration_heals;
         let u = &mut self.units[id];
         if !u.regenerates() {
             return None;
         }
-        let healed = u.heal_points(1, false);
+        let healed = u.heal_points(heals, false);
         (healed > 0).then_some(BattleEvent::SpellHealed { unit: id, healed })
     }
 }

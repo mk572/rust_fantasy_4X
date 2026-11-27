@@ -646,7 +646,7 @@ fn plan_for(
 
 /// The gold the wizard keeps in the treasury when it buys production: a base and some turns of
 /// its net income, so that a richer wizard saves more and has something to pay a trade with
-/// (`AIK_GOLD_RESERVE_BASE`, `AIK_GOLD_RESERVE_INCOME`).
+/// (`AIS_GOLD_RESERVE_BASE`, `AIS_GOLD_RESERVE_INCOME`).
 pub(crate) fn gold_reserve(world: &World, me: PlayerId) -> i32 {
     let net = PlayerView::new(world, me)
         .budget()

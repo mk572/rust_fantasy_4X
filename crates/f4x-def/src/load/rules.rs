@@ -96,6 +96,8 @@ pub fn load_rules(dirs: &[&Path]) -> Result<Rules, ContentError> {
     let battle = parse_into::<crate::rules::BattleRules>(dir, "battle.ron", &mut issues);
     let lairs = parse_into::<crate::rules::lair::LairRules>(dir, "lairs.ron", &mut issues);
     let ai_sites = parse_into::<crate::rules::ai_site::SiteRules>(dir, "ai_sites.ron", &mut issues);
+    let ai_battle =
+        parse_into::<crate::rules::ai_battle::BattleAiRules>(dir, "ai_battle.ron", &mut issues);
     if let Some(range) = config.as_ref().map(|c| &c.casting_range) {
         if range.beyond.windows(2).any(|w| w[0] >= w[1])
             || range.beyond.last().is_some_and(|&l| l >= range.far)
@@ -123,6 +125,7 @@ pub fn load_rules(dirs: &[&Path]) -> Result<Rules, ContentError> {
         Some(battle),
         Some(lairs),
         Some(ai_sites),
+        Some(ai_battle),
     ) = (
         config,
         races,
@@ -138,6 +141,7 @@ pub fn load_rules(dirs: &[&Path]) -> Result<Rules, ContentError> {
         battle,
         lairs,
         ai_sites,
+        ai_battle,
     )
     else {
         return Err(ContentError::new(issues.into_vec()));
@@ -164,6 +168,7 @@ pub fn load_rules(dirs: &[&Path]) -> Result<Rules, ContentError> {
         battle,
         lairs,
         ai_sites,
+        ai_battle,
     };
     assemble(parts)
 }
@@ -188,6 +193,7 @@ struct Parts {
     battle: crate::rules::BattleRules,
     lairs: crate::rules::lair::LairRules,
     ai_sites: crate::rules::ai_site::SiteRules,
+    ai_battle: crate::rules::ai_battle::BattleAiRules,
 }
 
 /// The part of the content a file's rows are, when a bad row of the file may be dropped.
@@ -381,6 +387,7 @@ fn build(p: &Parts, dropped: &BTreeSet<(Element, u16)>) -> Result<Rules, Content
         battle: p.battle.clone(),
         lairs: p.lairs.clone(),
         ai_sites: p.ai_sites.clone(),
+        ai_battle: p.ai_battle,
     })
 }
 
@@ -746,6 +753,12 @@ pub fn validate_rules(r: &Rules) -> Vec<ContentIssue> {
     let mut p = Issues::new();
     check_lairs(r, &mut p);
     for i in r.ai_sites.problems() {
+        p.push(i);
+    }
+    for i in r.battle.problems() {
+        p.push(i);
+    }
+    for i in r.ai_battle.problems() {
         p.push(i);
     }
     for i in crate::hero::problems(r) {
@@ -1142,6 +1155,11 @@ fn check_spells(r: &Rules, p: &mut Issues) {
         // (Resist Elements adds to resistance against some realms only).
         if s.effects.is_empty() && s.duration == Duration::Instant {
             p.missing(F, &who, "effects (it does nothing)");
+        }
+        for realm in &s.only_against {
+            if r.realms.try_get(*realm).is_none() {
+                p.dangling(F, &who, "only_against", "realm", realm.num());
+            }
         }
         for other in &s.not_with {
             if r.spells.try_get(*other).is_none() {

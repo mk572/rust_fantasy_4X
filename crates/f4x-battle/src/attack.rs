@@ -5,8 +5,8 @@
 //!
 //! The rules follow the original's `Battle_Unit_Process_Attack` and
 //! `Battle_Unit_Attack_Target`:
-//! - Each attacking figure rolls `strength` ten-sided dice. A die hits on 8, 9 or 10 (30
-//!   percent), each plus to hit lowers the number needed by one, and a 10 always hits.
+//! - Each attacking figure rolls `strength` dice (`combat_die` of `battle.ron`): each plus to hit
+//!   lowers the number needed by one, and the highest side always hits.
 //! - The defender rolls `defense` dice against that figure's hits, each blocking on the same
 //!   terms; only the hits left over damage the defender.
 //! - Damage lands on the front figure first. A figure that dies passes the rest to the next
@@ -23,8 +23,8 @@ use f4x_def::rules::damage_type::{DamageType, DamageTypes};
 use f4x_def::rules::immunity::{effective_defense, effective_resistance, Immunities};
 use f4x_def::rules::realm::Realm;
 use f4x_def::rules::unit_effect::{UnitEffect, UnitEffects};
-use f4x_def::rules::BattleRules;
 use f4x_def::rules::SpellId;
+use f4x_def::rules::{BattleRules, CombatDie};
 use rand::{Rng, RngCore};
 
 use crate::resistance::resistance_failure;
@@ -108,7 +108,7 @@ impl DefenderState {
     /// and lasting spells add against the attack's types (a large shield against a ranged
     /// one, Elemental Armor against chaos and nature), then what its floors make of it. `None`
     /// if it is immune to the attack: nothing gets through.
-    fn defense_versus(&self, attacker: &Combatant) -> Option<i32> {
+    fn defense_versus(&self, attacker: &Combatant, rules: &BattleRules) -> Option<i32> {
         let types = self.immunities.convert(attacker.types());
         // Berserk: no defence at all, whatever else the unit has (immunities still count).
         let defense = if self.effects.contains(UnitEffect::Berserk) {
@@ -121,10 +121,12 @@ impl DefenderState {
             &self.immunities,
             types,
             attacker.nature.armor_piercing,
+            rules,
         )
     }
 
-    /// The blows one roll of `defense` stops: Invulnerability stops two more.
+    /// The blows one roll of `defense` stops: Invulnerability stops more
+    /// (`invulnerability_block`).
     fn blocks(
         &self,
         defense: i32,
@@ -133,7 +135,12 @@ impl DefenderState {
         rng: &mut dyn RngCore,
     ) -> i32 {
         let invulnerable = self.effects.contains(UnitEffect::Invulnerability);
-        roll_successes(defense, self.to_block - i32::from(eldritch), rng)
+        let eldritch = if eldritch {
+            rules.to_hit.eldritch_block_penalty
+        } else {
+            0
+        };
+        roll_successes(rules.combat_die, defense, self.to_block - eldritch, rng)
             + if invulnerable {
                 rules.invulnerability_block
             } else {
@@ -153,12 +160,22 @@ impl DefenderState {
     /// resistance: 0 means the unit resisted.
     pub fn resistance_failure(
         &self,
+        rules: &BattleRules,
         realm: Option<Realm>,
         modifier: i32,
         rng: &mut dyn RngCore,
     ) -> i32 {
         let resistance = effective_resistance(self.resistance, &self.immunities, realm);
-        resistance_failure(resistance, modifier, rng)
+        resistance_failure(rules, resistance, modifier, rng)
+    }
+
+    /// What a Lucky defender takes off whoever attacks it.
+    fn luck_against(&self, rules: &BattleRules) -> i32 {
+        if self.lucky {
+            rules.lucky.attacker_to_hit
+        } else {
+            0
+        }
     }
 
     /// Heal `amount` hit points: the damaged figure first, then bring dead figures back.
@@ -244,17 +261,11 @@ pub fn kill_figure(def: &mut DefenderState) -> Damage {
     unblockable(def, def.hits)
 }
 
-fn d10(rng: &mut dyn RngCore) -> i32 {
-    rng.gen_range(1..=10)
-}
-
-/// Dice that hit: each succeeds on `8 - pluses` or better, and a ten always succeeds.
-pub fn roll_successes(dice: i32, pluses: i32, rng: &mut dyn RngCore) -> i32 {
+/// Dice that succeed (`CombatDie`).
+pub fn roll_successes(die: CombatDie, dice: i32, pluses: i32, rng: &mut dyn RngCore) -> i32 {
+    let lowest = die.lowest_success(pluses);
     (0..dice.max(0))
-        .filter(|_| {
-            let die = d10(rng);
-            die >= 8 - pluses || die == 10
-        })
+        .filter(|_| rng.gen_range(1..=die.sides.max(1)) >= lowest)
         .count() as i32
 }
 
@@ -338,14 +349,14 @@ pub fn process_attack(
         let gazed = def.figures;
         if sp.stoning_gaze && !def.immunities.has(DamageType::Stoning) {
             for _ in 0..gazed {
-                if def.resistance_failure(Some(Realm::Nature), -sp.penalty, rng) > 0 {
+                if def.resistance_failure(rules, Some(Realm::Nature), -sp.penalty, rng) > 0 {
                     total += kill_figure(def).all_gone();
                 }
             }
         }
         if sp.death_gaze && !def.immunities.has(DamageType::Death) {
             for _ in 0..gazed {
-                if def.resistance_failure(Some(Realm::Death), -sp.penalty, rng) > 0 {
+                if def.resistance_failure(rules, Some(Realm::Death), -sp.penalty, rng) > 0 {
                     total += kill_figure(def);
                 }
             }
@@ -355,37 +366,50 @@ pub fn process_attack(
     if strength <= 0 || def.figures == 0 {
         return total;
     }
-    let defense = def.defense_versus(attacker);
+    let defense = def.defense_versus(attacker, rules);
     for _ in 0..figures {
         if def.figures == 0 {
             break;
         }
         if touchable {
             if sp.dispel_evil && matches!(def.realm, Some(Realm::Chaos | Realm::Death)) {
-                let modifier = if def.undead { -9 } else { -4 };
-                if def.resistance_failure(Some(Realm::Life), modifier, rng) > 0 {
+                let modifier = if def.undead {
+                    rules.touches.dispel_evil_undead_modifier
+                } else {
+                    rules.touches.dispel_evil_modifier
+                };
+                if def.resistance_failure(rules, Some(Realm::Life), modifier, rng) > 0 {
                     total += kill_figure(def).all_gone();
                 }
             }
             if sp.stoning_touch
                 && !def.immunities.has(DamageType::Stoning)
-                && def.resistance_failure(Some(Realm::Nature), -sp.penalty - sp.stoning_extra, rng)
-                    > 0
+                && def.resistance_failure(
+                    rules,
+                    Some(Realm::Nature),
+                    -sp.penalty - sp.stoning_extra(rules),
+                    rng,
+                ) > 0
             {
                 total += kill_figure(def).all_gone();
             }
             if sp.death_touch
                 && !def.immunities.has(DamageType::Death)
-                && def.resistance_failure(Some(Realm::Death), -sp.penalty - sp.death_extra, rng) > 0
+                && def.resistance_failure(
+                    rules,
+                    Some(Realm::Death),
+                    -sp.penalty - sp.death_extra(rules),
+                    rng,
+                ) > 0
             {
                 total += kill_figure(def);
             }
             if sp.life_steal && !def.immunities.has(DamageType::Death) {
-                let stolen = def.resistance_failure(Some(Realm::Death), -sp.penalty, rng);
+                let stolen = def.resistance_failure(rules, Some(Realm::Death), -sp.penalty, rng);
                 total += unblockable(def, stolen).all_drained();
                 total.healed += stolen;
             }
-            if sp.destruction && def.resistance_failure(Some(Realm::Chaos), 0, rng) > 0 {
+            if sp.destruction && def.resistance_failure(rules, Some(Realm::Chaos), 0, rng) > 0 {
                 total += kill_figure(def).all_gone();
             }
         }
@@ -397,7 +421,12 @@ pub fn process_attack(
             if def.takes_doom(attacker) {
                 strength
             } else {
-                let hits = roll_successes(strength, attacker.to_hit - i32::from(def.lucky), rng);
+                let hits = roll_successes(
+                    rules.combat_die,
+                    strength,
+                    attacker.to_hit + def.luck_against(rules),
+                    rng,
+                );
                 (hits - def.blocks(defense, attacker.eldritch, rules, rng)).max(0)
             }
         } else {
@@ -424,7 +453,7 @@ pub fn process_attack(
         }
         if sp.poison > 0 && !def.immunities.has(DamageType::Poison) {
             for _ in 0..sp.poison {
-                if def.figures > 0 && def.resistance_failure(None, 0, rng) > 0 {
+                if def.figures > 0 && def.resistance_failure(rules, None, 0, rng) > 0 {
                     total += unblockable(def, 1);
                 }
             }
@@ -434,7 +463,7 @@ pub fn process_attack(
     if sp.power_drain
         && touchable
         && total.points > 0
-        && def.resistance_failure(Some(Realm::Death), 0, rng) > 0
+        && def.resistance_failure(rules, Some(Realm::Death), 0, rng) > 0
     {
         total.mana_lost = rng.gen_range(rules.power_drain_min..=rules.power_drain_max);
     }
@@ -470,7 +499,7 @@ pub fn spell_attack(
     if attacker.strength <= 0 || def.figures == 0 {
         return Damage::default();
     }
-    let Some(defense) = def.defense_versus(attacker) else {
+    let Some(defense) = def.defense_versus(attacker, rules) else {
         return Damage::default();
     };
     let blow = |strength: i32, rng: &mut dyn RngCore| {
@@ -478,7 +507,12 @@ pub fn spell_attack(
         if def.takes_doom(attacker) {
             strength
         } else {
-            let hits = roll_successes(strength, attacker.to_hit - i32::from(def.lucky), rng);
+            let hits = roll_successes(
+                rules.combat_die,
+                strength,
+                attacker.to_hit + def.luck_against(rules),
+                rng,
+            );
             (hits - def.blocks(defense, attacker.eldritch, rules, rng)).max(0)
         }
     };
@@ -581,6 +615,7 @@ pub fn melee_exchange(
     let first_strike = att.first_strike && !def.negate_first_strike;
     if first_strike && def.state.figures > 0 {
         let figures = att.state.figures.saturating_sub(feared_once(
+            rules,
             &mut att_feared,
             &def.melee,
             &att.state,
@@ -599,6 +634,7 @@ pub fn melee_exchange(
     for _ in 0..counters {
         if def.state.figures > 0 && att.state.figures > 0 {
             let figures = def.state.figures.saturating_sub(feared_once(
+                rules,
                 &mut def_feared,
                 &att.melee,
                 &def.state,
@@ -614,6 +650,7 @@ pub fn melee_exchange(
     // already and the hasted second one goes with the counter-attack.
     if !first_strike && att.state.figures > 0 && def.state.figures > 0 {
         let figures = att.state.figures.saturating_sub(feared_once(
+            rules,
             &mut att_feared,
             &def.melee,
             &att.state,
@@ -626,6 +663,7 @@ pub fn melee_exchange(
         }
     } else if first_strike && att.hasted && def.state.figures > 0 {
         let figures = before_counter.saturating_sub(feared_once(
+            rules,
             &mut att_feared,
             &def.melee,
             &att.state,
@@ -640,23 +678,29 @@ pub fn melee_exchange(
 
 /// [`feared_figures`], rolled the first time it is asked for and kept after.
 fn feared_once(
+    rules: &BattleRules,
     cache: &mut Option<u32>,
     attacker: &Combatant,
     def: &DefenderState,
     rng: &mut dyn RngCore,
 ) -> u32 {
-    *cache.get_or_insert_with(|| feared_figures(attacker, def, rng))
+    *cache.get_or_insert_with(|| feared_figures(rules, attacker, def, rng))
 }
 
 /// How many of `def`'s figures `attacker` frightens: each rolls a death resistance check, and
 /// the ones that fail cannot fight this round (attack or counter-attack, whoever began). Nothing for an attacker that causes no fear or a
 /// defender immune to death.
-fn feared_figures(attacker: &Combatant, def: &DefenderState, rng: &mut dyn RngCore) -> u32 {
+fn feared_figures(
+    rules: &BattleRules,
+    attacker: &Combatant,
+    def: &DefenderState,
+    rng: &mut dyn RngCore,
+) -> u32 {
     if !attacker.fear || def.immunities.has(DamageType::Death) {
         return 0;
     }
     (0..def.figures)
-        .filter(|_| def.resistance_failure(Some(Realm::Death), 0, rng) > 0)
+        .filter(|_| def.resistance_failure(rules, Some(Realm::Death), 0, rng) > 0)
         .count() as u32
 }
 
@@ -669,17 +713,6 @@ pub fn ranged_attack(
     rng: &mut dyn RngCore,
 ) -> Damage {
     process_attack(rules, attacker, figures, def, rng)
-}
-
-/// Penalty to hit with arrows and boulders at a distance: one per three squares, at most one
-/// for long-range shooters.
-pub fn range_penalty(distance: u32, long_range: bool) -> i32 {
-    let p = (distance / 3) as i32;
-    if long_range && p > 0 {
-        1
-    } else {
-        p
-    }
 }
 
 #[cfg(test)]

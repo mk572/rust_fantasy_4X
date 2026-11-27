@@ -184,7 +184,7 @@ impl BattleUnit {
                 .iter()
                 .any(|&s| GlobalEffect::Crusade.is_in(rules.spells.get(s)))
         {
-            level += 1;
+            level += rules.config.spell_effects.crusade_levels;
         }
         level.min(path.level_count().saturating_sub(1))
     }
@@ -271,11 +271,12 @@ impl BattleUnit {
             .any(|&s| effect.is_in(rules.spells.get(s)))
     }
 
-    /// Wind Mastery (our rule): ships and fliers of a wizard who keeps it go half as far again;
-    /// those of a wizard without it, while anyone else keeps it, go half as far.
+    /// Wind Mastery (our rule): ships and fliers of a wizard who keeps it go further; those of a
+    /// wizard without it, while anyone else keeps it, less far (`wind_mastery_*_percent` of
+    /// `rules.ron`).
     fn wind_moves(&self, rules: &Rules, moves: HalfInt) -> HalfInt {
         if self.owner_has(rules, GlobalEffect::WindMastery) {
-            return moves.percent(150);
+            return moves.percent(rules.config.spell_effects.wind_mastery_own_percent);
         }
         let anyone = self.wizards.iter().any(|w| {
             w.globals
@@ -283,7 +284,7 @@ impl BattleUnit {
                 .any(|&s| GlobalEffect::WindMastery.is_in(rules.spells.get(s)))
         });
         if anyone {
-            moves.percent(50)
+            moves.percent(rules.config.spell_effects.wind_mastery_other_percent)
         } else {
             moves
         }
@@ -314,11 +315,13 @@ impl BattleUnit {
                 .collect::<Vec<_>>()
         };
         let mut s = Stats::default();
-        // Mithril adds one and adamantium two to the attacks and the defence.
-        let quality = self.weapon_quality;
-        let extra = i32::from(quality.max(1)) - 1;
+        // What the weapons' metal adds to the attacks and the defence.
+        let extra = rules.map_or(0, |r| r.battle.weapon_bonus(self.weapon_quality));
         let physical_shot = rules.is_some_and(|r| weapon_shot_of(&sheet.abilities, r).is_some());
-        let lucky = i32::from(sheet.abilities.contains(&Ability::new(39 /* lucky */)));
+        let lucky = rules
+            .filter(|_| sheet.abilities.contains(&Ability::new(39 /* lucky */)))
+            .map(|r| r.battle.lucky)
+            .unwrap_or_default();
         let (melee, ranged) = (stat(Stat::Melee), stat(Stat::Ranged));
         s.own_melee = if melee > 0 { melee + extra } else { melee };
         s.own_ranged = if ranged > 0 && physical_shot {
@@ -326,10 +329,10 @@ impl BattleUnit {
         } else {
             ranged
         };
-        s.own_defense = stat(Stat::Defense) + if quality > 0 { extra } else { 0 };
-        s.own_resistance = stat(Stat::Resistance) + lucky;
-        s.own_to_hit = stat(Stat::ToHit) + lucky;
-        s.own_to_block = lucky;
+        s.own_defense = stat(Stat::Defense) + extra;
+        s.own_resistance = stat(Stat::Resistance) + lucky.resistance;
+        s.own_to_hit = stat(Stat::ToHit) + lucky.to_hit;
+        s.own_to_block = lucky.to_block;
         s.melee_plus = stat(Stat::MeleeToHit);
         s.ranged_plus = stat(Stat::RangedToHit);
         s.melee_parts = typed(Stat::Melee);
@@ -401,7 +404,8 @@ impl BattleUnit {
         // Charm of Life comes last, on the hits with all the other bonuses in.
         if let Some(rules) = rules {
             if self.owner_has(rules, GlobalEffect::CharmOfLife) {
-                s.hits = charm_of_life_hits(s.hits);
+                s.hits =
+                    charm_of_life_hits(s.hits, rules.config.spell_effects.charm_of_life_percent);
             }
         }
         if let Some(rules) = rules {

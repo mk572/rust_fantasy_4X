@@ -1740,7 +1740,9 @@ mod tests {
             soldiers.iter().map(|&u| view.serial_of(u)).collect()
         };
         assert!(step_ashore(&ai, &mut w, &group, sea, land, &mut Vec::new()));
-        // They used their moves going aboard: the order is followed next turn.
+        // They used their moves going aboard. A standing order walks as its owner's turn ends: this
+        // turn's end finds no moves left, the next one's does.
+        w.play_round();
         w.play_round();
         let view = PlayerView::new(&w, P0);
         for &u in &soldiers {

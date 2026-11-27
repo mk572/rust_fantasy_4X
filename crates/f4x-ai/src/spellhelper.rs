@@ -3,7 +3,7 @@
 //! wizard knows for that intent and returns them best first. The rating uses the mana cost, the
 //! upkeep, what the spell brings (the strength of the creatures it summons) and how much the
 //! wizard's books favour its realm. The AI never names a spell itself. The weights are numbers
-//! in one place, so a run can tune them (`AIK_RATE_*`) and a later fit can learn them.
+//! in one place, so a run can tune them (`AIS_RATE_*`) and a later fit can learn them.
 
 use crate::military::average_strength;
 use crate::view::{fighting_strength, is_fighter};

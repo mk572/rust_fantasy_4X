@@ -898,9 +898,9 @@ pub use controller::{play_round, AiSeat, NeutralAi};
 pub use memory::Diplomats;
 pub use opinion::{relation_key, relation_level, RELATION_KEYS};
 
-/// A tuning number that an experiment may set from the environment (`AIK_<NAME>`).
+/// A tuning number that an experiment may set from the environment (`AIS_<NAME>`).
 pub(crate) fn knob(name: &str, default: f32) -> f32 {
-    std::env::var(format!("AIK_{name}"))
+    std::env::var(format!("AIS_{name}"))
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(default)

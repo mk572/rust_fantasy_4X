@@ -42,7 +42,7 @@ pub use crate::battlemagic::error::SpellError;
 pub use crate::side::Side;
 pub use crate::unit::{
     BattleUnit, Confusion, Fate, FieldBonus, ItemCharge, Lasting, Status, UnitCasting, WarpKind,
-    WizardSheet, RANGED_ATTACK_COST,
+    WizardSheet,
 };
 pub use f4x_def::rules::damage_type::RangedKind;
 
@@ -459,7 +459,12 @@ impl Battle {
         let reserve = &mut self.counter_magic[side.other().index()];
         let strength = *reserve;
         *reserve = reserve.saturating_sub(drain);
-        crate::resistance::dispel_roll(strength, difficulty, &mut self.rng)
+        crate::resistance::dispel_roll(
+            &self.content.rules.battle,
+            strength,
+            difficulty,
+            &mut self.rng,
+        )
     }
 
     /// Whether the node under the battle stops a spell of `realm` and `difficulty`: a dispel of
@@ -473,7 +478,8 @@ impl Battle {
             return false;
         }
         crate::resistance::dispel_roll(
-            self.rules().node_counter_strength,
+            &self.content.rules.battle,
+            self.content.rules.battle.node_counter_strength,
             difficulty,
             &mut self.rng,
         )
@@ -596,15 +602,15 @@ impl Battle {
             .collect()
     }
 
-    /// Where a teleporting or merging unit can appear: every free square that is not blocked,
-    /// each for one move (`Move_Battle_Unit`: no path is walked; the original takes two half-moves,
-    /// or whatever is left if that is less).
+    /// Where a teleporting unit can appear: every free square that is not blocked, each at the
+    /// teleport cost (`Move_Battle_Unit`: no path is walked, and a unit with less left spends
+    /// that).
     pub fn instant_squares(&self, unit: usize) -> std::collections::HashMap<Pos, HalfInt> {
         let cell = self.units[unit].cell;
         self.free_squares()
             .into_iter()
             .filter(|&p| p != cell)
-            .map(|p| (p, crate::map::OPEN_COST))
+            .map(|p| (p, self.map.movement().teleport))
             .collect()
     }
 
@@ -783,8 +789,8 @@ impl Battle {
         Ok(u)
     }
 
-    /// A wall crusher strikes a wall section: it falls half the time to blows from next to it,
-    /// a quarter of the time to a ranged attack (which costs a shot).
+    /// A wall crusher strikes a wall section: it falls with the percent of `city_wall` for blows
+    /// from next to it, or for a ranged attack (which costs a shot).
     pub fn attack_wall(&mut self, unit: usize, cell: Pos, ranged: bool) -> Vec<BattleEvent> {
         let destroyed = self.roll_wall_falls(ranged);
         if destroyed {
@@ -795,7 +801,7 @@ impl Battle {
         u.revealed = true;
         if ranged {
             u.spend_shot(shot_mana, &self.content.rules);
-            u.spend_ranged_moves();
+            u.spend_ranged_moves(self.content.rules.battle.shot_moves);
         } else {
             u.spend_melee_moves();
         }
@@ -858,23 +864,27 @@ impl Battle {
         }]
     }
 
-    /// The penalty to hit that Blur on `hit` gives `attacker`: one, none if the attacker is
-    /// immune to illusions.
+    /// The penalty to hit that Blur on `hit` gives `attacker` (`blur_penalty`), none if the
+    /// attacker is immune to illusions.
     pub fn blur_penalty(&self, attacker: usize, hit: usize) -> i32 {
-        i32::from(
-            self.now(hit).is_some_and(|u| u.blur())
-                && !self.units[attacker].has(Ability::new(31 /* illusion_immunity */))
-                && !self.field_spares(&self.units[attacker], Field::Blur),
-        )
+        let blurred = self.now(hit).is_some_and(|u| u.blur())
+            && !self.units[attacker].has(Ability::new(31 /* illusion_immunity */))
+            && !self.field_spares(&self.units[attacker], Field::Blur);
+        if blurred {
+            self.rules().to_hit.blur_penalty
+        } else {
+            0
+        }
     }
 
-    /// The penalty to hit that `hit`'s invisibility gives `attacker`: one for each square of
-    /// distance (one when adjacent), none if the attacker is immune to illusions.
+    /// The penalty to hit that `hit`'s invisibility gives `attacker`: so much for each square of
+    /// distance (`invisibility_penalty_per_square`), none if the attacker is immune to illusions.
     pub fn invisibility_penalty(&self, attacker: usize, hit: usize) -> i32 {
         if self.now(hit).is_some_and(|u| u.is_invisible())
             && !self.units[attacker].has(Ability::new(31 /* illusion_immunity */))
         {
             distance(self.units[attacker].cell, self.units[hit].cell) as i32
+                * self.rules().to_hit.invisibility_penalty_per_square
         } else {
             0
         }
@@ -910,7 +920,7 @@ impl Battle {
         !u.flag(UnitFlag::Flies) && !u.moves_instantly()
     }
 
-    /// A Wall of Fire's attack on a unit: strength 5, area, fire.
+    /// A Wall of Fire's attack on a unit (`wall_of_fire_strength`): area, fire.
     pub fn burn(&mut self, unit: usize) -> Vec<BattleEvent> {
         let traits = f4x_def::rules::effects::DamageTraits {
             area: true,
@@ -1231,7 +1241,7 @@ impl Battle {
         let penalty = {
             let a = &self.units[att];
             if a.ranged_kind == RangedKind::Missile {
-                attack::range_penalty(
+                self.content.rules.battle.to_hit.range_penalty(
                     distance(a.cell, self.units[def].cell),
                     a.flag(UnitFlag::LongRange),
                 )
@@ -1242,7 +1252,7 @@ impl Battle {
         let a = self.now_of(&self.units[att]);
         let penalty = penalty + self.invisibility_penalty(att, def) + self.blur_penalty(att, def);
         let plus = if a.ranged_kind == RangedKind::Missile {
-            a.weapon_plus()
+            a.weapon_plus(&self.content.rules)
         } else {
             0
         };
@@ -1287,7 +1297,7 @@ impl Battle {
         }
         let a = &mut self.units[att];
         a.revealed = true;
-        a.spend_ranged_moves();
+        a.spend_ranged_moves(self.content.rules.battle.shot_moves);
         let mut events = vec![BattleEvent::Shot {
             attacker: att,
             defender: def,

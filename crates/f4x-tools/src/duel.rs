@@ -248,7 +248,7 @@ pub fn make_battle(
         &mut rng,
     );
     let mut b = world.battle().ok_or("no battle began")?.clone();
-    b.map = BattleMap::open();
+    b.map = BattleMap::open(*b.map.movement());
     let mut placed = vec![false; b.units.len()];
     let mut order = Vec::new();
     for (side, list) in [(Side::Attacker, ours), (Side::Defender, theirs)] {

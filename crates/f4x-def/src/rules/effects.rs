@@ -124,6 +124,9 @@ pub enum Effect {
         below: Option<i32>,
         #[serde(default)]
         mana_per_step: u32,
+        /// Added to the modifier against the undead.
+        #[serde(default)]
+        undead_modifier: i32,
     },
     Summon {
         unit: super::UnitId,

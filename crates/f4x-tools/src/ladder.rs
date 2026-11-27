@@ -241,7 +241,7 @@ pub fn play_out(world: &mut World, rng: &mut GameRng) -> Result<Option<PlayerId>
     if world.battle().is_none() {
         return Err("no battle began".into());
     }
-    world.scenario_edit_battle(|b| b.map = BattleMap::open());
+    world.scenario_edit_battle(|b| b.map = BattleMap::open(*b.map.movement()));
     let mut exhausted = false;
     for _ in 0..MAX_COMMANDS {
         let Some(command) = next_command(world) else {

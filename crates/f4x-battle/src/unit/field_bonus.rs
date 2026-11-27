@@ -2,6 +2,7 @@
 //!
 //! Tests: in `f4x-core`'s battle/tests.rs, on a whole battle.
 
+use f4x_def::rules::battle_number::StatBonus;
 use f4x_def::rules::unit_flag::UnitFlag;
 use f4x_def::rules::{Ability, Rules};
 
@@ -25,6 +26,22 @@ pub struct FieldBonus {
     pub invisible: bool,
     /// Blur makes it hard to hit.
     pub blur: bool,
+}
+
+impl FieldBonus {
+    /// Add what a field spell gives; its melee and ranged numbers only when the flag says so.
+    pub fn add(&mut self, bonus: StatBonus, melee: bool, ranged: bool) {
+        if melee {
+            self.melee += bonus.melee;
+        }
+        if ranged {
+            self.ranged += bonus.ranged;
+        }
+        self.defense += bonus.defense;
+        self.resistance += bonus.resistance;
+        self.to_hit += bonus.to_hit;
+        self.to_block += bonus.to_block;
+    }
 }
 
 impl BattleUnit {

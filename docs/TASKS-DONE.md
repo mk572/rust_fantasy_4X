@@ -661,5 +661,14 @@ original task numbers. Newest work is merged in ascending order by number.
 | 822 | Architecture | (done) Split the game (time, turn order, players: `f4x-master`) from the world (map, units, items, cities: `f4x-core`) |
 | 824 | AI | (done) Decide whether to raze a captured city by whether the wizard wants to keep it, without a random roll |
 | 828 | Core / AI | Army ledger: a roster of each player's units, used heavily by the AI's unit management (done) |
+| 832 | AI | (done) A settings file for the battle AI's levers (`ai_battle.ron`), with no change of behaviour |
 
 ## Descriptions
+
+**832. (done) A settings file for the battle AI.** Asked for by the user, 27 November 2026, together with task 831. The battle AI's levers (roughly 40 numeric constants in `f4x-ai/src/battle`, none of them read through `knob`) move into a new `f4x-def/content/ai_battle.ron`, apart from the strategic AI's file. Not every constant is a lever: a number that tunes what the AI does moves, a fact of the code and a rule of the game stay.
+- The file is read like the other content (its struct in `f4x-def/src/rules`, the hash record updated with `scripts/ron_hashes.py`), grouped by subject, each value with a comment that says what it steers. It holds every value; the code has no second default.
+- `AIK_<NAME>` overrides a value (the strategic AI's overrides are `AIS_<NAME>`).
+- No change of value: the duels (`f4x-tools duel`) and the pinned scripted plays stay as they are. Tests read the values from the content.
+- The documents that name a constant that moved are updated.
+
+Done 27 November 2026: `ai_battle.ron` holds 52 levers, the constants and the tuning numbers that stood in the code of `battle/`; the game rules the AI had copied (the combat die, armour piercing, the fissure odds of Cracks Call) are in `battle.ron` now, read by the battle and the AI. Pair, team, hero and spell duels give the same results as before; the scripted plays and regression games moved only in the content fingerprint of their files.

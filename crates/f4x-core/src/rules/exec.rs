@@ -16,7 +16,6 @@ use super::effects::{Effect, EffectRule, TargetSel, Trigger};
 use super::stats::{ModOp, Modifier, Source, Stat};
 use crate::map::Position;
 use crate::player::PlayerId;
-use f4x_battle::resistance::resistance_failure;
 pub use f4x_def::rules::facts::{eval, Facts};
 use f4x_def::rules::realm::Realm;
 
@@ -105,6 +104,9 @@ pub trait EffectHost {
     fn heal(&mut self, who: Target, amount: i32) -> i32;
     fn summon(&mut self, owner: PlayerId, at: Position, unit: UnitId, count: u8);
     fn custom(&mut self, hook: &str, args: &[String], who: Target, ctx: &Context);
+    /// A resistance check by the game's rules, with the host's random numbers: by how much the die
+    /// beats `resistance` plus `modifier` (0: resisted).
+    fn resistance_failure(&mut self, resistance: i32, modifier: i32) -> i32;
     /// The random numbers of the rules being run. The host owns the stream (the game's own, in
     /// play), so the executor and the hooks it calls draw from one generator.
     fn rng(&mut self) -> &mut dyn RngCore;
@@ -219,7 +221,7 @@ fn run_effect(
                 out.push(Outcome::Immune { who });
             } else if *resistible && {
                 let resistance = host.resistance_against(who, realm);
-                resistance_failure(resistance, *resist_modifier, host.rng()) == 0
+                host.resistance_failure(resistance, *resist_modifier) == 0
             } {
                 out.push(Outcome::Resisted { who });
             } else {

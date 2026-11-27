@@ -389,7 +389,7 @@ IW001/007, IW009, IW010 (option removals), IW013, IW014, IW016, IW019/020, IW024
 |---|---|
 | IW008 | Item power 56 names spell 123; our text says what it does. |
 | IW041, IW109/110 (reseeded RNG) | Every derived generator is seeded from the game's own stream (`next_u64()`); none from a constant (`grep seed_from_u64`: all sites take the game's stream or a battle seed). |
-| IW059 vortex cap | Ours is the original's ten (`MAX_VORTICES = 10`). |
+| IW059 vortex cap | Ours is the original's ten (`vortex_most` of `battle.ron`). |
 | IW054 AI Possession on heroes | The rule allows heroes (`battle/spell.rs`); what the AI picks is the AI's. |
 | IW107, IW111 (memory corruption) | Safe Rust; no unchecked state. |
 | IW045 to IW050, IW056 to IW057, IW061 to IW064, IW073, IW078, IW080/085, IW083, IW102 to IW104, IW127/128/132 | Resolved by the table above and the P2 review. |

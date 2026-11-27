@@ -514,7 +514,11 @@ fn units_deploy_melee_first_and_shooters_behind_them() {
             }
         })
         .collect();
-    assert_eq!(deployment_order(&units), vec![1, 3, 5, 7, 0, 2, 4, 6]);
+    let rules = &content().rules.battle.deployment;
+    assert_eq!(
+        deployment_order(&units, rules),
+        vec![1, 3, 5, 7, 0, 2, 4, 6]
+    );
     // Six shooters and one melee unit: the two strongest in melee move up front. The shooters
     // are bowmen of growing strength in melee: 1, 2, 3, 4, 8 and 10.
     let shooters = [
@@ -537,7 +541,7 @@ fn units_deploy_melee_first_and_shooters_behind_them() {
     units.extend(shooters.iter().map(|&n| unit_of(&all, n)));
     let melee: Vec<i32> = units.iter().map(|u| u.own_melee).collect();
     assert!(melee[1..].windows(2).all(|w| w[0] < w[1]), "{melee:?}");
-    assert_eq!(deployment_order(&units), vec![0, 6, 5, 1, 2, 3, 4]);
+    assert_eq!(deployment_order(&units, rules), vec![0, 6, 5, 1, 2, 3, 4]);
 }
 
 #[test]

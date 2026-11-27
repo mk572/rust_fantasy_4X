@@ -184,7 +184,7 @@ impl World {
 
     /// What a strategic battle (the battle AI playing for `player` in the background) may spend
     /// of the mana reserve unless the player says otherwise: the lower of the casting skill and
-    /// half the reserve, at least one. `None` when the wizard has no mana or knows no spell
+    /// a part of the reserve (`background_mana_percent`), at least one. `None` when the wizard has no mana or knows no spell
     /// that can be cast in a battle: there is nothing to ask.
     pub fn strategic_mana_default(&self, player: PlayerId) -> Option<u32> {
         let mana = u32::try_from(self.player(player)?.treasury().mana.floor()).ok()?;
@@ -195,7 +195,8 @@ impl World {
             .wizard(player)?
             .casting_skill(&self.content.rules)
             .max(0) as u32;
-        Some(skill.min(mana / 2).max(1).min(mana))
+        let share = mana.saturating_mul(self.content.rules.battle.background_mana_percent) / 100;
+        Some(skill.min(share).max(1).min(mana))
     }
 
     /// The battle in progress.
@@ -370,7 +371,11 @@ impl World {
             realm: view.unit_realm(unit).and_then(Realm::of),
             undead: view.unit_counts_as_undead(unit),
             figures_max: figures,
-            to_block: i32::from(lucky),
+            to_block: if lucky {
+                rules.battle.lucky.to_block
+            } else {
+                0
+            },
             figures: figures_left,
             front_damage: figures_left as i32 * hits - (figures as i32 * hits - hurt),
             lucky,
@@ -440,8 +445,8 @@ impl World {
         (fighters, rest)
     }
 
-    /// Defenders that sat a lost battle out run as fleeing units do: half are lost and a quarter
-    /// of the heroes, the rest are driven to a free neighbouring square (lost if there is none).
+    /// Defenders that sat a lost battle out run as fleeing units do: some are lost, fewer of the
+    /// heroes (`flee` of `battle.ron`), the rest are driven to a free neighbouring square (lost if there is none).
     fn bench_flees(&mut self, benched: &[hecs::Entity], victor: PlayerId, rng: &mut GameRng) {
         use crate::rules::UnitKind;
         let mut benched = benched.to_vec();
@@ -453,10 +458,8 @@ impl World {
             ) else {
                 continue;
             };
-            let percent = match self.units().unit_def(unit).map(|d| d.kind) {
-                Some(UnitKind::Hero) => 25,
-                _ => 50,
-            };
+            let hero = self.units().unit_def(unit).map(|d| d.kind) == Some(UnitKind::Hero);
+            let percent = self.content.rules.battle.flee.percent(hero);
             let landing = crate::unit::pathing::neighbours(self, at)
                 .into_iter()
                 .find(|&next| self.free_landing(next, at, owner, &[unit]));
@@ -662,6 +665,7 @@ impl World {
                     decks: &decks_here,
                     carried_by: &carried_by,
                     deck_cells: &decks.cells(),
+                    rules: &self.content.rules.battle.deployment,
                 },
             );
             for ((&unit, bu), placed) in fighters.iter().zip(bus).zip(placed) {
@@ -829,7 +833,8 @@ impl World {
     ) -> BattleMap {
         use super::map::layout::{Site, Spec};
         let economy = self.economy();
-        let mut spec = Spec::open(super::map::set_of(economy.terrain_class_at(site)));
+        let set = super::map::set_of(economy.terrain_class_at(site));
+        let mut spec = Spec::open(set, self.content.rules.battle.movement);
         spec.ship_decks = ship_cells.iter().map(|&(x, y)| (20 - x, y)).collect();
         if let Some(c) = city {
             let pop = self.city_population(c);
@@ -1252,10 +1257,8 @@ impl World {
             let safe = side == Side::Attacker && self.settings.rules.safe_flee.of(human);
             let mut lost = 0;
             for (unit, held) in fled {
-                let percent = match self.units().unit_def(unit).map(|d| d.kind) {
-                    Some(UnitKind::Hero) => 25,
-                    _ => 50,
-                };
+                let hero = self.units().unit_def(unit).map(|d| d.kind) == Some(UnitKind::Hero);
+                let percent = self.content.rules.battle.flee.percent(hero);
                 if held || (!safe && rng.roll(100) <= percent) {
                     let heir = battle.winner.map(|w| battle.player_of(w));
                     self.remove_unit_to(unit, crate::hero::Fate::Slain, heir);

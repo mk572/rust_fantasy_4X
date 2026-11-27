@@ -8,6 +8,7 @@
 //! a defender inside a walled city stays behind the wall. Spells are chosen by the wizard's brain
 //! with the whole game (`world.rs`), not here: a [`Battle`] alone knows nothing of the wizard.
 
+use super::lever::levers;
 use f4x_battle::attack::Mode;
 use f4x_battle::battle::{Battle, BattleCommand, RangedKind};
 use f4x_battle::map::{distance, in_city_area, Pos};
@@ -204,21 +205,21 @@ pub fn expected_damage(
     if strength <= 0 {
         return 0.0;
     }
-    let p_hit = (0.3 + 0.1 * attacker.to_hit() as f32).clamp(0.05, 0.95);
-    let p_block = (0.3 + 0.1 * target.to_block() as f32).clamp(0.05, 0.95);
+    let p_hit = rules.battle.combat_die.odds(attacker.to_hit());
+    let p_block = rules.battle.combat_die.odds(target.to_block());
     let hits = attacker.figures as f32 * strength as f32 * p_hit;
     let defence = if nature.armor_piercing {
-        target.defense() / 2
+        rules.battle.pierced(target.defense())
     } else {
         target.defense()
     }
     .max(0) as f32;
     let blocked = attacker.figures.min(target.figures) as f32 * defence * p_block;
-    (hits - blocked).max(hits * 0.1)
+    (hits - blocked).max(hits * levers(rules).orders.least_hit_share)
 }
 
 /// What an attack is worth: how much of the target it takes (a kill is worth all of it) times
-/// what the target is worth, with a premium on the units that shoot back.
+/// what the target is worth, with a premium on the units that shoot back (`shooter_threat`).
 fn attack_value(
     battle: &Battle,
     rules: &Rules,
@@ -239,40 +240,44 @@ fn attack_value(
         magic_exceptions,
     ) / left)
         .min(1.0);
-    let threat = if can_shoot(battle, target) { 1.2 } else { 1.0 };
+    let threat = if can_shoot(battle, target) {
+        levers(rules).orders.shooter_threat
+    } else {
+        1.0
+    };
     taken * worth(battle, target) * threat
 }
-
-/// A side runs when the enemy on the field is this many times as strong as what it has left.
-const FLEE_RATIO: f32 = 4.0;
 
 /// What a side has on the field: the worth of its active units.
 fn field_worth(battle: &Battle, side: Side) -> f32 {
     battle.active_units(side).map(|u| worth(battle, u)).sum()
 }
 
-/// Whether the side's fight is lost: the enemy is [`FLEE_RATIO`] times as strong as what the side
-/// has left, and it has more than one unit. Running saves the units that are still alive; staying
-/// loses them as well. A lone unit fights its duel out.
+/// Whether the side's fight is lost: the enemy is `flee_strength_ratio` times as strong as what
+/// the side has left, and it has more than one unit. Running gets units away, though each may be
+/// lost on the way (`flee` of `battle.ron`; the choice does not weigh those odds); staying loses
+/// them all. A lone unit fights its duel out.
 fn hopeless(battle: &Battle, side: Side) -> bool {
     let (mine, theirs) = (field_worth(battle, side), field_worth(battle, side.other()));
-    battle.active_units(side).count() > 1 && theirs > mine * FLEE_RATIO
+    let ratio = levers(&battle.content.rules).orders.flee_strength_ratio;
+    battle.active_units(side).count() > 1 && theirs > mine * ratio
 }
 
-/// A unit with Merging sinks into the ground when it is hurt (under half its hit points) and an
+/// A unit with Merging sinks into the ground when it is hurt (`merge_hurt_health`) and an
 /// enemy that can hurt it is near, unless it is the last unit its side has on the field and not
-/// nearly dead (it would give up the battle for nothing). Not part of [`next_command`]: the
+/// nearly dead (`merge_dying_health`) (it would give up the battle for nothing). Not part of [`next_command`]: the
 /// scripted wizard asks (`cast.rs`), the learned player has no such order.
 pub fn merge_order(battle: &Battle) -> Option<BattleCommand> {
     let side = battle.active;
     let on_field = battle.active_units(side).count();
+    let orders = levers(&battle.content.rules).orders;
     battle
         .active_units(side)
         .filter(|u| u.can_merge())
         .find(|u| {
             let left = u.health();
             let threatened = battle.active_units(side.other()).any(|e| {
-                distance(u.cell, e.cell) <= 3
+                distance(u.cell, e.cell) <= orders.merge_reach
                     && expected_damage(
                         battle,
                         &battle.content.rules,
@@ -284,7 +289,8 @@ pub fn merge_order(battle: &Battle) -> Option<BattleCommand> {
                     ) > 0.0
             });
             let alone = on_field <= 1;
-            threatened && (left < 0.25 || (left < 0.5 && !alone))
+            threatened
+                && (left < orders.merge_dying_health || (left < orders.merge_hurt_health && !alone))
         })
         .map(|u| BattleCommand::Merge { unit: u.id })
 }
@@ -299,7 +305,7 @@ pub fn surface_order(battle: &Battle) -> Option<BattleCommand> {
     })?;
     let enemies: Vec<&BattleUnit> = battle.active_units(side.other()).collect();
     let free = battle.free_squares();
-    let hurt = unit.health() < 0.5;
+    let hurt = unit.health() < levers(&battle.content.rules).orders.surface_far_health;
     let to = if hurt || enemies.is_empty() {
         free.iter().copied().max_by_key(|&p| {
             (
@@ -539,12 +545,16 @@ mod tests {
     }
 
     #[test]
-    fn a_side_that_the_enemy_outweighs_four_to_one_flees_and_an_even_one_fights() {
+    fn a_side_that_the_enemy_far_outweighs_flees_and_an_even_one_fights() {
         let (weak, strong) = (111 /* high_men_settlers */, 189 /* great_wyrm */);
         let lopsided = real_battle(
             &[(weak, (3, 5)), (weak, (3, 6))],
             &[(strong, (10, 5)), (strong, (10, 6))],
             1,
+        );
+        let ratio = lopsided.content.rules.ai_battle.orders.flee_strength_ratio;
+        assert!(
+            field_worth(&lopsided, Side::Defender) > field_worth(&lopsided, Side::Attacker) * ratio
         );
         assert_eq!(retreat(&lopsided), Some(BattleCommand::Flee));
         let even = real_battle(&[(strong, (3, 5))], &[(strong, (10, 5))], 1);
@@ -660,7 +670,7 @@ mod tests {
             &[(104 /* high_men_spearmen */, (13, 11))],
             1,
         );
-        b.map = BattleMap::open().with_city(true);
+        b.map = BattleMap::open(b.content.rules.battle.movement).with_city(true);
         b.apply(BattleCommand::EndTurn)
             .map_err(|e| format!("{e:?}"))?;
         assert_eq!(b.active, Side::Defender);
@@ -762,7 +772,9 @@ mod tests {
         b.units[0].set_figures(1);
         let damage = b.units[0].per_figure() - 1;
         b.units[0].set_front_damage(damage);
-        assert!(b.units[0].hit_points() * 2 < b.units[0].max_hit_points());
+        let orders = b.content.rules.ai_battle.orders;
+        assert!(b.units[0].health() < orders.merge_hurt_health);
+        assert!(b.units[0].health() < orders.surface_far_health);
         assert_eq!(merge_order(&b), Some(BattleCommand::Merge { unit: 0 }));
         b.apply(BattleCommand::Merge { unit: 0 })
             .map_err(|e| format!("{e:?}"))?;
@@ -830,7 +842,7 @@ mod tests {
                 ],
                 seed,
             );
-            b.map = BattleMap::open()
+            b.map = BattleMap::open(b.content.rules.battle.movement)
                 .with_city(true)
                 .with_wall_rules(b.content.rules.battle.city_wall);
             for _ in 0..5_000 {

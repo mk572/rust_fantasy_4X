@@ -26,14 +26,14 @@ struct WallSpot {
 /// A battle of the real game at a city, walled or not: `ours` attack, `theirs` defend.
 fn siege(ours: &[(u16, Pos)], theirs: &[(u16, Pos)], walled: bool, seed: u64) -> Battle {
     let mut b = real_battle(ours, theirs, seed);
-    b.map = BattleMap::open().with_city(walled);
+    b.map = open_map().with_city(walled);
     b.note_invisibility();
     b
 }
 
 fn wall_spot() -> WallSpot {
     use f4x_battle::map::{in_city_area, is_wall_corner, is_wall_site};
-    let m = BattleMap::open().with_city(true);
+    let m = open_map().with_city(true);
     let wall = (0..map::GRID_H)
         .flat_map(|y| (0..map::GRID_W).map(move |x| (x, y)))
         .find(|&p| is_wall_site(p) && !is_wall_corner(p) && !m.is_gate(p))
@@ -67,7 +67,7 @@ fn fits_percent(count: i32, tries: i32, percent: u32) -> bool {
 }
 
 fn city_map() -> BattleMap {
-    BattleMap::open().with_city(false)
+    open_map().with_city(false)
 }
 
 /// A battle of the real game at an open city, `ours` against `theirs`.

@@ -202,7 +202,7 @@ fn fight(
     if world.battle().is_none() {
         return Err("no battle began".into());
     }
-    world.scenario_edit_battle(|b| b.map = BattleMap::open());
+    world.scenario_edit_battle(|b| b.map = BattleMap::open(*b.map.movement()));
     if let Some(owner) = healer {
         let side = if owner == P0 {
             Side::Attacker

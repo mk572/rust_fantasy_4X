@@ -18,7 +18,7 @@ use crate::spellbook::BookUi;
 use crate::text::{Args, Texts};
 use f4x_ai::battle::order::next_command;
 use f4x_battle::battle::{Battle, BattleCommand, BattleEvent, RangedKind, SpellAim};
-use f4x_battle::map::{distance, BattleMap, Pos, Wall, GRID_H, GRID_W};
+use f4x_battle::map::{distance, Pos, Wall, GRID_H, GRID_W};
 use f4x_battle::{BattleUnit, Confusion, Fate, Side};
 use f4x_core::map::Plane;
 use f4x_core::rules::damage_type::DamageType;
@@ -802,8 +802,7 @@ impl App {
             "walls" => {
                 battle.wall_of_fire = true;
                 battle.wall_of_darkness = true;
-                let map = std::mem::replace(&mut battle.map, f4x_battle::map::BattleMap::open());
-                battle.map = map.with_city(true);
+                battle.map = battle.map.clone().with_city(true);
             }
             "info" => {
                 battle.node_site = Some(f4x_def::rules::realm::Realm::Chaos);
@@ -873,7 +872,7 @@ impl App {
             let Some(active) = self.game.world_mut().battle.as_mut() else {
                 return;
             };
-            let map = std::mem::replace(&mut active.battle.map, BattleMap::open());
+            let map = active.battle.map.clone();
             active.battle.map = map.clone().with_city(true);
             let mut before = active.battle.clone();
             before.map = map.with_city(false);

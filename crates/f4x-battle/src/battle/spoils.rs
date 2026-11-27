@@ -80,7 +80,8 @@ impl Battle {
                 continue;
             };
             if def.kind == UnitKind::Hero {
-                out.loser_fame -= (rules.xp_level(def, u.sheet().xp) as i32 + 1) / 2;
+                let levels = renown.hero_levels_per_fame.max(1);
+                out.loser_fame -= (rules.xp_level(def, u.sheet().xp) as i32 + levels - 1) / levels;
             }
         }
         out

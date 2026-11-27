@@ -23,7 +23,7 @@ use crate::diplomacy::Verdict;
 use crate::memory::Diplomats;
 use crate::statecraft::{arms_enemy, goodwill};
 
-/// The numbers of a trade, in one place (`AIK_DIPLO_<NAME>` for a soak).
+/// The numbers of a trade, in one place (`AIS_DIPLO_<NAME>` for a soak).
 pub(crate) struct Knobs {
     /// What a trade must bring, in percent of what it costs, between strangers, with a pact and
     /// with an ally.

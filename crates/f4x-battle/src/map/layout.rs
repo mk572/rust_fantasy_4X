@@ -21,9 +21,10 @@
 //! squares marked `0x80` in the road layer, with `0x81` where the island's picture hangs) to stand
 //! land units on.
 
-use super::{GRID_H, GRID_W, OPEN_COST, ROUGH_COST};
+use super::{GRID_H, GRID_W};
 use crate::rng::random;
 use f4x_def::half_int::HalfInt;
+use f4x_def::rules::battle_number::MovementRules;
 use f4x_def::rules::SceneryRules;
 use rand::{Rng, SeedableRng};
 
@@ -36,8 +37,6 @@ pub const H: i32 = 22;
 pub const EXTRA_X: i32 = GRID_W - W;
 pub const EXTRA_Y: i32 = GRID_H - H;
 
-/// Half-moves for a cell nobody can enter (outside the band, or a lair's structure).
-pub const SAIL_COST: HalfInt = HalfInt::from_int(1);
 /// The road-layer value of a floating island's deck, and of the square its picture hangs from
 /// (which stays ocean).
 pub const DECK: u8 = 0x80;
@@ -167,8 +166,10 @@ pub struct Spec {
     pub defender_island: bool,
     /// The squares of the ships' decks (water battles).
     pub ship_decks: Vec<(i32, i32)>,
-    /// How thick the trees and rocks are (`rules.ron`).
+    /// How thick the trees and rocks are (`battle.ron`).
     pub scenery: SceneryRules,
+    /// What it costs to cross the squares (`battle.ron`).
+    pub movement: MovementRules,
 }
 
 impl Spec {
@@ -178,7 +179,7 @@ impl Spec {
     }
 
     /// An open field of plain ground.
-    pub fn open(set: Set) -> Spec {
+    pub fn open(set: Set, movement: MovementRules) -> Spec {
         Spec {
             set,
             site: Site::Open,
@@ -197,6 +198,7 @@ impl Spec {
                 forest_trees_percent: 100,
                 mountain_rocks_percent: 100,
             },
+            movement,
         }
     }
 }
@@ -242,6 +244,8 @@ pub struct Layout {
     pub cost: Vec<Option<HalfInt>>,
     /// The moves to enter each cell by ship (`None` for none).
     pub sail: Vec<Option<HalfInt>>,
+    /// The costs the field was built with.
+    pub movement: MovementRules,
 }
 
 impl Layout {
@@ -998,45 +1002,46 @@ fn tile_types_on(group: &[u8], grid: Grid, rng: &mut impl Rng) -> Vec<u8> {
     tiles
 }
 
-/// `Set_Movement_Cost_Maps`: the walkers' map (grass and dirt 1 move, rough ground and rivers 2,
-/// roads half a move, ocean none) and the ships' (ocean and rivers 1, nothing on land or a road), with the
-/// corners outside the band and the structure of a lair shut on both. A floating island's deck
+/// `Set_Movement_Cost_Maps`: the walkers' map (grass and dirt open, rough ground and rivers rough,
+/// roads cheaper, ocean none) and the ships' (ocean and rivers, nothing on land or a road), with
+/// the corners outside the band and the structure of a lair shut on both. A floating island's deck
 /// walks like a road.
 ///
 /// `shift` is the column of the grid that is `cgx` 0; `shut_corners` shuts the cells outside the
-/// original's band, as the original does (the field of today does not).
+/// original's band, as the original does (the field of today does not); `shut_structure` shuts
+/// the square a structure stands on.
 fn movement_costs(
     group: &[u8],
     roads: &[u8],
     grid: Grid,
     shift: i32,
     shut_corners: bool,
-    site: Site,
-    structure: Structure,
+    shut_structure: bool,
+    movement: &MovementRules,
 ) -> (Vec<Option<HalfInt>>, Vec<Option<HalfInt>>) {
     let n = grid.cells();
-    let mut cost = vec![Some(OPEN_COST); n];
+    let mut cost = vec![Some(movement.open); n];
     let mut sail = vec![None; n];
     for y in 0..grid.h {
         for x in 0..grid.w {
             let i = grid.at(x, y);
             match group[i] {
-                ROUGH => cost[i] = Some(ROUGH_COST),
+                ROUGH => cost[i] = Some(movement.rough),
                 RIVER => {
-                    cost[i] = Some(ROUGH_COST);
-                    sail[i] = Some(SAIL_COST);
+                    cost[i] = Some(movement.rough);
+                    sail[i] = Some(movement.sail);
                 }
                 OCEAN => {
                     cost[i] = None;
-                    sail[i] = Some(SAIL_COST);
+                    sail[i] = Some(movement.sail);
                 }
                 _ => {}
             }
             if roads[i] == SHIP_DECK {
-                cost[i] = Some(OPEN_COST);
+                cost[i] = Some(movement.open);
                 sail[i] = None;
             } else if roads[i] != 0 && roads[i] != DECK_PICTURE {
-                cost[i] = Some(HalfInt::HALF);
+                cost[i] = Some(movement.road);
                 sail[i] = None;
             }
             if shut_corners && !in_band(x - shift, y) {
@@ -1045,11 +1050,16 @@ fn movement_costs(
             }
         }
     }
-    if site == Site::Outpost || structure == Structure::Fortress {
+    if shut_structure {
         cost[grid.at(STRUCTURE.0 + shift, STRUCTURE.1)] = None;
         sail[grid.at(STRUCTURE.0 + shift, STRUCTURE.1)] = None;
     }
     (cost, sail)
+}
+
+/// Whether a building nobody can enter stands in the middle of the field.
+fn shuts_structure(site: Site, structure: Structure) -> bool {
+    site == Site::Outpost || structure == Structure::Fortress
 }
 
 /// Whether the cell is in the city area.
@@ -1092,6 +1102,7 @@ struct Scatter<'a> {
     /// Whether the middle of a patch of trees must be on an allowed place too (the original's
     /// draws do not look: it only refuses the trees).
     strict_centre: bool,
+    movement: MovementRules,
 }
 
 impl Scatter<'_> {
@@ -1117,6 +1128,7 @@ fn scatter_trees(
     group: &[u8],
     roads: &[u8],
     cost: &mut [Option<HalfInt>],
+    movement: &MovementRules,
     rng: &mut impl Rng,
 ) -> Vec<Prop> {
     let count = tree_count_of(set, rng);
@@ -1125,6 +1137,7 @@ fn scatter_trees(
         shift: 0,
         allowed: &on_screen,
         strict_centre: false,
+        movement: *movement,
     };
     place_trees(count, site, group, roads, cost, &at, rng)
 }
@@ -1181,7 +1194,7 @@ fn place_trees(
                     || forbidden(site, cgx, cgy, false);
             }
             if !illegal && (at.allowed)(at.cg(tx, ty).0, ty, sub) {
-                dearer(&mut cost[grid.at(tx, ty)]);
+                dearer(&mut cost[grid.at(tx, ty)], &at.movement);
                 trees.push(Prop {
                     cell: at.cg(tx, ty),
                     sub: (sub.0 as u8, sub.1 as u8),
@@ -1199,10 +1212,10 @@ fn place_trees(
     trees
 }
 
-/// A tree or a rock makes the square half a move dearer, up to the cost of rough ground.
-fn dearer(cost: &mut Option<HalfInt>) {
-    if let Some(c) = cost.as_mut().filter(|c| **c < ROUGH_COST) {
-        *c += HalfInt::HALF;
+/// A tree or a rock makes a square cheaper than rough ground dearer.
+fn dearer(cost: &mut Option<HalfInt>, movement: &MovementRules) {
+    if let Some(c) = cost.as_mut().filter(|c| **c < movement.rough) {
+        *c += movement.scenery_extra;
     }
 }
 
@@ -1224,6 +1237,7 @@ fn scatter_rocks(
     group: &[u8],
     roads: &[u8],
     cost: &mut [Option<HalfInt>],
+    movement: &MovementRules,
     rng: &mut impl Rng,
 ) -> Vec<Prop> {
     let count = rock_count_of(set, rng);
@@ -1232,6 +1246,7 @@ fn scatter_rocks(
         shift: 0,
         allowed: &on_screen,
         strict_centre: false,
+        movement: *movement,
     };
     place_rocks(count, site, group, roads, cost, &at, rng)
 }
@@ -1263,7 +1278,7 @@ fn place_rocks(
             && !forbidden(site, cgx, cgy, true)
             && (at.allowed)(cgx, cgy, sub);
         if ok {
-            dearer(&mut cost[i]);
+            dearer(&mut cost[i], &at.movement);
             rocks.push(Prop {
                 cell: (cgx, cgy),
                 sub: (sub.0 as u8, sub.1 as u8),
@@ -1352,8 +1367,8 @@ fn generate_original(spec: &Spec, rng: &mut impl Rng) -> (Layout, Vec<u8>) {
             Grid::ORIGINAL,
             0,
             true,
-            Site::Open,
-            Structure::Outpost,
+            false,
+            &spec.movement,
         );
         let layout = Layout {
             look: Look {
@@ -1369,6 +1384,7 @@ fn generate_original(spec: &Spec, rng: &mut impl Rng) -> (Layout, Vec<u8>) {
             },
             cost,
             sail,
+            movement: spec.movement,
         };
         return (layout, group);
     }
@@ -1406,11 +1422,16 @@ fn generate_original(spec: &Spec, rng: &mut impl Rng) -> (Layout, Vec<u8>) {
         Grid::ORIGINAL,
         0,
         true,
-        spec.site,
-        spec.structure,
+        shuts_structure(spec.site, spec.structure),
+        &spec.movement,
     );
-    let trees = scatter_trees(spec.set, spec.site, &group, &roads, &mut cost, rng);
-    let rocks = scatter_rocks(spec.set, spec.site, &group, &roads, &mut cost, rng);
+    let movement = &spec.movement;
+    let trees = scatter_trees(
+        spec.set, spec.site, &group, &roads, &mut cost, movement, rng,
+    );
+    let rocks = scatter_rocks(
+        spec.set, spec.site, &group, &roads, &mut cost, movement, rng,
+    );
     let layout = Layout {
         look: Look {
             set: spec.set,
@@ -1425,6 +1446,7 @@ fn generate_original(spec: &Spec, rng: &mut impl Rng) -> (Layout, Vec<u8>) {
         },
         cost,
         sail,
+        movement: spec.movement,
     };
     (layout, group)
 }
@@ -1514,12 +1536,15 @@ fn expand(spec: &Spec, original: Layout, group: &[u8]) -> Layout {
         grid,
         EXTRA_X,
         false,
-        if spec.set == Set::Water {
-            Site::Open
-        } else {
-            spec.site
-        },
-        spec.structure,
+        shuts_structure(
+            if spec.set == Set::Water {
+                Site::Open
+            } else {
+                spec.site
+            },
+            spec.structure,
+        ),
+        &spec.movement,
     );
     // A city's walls stand on the ring round its area: nothing else stands there.
     let walled_ground = |cgx: i32, cgy: i32| spec.site == Site::City && in_wall_area(cgx, cgy);
@@ -1541,7 +1566,7 @@ fn expand(spec: &Spec, original: Layout, group: &[u8]) -> Layout {
         .filter(kept)
     {
         if !in_band(prop.cell.0, prop.cell.1) {
-            dearer(&mut cost[cell(prop.cell.0, prop.cell.1)]);
+            dearer(&mut cost[cell(prop.cell.0, prop.cell.1)], &spec.movement);
         }
     }
     let mut trees: Vec<Prop> = original.look.trees.iter().filter(kept).cloned().collect();
@@ -1555,12 +1580,14 @@ fn expand(spec: &Spec, original: Layout, group: &[u8]) -> Layout {
             shift: EXTRA_X,
             allowed: &beyond,
             strict_centre: true,
+            movement: spec.movement,
         };
         let anywhere = Scatter {
             grid,
             shift: EXTRA_X,
             allowed: &everywhere,
             strict_centre: true,
+            movement: spec.movement,
         };
         let tree_percent = if spec.set == Set::Forest {
             spec.scenery.forest_trees_percent
@@ -1597,12 +1624,14 @@ fn expand(spec: &Spec, original: Layout, group: &[u8]) -> Layout {
         },
         cost,
         sail,
+        movement: spec.movement,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testutil::movement;
     use f4x_def::testdir::TestResult;
     use rand::SeedableRng;
     use rand_pcg::Pcg64Mcg;
@@ -1642,7 +1671,7 @@ mod tests {
 
     #[test]
     fn a_field_is_repeatable_and_has_no_shut_corners() {
-        let spec = Spec::open(Set::Hills);
+        let spec = Spec::open(Set::Hills, movement());
         let a = generate(&spec, &mut rng(3));
         let b = generate(&spec, &mut rng(3));
         assert_eq!(a, b);
@@ -1667,7 +1696,7 @@ mod tests {
             Set::Water,
         ] {
             for seed in 0..30 {
-                let mut spec = Spec::open(set);
+                let mut spec = Spec::open(set, movement());
                 spec.rivers = [false, false, false, false, true, true, false, false, false];
                 spec.roads = [false, false, false, true, true, true, false, false, false];
                 let (original, _) = generate_original(&spec, &mut rng(seed));
@@ -1707,7 +1736,7 @@ mod tests {
             let mut inside = 0;
             let mut outside = 0;
             for seed in 0..30 {
-                let mut spec = Spec::open(set);
+                let mut spec = Spec::open(set, movement());
                 spec.scenery.forest_trees_percent = percent;
                 spec.scenery.mountain_rocks_percent = percent;
                 let l = generate(&spec, &mut rng(seed));
@@ -1736,21 +1765,21 @@ mod tests {
     }
 
     #[test]
-    fn the_ground_costs_two_rough_ground_four_and_trees_add_one() {
+    fn every_square_costs_between_a_road_and_rough_ground_and_scenery_adds_to_open_ground() {
         for seed in 0..40 {
-            let l = generate(&Spec::open(Set::Mountains), &mut rng(seed));
+            let l = generate(&Spec::open(Set::Mountains, movement()), &mut rng(seed));
             let costs: std::collections::HashSet<HalfInt> =
                 l.cost.iter().flatten().copied().collect();
             assert!(
                 costs
                     .iter()
-                    .all(|c| (HalfInt::HALF..=ROUGH_COST).contains(c)),
+                    .all(|c| (movement().road..=movement().rough).contains(c)),
                 "{costs:?}"
             );
             for t in l.look.trees.iter().chain(&l.look.rocks) {
                 assert!(
                     l.cost_at(t.cell.0, t.cell.1)
-                        .is_none_or(|c| c >= OPEN_COST + HalfInt::HALF)
+                        .is_none_or(|c| c >= movement().open + movement().scenery_extra)
                         || l.look.set == Set::Water
                 );
                 assert_eq!(
@@ -1767,7 +1796,7 @@ mod tests {
         let rough = |set: Set| -> usize {
             (0..30)
                 .map(|s| {
-                    let l = generate(&Spec::open(set), &mut rng(s));
+                    let l = generate(&Spec::open(set, movement()), &mut rng(s));
                     l.look.tiles.iter().filter(|&&t| t >= 32).count()
                 })
                 .sum()
@@ -1778,14 +1807,14 @@ mod tests {
     #[test]
     fn tiles_are_pictures_the_set_has() {
         for seed in 0..20 {
-            let l = generate(&Spec::open(Set::Plains), &mut rng(seed));
+            let l = generate(&Spec::open(Set::Plains, movement()), &mut rng(seed));
             assert!(l.look.tiles.iter().all(|&t| t < 48));
         }
     }
 
     #[test]
     fn roads_run_from_the_sides_the_overland_roads_leave_by() {
-        let mut spec = Spec::open(Set::Plains);
+        let mut spec = Spec::open(Set::Plains, movement());
         // A road on the square and to the east and the west.
         spec.roads = [false, false, false, true, true, true, false, false, false];
         let l = generate(&spec, &mut rng(2));
@@ -1794,7 +1823,7 @@ mod tests {
         assert!(count >= 15, "a road across the field, got {count}");
         assert!(l.look.roads.iter().all(|&r| r & 0x80 == 0));
         // No road leaves a field with no road on it.
-        let mut none = Spec::open(Set::Plains);
+        let mut none = Spec::open(Set::Plains, movement());
         none.roads = [false; 9];
         let n = generate(&none, &mut rng(2));
         assert!(n.look.roads.iter().all(|&r| r == 0));
@@ -1805,7 +1834,7 @@ mod tests {
     fn a_citys_wall_ring_and_its_inside_have_no_trees_or_rocks_and_walk_at_the_ground_cost() {
         for set in [Set::Plains, Set::Forest, Set::Mountains] {
             for seed in 0..40 {
-                let mut spec = Spec::open(set);
+                let mut spec = Spec::open(set, movement());
                 spec.site = Site::City;
                 spec.walled = true;
                 spec.population = 10;
@@ -1827,10 +1856,12 @@ mod tests {
                 for y in MIN_CGY_WALL..=MAX_CGY_WALL {
                     for x in MIN_CGX_WALL..=MAX_CGX_WALL {
                         let cost = l.cost_at(x, y).expect("the ring can be walked");
-                        assert!(cost <= ROUGH_COST, "({x},{y})");
+                        assert!(cost <= movement().rough, "({x},{y})");
                         // Without a tree or rock on it a square costs what its ground costs.
                         assert!(
-                            cost == OPEN_COST || cost == ROUGH_COST || cost == HalfInt::HALF,
+                            cost == movement().open
+                                || cost == movement().rough
+                                || cost == movement().road,
                             "({x},{y}) {cost:?}"
                         );
                     }
@@ -1841,7 +1872,7 @@ mod tests {
 
     #[test]
     fn a_city_has_houses_and_keeps_its_inside_clear() {
-        let mut spec = Spec::open(Set::Plains);
+        let mut spec = Spec::open(Set::Plains, movement());
         spec.site = Site::City;
         spec.population = 14;
         spec.walled = true;
@@ -1875,7 +1906,7 @@ mod tests {
 
     #[test]
     fn a_fortress_city_keeps_its_structure_cell_clear_and_shut() {
-        let mut spec = Spec::open(Set::Plains);
+        let mut spec = Spec::open(Set::Plains, movement());
         spec.site = Site::City;
         spec.structure = Structure::Fortress;
         spec.population = 11;
@@ -1908,7 +1939,7 @@ mod tests {
 
     #[test]
     fn an_outpost_shuts_its_structure_cell() {
-        let mut spec = Spec::open(Set::Plains);
+        let mut spec = Spec::open(Set::Plains, movement());
         spec.site = Site::Outpost;
         let l = generate(&spec, &mut rng(1));
         assert_eq!(l.cost_at(STRUCTURE.0, STRUCTURE.1), None);
@@ -1917,13 +1948,13 @@ mod tests {
 
     #[test]
     fn water_is_bare_ocean_for_ships_and_fliers_only() {
-        let l = generate(&Spec::open(Set::Water), &mut rng(1));
+        let l = generate(&Spec::open(Set::Water, movement()), &mut rng(1));
         assert!(l.look.trees.is_empty() && l.look.rocks.is_empty());
         assert_eq!(l.cost_at(10, 10), None, "nobody walks on the sea");
-        assert_eq!(l.sail_at(10, 10), Some(SAIL_COST));
+        assert_eq!(l.sail_at(10, 10), Some(movement().sail));
         assert_eq!(
             l.sail_at(0, 0),
-            Some(SAIL_COST),
+            Some(movement().sail),
             "the corners are open to ships too"
         );
         assert!(!l.is_void(10, 10) && !l.is_void(0, 0));
@@ -1932,7 +1963,7 @@ mod tests {
 
     #[test]
     fn a_floating_island_has_a_deck_to_walk_on_and_a_picture_square_that_stays_sea() {
-        let mut spec = Spec::open(Set::Water);
+        let mut spec = Spec::open(Set::Water, movement());
         spec.defender_island = true;
         let l = generate(&spec, &mut rng(1));
         let decks = island_decks(false, true);
@@ -1941,7 +1972,7 @@ mod tests {
             assert_eq!(l.look.roads[cell(x, y)], DECK);
             assert_eq!(
                 l.cost_at(x, y),
-                Some(HalfInt::HALF),
+                Some(movement().road),
                 "a deck walks like a road"
             );
             assert_eq!(l.sail_at(x, y), None);
@@ -1949,7 +1980,7 @@ mod tests {
         let (px, py) = decks.pictures[0];
         assert_eq!(l.look.roads[cell(px, py)], DECK_PICTURE);
         assert_eq!(l.cost_at(px, py), None);
-        assert_eq!(l.sail_at(px, py), Some(SAIL_COST));
+        assert_eq!(l.sail_at(px, py), Some(movement().sail));
         // Both sides: the attackers' island is in the middle, and nothing overlaps.
         let both = island_decks(true, true);
         assert!(both.attackers.len() == 10 && both.pictures.len() == 2);
@@ -1963,7 +1994,7 @@ mod tests {
     }
 
     fn river_spec(rivers: [bool; 9]) -> Spec {
-        let mut spec = Spec::open(Set::Plains);
+        let mut spec = Spec::open(Set::Plains, movement());
         spec.rivers = rivers;
         spec
     }
@@ -1986,8 +2017,8 @@ mod tests {
                     for x in 0..W {
                         let i = cell(x, y);
                         if l.look.tiles[i] >= RIVER_TILE && l.look.roads[i] == 0 {
-                            assert_eq!(l.cost_at(x, y), Some(ROUGH_COST));
-                            assert_eq!(l.sail_at(x, y), Some(SAIL_COST));
+                            assert_eq!(l.cost_at(x, y), Some(movement().rough));
+                            assert_eq!(l.sail_at(x, y), Some(movement().sail));
                         }
                     }
                 }
@@ -1999,12 +2030,12 @@ mod tests {
         assert_eq!(across, 40);
         // No river on the square, none on the field; and none on other ground.
         for set in [Set::Plains, Set::Hills] {
-            let mut spec = Spec::open(set);
+            let mut spec = Spec::open(set, movement());
             spec.rivers = [false; 9];
             let l = generate(&spec, &mut rng(3));
             assert!(l.look.tiles.iter().all(|&t| t < RIVER_TILE));
         }
-        let mut hills = Spec::open(Set::Hills);
+        let mut hills = Spec::open(Set::Hills, movement());
         hills.rivers = east_west;
         assert!(generate(&hills, &mut rng(3))
             .look

@@ -12,7 +12,7 @@
 //! * **Weariness** (`Memory`): up for a battle or a city lost, down for one won or taken, up a little every
 //!   turn without a clash, never below 0.
 //!
-//! Every number is in [`Knobs`] (`AIK_DIPLO_B_<NAME>`). Tests: below.
+//! Every number is in [`Knobs`] (`AIS_DIPLO_B_<NAME>`). Tests: below.
 
 use f4x_core::diplomacy::{ProposalKind, Remark, Treaty};
 use f4x_core::player::view::PlayerView;

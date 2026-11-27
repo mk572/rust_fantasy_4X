@@ -48,6 +48,16 @@ pub fn unit_as(number: u16, side: Side) -> BattleUnit {
     unit
 }
 
+/// What it costs to cross the squares of a field, as shipped.
+pub fn movement() -> f4x_def::rules::battle_number::MovementRules {
+    content().rules.battle.movement
+}
+
+/// A field with nothing in the way, crossed at the shipped costs.
+pub fn open_map() -> BattleMap {
+    BattleMap::open(movement())
+}
+
 /// The battle rules of the shipped content.
 pub fn rules() -> f4x_def::rules::BattleRules {
     content().rules.battle.clone()
@@ -76,7 +86,7 @@ pub fn real_battle(ours: &[(u16, Pos)], theirs: &[(u16, Pos)], seed: u64) -> Bat
             units.push(unit_as(number, side).at(cell));
         }
     }
-    let mut battle = Battle::new(content(), A, D, BattleMap::open(), units, seed);
+    let mut battle = Battle::new(content(), A, D, open_map(), units, seed);
     battle.rng = GameRng::new(seed);
     // Each side's player is a wizard with no casting skill and no mana (what a game makes of a
     // player that was just added), as far from its fortress as the rules say.

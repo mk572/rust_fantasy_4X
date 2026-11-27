@@ -1,12 +1,11 @@
 //! The tactical map of a battle: a 21 by 22 grid of squares, of which the original plays on the
 //! 200 of its screen's band.
 //!
-//! Units move in eight directions. Open ground costs one move, rough ground
-//! two moves, a road half a move, trees and rocks add half a move each (to four at most),
-//! squares outside the band and a lair's structure cannot be entered, and flying units pay
-//! one move everywhere and cross everything but those. Ships sail the ocean and rivers (one
-//! move a square) and swimmers take the cheaper of the two ways. The ground comes from
-//! [`layout`], the port of the original's field generator.
+//! Units move in eight directions. What a square costs is `movement` of `battle.ron`: open
+//! ground, rough ground, a road, and a little more for trees and rocks. Squares outside the band
+//! and a lair's structure cannot be entered; flying units pay one cost everywhere and cross
+//! everything but those. Ships sail the ocean and rivers and swimmers take the cheaper of the two
+//! ways. The ground comes from [`layout`], the port of the original's field generator.
 //!
 //! Tests: in battle/map/tests.rs.
 
@@ -18,16 +17,13 @@ use f4x_def::map::TerrainClass;
 pub mod layout;
 
 use f4x_def::half_int::HalfInt;
+use f4x_def::rules::battle_number::MovementRules;
+use f4x_def::rules::DeploymentRules;
 use layout::{Layout, Look, Set, Spec};
 use rand::Rng;
 
 use crate::unit::BattleUnit;
 
-/// Moves to jump the square of water between two ships' decks.
-pub const JUMP_COST: HalfInt = HalfInt::from_int(2);
-
-/// What a diagonal step costs beyond the square's own cost: half a move.
-pub const DIAGONAL_EXTRA: HalfInt = HalfInt::HALF;
 /// The field is 24 by 24 squares, all of them playable (task 735). The original's is 21 by 22 with
 /// its corners shut (`layout::W`, `layout::H`); its squares keep their places in the core's frame
 /// (`x = 20 - cgx`, `y = cgy`) and the new ones lie beyond them: columns 21 to 23 (`cgx` -1 to -3) and
@@ -45,13 +41,6 @@ pub const fn cg_of(pos: Pos) -> (i32, i32) {
 pub const fn pos_of_cg(cg: (i32, i32)) -> Pos {
     (layout::W - 1 - cg.0, cg.1)
 }
-
-/// Moves to enter an open square.
-pub const OPEN_COST: HalfInt = HalfInt::from_int(1);
-/// Moves to enter rough ground.
-pub const ROUGH_COST: HalfInt = HalfInt::from_int(2);
-/// Moves to enter mud (Earth to Mud): 6, which is more than any unit has.
-pub const MUD_COST: HalfInt = HalfInt::from_int(6);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Cell {
@@ -156,14 +145,16 @@ pub struct BattleMap {
     /// where the walls are shut to everyone and no square is a gate.
     #[serde(default)]
     wall_rules: Option<f4x_def::rules::CityWallRules>,
+    /// What it costs to cross the squares (`movement` of `battle.ron`).
+    movement: MovementRules,
 }
 
 impl BattleMap {
-    /// A map with nothing in the way.
-    pub fn open() -> Self {
+    /// A map with nothing in the way, crossed at the costs of `movement`.
+    pub fn open(movement: MovementRules) -> Self {
         Self {
             cells: vec![Cell::Open; (GRID_W * GRID_H) as usize],
-            costs: vec![Some(OPEN_COST); (GRID_W * GRID_H) as usize],
+            costs: vec![Some(movement.open); (GRID_W * GRID_H) as usize],
             sail: vec![None; (GRID_W * GRID_H) as usize],
             look: None,
             walls: None,
@@ -171,7 +162,13 @@ impl BattleMap {
             mud: vec![false; (GRID_W * GRID_H) as usize],
             ship_deck: vec![false; (GRID_W * GRID_H) as usize],
             wall_rules: None,
+            movement,
         }
+    }
+
+    /// What it costs to cross the squares.
+    pub fn movement(&self) -> &MovementRules {
+        &self.movement
     }
 
     /// Set what the walls do, as `battle.ron` says.
@@ -347,7 +344,7 @@ impl BattleMap {
     /// The map for a field built by [`layout::generate`]. The rules use the mirrored one (`x = 20 -
     /// cgx`).
     pub fn from_layout(layout: Layout) -> Self {
-        let mut map = Self::open();
+        let mut map = Self::open(layout.movement);
         for y in 0..GRID_H {
             for x in 0..GRID_W {
                 let (cgx, cgy) = cg_of((x, y));
@@ -360,7 +357,7 @@ impl BattleMap {
                     _ if layout.is_void(cgx, cgy) => Cell::Void,
                     // Ocean: walkers cannot enter it, ships and fliers can.
                     None => Cell::Blocked,
-                    Some(c) if c > OPEN_COST => Cell::Rough,
+                    Some(c) if c > layout.movement.open => Cell::Rough,
                     _ => Cell::Open,
                 };
             }
@@ -371,8 +368,13 @@ impl BattleMap {
 
     /// A map for the overland terrain a fight happens on: a field of that kind, with nothing on
     /// it. For tests; the game builds its field from the whole square (`Layout`).
-    pub fn generate(terrain: Option<TerrainClass>, rng: &mut impl Rng) -> Self {
-        Self::from_layout(layout::generate(&Spec::open(set_of(terrain)), rng))
+    pub fn generate(
+        terrain: Option<TerrainClass>,
+        movement: MovementRules,
+        rng: &mut impl Rng,
+    ) -> Self {
+        let spec = Spec::open(set_of(terrain), movement);
+        Self::from_layout(layout::generate(&spec, rng))
     }
 
     /// What the screen draws, if the map was generated.
@@ -416,8 +418,8 @@ impl BattleMap {
             let i = Self::index(pos);
             self.cells[i] = cell;
             self.costs[i] = match cell {
-                Cell::Open => Some(OPEN_COST),
-                Cell::Rough => Some(ROUGH_COST),
+                Cell::Open => Some(self.movement.open),
+                Cell::Rough => Some(self.movement.rough),
                 Cell::Blocked | Cell::Void => None,
             };
             self.sail[i] = None;
@@ -429,13 +431,13 @@ impl BattleMap {
     pub fn enter_cost(&self, pos: Pos, flying: bool) -> Option<HalfInt> {
         match (self.get(pos)?, flying) {
             (Cell::Void, _) => None,
-            (_, true) => Some(OPEN_COST),
+            (_, true) => Some(self.movement.flying),
             (Cell::Blocked, false) => None,
             _ => self.costs[Self::index(pos)],
         }
     }
 
-    /// Moves for `mover` to enter `pos`, or `None` if it cannot: fliers pay one anywhere
+    /// Moves for `mover` to enter `pos`, or `None` if it cannot: fliers pay one cost anywhere
     /// they can go, ships the sailing cost, swimmers the lesser of that and the walking one.
     pub fn enter_cost_as(&self, pos: Pos, mover: Mover) -> Option<HalfInt> {
         let cell = self.get(pos)?;
@@ -443,7 +445,7 @@ impl BattleMap {
             return None;
         }
         if mover.flying {
-            return Some(OPEN_COST);
+            return Some(self.movement.flying);
         }
         let i = Self::index(pos);
         let (walk, sail) = (self.costs[i], self.sail[i]);
@@ -591,14 +593,14 @@ impl BattleMap {
                         continue;
                     };
                     if self.is_mud(next) && !mover.flying && !mover.ignores_mud {
-                        step = MUD_COST;
+                        step = self.movement.mud;
                     } else if dx != 0 && dy != 0 {
-                        // A diagonal step costs half a move more, for every kind of mover (wiki
+                        // A diagonal step costs more, for every kind of mover (wiki
                         // "Movement Type"). The original charges it only when it plots the
                         // path, not when it marks the squares a unit can reach (1.50 note 445):
                         // here one search does both, so they agree. Mud takes all the moves left
                         // anyway.
-                        step += DIAGONAL_EXTRA;
+                        step += self.movement.diagonal_extra;
                     }
                     if occupied(next)
                         || self.shut_by_walls(next, mover, inside)
@@ -616,7 +618,7 @@ impl BattleMap {
                 }
             }
             // From one ship's deck a walker may jump the single square of water to another
-            // deck, for two moves; any move left lets it, as with rough ground.
+            // deck; any move left lets it, as with rough ground.
             if self.is_ship_deck(at) && !mover.flying && !mover.sails {
                 for dy in -1..=1 {
                     for dx in -1..=1 {
@@ -630,7 +632,7 @@ impl BattleMap {
                         {
                             continue;
                         }
-                        let total = cost + JUMP_COST;
+                        let total = cost + self.movement.jump;
                         if cost >= points || best.get(&far).is_some_and(|&(c, _)| c <= total) {
                             continue;
                         }
@@ -708,16 +710,17 @@ pub fn deployment(
 }
 
 /// The order a side's units take their squares in, front first (`Deploy_Battle_Units`): the
-/// units without a ranged attack, then the shooters. With more than five shooters the strongest
-/// in melee move forward, until the front has four units or four shooters are left.
-pub fn deployment_order(units: &[BattleUnit]) -> Vec<usize> {
+/// units without a ranged attack, then the shooters. With many shooters the strongest in melee move
+/// forward, until the front is full or few enough shooters are left (`shooters_move_above` and
+/// `front_units` of `battle.ron`).
+pub fn deployment_order(units: &[BattleUnit], rules: &DeploymentRules) -> Vec<usize> {
     let shoots = |u: &BattleUnit| u.own_ranged > 0 && u.ammo > 0;
     let mut melee: Vec<usize> = (0..units.len()).filter(|&i| !shoots(&units[i])).collect();
     let mut ranged: Vec<usize> = (0..units.len()).filter(|&i| shoots(&units[i])).collect();
-    if ranged.len() > 5 {
-        let to_move = ranged.len() - 4;
+    if ranged.len() > rules.shooters_move_above {
+        let to_move = ranged.len().saturating_sub(rules.front_units);
         for _ in 0..to_move {
-            if melee.len() >= 4 {
+            if melee.len() >= rules.front_units {
                 break;
             }
             // The strongest is taken from the shooters. The first of equals goes.

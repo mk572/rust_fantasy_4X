@@ -38,7 +38,7 @@ fn typical_strength(view: &PlayerView) -> f32 {
 
 /// What share of the peace-time defence a wizard in `phase` keeps (task 645): while it builds, a
 /// young city is held by little and the gold goes to settlers and buildings. A tuning number
-/// (`AIK_BUILD_GARRISON`), to be measured by the soak.
+/// (`AIS_BUILD_GARRISON`), to be measured by the soak.
 fn phase_factor(phase: crate::phase::Phase) -> f32 {
     match phase {
         crate::phase::Phase::Build => crate::knob("BUILD_GARRISON", 0.6),

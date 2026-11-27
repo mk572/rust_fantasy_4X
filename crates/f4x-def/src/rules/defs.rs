@@ -1,6 +1,11 @@
 //! Definition types: static content describing races, units, buildings, spells and
 //! so on. Runtime state (damage taken, remaining duration) lives in ECS components.
 
+use super::battle_number::{
+    at_least_one, BattleSpellRules, FieldRules, FleeRules, LuckyRules, MovementRules, ToHitRules,
+    TouchRules,
+};
+use super::combat_die::CombatDie;
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
@@ -664,6 +669,9 @@ pub struct SpellDef {
     /// through): the rule setting `magic_immunity_exceptions` brings that back.
     #[serde(default)]
     pub magic_immunity_exception: bool,
+    /// The realms of the creatures the spell may be thrown at; none listed means any unit.
+    #[serde(default)]
+    pub only_against: Vec<Id<RealmDef>>,
     /// Spells this one is not cumulative with. It cannot be cast on a unit that has one of them
     /// (or, for a global enchantment, on a wizard who keeps it), and while the unit has one its
     /// own bonuses do not count: Stone Skin gives way to Iron Skin.
@@ -882,10 +890,6 @@ impl LevelPathDef {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct RulesConfig {
-    /// Base chance (percent) for each figure's attack to hit.
-    pub to_hit_percent: u8,
-    /// Chance (percent) for each point of defense to block a hit.
-    pub block_percent: u8,
     /// Unrest percent caused by each tax rate; the rate is also half the gold per citizen.
     pub tax_unrest_percent: Vec<u8>,
     /// Unrest (in tens of percent) in a city of one race under a capital of another:
@@ -987,9 +991,136 @@ pub struct BattleRules {
     /// How thick the scenery of the field is.
     pub scenery: SceneryRules,
     /// What the walls of a city do.
+    /// The moves it takes to cross the squares of the field.
+    pub movement: MovementRules,
     pub city_wall: CityWallRules,
     /// Where the units of each side start.
     pub deployment: DeploymentRules,
+    /// The die of the blows and the blocks.
+    pub combat_die: CombatDie,
+    /// The percent of its defence a unit rolls against an armour piercing attack.
+    pub armor_piercing_defense_percent: i32,
+    /// A unit over the fissure of a Cracks Call falls in one time in this many.
+    pub fissure_one_in: u32,
+    /// The die of a resistance check, and the roll of a dispel.
+    pub resistance_die: i32,
+    pub dispel_die: u32,
+    /// The pluses and minuses to hit and to block.
+    pub to_hit: ToHitRules,
+    /// What weapons of quality 1, 2 and 3 add to the attacks and the defence.
+    pub weapon_material_bonus: Vec<i32>,
+    /// What the Lucky ability gives.
+    pub lucky: LuckyRules,
+    /// The spells on the whole field.
+    pub fields: FieldRules,
+    /// The touches of special attacks.
+    pub touches: TouchRules,
+    /// The battle spells that act in a way of their own.
+    pub spells: BattleSpellRules,
+    /// The most Magic Vortices on a field, and the odds of a vortex's bolt.
+    pub vortex_most: usize,
+    pub vortex_bolt_one_in: u32,
+    /// The hit points a regenerating unit gets back a turn.
+    pub regeneration_heals: i32,
+    /// The moves a shot costs.
+    pub shot_moves: crate::half_int::HalfInt,
+    /// The squares a summoned demon may appear on.
+    pub demon_squares: usize,
+    /// The losses of the units that flee.
+    pub flee: FleeRules,
+    /// The percent of the reserve a battle in the background may spend by default.
+    pub background_mana_percent: u32,
+}
+
+impl BattleRules {
+    /// The defence left against an armour piercing attack.
+    pub fn pierced(&self, defense: i32) -> i32 {
+        defense.saturating_mul(self.armor_piercing_defense_percent) / 100
+    }
+
+    /// What weapons of this quality add to the attacks and the defence (0: plain weapons).
+    pub fn weapon_bonus(&self, quality: u8) -> i32 {
+        usize::from(quality)
+            .checked_sub(1)
+            .and_then(|i| self.weapon_material_bonus.get(i))
+            .copied()
+            .unwrap_or(0)
+    }
+
+    /// The odds that a unit over a fissure falls in.
+    pub fn fissure_odds(&self) -> f32 {
+        1.0 / self.fissure_one_in.max(1) as f32
+    }
+
+    /// The problems of the numbers the rolls are made with: a die without a side that can fail or
+    /// succeed as said, a percent outside 0 to 100, odds of one in nothing, a divisor of zero.
+    pub fn problems(&self) -> Vec<crate::issue::ContentIssue> {
+        const F: &str = "battle.ron";
+        let mut p = crate::issue::Issues::new();
+        let die = self.combat_die;
+        if die.sides < 1 {
+            p.out_of_range(F, "combat_die", "sides", die.sides, "at least 1");
+        }
+        if die.success_from < 1 || die.success_from > die.sides {
+            p.out_of_range(
+                F,
+                "combat_die",
+                "success_from",
+                die.success_from,
+                "a side of the die",
+            );
+        }
+        let percent = self.armor_piercing_defense_percent;
+        if !(0..=100).contains(&percent) {
+            p.out_of_range(F, "", "armor_piercing_defense_percent", percent, "0 to 100");
+        }
+        if self.fissure_one_in == 0 {
+            p.out_of_range(F, "", "fissure_one_in", 0, "at least 1");
+        }
+        let lightning = self.fields.call_lightning;
+        for (record, field, value) in [
+            ("", "resistance_die", i64::from(self.resistance_die)),
+            ("", "dispel_die", i64::from(self.dispel_die)),
+            ("", "vortex_bolt_one_in", i64::from(self.vortex_bolt_one_in)),
+            (
+                "to_hit",
+                "range_penalty_squares",
+                i64::from(self.to_hit.range_penalty_squares),
+            ),
+            (
+                "spells",
+                "life_drain_mana_per_penalty",
+                i64::from(self.spells.life_drain_mana_per_penalty),
+            ),
+            ("call_lightning", "one_in", i64::from(lightning.one_in)),
+            ("", "demon_squares", self.demon_squares as i64),
+        ] {
+            at_least_one(&mut p, record, field, value);
+        }
+        if lightning.least_bolts > lightning.most_bolts {
+            p.out_of_range(
+                F,
+                "call_lightning",
+                "least_bolts",
+                lightning.least_bolts,
+                "at most most_bolts",
+            );
+        }
+        for (record, field, value) in [
+            ("flee", "loss_percent", self.flee.loss_percent),
+            ("flee", "hero_loss_percent", self.flee.hero_loss_percent),
+            (
+                "spells",
+                "raise_dead_figures_percent",
+                self.spells.raise_dead_figures_percent,
+            ),
+            ("", "background_mana_percent", self.background_mana_percent),
+        ] {
+            super::battle_number::percent(&mut p, record, field, i64::from(value));
+        }
+        self.movement.problems(&mut p);
+        p.into_vec()
+    }
 }
 
 /// The block of squares where a side's units start: they fill the columns (the x of the square, the
@@ -1016,6 +1147,10 @@ impl DeployBlock {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct DeploymentRules {
+    /// With more shooters than this, melee strong ones move to the front.
+    pub shooters_move_above: usize,
+    /// The units the front holds before no more shooters move up.
+    pub front_units: usize,
     pub attacker: DeployBlock,
     pub defender: DeployBlock,
     pub city_attacker: DeployBlock,
@@ -1051,6 +1186,8 @@ pub struct CityWallRules {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct RenownRules {
+    /// The levels of a fallen hero that cost its side a point of fame.
+    pub hero_levels_per_fame: i32,
     /// Experience a won battle gives each surviving unit of the winner for each dead enemy unit,
     /// and the point every unit gains each turn.
     pub xp_per_kill: u32,
@@ -1073,6 +1210,13 @@ pub struct RenownRules {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct SpellEffectRules {
+    /// Wind Mastery: the movement in percent of the keeper's ships and fliers, and of the others'.
+    pub wind_mastery_own_percent: i32,
+    pub wind_mastery_other_percent: i32,
+    /// Charm of Life: the percent of a figure's hits it adds.
+    pub charm_of_life_percent: i32,
+    /// The levels Crusade adds.
+    pub crusade_levels: usize,
     /// A volcano: each building of the city under it collapses, its square gets a mineral, and
     /// it cools into mountains each turn; Armageddon's volcano under a city takes a building, a
     /// unit and a citizen with this chance.
@@ -1647,4 +1791,6 @@ pub struct Rules {
     pub lairs: super::lair::LairRules,
     /// How the AI weighs a place for a city (`ai_sites.ron`, optional).
     pub ai_sites: super::ai_site::SiteRules,
+    /// The levers of the battle AI (`ai_battle.ron`).
+    pub ai_battle: super::ai_battle::BattleAiRules,
 }

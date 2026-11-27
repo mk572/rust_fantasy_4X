@@ -68,6 +68,7 @@ impl World {
                         .units()
                         .unit_resistance_against(unit, Some(Realm::Sorcery));
                     if resistance_failure(
+                        &self.content.rules.battle,
                         resistance,
                         self.content.rules.battle.freeing_modifier,
                         rng,

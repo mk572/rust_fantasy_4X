@@ -1,0 +1,127 @@
+// The levers of the battle AI (`f4x-ai` `battle/`; `BattleAiRules` in `f4x-def/src/rules/ai_battle.rs`).
+// These are the AI's tuning, not rules of the game. A run may override one with the environment
+// variable `AIK_<NAME>`, the name in capitals (`AIK_FLEE_STRENGTH_RATIO=3`).
+//
+// The worth of a unit is what it is worth in a fight as it stands: its strength times what it has
+// left. Its health is the part of its hit points it still has (0 to 1).
+(
+    // How the units move and strike.
+    orders: (
+        // A side runs when the enemy on the field is this many times as strong as what it has left.
+        flee_strength_ratio: 4.0,
+        // An attack on a unit that shoots is worth this many times one on a unit that does not.
+        shooter_threat: 1.2,
+        // The damage expected of an attack is at least this share of the hits expected, however
+        // high the target's defence.
+        least_hit_share: 0.1,
+        // A unit with Merging sinks into the ground only with an enemy that can hurt it this near
+        // (squares), and a health below merge_hurt_health; the last unit of its side on the field
+        // only below merge_dying_health.
+        merge_reach: 3,
+        merge_hurt_health: 0.5,
+        merge_dying_health: 0.25,
+        // A merged unit with a health below this comes up far from the enemy, else beside it.
+        surface_far_health: 0.5,
+    ),
+    // How the casts are ranked, and which are made.
+    choice: (
+        // A cast by a unit (a hero's spell, a charge) must be worth at least this share of the
+        // dearest enemy unit; a gift to our own units, this share of our dearest.
+        worth_floor: 0.12,
+        // A cast counts as a blow, held against the dearest enemy, when harm to the enemy is at
+        // least this share of its value.
+        blow_share: 0.5,
+        // A harmful cast must take this share of the worth of the dearest enemy to be better than
+        // strengthening our own units.
+        wound_enough: 0.3,
+        // Mana added to a cost when weighing value against price, so cheap spells do not always
+        // win (above 0).
+        mana_softening: 12.0,
+        // The odds at which a damage spell counts as one that kills.
+        kill_odds: 0.6,
+        // A kill is worth this many times the unit's worth: the unit is gone, with what it would
+        // still do.
+        kill_bonus: 1.5,
+    ),
+    // The spells on the whole field: shares of the worth of the units they fall on (our own for a
+    // gift, the enemy's for a curse).
+    field_spells: (
+        prayer_share: 0.15,
+        high_prayer_share: 0.25,
+        black_prayer_share: 0.2,
+        metal_fires_share: 0.2,
+        mass_invisibility_share: 0.25,
+        // Of our units, scaled by the shooters' part of the enemy's worth.
+        blur_share: 0.3,
+        terror_share: 0.3,
+        entangle_share: 0.1,
+        wrack_share: 0.2,
+        lightning_share: 0.25,
+        // True Light and Darkness: of the creatures of the realms they help and hurt.
+        light_share: 0.2,
+        warp_reality_share: 0.1,
+        // Mana Leak: a share of the dearest enemy, when the enemy wizard has mana to lose.
+        mana_leak_share: 0.05,
+    ),
+    // The spells on a unit, the summons, and the defences against the enemy's magic.
+    unit_spells: (
+        // A lasting spell on a unit (a blessing, a curse, a gift of an ability): a share of the
+        // unit's worth.
+        lasting_share: 0.25,
+        // A spell that holds a unit still (a web, confusion, black sleep), and one that takes it
+        // over (possession, creature binding): a share of its worth.
+        hold_share: 0.5,
+        steal_share: 1.5,
+        // A slaying spell: a share of the worth of each enemy it can touch, times the odds that
+        // the enemy fails its resistance check.
+        slay_share: 0.35,
+        // Making a unit's weapons magical against enemies that normal weapons barely hurt: a share
+        // of the unit's worth, as the unit does little else in that fight without it.
+        arm_share: 2.0,
+        // Warp Wood takes a missile unit's arrows: a share of its worth.
+        warp_wood_share: 0.5,
+        // Life Drain: a share of the worth of the unit drained.
+        drain_share: 0.2,
+        // Healing is kept for a unit with at most this health.
+        heal_health: 0.5,
+        // A recall is for a unit with a health below this; it saves this share of the worth the
+        // unit has lost.
+        recall_health: 0.4,
+        recall_share: 0.6,
+        // Raise Dead and Animate Dead: a share of the worth of the unit that comes back.
+        raise_share: 0.6,
+        animate_share: 0.5,
+        // A summon: a share of the worth of what appears (it fights at once, but is one more
+        // target).
+        summon_share: 0.75,
+        // The hit points an average outcome of Call Chaos is taken to remove from an enemy unit.
+        chaos_damage: 6.0,
+        // A dispel: a share of the worth of a unit for each lasting spell on it, of at most
+        // dispel_most_spells spells.
+        dispel_share: 0.1,
+        dispel_most_spells: 3,
+        // A wall: a share of the worth of the units that stand behind it.
+        wall_share: 0.2,
+        // Counter Magic: a share of our dearest unit, when the enemy wizard has mana to cast with.
+        counter_share: 0.2,
+    ),
+    // The spells on a square of the ground, and the vortex.
+    ground_spells: (
+        // Earth to Mud: a share of the worth of the enemy walkers within mud_reach squares of the
+        // centre, less ours.
+        mud_share: 0.15,
+        mud_reach: 3,
+        // Breaking a wall section (Disrupt, Cracks Call), for the side that attacks the city: a
+        // share of the worth of its units; only breach_far_part of that with no enemy within
+        // breach_reach squares of the gap.
+        wall_break_share: 0.1,
+        breach_reach: 3,
+        breach_far_part: 0.5,
+        // Squares from a vortex within which a unit is likely to be struck as it wanders, and the
+        // share of its worth that costs it.
+        vortex_reach: 2,
+        vortex_share: 0.1,
+        // Steering a vortex onto a unit strikes it for certain: this share of its worth on top.
+        vortex_landing_share: 0.3,
+    ),
+)

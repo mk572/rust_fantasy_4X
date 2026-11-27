@@ -161,7 +161,7 @@ impl World {
                         Some(crate::rules::RealmId::new(1) /* sorcery */),
                         Some(caster),
                     );
-                if dispel_roll(strength, difficulty, rng) {
+                if dispel_roll(&self.content.rules.battle, strength, difficulty, rng) {
                     let (gone, kept) = list.into_iter().partition(|&(s, _)| Some(s) == lock);
                     return (kept, gone);
                 }
@@ -172,7 +172,7 @@ impl World {
         let mut removed = Vec::new();
         for (spell, caster) in list {
             let difficulty = self.dispel_difficulty(spell, Some(caster));
-            if caster != by && dispel_roll(strength, difficulty, rng) {
+            if caster != by && dispel_roll(&self.content.rules.battle, strength, difficulty, rng) {
                 removed.push((spell, caster));
             } else {
                 kept.push((spell, caster));
@@ -264,7 +264,7 @@ impl World {
             .spells
             .id_numbered(55) /* enchant_road */
             .map_or(100, |s| self.dispel_difficulty(s, None));
-        if !dispel_roll(strength, difficulty, rng) {
+        if !dispel_roll(&self.content.rules.battle, strength, difficulty, rng) {
             return 0;
         }
         if let Some(m) = self.map.as_mut() {
@@ -285,7 +285,7 @@ impl World {
         let Some(node) = self.economy().node_at(at) else {
             return 0;
         };
-        if node.warped && dispel_roll(strength, warp, rng) {
+        if node.warped && dispel_roll(&self.content.rules.battle, strength, warp, rng) {
             if let Ok(mut n) = self.ecs.get::<&mut crate::feature::node::Node>(node.entity) {
                 n.warped = false;
             }
@@ -317,7 +317,7 @@ impl World {
         let difficulty = self.dispel_difficulty(spell, Some(victim));
         // Spell Binding never fails when the setting says so (patch 1.50, note 269).
         let certain = steal && self.settings.rules.spell_binding_always_succeeds;
-        if !certain && !dispel_roll(strength, difficulty, rng) {
+        if !certain && !dispel_roll(&self.content.rules.battle, strength, difficulty, rng) {
             return Some(false);
         }
         self.despawn_spell(instance);

@@ -19,7 +19,7 @@
 //! `the_legal_unit_casts_...` and the demon tests), on whole battles.
 
 use f4x_def::rules::realm::Realm;
-use f4x_def::rules::{SpellDef, SpellId, SpellTarget, UnitId};
+use f4x_def::rules::{Rules, SpellDef, SpellId, SpellTarget, UnitId};
 
 use super::aim::AimWorld;
 use super::caster::SpellAim;
@@ -108,7 +108,7 @@ impl Battle {
                 let def = self.content.rules.spells.get(spell);
                 let kind = SpellType::of(spell, def)?;
                 let cost = if source == SpellSource::Mana {
-                    unit_cast_cost(def, evil_omens)
+                    unit_cast_cost(def, &self.content.rules, evil_omens)
                 } else {
                     0
                 };
@@ -154,7 +154,7 @@ impl Battle {
             .ok_or(err(SpellError::NotKnown))?;
         let def = self.content.rules.spells.get(spell).clone();
         let kind = SpellType::of(spell, &def).ok_or(err(SpellError::Unsupported))?;
-        let least = unit_cast_cost(&def, evil_omens);
+        let least = unit_cast_cost(&def, &self.content.rules, evil_omens);
         let (paid, pool) = match source {
             SpellSource::Mana if kind.takes_extra_mana() => {
                 let pool = if mana == 0 { least } else { mana as i32 };
@@ -209,8 +209,8 @@ impl Battle {
                 if !s.castable {
                     continue;
                 }
-                let cost = unit_cast_cost(self.content.rules.spells.get(s.spell), evil_omens).max(0)
-                    as u32;
+                let def = self.content.rules.spells.get(s.spell);
+                let cost = unit_cast_cost(def, &self.content.rules, evil_omens).max(0) as u32;
                 let most = if s.takes_extra_mana && s.source == SpellSource::Mana {
                     (mana.max(0) as u32).max(cost)
                 } else {
@@ -290,7 +290,7 @@ impl Battle {
         if self.active_units(side).count() >= self.max_side || squares.is_empty() {
             return Err(BattleError::Spell(SpellError::NoRoom));
         }
-        // The nine squares nearest the side's edge, in the middle of the field.
+        // The squares nearest the side's edge, in the middle of the field.
         squares.sort_by_key(|&(x, y)| {
             let edge = match side {
                 Side::Attacker => x,
@@ -298,13 +298,13 @@ impl Battle {
             };
             (edge, (y - GRID_H / 2).abs(), y)
         });
-        squares.truncate(9);
+        squares.truncate(self.rules().demon_squares);
         Ok(squares)
     }
 
     /// A unit with Creature Summoning calls a demon (the original's `Summon_Demon`): one of the
-    /// unit's summons is used up, the demon appears on one of the nine squares nearest the
-    /// side's edge, and the unit's turn is over. Counter Magic does not meet it: it is no spell.
+    /// unit's summons is used up, the demon appears on one of the squares nearest the side's edge
+    /// (`demon_squares`), and the unit's turn is over. Counter Magic does not meet it: it is no spell.
     pub fn summon_demon(&mut self, unit: usize) -> Result<BattleEvent, BattleError> {
         let squares = self.demon_squares(unit)?;
         let demon = UnitId::new(169) /* demon */;
@@ -324,12 +324,12 @@ impl Battle {
     }
 }
 
-/// The mana a unit pays for a spell: its plain cost, and with Evil Omens in play half as
-/// much again for a life or nature spell (1.50 note 720: caster units pay it too).
-pub fn unit_cast_cost(def: &SpellDef, evil_omens: bool) -> i32 {
+/// The mana a unit pays for a spell: its plain cost, and with Evil Omens in play more for a life
+/// or nature spell (`evil_omens_percent` of `rules.ron`; 1.50 note 720: caster units pay it too).
+pub fn unit_cast_cost(def: &SpellDef, rules: &Rules, evil_omens: bool) -> i32 {
     let cost = def.cost as i32;
     if matches!(def.realm.num(), 0 | 3) && evil_omens {
-        cost + cost / 2
+        cost + cost * rules.config.wizard.evil_omens_percent / 100
     } else {
         cost
     }

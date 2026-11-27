@@ -144,6 +144,13 @@ Non-obvious findings, one rule up front in bold. General lessons (shell, tools) 
 
 ## Tools and builds
 
+- **A content change moves the fingerprint of every save in the tests; do not rebuild the regression
+  saves for it.** `F4X_REFRESH_FIXTURES=1` (the core's fresh games) changes only the fingerprint, but
+  `F4X_REFRESH_REGRESSION=saves` plays the games anew with today's code, which gave quite different
+  games and targets (task 832). For a change that must not move play, load the old saves with
+  `ContentCheck::Ignore` and check that the targets stay, then replace only the `content:` fingerprint
+  in them and the checksum of the first line (FNV-1a of the rest, `world/save.rs`).
+
 - **A client screenshot is the same every time only with `--seed N`.** Two runs of `--city` without it differ in
   about a million pixels; with `--seed 5` they are equal. So a change in how pictures are read (task 471, the sprite
   packs) is checked by shooting a dozen screens (`--city`, `--armies`, `--unit-list`, `--magic`...) from the loose

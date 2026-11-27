@@ -439,8 +439,11 @@ impl World {
         unit.id = id;
         unit.cell = cell;
         active.battle.put_unit(id, unit);
-        let half = active.battle.units[id].figures_start.div_ceil(2).max(1);
-        active.battle.units[id].set_figures(half);
+        let percent = self.content.rules.battle.spells.raise_dead_figures_percent;
+        let figures = (active.battle.units[id].figures_start * percent)
+            .div_ceil(100)
+            .max(1);
+        active.battle.units[id].set_figures(figures);
         vec![BattleEvent::Raised { unit: id }]
     }
 
@@ -578,11 +581,12 @@ impl World {
         events
     }
 
-    /// Call Chaos: every enemy unit gets one of eight effects at random: nothing, five hit
-    /// points of healing (not the dead), Chaos Channels, Warp Creature, a Fire Bolt of strength
-    /// 15, Warp Lightning, a Doom Bolt, or Disintegrate. Chaos Channels and Warp Creature work
+    /// Call Chaos: every enemy unit gets one of eight effects at random: nothing, healing (not
+    /// the dead), Chaos Channels, Warp Creature, a Fire Bolt, Warp Lightning, a Doom Bolt, or
+    /// Disintegrate (the numbers are `spells.call_chaos` of `battle.ron`). Chaos Channels and Warp Creature work
     /// as the spells do, on a normal unit that has not got the change already.
     fn call_chaos(&mut self, side: Side, player: PlayerId, rng: &mut GameRng) -> Vec<BattleEvent> {
+        let numbers = self.content.rules.battle.spells.call_chaos;
         let mut events = Vec::new();
         for t in self.enemies_of(side) {
             let Some(active) = self.battle.as_mut() else {
@@ -640,13 +644,16 @@ impl World {
                     if b.units[t].realm != Some(Realm::Death) {
                         events.push(BattleEvent::SpellHealed {
                             unit: t,
-                            healed: b.spell_heal(t, 5),
+                            healed: b.spell_heal(t, numbers.healing),
                         });
                     }
                 }
                 5..=7 => {
                     let (id, strength) = match roll {
-                        5 => (SpellId::new(83) /* fire_bolt */, Some(15)),
+                        5 => (
+                            SpellId::new(83), /* fire_bolt */
+                            Some(numbers.fire_bolt_strength),
+                        ),
                         6 => (SpellId::new(101) /* warp_lightning */, None),
                         _ => (SpellId::new(104) /* doom_bolt */, None),
                     };
@@ -659,7 +666,8 @@ impl World {
                 }
                 8 => {
                     let b = &mut active.battle;
-                    if let Some(d) = b.spell_slay(t, Realm::Chaos, 0, &[], Some(10)) {
+                    let below = Some(numbers.disintegrate_below);
+                    if let Some(d) = b.spell_slay(t, Realm::Chaos, 0, &[], below) {
                         events.push(BattleEvent::SpellSlew {
                             unit: t,
                             kills: d.kills,
@@ -730,7 +738,12 @@ impl World {
         let mut events = Vec::new();
         for (field, spell) in up {
             let difficulty = self.dispel_difficulty(spell, Some(victim));
-            if !crate::spell::dispel::dispel_roll(strength, difficulty, &mut rng) {
+            if !crate::spell::dispel::dispel_roll(
+                &self.content.rules.battle,
+                strength,
+                difficulty,
+                &mut rng,
+            ) {
                 continue;
             }
             if let Some(active) = self.battle.as_mut() {
@@ -764,7 +777,12 @@ impl World {
                     continue;
                 }
                 let difficulty = self.dispel_difficulty(spell, Some(victim));
-                if !crate::spell::dispel::dispel_roll(strength, difficulty, &mut rng) {
+                if !crate::spell::dispel::dispel_roll(
+                    &self.content.rules.battle,
+                    strength,
+                    difficulty,
+                    &mut rng,
+                ) {
                     continue;
                 }
                 if let Some(active) = self.battle.as_mut() {
@@ -884,7 +902,10 @@ impl World {
                     SpellType::Enchant { mods, grants, .. } => (mods, grants),
                     SpellType::Turn { bind: true, .. } => (Vec::new(), Vec::new()),
                     // The warp it got is kept among the unit's enchantment ids.
-                    SpellType::Warp { .. } => (warp_mods(unit.warp?, spell), Vec::new()),
+                    SpellType::Warp { .. } => (
+                        warp_mods(unit.warp?, spell, &self.content.rules.battle),
+                        Vec::new(),
+                    ),
                     _ => return None,
                 };
                 Some(super::Lasting {

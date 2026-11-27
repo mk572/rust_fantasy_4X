@@ -3,6 +3,7 @@
 //! Tests: in rules/exec/tests.rs, wizard/magic_world/tests.rs and spell/wizard/tests.rs.
 
 use crate::rules::Ability;
+use f4x_battle::resistance::resistance_failure;
 use rand::RngCore;
 
 use crate::map::Position;
@@ -244,6 +245,15 @@ impl EffectHost for WorldHost<'_> {
         for _ in 0..count {
             self.world.spawn_unit(owner, at, id);
         }
+    }
+
+    fn resistance_failure(&mut self, resistance: i32, modifier: i32) -> i32 {
+        resistance_failure(
+            &self.world.content.rules.battle,
+            resistance,
+            modifier,
+            &mut *self.rng,
+        )
     }
 
     fn rng(&mut self) -> &mut dyn RngCore {

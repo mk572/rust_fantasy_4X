@@ -11,22 +11,33 @@ use f4x_def::rules::hook_name::{HEROISM, RECALL, RECALL_ANYONE, RECALL_HERO, WAL
 use f4x_def::rules::realm::Realm;
 use f4x_def::rules::stats::{ModOp, Modifier, Source, Stat};
 use f4x_def::rules::unit_effect::{UnitEffect, UNIT_EFFECT};
-use f4x_def::rules::{Ability, SpellId, UnitId};
+use f4x_def::rules::{Ability, BattleRules, SpellId, UnitId};
 
 use super::caster::SpellAim;
 use super::field::{Field, BATTLEFIELD};
 use crate::unit::WarpKind;
 
 /// The changes of one of Warp Creature's three results.
-pub fn warp_mods(kind: WarpKind, spell: SpellId) -> Vec<Modifier> {
+pub fn warp_mods(kind: WarpKind, spell: SpellId, rules: &BattleRules) -> Vec<Modifier> {
+    let warp = rules.spells.warp_creature;
     let source = Source::Spell(spell);
     match kind {
         WarpKind::Attack => vec![
-            Modifier::new(Stat::Melee, ModOp::Percent, -50, source),
-            Modifier::new(Stat::Ranged, ModOp::Percent, -50, source),
+            Modifier::new(Stat::Melee, ModOp::Percent, warp.attack_percent, source),
+            Modifier::new(Stat::Ranged, ModOp::Percent, warp.attack_percent, source),
         ],
-        WarpKind::Defense => vec![Modifier::new(Stat::Defense, ModOp::Percent, -50, source)],
-        WarpKind::Resistance => vec![Modifier::new(Stat::Resistance, ModOp::Set, 0, source)],
+        WarpKind::Defense => vec![Modifier::new(
+            Stat::Defense,
+            ModOp::Percent,
+            warp.defense_percent,
+            source,
+        )],
+        WarpKind::Resistance => vec![Modifier::new(
+            Stat::Resistance,
+            ModOp::Set,
+            warp.resistance,
+            source,
+        )],
     }
 }
 
@@ -73,6 +84,8 @@ pub enum SpellType {
         only: SlayOnly,
         below: Option<i32>,
         mana_per_step: u32,
+        /// Added to the modifier against the undead.
+        undead_modifier: i32,
         all: bool,
     },
     /// A battlefield enchantment.
@@ -220,6 +233,7 @@ impl SpellType {
                 only,
                 below,
                 mana_per_step,
+                undead_modifier,
             } => Some(SpellType::Slay {
                 realm: Realm::of(*realm)?,
                 modifier: *modifier,
@@ -227,6 +241,7 @@ impl SpellType {
                 only: *only,
                 below: *below,
                 mana_per_step: *mana_per_step,
+                undead_modifier: *undead_modifier,
                 all: all_enemies,
             }),
             Effect::Custom { name, .. } if name == BATTLEFIELD => {
@@ -347,22 +362,13 @@ impl BattleEffect {
     }
 }
 
-/// Creatures a spell may only be thrown at, by realm: Star Fires burns chaos and death
-/// creatures and nothing else.
-pub fn only_against(spell: SpellId) -> Option<&'static [Realm]> {
-    match spell.num() {
-        122 /* star_fires */ => Some(&[Realm::Chaos, Realm::Death]),
-        _ => None,
-    }
-}
-
-/// How much harder the undead find it to resist a spell, on top of its own modifier: Dispel Evil
-/// and Holy Word (the help's "much more difficult time").
-pub fn undead_penalty(spell: SpellId) -> i32 {
-    match spell.num() {
-        134 /* dispel_evil */ | 150 /* holy_word */ => 5,
-        _ => 0,
-    }
+/// Whether the spell may be thrown at the unit: `only_against` of its definition names the realms
+/// of the creatures it may, none for any unit.
+pub fn may_be_thrown_at(def: &SpellDef, unit: &crate::unit::BattleUnit) -> bool {
+    def.only_against.is_empty()
+        || unit
+            .realm
+            .is_some_and(|r| def.only_against.iter().any(|&id| Realm::of(id) == Some(r)))
 }
 
 /// Whether a slaying spell of this kind can destroy the unit.

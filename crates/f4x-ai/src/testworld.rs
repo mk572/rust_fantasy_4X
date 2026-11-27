@@ -282,7 +282,7 @@ pub fn real_battle(
         defenders,
     });
     let mut b = w.battle().expect("a battle began").clone();
-    b.map = BattleMap::open();
+    b.map = BattleMap::open(b.content.rules.battle.movement);
     let mut placed = vec![false; b.units.len()];
     let mut order = Vec::new();
     for (side, list) in [(Side::Attacker, ours), (Side::Defender, theirs)] {

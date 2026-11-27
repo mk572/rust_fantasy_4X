@@ -140,7 +140,7 @@ impl World {
                 continue;
             }
             let resistance = self.units().unit_resistance_against(unit, Some(realm));
-            if resistance_failure(resistance, modifier, rng) > 0 {
+            if resistance_failure(&self.content.rules.battle, resistance, modifier, rng) > 0 {
                 self.remove_unit(unit, crate::hero::Fate::Slain);
                 slain += 1;
             }
@@ -168,6 +168,7 @@ impl World {
         let failed = (0..figures)
             .filter(|_| {
                 resistance_failure(
+                    &self.content.rules.battle,
                     resistance,
                     self.content.rules.config.spell_effects.black_wind_modifier,
                     rng,

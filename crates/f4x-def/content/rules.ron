@@ -1,7 +1,5 @@
 // Kept by hand (the importer no longer writes this file).
 (
-    to_hit_percent: 30,
-    block_percent: 30,
     tax_unrest_percent: [0, 10, 20, 30, 45, 60, 75],
     racial_unrest: [[0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 0, 0, 1], [1, 0, 2, 2, 2, 0, 1, 2, 1, 2, 1, 1, 1, 2], [1, 2, 0, 2, 3, 2, 2, 4, 2, 2, 2, 2, 2, 3], [1, 2, 2, 0, 2, 1, 1, 1, 1, 2, 1, 1, 1, 2], [1, 2, 3, 2, 0, 1, 0, 3, 0, 2, 1, 0, 3, 4], [1, 0, 2, 1, 1, 0, 0, 1, 1, 2, 1, 1, 0, 0], [1, 1, 2, 1, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0], [1, 2, 4, 1, 3, 1, 0, 0, 0, 2, 1, 0, 2, 3], [1, 1, 2, 1, 0, 1, 0, 0, 0, 2, 1, 0, 0, 1], [2, 2, 2, 2, 2, 2, 2, 2, 2, -2, 2, 2, 2, 2], [1, 1, 2, 1, 1, 1, 0, 1, 1, 2, 0, 1, 1, 1], [0, 1, 2, 1, 0, 1, 0, 0, 0, 2, 1, 0, 0, 1], [0, 1, 2, 1, 3, 0, 0, 2, 0, 2, 1, 0, 0, 0], [1, 2, 3, 2, 4, 0, 0, 3, 1, 2, 1, 1, 0, 0]],
     // The cost multiplier (percent) of a spell cast in battle: 5 at the fortress, else 10 plus 5 for
@@ -61,7 +59,9 @@
     ),
     // Experience and fame: per dead enemy unit and per turn, the dead that cost a point of fame, the cost of a very rare
     // foe, Just Cause and the fortress prize, the level Heroism gives (from 0) and the resistance Charmed adds.
-    renown: (xp_per_kill: 2, xp_per_turn: 1, fame_kills: 4, rare_foe_cost: 600, just_cause_fame: 10, fortress_prize_fame: 5, heroism_level: 3, charmed_resistance: 30),
+    renown: (xp_per_kill: 2, xp_per_turn: 1, fame_kills: 4, rare_foe_cost: 600, just_cause_fame: 10, fortress_prize_fame: 5, heroism_level: 3, charmed_resistance: 30,
+        // A winner's foe loses a point of fame for each this many levels (rounded up) of a fallen hero.
+        hero_levels_per_fame: 2),
     // The overland spells: chances in a hundred, strengths, penalties, and the buildings and realms they single out.
     spell_effects: (
         collapse_percent: 15, mineral_percent: 20, cool_percent: 2, armageddon_city_percent: 25,
@@ -75,6 +75,10 @@
         black_wind_modifier: -1, unsummoning_modifier: -2, drain_rolls: 10, drain_die: 20,
         earthquake_building_percent: 15, earthquake_unit_percent: 25,
         spell_lock_difficulty: 150, suppress_magic_strength: 500,
+        // Wind Mastery: the movement of the ships and fliers of a wizard who keeps it, and of the others', in percent.
+        wind_mastery_own_percent: 150, wind_mastery_other_percent: 50,
+        // Charm of Life adds this percent of a figure's hits (at least 1); Crusade this many levels.
+        charm_of_life_percent: 25, crusade_levels: 1,
         consecration_realms: [4 /* death */, 2 /* chaos */],
         religious_buildings: [22 /* shrine */, 23 /* temple */, 24 /* parthenon */, 25 /* cathedral */],
         city_walls: 35,

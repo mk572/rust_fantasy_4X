@@ -37,7 +37,7 @@ cast, settlers, army, city production (`lib.rs`). Each part:
 | Part | What it does now |
 |---|---|
 | `diplomacy.rs` | Answers proposals with its own rating (`diplomacy::rate`, the original's `Diplomacy_Test`); a fierce militarist or expansionist declares war on a weaker neighbour (`quarrel`); a wizard may declare war on a Spell of Mastery caster (`mastery_scare`). Never proposes anything. |
-| `raze` | After its attacks: razes a city just taken from a wizard when the points against keeping it pass a threshold, with no roll: the temper (a peaceful wizard never razes, a lawful one only a city of a wizard it fights), the racial unrest between its people and the city's, the worth of the land, the city's citizens and the cost of its buildings, how hard the city is to hold (own and enemy cities within 14 squares, walls) and the soldiers in or within 3 squares of it against the defence it wants. Weights: `AIK_RAZE_*`. Never a city of the independents. |
+| `raze` | After its attacks: razes a city just taken from a wizard when the points against keeping it pass a threshold, with no roll: the temper (a peaceful wizard never razes, a lawful one only a city of a wizard it fights), the racial unrest between its people and the city's, the worth of the land, the city's citizens and the cost of its buildings, how hard the city is to hold (own and enemy cities within 14 squares, walls) and the soldiers in or within 3 squares of it against the defence it wants. Weights: `AIS_RAZE_*`. Never a city of the independents. |
 | `economy::taxes` | The lowest tax rate that leaves a small surplus. |
 | `economy::research` | When idle, takes the first of the offered candidates (the core lists the fastest first). |
 | `economy::cast` | Starts the dearest summoning spell it can pay for with a third of the mana left over. Nothing else is cast, so most spells are dead weight. |
@@ -296,6 +296,16 @@ Same inputs as a player: the `Battle` and, for spells, the `World`. No randomnes
 step is kept if the new AI beats the old one in mirrored fights (section 8.2) and the battle
 and learn tests still pass.
 
+**The levers.** Every number that tunes what the battle AI does is in
+`crates/f4x-def/content/ai_battle.ron` (`BattleAiRules`), grouped by subject, each with a comment on
+what it steers; the names below in code type are its entries. The file holds every value: one left
+out is an error, and the code has no default. The environment variable `AIK_<NAME>` overrides a
+lever for a run (`AIK_FLEE_STRENGTH_RATIO=3`; the strategic AI's knobs are `AIS_<NAME>`). The
+variables are read once, at the battle AI's first decision; a value the lever cannot take, and a
+name that is no lever's, are reported on stderr and ignored. What is a rule of the game is not a lever: the AI reads it from `battle.ron`
+as the battle does (`combat_die` and `armor_piercing_defense_percent` in `expected_damage`,
+`fissure_one_in` for Cracks Call).
+
 ### 6.2 A brain with the game (step 9)
 
 Built as `f4x_ai::battle::cast::next_command(&World)`, which `World::next_battle_command` calls for every
@@ -342,25 +352,25 @@ mana, and cast the best affordable one once a turn with a floor on the score. Th
 can afford every turn, with no floor on the worth (only a cast worth nothing is left alone);
 the bounds are outside: the casting skill of the battle, the mana reserve minus what the
 overland upkeep needs, and the budget the player or the strategic AI sets (task 601). The tiers
-and the value per mana (softened by `MANA_SOFTENING`) order the casts. What each kind is worth
+and the value per mana (softened by `mana_softening`) order the casts. What each kind is worth
 (`f4x-ai/src/battle/cast.rs`, `docs/battle-spell-ai.md` lists every spell):
 
 - a blow: the game's own odds (`preview_spell_damage`), a kill first, mana fed until it kills;
-- a slay: 35% of the worth of each enemy it can touch (`slay_allows`), times the chance that the
-  enemy fails its save (`Battle::failure_chance`);
+- a slay: `slay_share` of the worth of each enemy it can touch (`slay_allows`), times the chance
+  that the enemy fails its save (`Battle::failure_chance`);
 - a curse with a save: its flat share times the chance the target fails the save; a cap on a stat
-  (Shatter) is a curse; a spell that holds a unit is worth half of it, one that takes it over all;
-- a lasting gift on our own unit: 25% of its worth;
+  (Shatter) is a curse; a spell that holds a unit is worth `hold_share` of it, one that takes it
+  over `steal_share` (the enemy loses the unit and we gain it);
+- a lasting gift on our own unit: `lasting_share` of its worth;
 - a battlefield spell: a share of the worth of the units it falls on, ours for a gift (Prayer,
   Metal Fires, Mass Invisibility, Blur against shooters), the enemy's for a harm (Black Prayer,
   Terror, Wrack, Call Lightning, Entangle), the realm creatures for light and darkness;
-- a wall: 20% of the worth of the units behind it; Counter Magic: 20% of our dearest unit while
-  the enemy wizard has mana; a dispel: 10% of a unit's worth for each lasting spell on an enemy
-  unit; a recall: a unit that is nearly dead; Raise and Animate Dead: a share of the unit that
-  returns; Life Drain: 20% of the unit.
+- a wall: `wall_share` of the worth of the units behind it; Counter Magic: `counter_share` of our
+  dearest unit while the enemy wizard has mana; a dispel: `dispel_share` of a unit's worth for each
+  lasting spell on an enemy unit; a recall: a unit that is nearly dead; Raise and Animate Dead: a
+  share of the unit that returns; Life Drain: `drain_share` of the unit.
 
-- the ground: Earth to Mud holds back the enemy walkers near the square (15% of their worth, less ours); Cracks Call is a one in four chance on the walker over the fissure plus the wall it breaks; Disrupt opens a wall section for the side that attacks the city;
-- a takeover (Possession, Creature Binding) is worth 1.5 times the unit: the enemy loses it and we gain it.
+- the ground: Earth to Mud holds back the enemy walkers near the square (`mud_share` of their worth, less ours); Cracks Call is a one in four chance on the walker over the fissure plus the wall it breaks; Disrupt opens a wall section for the side that attacks the city.
 
 **Task 601 (17 November 2026): the strategic AI sets the budget** (`f4x-ai/src/budget.rs`, used by
 `military::engage` for every attack of a wizard: the army, the perimeter, the pickup, the raids on sites and
@@ -380,7 +390,7 @@ is nearly dead (the recalls), a shooter (Blur), the creatures of a realm (True L
 Banish, Holy Word, Dispel Evil), an enemy walker on the square (Earth to Mud, Cracks Call, Magic
 Vortex), an enemy wizard with mana (Counter Magic, Mana Leak), a missile unit with arrows (Warp
 Wood). Disrupt waits for a walled city under attack. The units' own casts (a hero's spell, a
-charge, an ability) keep a floor of 12% of the dearest enemy (`WORTH_FLOOR`) on purpose: a unit
+charge, an ability) keep a floor, `worth_floor` of the dearest enemy, on purpose: a unit
 that casts gives up its attack, so a cast of no account is not worth it, where the wizard's
 turn is its own. The shares and the budget constants are first guesses; task 640 tunes them
 against the soak.
@@ -742,7 +752,7 @@ Before the objectives (same code otherwise): 0 of 8 won, 12 to 78 s a game. A wi
 (often 1 to 3 of them outposts) and 5 to 30 units; the treasury sits at 50 to 100 gold.
 
 **Statecraft, 14 November 2026 (task 510, `docs/diplomacy.md` section 8).** Measured with the parts switched off
-(`AIK_DIPLO_ON_*=0`) and on, on `small-2p`, `hard-3p` and `islands-3p` of `scripts/soak_variety.sh`, six rounds of seeds (24, 18 and 24
+(`AIS_DIPLO_ON_*=0`) and on, on `small-2p`, `hard-3p` and `islands-3p` of `scripts/soak_variety.sh`, six rounds of seeds (24, 18 and 24
 games, 66 each way; the numbers are before the later gift to a hostile coalition partner and the 25-turn peace cooldown):
 
 | | Won | By conquest | Mean winning turn | Wars declared a game | Peace offers a game | Refused or lapsed proposals a game |
@@ -762,8 +772,8 @@ three rounds of seeds), the same games in each run, so the games differ only by 
 
 | Run | Games won | By conquest | Trades done a game | Alliances ended |
 |---|---|---|---|---|
-| `AIK_DIPLO_COALITION_END=0` (the asking stops) | 24 of 42 | 11 | 0.02 | 0 |
-| `AIK_DIPLO_COALITION_END=1` (the alliance is broken) | 24 of 42 | 11 | 0.02 | 0 |
+| `AIS_DIPLO_COALITION_END=0` (the asking stops) | 24 of 42 | 11 | 0.02 | 0 |
+| `AIS_DIPLO_COALITION_END=1` (the alliance is broken) | 24 of 42 | 11 | 0.02 | 0 |
 | trade margins 98, 95, 90 and the best swap pair | 24 of 42 | 11 | 0.02 | 0 |
 
 The two coalition runs are the same game for game: in 42 games no alliance made against a leader lasted until the leader
@@ -777,7 +787,7 @@ holds them back; trades with the human are by the same rule (`diplomacy.md` sect
 **Trade negotiation and the gold reserve, 14 November 2026 (task 599).** 42 games (same four setups, three seed offsets): 23 won,
 7 by conquest, 47 trades offered, 17 counters, 18 trades done, 0.43 a game (before: 0.02). Nearly all trades were counters that
 added a category or gold; 17 of the 18 included an item, unit or hero. The reserve (40 + 3 times net gold a turn) and the lower
-trade reserve (40) were not tested alone (a run with `AIK_GOLD_RESERVE_INCOME=0` would isolate them). Wins fell from 24 to 23
+trade reserve (40) were not tested alone (a run with `AIS_GOLD_RESERVE_INCOME=0` would isolate them). Wins fell from 24 to 23
 of 42, within the noise of this sample.
 
 ### 12.3 Open issues

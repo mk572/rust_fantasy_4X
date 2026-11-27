@@ -37,8 +37,17 @@ vanishing, moving the winner onto the square.
 
 Everything is in `attack.rs` as pure functions over numbers and a random generator.
 
+**The numbers are content.** The text here states them as shipped; the game reads them from
+`crates/f4x-def/content/battle.ron` (dice, to-hit changes, weapon metals, Lucky, field spells,
+touches, the battle spells, vortices, fleeing), from `abilities.ron` and `spells.ron` (what an
+ability or a spell does, such as magic immunity's resistance) and from `rules.ron` (Wind Mastery,
+Charm of Life, Crusade, Evil Omens, fame). What it costs to cross the squares of the field is
+`movement` of `battle.ron`.
+
 - **A die** is ten-sided. It hits on 8, 9 or 10 (30 percent); each plus to hit lowers the
-  number needed by one (+10 percent), a 10 always hits (so at least 10 percent).
+  number needed by one (+10 percent), a 10 always hits (so at least 10 percent). The sides and
+  the number needed are `combat_die` of `battle.ron`, which the battle and the battle AI both
+  read.
 - **An attacking figure** rolls its strength (melee, ranged or thrown) in dice. The defender
   then rolls its **defence** in dice, blocking on the same terms, and only the hits left
   over do damage.
@@ -200,7 +209,8 @@ Per attack, in order:
 
 A failed check "kills a figure" by dealing a whole figure's hit points of damage no defence
 blocks, so a figure already hurt dies sooner, and the damage that is left spills on to the next.
-Armour piercing halves the defence (rounding down) before the immunity floor of 10 is applied;
+Armour piercing halves the defence (`armor_piercing_defense_percent` of `battle.ron`, rounding
+down) before the immunity floor of 10 is applied;
 lightning breath pierces armour too. Healing (`DefenderState::heal`) mends the front figure,
 then brings dead figures back, and nothing over full strength is kept.
 
@@ -230,7 +240,7 @@ good.
   units pay one move everywhere. Moves are `HalfInt` amounts (1 move, 1.5, a road half a move) like the overland map; a unit with
   any move left may take a last step that costs more. **A diagonal step costs half a move more**
   than a straight one, for walkers, swimmers, ships and fliers alike (wiki "Movement Type";
-  `DIAGONAL_EXTRA`); mud, which takes all the moves left, stays as it is. One search gives both the
+  `movement.diagonal_extra`); mud, which takes all the moves left, stays as it is. One search gives both the
   squares a unit may reach and the cost of walking there (the original adds the half move only when
   it plots the path, not when it marks the reachable squares: 1.50 note 445). The setting
   `diagonal_extra_cost` is for the overland map only.
@@ -332,7 +342,7 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
   that stays at its bow and cannot sail off; the land units it carries stand on the rest of the
   deck and fight. A walker on a deck may **jump** the single square of water to another deck
   (diagonals too) for two moves, always possible with any move left, as with rough
-  ground (`BattleMap::reachable_as`, `JUMP_COST`). A ship in a city or on land (a fight that is not on the sea) sits out unless it has Flight or
+  ground (`BattleMap::reachable_as`, `movement.jump`). A ship in a city or on land (a fight that is not on the sea) sits out unless it has Flight or
   Wraith Form (1.50 note 458). Land units not aboard a ship that has a deck
   sit the fight out and go down with their side if it loses (`ActiveBattle::left_out`); Wind
   Walking still carries a stack through the air. The decks are drawn as brown diamonds
@@ -562,7 +572,7 @@ using the wizard's skill or reserve, and not the wizard's one cast a turn:
 `World::battle_unit_spells(unit)` lists them, `legal_unit_casts()` the legal casts for the AI and the
 console (`uspells`, `ucast`, `blegal`). Spells of the other kinds added with it: Earth to Mud (a 5 by 5
 area of open ground; walkers pay 6 moves to enter, fliers and the bodiless do not), Cracks Call
-(one square: a walker or crawler there is destroyed one time in four, a wall on it falls), Disrupt
+(one square: a walker or crawler there is destroyed one time in four (`fissure_one_in`), a wall on it falls), Disrupt
 (one wall section), Life Drain and Word of Recall (any of the wizard's units, not only a hero).
 
 ## 9. Battlefield enchantments and destroying spells (tasks 44 and part of 159)

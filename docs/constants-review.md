@@ -14,7 +14,7 @@ number is deleted (the hash replaces it). The moves are the tasks named in the l
 
 | Where | What | Why |
 |---|---|---|
-| `f4x-battle/map.rs`, `map/layout.rs` | grid size (`GRID_W`, `GRID_H`, `W`, `H`), terrain codes, deck codes, step tables, `STRUCTURE`, city box, gate, `SAIL_COST` | the shape of the battlefield and the encoding of its map, not a tunable rule |
+| `f4x-battle/map.rs`, `map/layout.rs` | grid size (`GRID_W`, `GRID_H`, `W`, `H`), terrain codes, deck codes, step tables, `STRUCTURE`, city box, gate | the shape of the battlefield and the encoding of its map, not a tunable rule |
 | `path_grid.rs`, `unit/pathing/*`, `map/fog.rs` | `NONE`, `AROUND`, fog bit masks and corner tables | engine encoding |
 | `hook.rs`, `battle/field.rs`, `spell/*` (`*_EFFECT`, `RECALL`, `GATE`, ...), `item/crafting.rs` `CRAFT_ITEM` | names of hooks and effect kinds | the keys that tie a `.ron` row to the code that handles it |
 | `world/save.rs`, `f4x-master`: `game/undo.rs`, `game/replay.rs`, `unit/kept.rs`, `unit/crowding.rs`, `finance.rs`, `vision.rs` | save versions, undo depth, thread-local caches, `OnceLock` switches | engine internals |
@@ -37,7 +37,7 @@ one that reads them.
 
 | Group | Constants | Task |
 |---|---|---|
-| Battle rules | `IMMOLATION_STRENGTH`, `LARGE_SHIELD`, `INVULNERABILITY_BLOCK`, `IMMUNE_DEFENSE`, `MANA_LEAK_DRAIN`, `CALL_LIGHTNING_STRENGTH`, `WALL_OF_FIRE_STRENGTH`, `NODE_COUNTER_STRENGTH`, `NODE_AURA_BONUS`, `SHOT_MANA`, `WEB_HITS`, `TURN_LIMIT`, the move costs (`JUMP_COST`, `DIAGONAL_EXTRA`, `OPEN_COST`, `ROUGH_COST`, `MUD_COST`), the vortex numbers, `FREEING_MODIFIER` | 675 (done: `battle` of `rules.ron`; the move costs of the battle map are its encoding and stay) |
+| Battle rules | `IMMOLATION_STRENGTH`, `LARGE_SHIELD`, `INVULNERABILITY_BLOCK`, `IMMUNE_DEFENSE`, `MANA_LEAK_DRAIN`, `CALL_LIGHTNING_STRENGTH`, `WALL_OF_FIRE_STRENGTH`, `NODE_COUNTER_STRENGTH`, `NODE_AURA_BONUS`, `SHOT_MANA`, `WEB_HITS`, `TURN_LIMIT`, the move costs (`JUMP_COST`, `DIAGONAL_EXTRA`, `OPEN_COST`, `ROUGH_COST`, `MUD_COST`), the vortex numbers, `FREEING_MODIFIER` | 675 (done: `battle` of `rules.ron`; the move costs of the battle map are `movement` of `battle.ron`) |
 | Experience, fame and spoils | `XP_PER_KILL`, `FAME_XP`, `RARE_FOE_COST`, `FAME_KILLS` (the four-dead-units rule), `JUST_CAUSE_FAME`, `FORTRESS_PRIZE_FAME`, `HEROISM_LEVEL`, `CHARMED_RESISTANCE`, the tiers of `hero.rs` | 676 (done: `renown` of `rules.ron`; the hero ability numbers of `hero.rs` are an encoding and stay) |
 | Spell effects | `spell/city.rs` (chaos rift, wards, consecration, religious buildings, walls), `dispel.rs`, `terraform.rs`, `wizard.rs`, `world.rs`, `ARMAGEDDON_*`, `BLACK_WIND_MODIFIER`, `UNSUMMONING_MODIFIER`, `WEREWOLVES`, the corruption fade, `nightshade.rs` | 677 (done: `spell_effects` of `rules.ron`; `COUNTER_MAGIC_DRAIN` goes with 675, `JUST_CAUSE_FAME` with 676) |
 | Abilities known by number | `mobility.rs` (the ability numbers and multipliers), `experience.rs` (`ARMSMASTER`), `mutation.rs`, `undead.rs` (`UNDEAD_IMMUNITIES`, `DEATH`), `hero/kind.rs` `MAGIC_RANGED`, `WEAPON_*`, `HEROISM`, `SPELL_CHARGES`, `monster.rs` `LIFE` | 678 (done: `abilities`, `targets` and `threat.spared_realms` of `rules.ron`, `holds_spell` of `item_powers.ron`; `WEAPON_*` is the encoding of the quality and stays) |

@@ -24,7 +24,7 @@ const NEAR: u32 = 14;
 /// How near a soldier must stand to count as there to hold the city.
 const REACH: u32 = 3;
 
-/// The weights of the decision (`AIK_RAZE_<NAME>`), in points that speak for razing.
+/// The weights of the decision (`AIS_RAZE_<NAME>`), in points that speak for razing.
 struct Knobs {
     maniacal: i32,
     ruthless: i32,

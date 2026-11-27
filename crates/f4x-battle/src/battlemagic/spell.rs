@@ -4,7 +4,7 @@
 //! reach the overland units (Animate and Raise Dead, Chaos Channels, Dispel) are in `f4x-core`'s
 //! `battle/spell.rs`.
 //!
-//! Tests: in `f4x-core`'s battle/tests.rs, on a whole battle.
+//! Tests: at the end of this file, and in `f4x-core`'s battle/tests.rs on a whole battle.
 
 use f4x_def::id::PlayerId;
 use f4x_def::rules::attack_nature::AttackNature;
@@ -22,7 +22,7 @@ use rand_pcg::Pcg64Mcg;
 
 use super::aim::save_types;
 use super::caster::SpellAim;
-use super::spell_type::{slay_allows, undead_penalty, warp_mods, CityWall, DamageOdds, SpellType};
+use super::spell_type::{slay_allows, warp_mods, CityWall, DamageOdds, SpellType};
 use crate::battle::{Battle, BattleEvent, WarpKind};
 use crate::side::Side;
 use crate::unit::{BattleUnit, Status};
@@ -138,7 +138,7 @@ impl Battle {
 
     /// The chance that a unit of the battle fails the resistance check of a spell with a save
     /// (a curse, Possession, a banishment): 1 for a spell with no save or no such unit. The
-    /// check is the one `resist_fails` rolls, a ten-sided die over the resistance.
+    /// check is the one `resist_fails` rolls, the resistance die over the resistance.
     pub fn save_failure_chance(&self, spell: &SpellDef, target: usize) -> f32 {
         match &spell.save {
             Some(save) => self.failure_chance(target, Realm::of(spell.realm), save.modifier),
@@ -155,7 +155,8 @@ impl Battle {
         let state = unit.defender_state(&self.content.rules, self.field_bonus_for(unit));
         let resistance = effective_resistance(state.resistance, &state.immunities, realm);
         let needed = resistance + modifier - self.save_penalty;
-        (10 - needed.clamp(0, 10)) as f32 / 10.0
+        let die = self.content.rules.battle.resistance_die.max(1);
+        (die - needed.clamp(0, die)) as f32 / die as f32
     }
 
     /// A resistance check of one unit against a realm: whether it *fails*.
@@ -165,7 +166,8 @@ impl Battle {
             self.field_bonus_for(&self.units[target]),
         );
         let rng: &mut dyn rand::RngCore = &mut self.rng;
-        state.resistance_failure(realm, modifier - self.save_penalty, rng) > 0
+        let rules = &self.content.rules.battle;
+        state.resistance_failure(rules, realm, modifier - self.save_penalty, rng) > 0
     }
 
     /// The active units of the side that is not `side`, by id.
@@ -265,7 +267,8 @@ impl Battle {
             }
             (SpellType::CracksCall, SpellAim::Tile(cell)) => self.open_fissure(spell, cell),
             (SpellType::LifeDrain, SpellAim::Unit(target)) => {
-                let extra = (extra_mana / 5).max(0);
+                let per_penalty = self.rules().spells.life_drain_mana_per_penalty;
+                let extra = (extra_mana / per_penalty.max(1)).max(0);
                 let dmg = self.drain_life(target, -extra, spell);
                 let mut events = self.spell_events_for_damage(
                     target,
@@ -284,8 +287,9 @@ impl Battle {
                         }
                         // A wizard turns it into mana.
                         None => {
+                            let per_point = self.rules().spells.life_drain_mana_per_point;
                             if let Some(caster) = self.casters[side.index()].as_mut() {
-                                caster.mana += d.points * 3;
+                                caster.mana += d.points * per_point;
                             }
                         }
                     }
@@ -342,6 +346,7 @@ impl Battle {
                     only,
                     below,
                     mana_per_step,
+                    undead_modifier,
                     all,
                 },
                 aim,
@@ -373,7 +378,7 @@ impl Battle {
                         continue;
                     }
                     let modifier = if self.units[t].undead {
-                        modifier - undead_penalty(spell)
+                        modifier + undead_modifier
                     } else {
                         modifier
                     };
@@ -406,7 +411,7 @@ impl Battle {
     }
 
     /// The fissure a Cracks Call opens at `cell`: a walker or crawler over it falls in one time in
-    /// four, whatever its defence; fliers, the bodiless and merging units (which pass through the
+    /// `fissure_one_in`, whatever its defence; fliers, the bodiless and merging units (which pass through the
     /// ground) stand clear. A wall on the square breaks.
     fn open_fissure(&mut self, spell: SpellId, cell: crate::map::Pos) -> Vec<BattleEvent> {
         let mut events = vec![BattleEvent::FissureOpened { cell }];
@@ -420,7 +425,8 @@ impl Battle {
             })
             .map(|u| u.id);
         if let Some(id) = over {
-            if self.roll(4) == 1 {
+            let one_in = self.content.rules.battle.fissure_one_in;
+            if self.roll(one_in) == 1 {
                 let dmg = self.destroy_unit(id);
                 events.extend(self.spell_events_for_damage(id, Some(dmg), DamageTypes::NONE));
             }
@@ -474,11 +480,44 @@ impl Battle {
             2 => WarpKind::Defense,
             _ => WarpKind::Resistance,
         };
-        self.enchant_unit(target, spell, player, &warp_mods(kind, spell), &[]);
+        let mods = warp_mods(kind, spell, self.rules());
+        self.enchant_unit(target, spell, player, &mods, &[]);
         self.units[target].warp = Some(kind);
         vec![BattleEvent::SpellEnchanted {
             unit: target,
             spell,
         }]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::testutil::{content, real_battle, reseeded};
+
+    #[test]
+    fn a_walker_over_a_fissure_falls_in_as_often_as_the_rules_say() {
+        let content = content();
+        let spell = content
+            .rules
+            .spells
+            .id_numbered(11 /* cracks_call */)
+            .expect("a spell of the content");
+        let under = (10, 5);
+        let battle = real_battle(
+            &[(105 /* high_men_swordsmen */, (3, 5))],
+            &[(104 /* high_men_spearmen */, under)],
+            1,
+        );
+        let fights = 4_000;
+        let fallen = (0..fights)
+            .filter(|&seed| {
+                let mut fight = reseeded(&battle, seed);
+                fight.open_fissure(spell, under);
+                !fight.units[1].is_active()
+            })
+            .count();
+        let share = fallen as f32 / fights as f32;
+        let odds = content.rules.battle.fissure_odds();
+        assert!((share - odds).abs() < 0.03, "{share} against {odds}");
     }
 }

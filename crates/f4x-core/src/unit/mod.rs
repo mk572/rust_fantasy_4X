@@ -364,7 +364,7 @@ impl<'a> UnitView<'a> {
                 )
                 && !self.unit_is_undead(unit)
             {
-                level += 1;
+                level += self.content.rules.config.spell_effects.crusade_levels;
             }
         }
         level.min(path.level_count().saturating_sub(1))
@@ -524,7 +524,14 @@ impl<'a> UnitView<'a> {
                 )
             })
         {
-            return f4x_def::rules::global_effect::charm_of_life_hits(value);
+            return f4x_def::rules::global_effect::charm_of_life_hits(
+                value,
+                self.content
+                    .rules
+                    .config
+                    .spell_effects
+                    .charm_of_life_percent,
+            );
         }
         value
     }
@@ -551,20 +558,32 @@ impl<'a> UnitView<'a> {
     /// Full movement allowance.
     pub fn unit_max_moves(&self, unit: hecs::Entity) -> HalfInt {
         let moves = self.unit_moves(unit).max(HalfInt::ZERO);
-        // Wind Mastery (our rule): ships and fliers of a wizard who keeps it go half as far again;
-        // those of a wizard without it, while anyone else keeps it, go half as far. Nothing stacks.
+        // Wind Mastery (our rule): ships and fliers of a wizard who keeps it go further; those of
+        // a wizard without it, while anyone else keeps it, less far. Nothing stacks.
         if self.is_ship_or_flier(unit) {
             if let Some(owner) = self.unit_owner(unit) {
                 if self.has_global_effect(
                     owner,
                     crate::spell::global_enchantment::GlobalEffect::WindMastery,
                 ) {
-                    return moves.percent(150);
+                    return moves.percent(
+                        self.content
+                            .rules
+                            .config
+                            .spell_effects
+                            .wind_mastery_own_percent,
+                    );
                 }
                 if self
                     .any_global_effect(crate::spell::global_enchantment::GlobalEffect::WindMastery)
                 {
-                    return moves.percent(50);
+                    return moves.percent(
+                        self.content
+                            .rules
+                            .config
+                            .spell_effects
+                            .wind_mastery_other_percent,
+                    );
                 }
             }
         }

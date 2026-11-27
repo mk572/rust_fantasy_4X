@@ -76,6 +76,7 @@ const REQUIRED: &[&str] = &[
     "battle.ron",
     "lairs.ron",
     "ai_sites.ron",
+    "ai_battle.ron",
     "rules_settings.ron",
 ];
 const OPTIONAL: &[&str] = &[
@@ -304,11 +305,11 @@ fn every_file_damaged_in_every_way_is_refused_without_a_panic_and_the_error_name
                     // A list that may be empty (no items) and a file of defaults only may be damaged to
                     // "nothing" and still mean something; the rest must not survive the damage.
                     let may_be_empty = file == "items.ron" && what == "an empty list";
-                    // A file with no quote has none to remove.
-                    let all_default = what == "every quote removed" && !original.contains('"');
+                    // A file without what a damage works on (a quote, a bracket) is left as it is.
+                    let unchanged = bytes == original.as_bytes();
                     if REQUIRED.contains(&file.as_str())
                         && !may_be_empty
-                        && !all_default
+                        && !unchanged
                         && !["a byte order mark first", "a second copy"].contains(&what)
                     {
                         failures.push(format!("{file} / {what}: ACCEPTED"));

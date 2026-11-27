@@ -238,7 +238,9 @@ impl Battle {
             let rng: &mut dyn RngCore = &mut self.rng;
             let mut total = Damage::default();
             for _ in 0..state.figures {
-                if state.resistance_failure(Some(realm), modifier, rng) > 0 {
+                if state.resistance_failure(&self.content.rules.battle, Some(realm), modifier, rng)
+                    > 0
+                {
                     total += kill_figure(&mut state);
                 }
             }
@@ -275,18 +277,23 @@ impl Battle {
         }
         let mut state = unit.defender_state(&self.content.rules, self.field_bonus_for(unit));
         let rng: &mut dyn RngCore = &mut self.rng;
-        let amount =
-            state.resistance_failure(Some(Realm::Death), modifier - self.save_penalty, rng);
+        let amount = state.resistance_failure(
+            &self.content.rules.battle,
+            Some(Realm::Death),
+            modifier - self.save_penalty,
+            rng,
+        );
         let dmg = unblockable(&mut state, amount).all_drained();
         self.units[target].set_from(&state);
         self.units[target].record(dmg);
         Some(dmg)
     }
 
-    /// Turn the 5 by 5 squares round `center` to mud (Earth to Mud).
+    /// Turn the squares round `center` to mud (Earth to Mud): those within `mud_radius`.
     pub fn spread_mud(&mut self, center: Pos) {
-        for dy in -2..=2 {
-            for dx in -2..=2 {
+        let radius = self.rules().spells.mud_radius;
+        for dy in -radius..=radius {
+            for dx in -radius..=radius {
                 self.map.make_mud((center.0 + dx, center.1 + dy));
             }
         }

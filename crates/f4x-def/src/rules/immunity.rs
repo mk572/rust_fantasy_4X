@@ -6,14 +6,15 @@
 //!   matching immunity makes the defence 50, so nothing gets through. A defence floor (weapon
 //!   immunity: at least 10) applies to the type it names, in melee or not. An illusion ignores
 //!   the defence altogether unless the defender sees through illusions.
-//! - **Resistance** ([`effective_resistance`]): magic immunity adds 30, and some enchantments add to
-//!   resistance against particular realms. The die is `f4x-battle`'s `resistance_failure`.
+//! - **Resistance** ([`effective_resistance`]): magic immunity and some enchantments add to
+//!   resistance against particular realms (`ResistanceBonus`). The die is `f4x-battle`'s
+//!   `resistance_failure`.
 //!
-//! Tests: in `f4x-core`'s `battle/immunity/tests.rs`, on the shipped content.
+//! Tests: at the end of this file.
 
 use super::damage_type::{DamageType, DamageTypes, DefenceEffect, DefenceRule};
 use super::realm::Realm;
-use super::{Ability, Rules, SpellId};
+use super::{Ability, BattleRules, Rules, SpellId};
 
 /// What a unit's abilities and lasting spells do against attacks: its defence rules (`defence`
 /// in `abilities.ron` and `spells.ron`).
@@ -25,9 +26,12 @@ pub struct Immunities {
 impl Immunities {
     /// The defence rules of a unit's abilities and of the lasting spells on it.
     pub fn of(abilities: &[Ability], spells: &[SpellId], rules: &Rules) -> Immunities {
+        // An ability a unit has twice (its own and an item's) counts once.
         let from_abilities = abilities
             .iter()
-            .filter_map(|&a| rules.abilities.try_get(a))
+            .enumerate()
+            .filter(|&(i, a)| !abilities[..i].contains(a))
+            .filter_map(|(_, &a)| rules.abilities.try_get(a))
             .flat_map(|def| def.defence.iter().copied());
         let from_spells = spells
             .iter()
@@ -173,13 +177,14 @@ impl Immunities {
 /// The defence a unit rolls against one attack, or `None` if the unit is immune to it: the
 /// attack does nothing. `types` are the types of the attack with its delivery.
 ///
-/// An illusion the defender cannot see through ignores every armour. Armour piercing halves the
-/// defence (rounding down); a floor (weapon immunity) then raises it.
+/// An illusion the defender cannot see through ignores every armour. Armour piercing leaves a
+/// part of the defence (`BattleRules::pierced`); a floor (weapon immunity) then raises it.
 pub fn effective_defense(
     defense: i32,
     unit: &Immunities,
     types: DamageTypes,
     armor_piercing: bool,
+    rules: &BattleRules,
 ) -> Option<i32> {
     if unit.stops(types) {
         return None;
@@ -187,20 +192,54 @@ pub fn effective_defense(
     if types.contains(DamageType::Illusion) && !unit.sees_through(types) {
         return Some(0);
     }
-    let defense = if armor_piercing { defense / 2 } else { defense };
+    let defense = if armor_piercing {
+        rules.pierced(defense)
+    } else {
+        defense
+    };
     Some(
         unit.floor_against(types)
             .map_or(defense, |f| defense.max(f)),
     )
 }
 
-/// A unit's resistance against a spell or attack of `realm`: its own, 30 more with magic
-/// immunity against any realm, and what its lasting spells add against that realm
-/// (`resistance_bonus` of their `defence`).
+/// A unit's resistance against a spell or attack of `realm`: its own, and what its abilities and
+/// lasting spells add against that realm (`ResistanceBonus` of their `defence`).
 pub fn effective_resistance(resistance: i32, unit: &Immunities, realm: Option<Realm>) -> i32 {
     let Some(realm) = realm else {
         return resistance;
     };
-    let magic = if unit.has(DamageType::Magic) { 30 } else { 0 };
-    resistance + magic + unit.resistance_bonus(DamageTypes::of(&[realm.damage_type()]))
+    resistance + unit.resistance_bonus(DamageTypes::of(&[realm.damage_type()]))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn magic_immunity_adds_its_resistance_against_every_realm_once() {
+        let rules = &crate::testdir::shipped().rules;
+        let magic = Ability::new(40 /* magic_immunity */);
+        let bonus: i32 = rules
+            .abilities
+            .get(magic)
+            .defence
+            .iter()
+            .filter_map(|r| match r.effect {
+                DefenceEffect::ResistanceBonus(n) => Some(n),
+                _ => None,
+            })
+            .sum();
+        assert!(bonus > 0, "the content gives magic immunity resistance");
+        // An ability held twice (the unit's own and an item's) counts once.
+        for held in [vec![magic], vec![magic, magic]] {
+            let unit = Immunities::of(&held, &[], rules);
+            let realms: Vec<Realm> = (0..).map_while(Realm::from_num).collect();
+            assert!(!realms.is_empty());
+            for realm in realms {
+                assert_eq!(effective_resistance(4, &unit, Some(realm)), 4 + bonus);
+            }
+            assert_eq!(effective_resistance(4, &unit, None), 4);
+        }
+    }
 }
