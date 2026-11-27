@@ -11,7 +11,7 @@ pub mod order;
 use f4x_core::battle::world::set_battle_ai;
 
 /// Make this the scripted battle player of the game (behaviour the game only asks for;
-/// calling again does nothing). `Ai::new`, `NeutralSeat` and the apps call it, so any battle the
+/// calling again does nothing). `Ai::new`, `NeutralAi` and the apps call it, so any battle the
 /// AI or an auto-resolve plays has its commands.
 pub fn install() {
     set_battle_ai(cast::next_command);

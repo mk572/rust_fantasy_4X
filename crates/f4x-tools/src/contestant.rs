@@ -172,22 +172,22 @@ pub fn make(version: Version, player: PlayerId) -> Box<dyn Contestant> {
 }
 
 /// The neutral players and the roaming monsters, played by one version of the AI. Each version's
-/// `NeutralSeat` keeps one `Ai` for each neutral race player across the rounds, so a game keeps one
-/// of these for as long as it runs. Only the seat of the chosen version plays.
+/// `NeutralAi` keeps one `Ai` for each neutral race player across the rounds, so a game keeps one
+/// of these for as long as it runs. Only the chosen version plays.
 pub struct Neutrals {
     version: Version,
-    new: f4x_ai::NeutralSeat,
+    new: f4x_ai::NeutralAi,
     #[cfg(feature = "reference")]
-    reference: f4x_ai_ref::NeutralSeat,
+    reference: f4x_ai_ref::NeutralAi,
 }
 
 impl Neutrals {
     pub fn new(version: Version) -> Self {
         Self {
             version,
-            new: f4x_ai::NeutralSeat::default(),
+            new: f4x_ai::NeutralAi::default(),
             #[cfg(feature = "reference")]
-            reference: f4x_ai_ref::NeutralSeat::default(),
+            reference: f4x_ai_ref::NeutralAi::default(),
         }
     }
 
@@ -266,11 +266,11 @@ impl Neutrals {
         }
     }
 
-    fn play(&mut self, game: &mut Game, players: &[PlayerId], events: &mut Vec<Event>) {
+    fn play(&mut self, game: &mut Game, player: PlayerId, events: &mut Vec<Event>) {
         match self.version {
-            Version::New => self.new.play_turn(game, players, events),
+            Version::New => self.new.play_turn(game, player, events),
             #[cfg(feature = "reference")]
-            Version::Reference => self.reference.play_turn(game, players, events),
+            Version::Reference => self.reference.play_turn(game, player, events),
             #[cfg(not(feature = "reference"))]
             Version::Reference => without_reference(),
         }
@@ -296,7 +296,7 @@ struct ContestantSeat<'a> {
 }
 
 impl Controller for ContestantSeat<'_> {
-    fn play(&mut self, game: &mut Game, _: &[PlayerId], _: &mut Vec<Event>) -> Status {
+    fn play(&mut self, game: &mut Game, _: PlayerId, _: &mut Vec<Event>) -> Status {
         let started = std::time::Instant::now();
         PLAYING.with(|p| {
             *p.borrow_mut() = format!(
@@ -322,13 +322,13 @@ impl Controller for ContestantSeat<'_> {
     }
 }
 
-/// The neutral seat of one version of the AI.
-struct NeutralSeat<'a>(&'a mut Neutrals, &'a RefCell<RoundTimes>);
+/// The players without a wizard, played by one version of the AI.
+struct NeutralTurns<'a>(&'a mut Neutrals, &'a RefCell<RoundTimes>);
 
-impl Controller for NeutralSeat<'_> {
-    fn play(&mut self, game: &mut Game, players: &[PlayerId], events: &mut Vec<Event>) -> Status {
+impl Controller for NeutralTurns<'_> {
+    fn play(&mut self, game: &mut Game, player: PlayerId, events: &mut Vec<Event>) -> Status {
         let started = std::time::Instant::now();
-        self.0.play(game, players, events);
+        self.0.play(game, player, events);
         self.1.borrow_mut().neutrals += started.elapsed();
         Status::Done
     }
@@ -338,10 +338,11 @@ impl Controller for NeutralSeat<'_> {
     }
 }
 
-/// The rest of the current round is played by the master: each contestant in seat order (the
-/// order of `players`), then the neutrals, then the round ends and the next one begins. Returns
-/// the events of each contestant's turn, in order, and then those of the neutrals and the round
-/// boundaries. A wizard without a contestant passes. Also returns the time each seat took.
+/// The rest of the current round is played by the master: each contestant in its turn, the
+/// players without a wizard in theirs, then the round ends and the next one begins. Returns
+/// the events of each contestant's turn, in order, and then those of the other players' turns and
+/// the round boundaries. A wizard without a contestant takes no turn. Also returns the time each
+/// seat took.
 /// The events of each contestant's turn, in seat order.
 pub type PlayerTurns = Vec<(PlayerId, Vec<Event>)>;
 
@@ -350,7 +351,7 @@ pub type PlayerTurns = Vec<(PlayerId, Vec<Event>)>;
 pub struct RoundTimes {
     /// Each contestant's own turn (its AI step and its battles).
     pub players: Vec<(PlayerId, std::time::Duration)>,
-    /// The neutral seat's turn.
+    /// The turns of the players without a wizard.
     pub neutrals: std::time::Duration,
     /// The whole round, `run` to `run`.
     pub total: std::time::Duration,
@@ -382,7 +383,7 @@ pub fn play_round_timed(
     for p in players.iter_mut() {
         let player = p.player();
         seats.push(Seat::new(
-            vec![player],
+            player,
             Box::new(ContestantSeat {
                 contestant: p.as_mut(),
                 turns: &turns,
@@ -390,7 +391,7 @@ pub fn play_round_timed(
             }),
         ));
     }
-    seats.push(Seat::neutrals(Box::new(NeutralSeat(neutrals, &times))));
+    seats.push(Seat::non_wizards(Box::new(NeutralTurns(neutrals, &times))));
     let rest = Master::new(seats).run(game, Until::Rounds(1)).events;
     let mut times = times.into_inner();
     times.total = started.elapsed();

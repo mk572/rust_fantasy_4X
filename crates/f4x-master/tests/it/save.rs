@@ -149,21 +149,24 @@ fn a_game_keeps_the_place_in_the_round_it_was_saved_at() {
         fn play(
             &mut self,
             _: &mut Game,
-            _: &[PlayerId],
+            _: PlayerId,
             _: &mut Vec<f4x_core::world::Event>,
         ) -> Status {
             Status::Waiting
         }
     }
     let (_, mut game) = games().remove(0);
-    let seats: Vec<Seat> = game
+    let wizards: Vec<PlayerId> = game
         .player_ids()
         .into_iter()
         .filter(|&p| game.is_wizard(p))
-        .map(|p| Seat::new(vec![p], Box::new(Waits)))
+        .collect();
+    let seats: Vec<Seat> = wizards
+        .iter()
+        .map(|&p| Seat::new(p, Box::new(Waits)))
         .collect();
     Master::new(seats).run(&mut game, Until::Waiting);
-    assert_eq!(game.phase(), Some(Phase::Acting(0)));
+    assert_eq!(game.phase(), Some(Phase::Acting(wizards[0])));
     let (back, _) = read(&written(&game, Vec::new())).expect("loads");
-    assert_eq!(back.phase(), Some(Phase::Acting(0)));
+    assert_eq!(back.phase(), game.phase());
 }

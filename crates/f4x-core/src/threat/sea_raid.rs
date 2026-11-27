@@ -4,7 +4,7 @@
 //! four cheapest, then 1d3+2 of all of the race; experience as the other raiders'), and a settler.
 //! Four coast squares are rolled and the one furthest from any town is the landing. All of it is
 //! free of upkeep and belongs to the neutral player of the race (made when the race has none);
-//! what it does then is the neutral AI's (`f4x_ai::NeutralSeat`).
+//! what it does then is the neutral AI's (`f4x_ai::NeutralAi`).
 //!
 //! Tests: in threat/tests.rs (`a_sea_raid_...`).
 

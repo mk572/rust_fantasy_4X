@@ -156,8 +156,9 @@ pub struct App {
     pub(crate) master_state: f4x_master::State,
     /// What the seats remember between calls into the master.
     pub(crate) seating: crate::turn_seats::Seating,
-    /// The neutral seat (independent cities, monsters): attacks on the human are fought in person.
-    pub(crate) neutral_seat: f4x_ai::NeutralSeat,
+    /// The play of the independent cities and the monsters: attacks on the human are fought in
+    /// person.
+    pub(crate) neutral_ai: f4x_ai::NeutralAi,
     /// What the small spell book keeps between openings.
     pub(crate) book_prefs: crate::spellbook::BookPrefs,
     /// A spell to research once the research under way is done (set from the spell book).
@@ -390,10 +391,10 @@ impl App {
             defences: Default::default(),
             turn_events: None,
             master_state: f4x_master::State {
-                phase: f4x_master::Phase::Acting(0),
+                phase: f4x_master::Phase::Acting(HUMAN),
             },
             seating: Default::default(),
-            neutral_seat: f4x_ai::NeutralSeat::defended_by(&[HUMAN]),
+            neutral_ai: f4x_ai::NeutralAi::defended_by(&[HUMAN]),
             book_prefs: Default::default(),
             queued_research: None,
             help: Default::default(),
@@ -555,7 +556,7 @@ impl App {
         for ai in &mut self.ais {
             ai.notice(&self.game, &events);
         }
-        f4x_master::Controller::notice(&mut self.neutral_seat, &self.game, &events);
+        f4x_master::Controller::notice(&mut self.neutral_ai, &self.game, &events);
         self.note_shown(events)
     }
 
@@ -1238,7 +1239,7 @@ impl App {
     pub fn save_to(&mut self, path: &Path) {
         // What the autosave collects from the seats: the rivals', then the independent players'.
         let mut plans = f4x_ai::Ai::plans_of(&self.ais);
-        plans.extend(self.neutral_seat.plans());
+        plans.extend(self.neutral_ai.plans());
         match f4x_master::save_game(path, &self.game, plans) {
             Ok(()) => {
                 let args = Args::new()
@@ -1302,7 +1303,7 @@ impl App {
         self.ais = self.rival_wizards();
         f4x_ai::Ai::recall(&plans, &mut self.ais);
         self.reset_master();
-        self.neutral_seat.recall(&self.game, &plans);
+        self.neutral_ai.recall(&self.game, &plans);
         // A game saved in a battle comes back in it: the frame loop opens the battle screen.
         self.close_page(&Screen::Battle);
         self.game_over_seen = false;
@@ -1330,7 +1331,7 @@ impl App {
         }
         // A game saved at the start of a round, as the autosave is, goes on to the human's turn
         // now, and the turn's news is told as after any turn.
-        if self.master_state.phase != f4x_master::Phase::Acting(0) {
+        if self.master_state.phase != f4x_master::Phase::Acting(HUMAN) {
             self.turn_events = Some(Vec::new());
             self.resume_turn();
         }
@@ -1366,31 +1367,33 @@ impl App {
         use f4x_master::{Phase, State};
         self.defences.clear();
         self.turn_events = None;
-        // The human, the rivals and the neutrals: the seats `run_master` sets.
-        let seats = self.ais.len() + 2;
         let human = State {
-            phase: Phase::Acting(0),
+            phase: Phase::Acting(HUMAN),
+        };
+        // A turn that no seat of `run_master` would play cannot be gone on with.
+        let seated = |p: PlayerId| {
+            p == HUMAN || self.ais.iter().any(|ai| ai.player == p) || !self.game.is_wizard(p)
         };
         self.master_state = self
             .game
             .phase()
             .map(|phase| State { phase })
             .filter(|state| match state.phase {
-                Phase::TurnStart(i) | Phase::Acting(i) | Phase::TurnEnd(i) => i < seats,
+                Phase::TurnStart(p) | Phase::Acting(p) | Phase::TurnEnd(p) => seated(p),
                 Phase::Over => false,
                 _ => true,
             })
             .unwrap_or(human);
         self.seating = Default::default();
-        self.neutral_seat = f4x_ai::NeutralSeat::defended_by(&[HUMAN]);
-        self.neutral_seat.share(&self.diplomats);
+        self.neutral_ai = f4x_ai::NeutralAi::defended_by(&[HUMAN]);
+        self.neutral_ai.share(&self.diplomats);
     }
 
     /// End the turn. First put more citizens on farms if the army would otherwise go hungry
     /// (the city screen lets you set farmers by hand; this just protects the troops). Then the
-    /// master takes the round on: the human's turn ends, each rival plays in turn (an attack on
-    /// the human is fought before the next one plays), the neutrals play, the round ends and the
-    /// next begins with the human's turn.
+    /// master takes the round on: the human's turn ends, each computer player plays its turn (an
+    /// attack on the human is fought before the next one plays), the round ends and the next
+    /// begins with the human's turn.
     pub(crate) fn end_turn(&mut self) {
         if self.turn_events.is_some() {
             return;
@@ -1425,9 +1428,9 @@ impl App {
         let progress = self.run_master();
         self.game.set_undo(undo);
         events.extend(progress.events);
-        if let f4x_master::Stopped::Waiting(seat) = progress.stopped {
-            if seat != 0 {
-                // A rival has attacked the human: fight it, then go on.
+        if let f4x_master::Stopped::Waiting(player) = progress.stopped {
+            if player != HUMAN {
+                // A computer player has attacked the human: fight it, then go on.
                 self.turn_events = Some(events);
                 self.resume_turn();
                 return;
@@ -1440,7 +1443,7 @@ impl App {
             for ai in &mut self.ais {
                 events.extend(ai.approach_human(&mut self.game));
             }
-            events.extend(self.neutral_seat.approach_human(&mut self.game));
+            events.extend(self.neutral_ai.approach_human(&mut self.game));
             self.game.set_undo(undo);
         }
         // What the rivals did out of sight is not shown: only what touches the human.
@@ -1458,23 +1461,21 @@ impl App {
     }
 
     /// Run the master until it waits: for the human's next turn, or for an attack on the human
-    /// to be fought. The seats are the human, the rivals in the order of their ids, and the
-    /// neutrals. Two rounds at most, so that a game without a human seat cannot loop for ever.
+    /// to be fought. The seats are the human, the rivals, and one for the players without a
+    /// wizard. Two rounds at most, so that a game without a human seat cannot loop for ever.
     fn run_master(&mut self) -> f4x_master::Progress {
-        use crate::turn_seats::{HumanSeat, NeutralSeat, RivalSeat};
+        use crate::turn_seats::{HumanSeat, NeutralTurns, RivalSeat};
         use f4x_master::{Master, Seat, Until};
         // The seats share the small `seating` memory and the queue of defences; one acts at a time.
         let seating = std::cell::RefCell::new(std::mem::take(&mut self.seating));
         let defences = std::cell::RefCell::new(std::mem::take(&mut self.defences));
         let mut autosave_failed: Option<String> = None;
         let progress = {
-            let mut seats: Vec<Seat> = vec![Seat::new(
-                vec![HUMAN],
-                Box::new(HumanSeat { seating: &seating }),
-            )];
+            let mut seats: Vec<Seat> =
+                vec![Seat::new(HUMAN, Box::new(HumanSeat { seating: &seating }))];
             for ai in self.ais.iter_mut() {
                 seats.push(Seat::new(
-                    vec![ai.player],
+                    ai.player,
                     Box::new(RivalSeat {
                         ai,
                         seating: &seating,
@@ -1482,8 +1483,8 @@ impl App {
                     }),
                 ));
             }
-            seats.push(Seat::neutrals(Box::new(NeutralSeat {
-                inner: &mut self.neutral_seat,
+            seats.push(Seat::non_wizards(Box::new(NeutralTurns {
+                inner: &mut self.neutral_ai,
                 seating: &seating,
                 defences: &defences,
             })));
@@ -3118,8 +3119,9 @@ mod tests {
             !independent.is_empty(),
             "the test game has no independent player"
         );
-        app.neutral_seat
-            .play_turn(&mut app.game, &independent, &mut Vec::new());
+        for &p in &independent {
+            app.neutral_ai.play_turn(&mut app.game, p, &mut Vec::new());
+        }
         let path = std::env::temp_dir().join(format!("f4x-plans-{}.save", std::process::id()));
         let content = app.game.content().clone();
         let saved = |app: &mut App| {

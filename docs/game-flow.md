@@ -133,11 +133,11 @@ Rejection reasons are typed: `FoundCity(FoundCityError)`, `Move(MoveError)`,
 
 ## 4. The turn
 
-A game runs in **rounds**; in each round every player takes one **turn**, in a fixed order (seat
-order, the human first, the neutral seat last: independent cities and monsters). The core
+A game runs in **rounds**; in each round every player takes one **turn**, in a fixed order (the
+wizards, the human first, then each independent race player, then the monsters). The core
 offers four lifecycle operations, and the game (`f4x_master::Game`) makes them as **steps**:
 no commands, no player sends them, but each is written into a replay and ends the undo history.
-The master runs them in order and asks each seat (human, AI, neutrals) to act in between
+The master runs them in order and asks the controller of each player (a human or an AI) to act in between
 (`docs/turn-structure.md` has the design and the cadence table, section 7.1):
 
 | Phase | Step of the game | What it does |

@@ -194,8 +194,8 @@ Callers is a text count and an upper bound.
 | task | f4x-ai | `crates/f4x-ai/src/battle/order.rs:208` | `field_worth` | `sum` | 4 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-ai | `crates/f4x-ai/src/battle/order.rs:301` | `retreat` | `then_some` | 5 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-ai | `crates/f4x-ai/src/builder.rs:45` | `stat` | `map_or` | 206 | Done | changed by task 658 (`stat`) and 659 (`random`): duplicate helper: see Findings 1 and 2 |
-| task | f4x-ai | `crates/f4x-ai/src/controller.rs:54` | `NeutralSeat::take_attacks` | `take` | 10 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-ai | `crates/f4x-ai/src/controller.rs:67` | `NeutralSeat::take_refusals` | `collect` | 11 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
+| task | f4x-ai | `crates/f4x-ai/src/controller.rs:54` | `NeutralAi::take_attacks` | `take` | 10 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
+| task | f4x-ai | `crates/f4x-ai/src/controller.rs:67` | `NeutralAi::take_refusals` | `collect` | 11 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-ai | `crates/f4x-ai/src/garrison.rs:15` | `circle` | `and_then` | 21 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-ai | `crates/f4x-ai/src/intent.rs:166` | `is_land_boost` | `is_in` | 1 | Keep | converts, defaults or names a test; the name adds meaning |
 | task | f4x-ai | `crates/f4x-ai/src/intent.rs:171` | `is_astral_gate` | `has_hook_arg` | 1 | Keep | converts, defaults or names a test; the name adds meaning |

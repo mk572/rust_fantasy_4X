@@ -130,7 +130,7 @@ Not everything in these notes was read; the sections that were are named.
 - **Turn pipeline** (`AI_Next_Turn`, read): per wizard, in this order: strategy and hostility,
   target values for cities and stacks, landmass values, war landmass choice, spell selection and
   casting, gold and mana reserves, colony autobuild, evaluation map, orders, cull; then movement
-  (`AI_Execute_Orders`); then the neutral player (colony autobuild, farmers, destinations, movement; ours: a neutral race player is played by the standard AI, `NeutralSeat`, with its diplomacy and statecraft and without the wizard's spells and spell trades, and the sites' garrison code is `assault.rs`),
+  (`AI_Execute_Orders`); then the neutral player (colony autobuild, farmers, destinations, movement; ours: a neutral race player is played by the standard AI, `NeutralAi`, with its diplomacy and statecraft and without the wizard's spells and spell trades, and the sites' garrison code is `assault.rs`),
   then raiders and monsters.
 - **Overland spell choice** (`AI_Spell_Select`, `AI_Select_Spell_Group`, read): eleven category
   weights, one picked by weighted random: nothing, summon, unit enchantment, city enchantment,
@@ -300,7 +300,7 @@ and learn tests still pass.
 
 Built as `f4x_ai::battle::cast::next_command(&World)`, which `World::next_battle_command` calls for every
 wizard that has no learned brain set (the game holds it as a function pointer, `battle::world::set_battle_ai`,
-set by `f4x_ai::battle::install()`, which `Ai::new`, `play_round`, `NeutralSeat`, `Console::new` and the client's `main` call) (it is not itself a `BattleBrain` object: it needs no state).
+set by `f4x_ai::battle::install()`, which `Ai::new`, `play_round`, `NeutralAi`, `Console::new` and the client's `main` call) (it is not itself a `BattleBrain` object: it needs no state).
 It does: (1) if the wizard may cast this turn, choose a cast from `legal_battle_casts` (section
 6.5); (2) otherwise the unit orders of `ai::next_command`. `ai::next_command(&Battle)` stays for
 callers that have no game (the client's auto-battle, the console tests, the learn crate) and is

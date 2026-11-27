@@ -1,7 +1,7 @@
 //! A save written by game version 0.0.7 (`fixtures/before_0_0_8.f4x`: a game of two wizards in round
 //! 30, one war since round 25) is converted when it is read.
 
-use f4x_core::player::PlayerId;
+use f4x_core::player::{PlayerId, MONSTERS};
 use f4x_core::world::endgame::EndKind;
 use f4x_core::world::save::{ContentCheck, LoadError, GAME_VERSION, SAVE_VERSION};
 use f4x_master::{GameOver, Phase, Restored, SaveFile};
@@ -28,7 +28,7 @@ fn an_old_save_gives_a_game_in_its_round_with_its_wars_and_plans() {
     assert_eq!(file.version, SAVE_VERSION);
     assert_eq!(file.game_version, GAME_VERSION);
     assert_eq!(file.game.round, 30);
-    assert_eq!(file.game.phase, Some(Phase::TurnStart(0)));
+    assert_eq!(file.game.phase, Some(Phase::TurnStart(PlayerId(0))));
     assert_eq!(file.game.game_over, None);
     assert_eq!(file.world.mastery, None);
     // The war began in round 25; the two other pairs are at peace.
@@ -79,6 +79,42 @@ fn how_an_old_game_ended_is_carried_over() {
         );
         assert_eq!(game.mastered_by(), mastery);
     }
+}
+
+/// The place in the round of the old save when it names `place`.
+fn phase_of(place: &str) -> Option<Phase> {
+    let text = edited(
+        "flow: Some(\"(phase:TurnStart(0))\"),",
+        &format!("flow: Some(\"(phase:{place})\"),"),
+    );
+    restore(&text).expect("loads").game.phase()
+}
+
+#[test]
+fn a_seat_of_an_old_save_becomes_the_player_whose_turn_it_was() {
+    let file = SaveFile::from_text(OLD).expect("converts");
+    // Two wizards had the seats 0 and 1; seat 2 played every other player at once.
+    let first_race = file
+        .world
+        .players
+        .iter()
+        .filter(|p| p.neutral && p.id != MONSTERS.0)
+        .map(|p| PlayerId(p.id))
+        .min_by_key(|p| p.0)
+        .expect("a race player");
+    for (place, phase) in [
+        ("Acting(1)", Phase::Acting(PlayerId(1))),
+        ("TurnEnd(0)", Phase::TurnEnd(PlayerId(0))),
+        ("TurnStart(2)", Phase::TurnStart(first_race)),
+        // All their turns had started: none is started again.
+        ("Acting(2)", Phase::Acting(MONSTERS)),
+        ("TurnEnd(2)", Phase::TurnEnd(MONSTERS)),
+        ("RoundStart", Phase::RoundStart),
+        ("RoundEnd", Phase::RoundEnd),
+    ] {
+        assert_eq!(phase_of(place), Some(phase), "{place}");
+    }
+    assert_eq!(phase_of("Acting(3)"), None, "a seat there was not");
 }
 
 #[test]

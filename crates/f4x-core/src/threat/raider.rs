@@ -1,7 +1,7 @@
 //! Raiders (`Make_Raiders`, `AIDATA.c`): a neutral city on a landmass with a player's city gets
 //! a raiding party of its own kind of troops. Unlike the original, which takes the troops out
 //! of the garrison, the troops are new and the city pays no upkeep for them. They belong to the
-//! neutral player of the city's race, whose AI (`f4x_ai::NeutralSeat`) decides what they do: this is
+//! neutral player of the city's race, whose AI (`f4x_ai::NeutralAi`) decides what they do: this is
 //! the neutral players' advantage instead of a difficulty bonus.
 //!
 //! Tests: in threat/tests.rs (the raider tests and `the_party_is_...`, `a_party_on_myrror_...`, `the_raiders_are_as_experienced_...`).

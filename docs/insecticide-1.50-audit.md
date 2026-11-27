@@ -416,7 +416,7 @@ The rule: what a spell's cost decides (the dispel difficulty a counter rolls aga
 
 | Rows | Verdict |
 |---|---|
-| 351 AI turn order: simultaneous phases became sequential wizard turns | **Not present, by design** (`docs/turn-structure.md`). `f4x-master` runs a seat's whole turn (start, decisions, orders, end) before the next seat, in a fixed order, the neutral seat last; test `each_round_every_seat_plays_once_in_order`. |
+| 351 AI turn order: simultaneous phases became sequential wizard turns | **Not present, by design** (`docs/turn-structure.md`). `f4x-master` runs a player's whole turn (start, decisions, orders, end) before the next player's, in a fixed order, the players without a wizard last; test `each_round_every_seat_plays_once_in_order`. |
 | 370 True Light blocks Mass Healing | **Not present.** True Light is a battlefield field (`Field::TrueLight`) that only shifts the Life and Death realm bonuses; Mass Healing's cast reads no field. Test `mass_healing_still_heals_under_true_light`. |
 
 ### Walked on 15 November 2026: 368, 369, 397, 398, 407, 424, 433, 479, 371, 411, 489

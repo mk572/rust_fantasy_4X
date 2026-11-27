@@ -1,19 +1,20 @@
 //! The neutral player of a race plays as any AI does (task 522): the same `Ai` and the same turn,
 //! without a wizard, so no spells, no research and no crafting.
 
-use f4x_ai::{Ai, AiSeat, NeutralSeat};
+use f4x_ai::{Ai, AiSeat, NeutralAi};
 use f4x_core::player::PlayerId;
 use f4x_core::world::{Command, Event};
 use f4x_master::{Controller, Game, Master, Seat, Status, Until};
 use f4x_newgame::setup::{new_game, NewGame};
 use std::cell::RefCell;
 
-/// The neutral seat, shared with the test so that it can look at it between rounds.
-struct Shared<'a>(&'a RefCell<NeutralSeat>);
+/// The neutral players' computer play, shared with the test so that it can look at it between
+/// rounds.
+struct Shared<'a>(&'a RefCell<NeutralAi>);
 
 impl Controller for Shared<'_> {
-    fn play(&mut self, game: &mut Game, players: &[PlayerId], events: &mut Vec<Event>) -> Status {
-        self.0.borrow_mut().play(game, players, events)
+    fn play(&mut self, game: &mut Game, player: PlayerId, events: &mut Vec<Event>) -> Status {
+        self.0.borrow_mut().play(game, player, events)
     }
 
     fn plans(&self) -> Vec<(PlayerId, String)> {
@@ -35,15 +36,15 @@ fn world(seed: u64) -> Game {
     )
 }
 
-/// Play `rounds` rounds with two wizard AIs and the shared neutral seat; the events of the
+/// Play `rounds` rounds with two wizard AIs and the shared neutral players' AI; the events of the
 /// neutral players' commands come back.
-fn play(w: &mut Game, neutral: &RefCell<NeutralSeat>, rounds: u32) -> Vec<Event> {
+fn play(w: &mut Game, neutral: &RefCell<NeutralAi>, rounds: u32) -> Vec<Event> {
     let mut ais = [Ai::new(PlayerId(0)), Ai::new(PlayerId(1))];
     let [a, b] = &mut ais[..] else { unreachable!() };
     let seats = vec![
-        Seat::new(vec![PlayerId(0)], Box::new(AiSeat(a))),
-        Seat::new(vec![PlayerId(1)], Box::new(AiSeat(b))),
-        Seat::neutrals(Box::new(Shared(neutral))),
+        Seat::new(PlayerId(0), Box::new(AiSeat(a))),
+        Seat::new(PlayerId(1), Box::new(AiSeat(b))),
+        Seat::non_wizards(Box::new(Shared(neutral))),
     ];
     let events = Master::new(seats).run(w, Until::Rounds(rounds)).events;
     events
@@ -52,7 +53,7 @@ fn play(w: &mut Game, neutral: &RefCell<NeutralSeat>, rounds: u32) -> Vec<Event>
 #[test]
 fn the_neutral_players_play_with_one_ai_each_and_send_no_order_a_wizard_less_player_cannot() {
     let mut w = world(7);
-    let neutral = RefCell::new(NeutralSeat::default());
+    let neutral = RefCell::new(NeutralAi::default());
     neutral.borrow_mut().record_refusals(true);
     play(&mut w, &neutral, 60);
     let races: Vec<_> = w
@@ -76,7 +77,7 @@ fn the_neutral_players_play_with_one_ai_each_and_send_no_order_a_wizard_less_pla
 #[test]
 fn a_neutral_player_casts_no_spell_researches_nothing_and_turns_its_mana_into_gold() {
     let mut w = world(7);
-    let neutral = RefCell::new(NeutralSeat::default());
+    let neutral = RefCell::new(NeutralAi::default());
     let events = play(&mut w, &neutral, 40);
     assert!(
         !events.iter().any(|e| matches!(
@@ -97,7 +98,7 @@ fn a_neutral_player_casts_no_spell_researches_nothing_and_turns_its_mana_into_go
 #[test]
 fn the_ai_of_a_neutral_player_goes_with_the_player() {
     let mut w = world(7);
-    let neutral = RefCell::new(NeutralSeat::default());
+    let neutral = RefCell::new(NeutralAi::default());
     play(&mut w, &neutral, 2);
     let first = *neutral
         .borrow()
@@ -128,7 +129,7 @@ fn the_ai_of_a_neutral_player_goes_with_the_player() {
 fn a_neutral_player_meets_answers_proposals_and_trades_no_spells() {
     use f4x_core::diplomacy::{DiplomacyCommand, ProposalKind};
     let mut w = world(7);
-    let neutral = RefCell::new(NeutralSeat::default());
+    let neutral = RefCell::new(NeutralAi::default());
     play(&mut w, &neutral, 2);
     let race = *neutral
         .borrow()

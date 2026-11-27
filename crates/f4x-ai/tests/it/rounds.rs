@@ -119,9 +119,9 @@ fn the_master_collects_the_ais_plans_to_be_saved() {
     let mut ais = vec![Ai::new(PlayerId(0)), Ai::new(PlayerId(1))];
     let [a, b] = &mut ais[..] else { unreachable!() };
     let seats = vec![
-        Seat::new(vec![PlayerId(0)], Box::new(AiSeat(a))),
-        Seat::new(vec![PlayerId(1)], Box::new(AiSeat(b))),
-        Seat::neutrals(Box::new(f4x_ai::NeutralSeat::default())),
+        Seat::new(PlayerId(0), Box::new(AiSeat(a))),
+        Seat::new(PlayerId(1), Box::new(AiSeat(b))),
+        Seat::non_wizards(Box::new(f4x_ai::NeutralAi::default())),
     ];
     let mut master = Master::new(seats).checkpoints();
     let progress = master.run(&mut w, Until::Rounds(5));

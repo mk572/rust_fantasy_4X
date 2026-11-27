@@ -29,13 +29,20 @@ pub enum Step {
     PlayRound,
 }
 
-/// Every player of `world` that takes part in the turn order, in the fixed order: the wizards
-/// and the independent cities' players by id, then the monsters' owner last.
+/// Where `player` comes in the order of the turns: by id, which puts the wizards before the
+/// independent race players, and the monsters' owner after everyone.
+pub fn turn_order(player: PlayerId) -> (bool, u8) {
+    (player == MONSTERS, player.0)
+}
+
+/// Every player of `world` that takes part in the turn order, in the order of the turns
+/// ([`turn_order`]).
 pub fn turn_players(world: &World) -> Vec<PlayerId> {
     let mut players = world.player_ids();
     if world.player(MONSTERS).is_some() {
         players.push(MONSTERS);
     }
+    players.sort_by_key(|&p| turn_order(p));
     players
 }
 

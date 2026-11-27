@@ -1,6 +1,6 @@
 //! The client's seats for `f4x-master`: the human's seat waits until the player ends the turn;
-//! a rival's seat plays at once and then waits while an attack on the human is fought, so the
-//! next rival plays on the board the battle left.
+//! a computer player's turn is played at once and then waits while an attack on the human is
+//! fought, so the next one plays on the board the battle left.
 //!
 //! Tests: none of its own; `tests/` plays turns through the client's `end_turns`.
 
@@ -18,7 +18,7 @@ use std::collections::VecDeque;
 pub(crate) struct Seating {
     /// The player pressed End Turn: the human seat finishes on its next call.
     pub human_done: bool,
-    /// The rival (or neutral) seat that is acting has played and now waits for the defences.
+    /// The computer player that is acting has played and now waits for the defences.
     pub played: bool,
 }
 
@@ -28,7 +28,7 @@ pub(crate) struct HumanSeat<'a> {
 }
 
 impl Controller for HumanSeat<'_> {
-    fn play(&mut self, _: &mut Game, _: &[PlayerId], _: &mut Vec<Event>) -> Status {
+    fn play(&mut self, _: &mut Game, _: PlayerId, _: &mut Vec<Event>) -> Status {
         if std::mem::take(&mut self.seating.borrow_mut().human_done) {
             Status::Done
         } else {
@@ -47,7 +47,7 @@ fn queue(defences: &RefCell<VecDeque<PendingAttack>>, attacks: Vec<Attack>) {
     }
 }
 
-/// Whether the seat is done: it has played and no attack on the human waits any more.
+/// Whether the turn is done: it has played and no attack on the human waits any more.
 fn finished(seating: &RefCell<Seating>, defences: &RefCell<VecDeque<PendingAttack>>) -> Status {
     if defences.borrow().is_empty() {
         seating.borrow_mut().played = false;
@@ -65,7 +65,7 @@ pub(crate) struct RivalSeat<'a> {
 }
 
 impl Controller for RivalSeat<'_> {
-    fn play(&mut self, game: &mut Game, _: &[PlayerId], events: &mut Vec<Event>) -> Status {
+    fn play(&mut self, game: &mut Game, _: PlayerId, events: &mut Vec<Event>) -> Status {
         if !self.seating.borrow().played {
             events.extend(self.ai.play_turn(game));
             queue(self.defences, self.ai.take_attacks());
@@ -88,17 +88,17 @@ impl Controller for RivalSeat<'_> {
     }
 }
 
-/// The independent cities and the monsters.
-pub(crate) struct NeutralSeat<'a> {
-    pub inner: &'a mut f4x_ai::NeutralSeat,
+/// The players without a wizard: the independent race players and the monsters.
+pub(crate) struct NeutralTurns<'a> {
+    pub inner: &'a mut f4x_ai::NeutralAi,
     pub seating: &'a RefCell<Seating>,
     pub defences: &'a RefCell<VecDeque<PendingAttack>>,
 }
 
-impl Controller for NeutralSeat<'_> {
-    fn play(&mut self, game: &mut Game, players: &[PlayerId], events: &mut Vec<Event>) -> Status {
+impl Controller for NeutralTurns<'_> {
+    fn play(&mut self, game: &mut Game, player: PlayerId, events: &mut Vec<Event>) -> Status {
         if !self.seating.borrow().played {
-            self.inner.play(game, players, events);
+            self.inner.play(game, player, events);
             queue(self.defences, self.inner.take_attacks());
             self.seating.borrow_mut().played = true;
         }

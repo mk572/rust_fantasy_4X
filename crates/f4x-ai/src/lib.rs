@@ -3,7 +3,7 @@
 //!
 //! One [`Ai`] plays one wizard. [`Ai::play_turn`] does that wizard's whole turn (research,
 //! spells, city production, settlers, the army) and leaves the turn's boundaries to `f4x-master`,
-//! which runs the rounds and the turn of each seat in order; [`AiSeat`] and [`NeutralSeat`] are
+//! which runs the rounds and the turn of each seat in order; [`AiSeat`] and [`NeutralAi`] are
 //! the controllers it calls, and [`play_round`] plays one round for a list of AIs.
 //!
 //! Tests: in the modules (each decision has its own file and tests); `tests/it/` has the rules of
@@ -915,7 +915,7 @@ pub fn settle(game: &mut Game, from: PlayerId, to: PlayerId, diplomats: &Diploma
 
 pub use offer::answer_resales;
 
-pub use controller::{play_round, AiSeat, NeutralSeat};
+pub use controller::{play_round, AiSeat, NeutralAi};
 pub use memory::Diplomats;
 pub use opinion::{relation_key, relation_level, RELATION_KEYS};
 

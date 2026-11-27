@@ -3,18 +3,19 @@
 //!
 //! ```text
 //! round start   (once: the round counter, world events)
-//!   for each seat, in order:
+//!   for each player, in the order of the turns (`turn_players`):
 //!     turn start   (moves refilled, offers, standing orders)
-//!     the seat's controller plays (a human may take many calls; an AI plays at once)
+//!     the player's controller plays (a human may take many calls; an AI plays at once)
 //!     turn end     (the player's cities, treasury, magic, healing)
 //! round end     (once: durations and world-wide work)
 //! ```
 //!
-//! A **seat** is who plays: one wizard (a human or an AI), or the neutral seat that plays all
-//! the independent cities and the monsters, last in the round. The master knows no concrete AI
-//! and no front end: a [`Controller`] is given by the host (the client's human, `f4x-ai`'s
-//! wizards and neutrals). The simulation rules stay in `f4x-core`; the master decides *when*
-//! each step of the turn order is made (`game/step.rs`), exactly once, and keeps a small [`State`] that is
+//! Every player has a turn of its own: the wizards, then the independent race players, then the
+//! monsters' player. A **seat** says who plays: one wizard's (a human or an AI), or the one that
+//! plays for every player without a wizard, each in that player's turn. The master knows no
+//! concrete AI and no front end: a [`Controller`] is given by the host (the client's human,
+//! `f4x-ai`'s AIs). The simulation rules stay in `f4x-core`; the master decides *when* each step
+//! of the turn order is made (`game/step.rs`), exactly once, and keeps a small [`State`] that is
 //! saved with the game so that a load resumes without repeating or skipping a step.
 //!
 //! Tests: in tests/it.
@@ -28,29 +29,28 @@ pub use game::save::{
     self, load_game, save_game, summarize_save, GameState, Loaded, Plans, Restored, SaveFile,
     SaveSummary,
 };
-pub use game::step::{self, turn_players, Step};
+pub use game::step::{self, turn_order, turn_players, Step};
 pub use game::undo::{self, UndoError};
 pub use game::Game;
 
-use f4x_core::player::PlayerId;
+use f4x_core::player::{PlayerId, MONSTERS};
 use f4x_core::world::{Command, Event, World};
 use serde::{Deserialize, Serialize};
 
 /// What a controller reports after it was asked to play.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Status {
-    /// The seat's turn is over.
+    /// The player's turn is over.
     Done,
-    /// The seat has more to do and needs more input (a human); ask again later.
+    /// The player has more to do and needs more input (a human); ask again later.
     Waiting,
 }
 
 /// Plays the turns of a seat. The master calls [`Controller::play`] until it says `Done`; a
 /// human controller answers `Waiting` until the person ends the turn, and never blocks.
 pub trait Controller {
-    /// Play or go on playing the turn of the seat's `players` (one wizard, or all the neutral
-    /// players). Events are appended to `events`.
-    fn play(&mut self, game: &mut Game, players: &[PlayerId], events: &mut Vec<Event>) -> Status;
+    /// Play or go on playing the turn of `player`. Events are appended to `events`.
+    fn play(&mut self, game: &mut Game, player: PlayerId, events: &mut Vec<Event>) -> Status;
 
     /// What the controller has in mind, as text to keep in a save, with the player each is for
     /// (the plans of the computer players it plays). The host asks for these when it saves the
@@ -60,8 +60,8 @@ pub trait Controller {
     }
 
     /// What has just happened in the game: the events of the step the master made, whoever
-    /// played it. A computer wizard keeps what concerns it (it fought a battle on another
-    /// wizard's turn, a city of it was taken) as a human's screen shows them. The default ignores
+    /// played it. A computer player keeps what concerns it (it fought a battle on another
+    /// player's turn, a city of it was taken) as a human's screen shows them. The default ignores
     /// them.
     fn notice(&mut self, _game: &Game, _events: &[Event]) {}
 }
@@ -71,47 +71,39 @@ pub trait Controller {
 pub struct Pass;
 
 impl Controller for Pass {
-    fn play(&mut self, _: &mut Game, _: &[PlayerId], _: &mut Vec<Event>) -> Status {
+    fn play(&mut self, _: &mut Game, _: PlayerId, _: &mut Vec<Event>) -> Status {
         Status::Done
     }
 }
 
-/// A seat at the table: the players it plays for and the controller that plays them.
+/// A seat at the table: the controller, and whose turns it plays.
 pub struct Seat<'a> {
-    players: Vec<PlayerId>,
-    neutral: bool,
+    /// The wizard's player, or `None` for the seat of the players without a wizard.
+    player: Option<PlayerId>,
     controller: Box<dyn Controller + 'a>,
 }
 
 impl<'a> Seat<'a> {
-    /// A seat for the players in the order given (one wizard, or the neutral players).
-    pub fn new(players: Vec<PlayerId>, controller: Box<dyn Controller + 'a>) -> Self {
+    /// The seat of one wizard.
+    pub fn new(player: PlayerId, controller: Box<dyn Controller + 'a>) -> Self {
         Self {
-            players,
-            neutral: false,
+            player: Some(player),
             controller,
         }
     }
 
-    /// The neutral seat: it plays every independent city's player and the monsters' owner, as
-    /// they are when its turn comes (cities turn neutral during a game). It always takes a turn.
-    pub fn neutrals(controller: Box<dyn Controller + 'a>) -> Self {
+    /// The seat that plays for every player without a wizard (the independent race players and
+    /// the monsters'), as they come and go during a game: it is asked once in the turn of each.
+    pub fn non_wizards(controller: Box<dyn Controller + 'a>) -> Self {
         Self {
-            players: Vec::new(),
-            neutral: true,
+            player: None,
             controller,
         }
     }
 
-    /// Whether this is the neutral seat.
-    pub fn is_neutral(&self) -> bool {
-        self.neutral
-    }
-
-    /// The players this seat plays (none listed for the neutral seat; see
-    /// [`Master::players_of`]).
-    pub fn players(&self) -> &[PlayerId] {
-        &self.players
+    /// The wizard whose seat this is; `None` for the seat of the players without one.
+    pub fn player(&self) -> Option<PlayerId> {
+        self.player
     }
 }
 
@@ -120,15 +112,15 @@ impl<'a> Seat<'a> {
 pub enum Phase {
     /// The round is about to begin.
     RoundStart,
-    /// The seat's turn is about to begin.
-    TurnStart(usize),
-    /// The seat is playing.
-    Acting(usize),
-    /// The seat's turn has been played and is about to end.
-    TurnEnd(usize),
-    /// Every seat has played; the round is about to end.
+    /// The player's turn is about to begin.
+    TurnStart(PlayerId),
+    /// The player is playing.
+    Acting(PlayerId),
+    /// The player's turn has been played and is about to end.
+    TurnEnd(PlayerId),
+    /// Every player has played; the round is about to end.
     RoundEnd,
-    /// The game is over (a winner, or no seat can play).
+    /// The game is over (a winner, or no player can play).
     Over,
 }
 
@@ -141,17 +133,18 @@ pub struct State {
 /// Why a saved state cannot be used.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FlowError {
-    /// The state names a seat the table does not have (the game was saved at another table).
-    NoSuchSeat { seat: usize, seats: usize },
+    /// The state names a player no seat plays (the game was saved at another table).
+    NoSeat { player: PlayerId },
 }
 
 impl std::fmt::Display for FlowError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            FlowError::NoSuchSeat { seat, seats } => {
+            FlowError::NoSeat { player } => {
                 write!(
                     f,
-                    "the saved round state is at seat {seat}, the table has {seats}"
+                    "the saved round state is at player {}, who has no seat here",
+                    player.0
                 )
             }
         }
@@ -165,7 +158,7 @@ impl std::error::Error for FlowError {}
 pub enum Refused {
     /// Nobody is acting (between turns, or the game is over).
     NobodyActing,
-    /// `actor` is not the seat that is acting now.
+    /// `actor` is not the player that is acting now.
     NotYourTurn { active: PlayerId, actor: PlayerId },
     /// `actor` sent a command that acts for another player (that player's unit or city).
     ForAnotherPlayer { actor: PlayerId, named: PlayerId },
@@ -183,8 +176,8 @@ pub struct Progress {
 pub enum Stopped {
     /// One step was made and the master could go on.
     Ready,
-    /// A controller waits for input; this is its seat.
-    Waiting(usize),
+    /// A controller waits for input; this is the player whose turn it plays.
+    Waiting(PlayerId),
     /// The game is over.
     Over,
     /// The round is about to begin and the master was asked to stop there
@@ -203,6 +196,15 @@ pub enum Until {
     Rounds(u32),
 }
 
+/// The wizard that plays first of those seated; the monsters' player at a table without one.
+fn first_wizard(seats: &[Seat]) -> PlayerId {
+    seats
+        .iter()
+        .filter_map(Seat::player)
+        .min_by_key(|&p| turn_order(p))
+        .unwrap_or(MONSTERS)
+}
+
 /// Runs the rounds.
 pub struct Master<'a> {
     seats: Vec<Seat<'a>>,
@@ -212,15 +214,10 @@ pub struct Master<'a> {
 
 impl<'a> Master<'a> {
     /// A master for a game whose current round has already begun (a new game, whose set-up did
-    /// the opening, or a game loaded without a saved state): the first seat plays first.
+    /// the opening, or a game loaded without a saved state): the first wizard's turn is next.
     pub fn new(seats: Vec<Seat<'a>>) -> Self {
-        Self {
-            seats,
-            state: State {
-                phase: Phase::TurnStart(0),
-            },
-            checkpoints: false,
-        }
+        let phase = Phase::TurnStart(first_wizard(&seats));
+        Self::resume(seats, State { phase })
     }
 
     /// A master that goes on from a saved state.
@@ -233,23 +230,20 @@ impl<'a> Master<'a> {
     }
 
     /// A master that goes on from where the game was saved ([`Game::phase`], which the master
-    /// writes after every step). A game without a phase was saved on the first seat's turn: the
-    /// human's, the seat the client plays and saves on. The state must fit the table.
+    /// writes after every step). A game without a phase was saved on the first wizard's turn:
+    /// the human's, the seat the client plays and saves on. The player in the state must have a
+    /// seat.
     pub fn from_game(seats: Vec<Seat<'a>>, game: &Game) -> Result<Self, FlowError> {
-        let state = State {
-            phase: game.phase().unwrap_or(Phase::Acting(0)),
-        };
-        let seat = match state.phase {
-            Phase::TurnStart(i) | Phase::Acting(i) | Phase::TurnEnd(i) => Some(i),
-            _ => None,
-        };
-        if let Some(seat) = seat.filter(|&i| i >= seats.len()) {
-            return Err(FlowError::NoSuchSeat {
-                seat,
-                seats: seats.len(),
-            });
+        let phase = game
+            .phase()
+            .unwrap_or_else(|| Phase::Acting(first_wizard(&seats)));
+        let master = Self::resume(seats, State { phase });
+        if let Phase::TurnStart(player) | Phase::Acting(player) | Phase::TurnEnd(player) = phase {
+            if master.seat_of(game, player).is_none() {
+                return Err(FlowError::NoSeat { player });
+            }
         }
-        Ok(Self::resume(seats, state))
+        Ok(master)
     }
 
     /// Stop at the start of every round ([`Stopped::RoundStart`]) so the host can save the game
@@ -277,18 +271,12 @@ impl<'a> Master<'a> {
         &self.seats
     }
 
-    /// The seat that is acting now.
-    pub fn active_seat(&self) -> Option<usize> {
+    /// The player whose turn is being played now.
+    pub fn active_player(&self) -> Option<PlayerId> {
         match self.state.phase {
-            Phase::Acting(i) => Some(i),
+            Phase::Acting(player) => Some(player),
             _ => None,
         }
-    }
-
-    /// The first player of the seat that is acting now.
-    pub fn active_player(&self) -> Option<PlayerId> {
-        self.active_seat()
-            .and_then(|i| self.seats[i].players.first().copied())
     }
 
     /// Whether the game is over.
@@ -304,47 +292,43 @@ impl<'a> Master<'a> {
         actor: PlayerId,
         command: Command,
     ) -> Result<Vec<Event>, Refused> {
-        let seat = self.active_seat().ok_or(Refused::NobodyActing)?;
-        let players = self.players_of(game, seat);
-        if !players.contains(&actor) {
-            return Err(Refused::NotYourTurn {
-                active: players.first().copied().unwrap_or(actor),
-                actor,
-            });
+        let active = self.active_player().ok_or(Refused::NobodyActing)?;
+        if active != actor {
+            return Err(Refused::NotYourTurn { active, actor });
         }
         if let Some(named) = game.command_actor(&command) {
-            if !players.contains(&named) {
+            if named != actor {
                 return Err(Refused::ForAnotherPlayer { actor, named });
             }
         }
         Ok(game.apply(command))
     }
 
-    /// The players a seat plays now: its own, or for the neutral seat every independent city's
-    /// player and the monsters' owner that exist.
-    pub fn players_of(&self, game: &Game, seat: usize) -> Vec<PlayerId> {
-        if self.seats[seat].neutral {
-            game.turn_players()
-                .into_iter()
-                .filter(|&p| game.is_neutral_player(p))
-                .collect()
-        } else {
-            self.seats[seat].players.clone()
-        }
+    /// The index of the seat that plays `player`'s turns: the wizard's own, or for a player
+    /// without a wizard the seat of those.
+    fn seat_of(&self, world: &World, player: PlayerId) -> Option<usize> {
+        let own = self.seats.iter().position(|s| s.player == Some(player));
+        own.or_else(|| {
+            let shared = || self.seats.iter().position(|s| s.player.is_none());
+            (!world.is_wizard(player)).then(shared).flatten()
+        })
     }
 
-    /// Whether the seat can take a turn: some player of it is still in the game.
-    fn eligible(&self, world: &World, seat: usize) -> bool {
-        self.seats[seat].neutral
-            || self.seats[seat]
-                .players
-                .iter()
-                .any(|&p| world.player(p).is_some_and(|pl| !pl.is_defeated()))
+    /// Whether `player` can take a turn: in the game, not defeated, and seated.
+    fn eligible(&self, world: &World, player: PlayerId) -> bool {
+        world.player(player).is_some_and(|p| !p.is_defeated())
+            && self.seat_of(world, player).is_some()
     }
 
-    /// The first seat from `from` that can take a turn.
-    fn next_eligible(&self, world: &World, from: usize) -> Option<usize> {
-        (from..self.seats.len()).find(|&i| self.eligible(world, i))
+    /// What comes after the turns before `from` in the order of the turns: the start of the turn
+    /// of the first player from there that can take one, or the end of the round. The players
+    /// are those in the game now, so one that appeared during the round plays in it if its
+    /// place has not passed.
+    fn next_turn(&self, world: &World, from: impl Fn(PlayerId) -> bool) -> Phase {
+        turn_players(world)
+            .into_iter()
+            .find(|&p| from(p) && self.eligible(world, p))
+            .map_or(Phase::RoundEnd, Phase::TurnStart)
     }
 
     /// Make one step: one boundary operation, or one call to a controller.
@@ -358,34 +342,41 @@ impl<'a> Master<'a> {
             Phase::Over => stopped = Stopped::Over,
             Phase::RoundStart => {
                 events.extend(game.start_round());
-                self.state.phase = match self.next_eligible(game, 0) {
-                    Some(i) => Phase::TurnStart(i),
-                    None => Phase::Over,
+                self.state.phase = match self.next_turn(game, |_| true) {
+                    Phase::RoundEnd => Phase::Over,
+                    first => first,
                 };
             }
-            Phase::TurnStart(i) => {
-                for p in self.players_of(game, i) {
-                    events.extend(game.start_player_turn(p));
-                }
-                self.state.phase = Phase::Acting(i);
-            }
-            Phase::Acting(i) => {
-                let players = self.players_of(game, i);
-                match self.seats[i].controller.play(game, &players, &mut events) {
-                    Status::Done => self.state.phase = Phase::TurnEnd(i),
-                    Status::Waiting => stopped = Stopped::Waiting(i),
+            Phase::TurnStart(player) => {
+                if self.eligible(game, player) {
+                    events.extend(game.start_player_turn(player));
+                    self.state.phase = Phase::Acting(player);
+                } else {
+                    let after = turn_order(player);
+                    self.state.phase = self.next_turn(game, |p| turn_order(p) > after);
                 }
             }
-            Phase::TurnEnd(i) => {
-                for p in self.players_of(game, i) {
-                    events.extend(game.end_player_turn(p));
+            Phase::Acting(player) => {
+                // A player that has left the game has nothing to play. (Not `has_player`, which
+                // does not count the monsters' owner.)
+                let seat = self
+                    .seat_of(game, player)
+                    .filter(|_| game.player(player).is_some());
+                let status = seat.map_or(Status::Done, |i| {
+                    self.seats[i].controller.play(game, player, &mut events)
+                });
+                match status {
+                    Status::Done => self.state.phase = Phase::TurnEnd(player),
+                    Status::Waiting => stopped = Stopped::Waiting(player),
                 }
-                // A player may have been defeated during the turn; the next one to play is the
-                // next seat that is still in the game.
-                self.state.phase = match self.next_eligible(game, i + 1) {
-                    Some(next) => Phase::TurnStart(next),
-                    None => Phase::RoundEnd,
-                };
+            }
+            Phase::TurnEnd(player) => {
+                if game.player(player).is_some() {
+                    events.extend(game.end_player_turn(player));
+                }
+                // A player may have been defeated, or have appeared, during the turn.
+                let after = turn_order(player);
+                self.state.phase = self.next_turn(game, |p| turn_order(p) > after);
             }
             Phase::RoundEnd => {
                 events.extend(game.end_round());

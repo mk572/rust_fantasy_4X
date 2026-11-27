@@ -3,7 +3,7 @@
 //! cities (`threat/monster.rs`). The original's `Make_Raiders` and `Make_Monsters` (`AIDATA.c`)
 //! start both from a clock that grows by a random 0 to the difficulty each turn; here the
 //! raiders and the monsters keep one clock each, and what the raised troops and the roaming
-//! monsters do afterwards is the neutral players' AI (`f4x_ai::NeutralSeat`).
+//! monsters do afterwards is the neutral players' AI (`f4x_ai::NeutralAi`).
 //!
 //! Differences from the original are in `docs/divergences.md`.
 //!

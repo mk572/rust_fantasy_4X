@@ -127,8 +127,9 @@ Update `game-flow.md` after implementation so it describes the new lifecycle rat
 ### 7.1 Inventory of the current pipeline (decided 6 November 2026)
 
 Decisions: the economy of a player runs **per player** (at that player's turn end); the world-wide
-work runs once per round; the order of players is fixed (seat order, the human first) and the
-**neutral seat** (independent cities, the monsters, raiders) acts last, before round-end work. The
+work runs once per round; the order of players is fixed (the wizards, the human first), and the
+players without a wizard (independent race players, then the monsters) act after them, each in a
+turn of its own (10.11), before round-end work. The
 core keeps `World.turn` as the round counter; `Command::EndTurn` stays as a compatibility
 composition of the four phases for tests and tools (all players, in order).
 
@@ -203,7 +204,7 @@ Phases (core operations, orchestrated by `f4x-master`): `start_round`, `start_pl
 Elimination: a defeated player gets no `start_player_turn`/`end_player_turn`; its cities and units
 are already gone or neutral. Time Stop: while it lasts, other wizards' turns still run their
 economy except where the table says "skipped"; the stopper's units are the only ones that move.
-Loading: the round and where the master was in it (phase and seat) are the game's state, saved with it (`Game::phase`, written by the master after every step; a save without a phase was made on the human's turn). The client's autosave is written when the master reaches the start of a round (`Master::checkpoints`, `Stopped::RoundStart`), the one moment no seat is half way through its turn; loading it plays on from there, so the round start and the human's turn start run again with the same random stream and the news is told as after any turn. The computer players' plans go with it, beside the game in the save file (`Plans`): one opaque text per AI (`Ai::to_text`, RON on one line, maps in key order so the text and the checksum are stable). The master collects them from the controllers (`Master::plans`, `Controller::plans`) for the autosave, the client's manual save asks its rivals and its neutral seat (`Ai::plans_of`, `NeutralSeat::plans`), and a load gives them back (`Ai::recall`, `NeutralSeat::recall`, which makes the AI of each race player that has plans); a save without plans, or plans that do not parse, gives an AI that starts afresh. A loaded game then plays on exactly as the saved one would have (pinned by a test in `f4x-ai`'s `rounds.rs`). About 1 to 2 KB per AI. A save made while a rival waits for the human to fight its attack (seat above 0) replays that rival's turn from its start.
+Loading: the round and where the master was in it (the phase, with the player whose turn it is) are the game's state, saved with it (`Game::phase`, written by the master after every step; a save without a phase was made on the human's turn). The client's autosave is written when the master reaches the start of a round (`Master::checkpoints`, `Stopped::RoundStart`), the one moment no seat is half way through its turn; loading it plays on from there, so the round start and the human's turn start run again with the same random stream and the news is told as after any turn. The computer players' plans go with it, beside the game in the save file (`Plans`): one opaque text per AI (`Ai::to_text`, RON on one line, maps in key order so the text and the checksum are stable). The master collects them from the controllers (`Master::plans`, `Controller::plans`) for the autosave, the client's manual save asks its rivals and its AI of the other players (`Ai::plans_of`, `NeutralAi::plans`), and a load gives them back (`Ai::recall`, `NeutralAi::recall`, which makes the AI of each race player that has plans); a save without plans, or plans that do not parse, gives an AI that starts afresh. A loaded game then plays on exactly as the saved one would have (pinned by a test in `f4x-ai`'s `rounds.rs`). About 1 to 2 KB per AI. A save made while a computer player waits for the human to fight its attack goes on in that player's turn: the turn is not started again, but the player gives its orders again.
 
 ## 8. Determinism and tests
 
@@ -227,7 +228,7 @@ This document defines the lifecycle and design constraints, not a demand to rewr
 
 ## 10. Splitting the game from the world (task 822)
 
-**Built so far:** `f4x_master::Game` owns the world; the master drives it, and the AI, the console, the client and the tools hold it. It reads like a world, and a command goes through `Game::apply`; setup and cheats use `Game::world_mut`. Undo and the replay log are the game's (`game/undo.rs`, `game/replay.rs`). So is the turn order (`game/step.rs`): the lifecycle commands and `EndTurn` are gone, the game makes the steps (`Game::start_round` and the others, `Game::play_round`) through `World::advance`, `turn_players` is master's, and the replay log holds commands and steps. A command in the log still has no sender (10.4). The round counter, the phase and the end of the game are the game's (`GameState`, `game/end.rs`); the plans are the controllers'; the save file has the parts of 10.8, without the seed, the draws, the seats and the reactions, and older saves are converted (`convert.rs`, game version 0.0.8). The world operations that need the round take it as an argument (`start_round`, `start_player_turn`, `score`, `cheat_offer`), and everyone outside the world asks `Game::round`. Not yet built: the random numbers (10.10), the seats (10.11), and commands with a sender and reactions (10.4).
+**Built so far:** `f4x_master::Game` owns the world; the master drives it, and the AI, the console, the client and the tools hold it. It reads like a world, and a command goes through `Game::apply`; setup and cheats use `Game::world_mut`. Undo and the replay log are the game's (`game/undo.rs`, `game/replay.rs`). So is the turn order (`game/step.rs`): the lifecycle commands and `EndTurn` are gone, the game makes the steps (`Game::start_round` and the others, `Game::play_round`) through `World::advance`, `turn_players` is master's, and the replay log holds commands and steps. A command in the log still has no sender (10.4). The round counter, the phase and the end of the game are the game's (`GameState`, `game/end.rs`); the plans are the controllers'; the save file has the parts of 10.8, without the seed, the draws, the seats and the reactions, and older saves are converted (`convert.rs`, game version 0.0.8). Every player has a turn of its own (10.11). The world operations that need the round take it as an argument (`start_round`, `start_player_turn`, `score`, `cheat_offer`), and everyone outside the world asks `Game::round`. Not yet built: the random numbers (10.10), and commands with a sender and reactions (10.4).
 
 The **world** (`f4x-core`'s `World`, named `Game` until 26 November 2026) says what is in the world and what can be done in it. The **game** (`Game` in `f4x-master`) owns a `World` and advances time.
 
@@ -248,7 +249,7 @@ The **world** (`f4x-core`'s `World`, named `Game` until 26 November 2026) says w
 | `flow` | game | becomes typed state of the game (round, phase, active seat); the opaque text goes |
 | `plans` | the controllers | the game never reads them; the save holds them beside the game (10.5) |
 | `game_over` | game | the world keeps the facts, the game decides (10.7) |
-| `turn_players()` | game | merged with `Master::players_of` |
+| `turn_players()` | game | the order of the turns, which `Master` follows |
 | `start_round`, `start_player_turn`, `end_player_turn`, `end_round` (`turn.rs`) | split | the order and the counter to the game; each step stays a world operation |
 | `end_turn` (`Command::EndTurn`) | game | becomes `Game::play_round` |
 | `Command::StartRound`, `StartPlayerTurn`, `EndPlayerTurn`, `EndRound` | leave the command set | |
@@ -365,9 +366,13 @@ No command takes a round.
 - The `Game` passes `&mut GameRng` to each world operation that draws; the world keeps none. The places where the world takes its generator out and leaves a placeholder (`GameRng::lent`) go. The order of draws does not change. It is a step of its own: many signatures change.
 - The AI draws no random numbers from the game (its one draw, whether to raze a captured city, is gone: task 824, 26 November 2026).
 
-### 10.11 Players and seats (26 November 2026)
+### 10.11 Players and seats (26 November 2026, built 27 November 2026)
 
-There is no neutral seat. The players are the wizards, the independent race players (no wizard, one for each race, each played by an AI) and the monster player, and each has a seat of its own, with its own start, turn, end and reactions. Today one seat in `f4x-master` (`Seat::neutrals`, `f4x_ai::NeutralSeat`) starts all the non-wizard players, then plays them, then ends them all; this replaces what sections 7.1 and `docs/game-flow.md` say about it.
+There is no neutral seat. The players are the wizards, the independent race players (no wizard, one for each race, each played by an AI) and the monster player, and each has a turn of its own, with its own start, play, end and (once built) reactions.
 
-- A race player can appear during a game, so the seats follow the players in the game, and the saved active seat names a player, not a position in a list.
-- One turn at a time changes the order of operations and of the random draws, so it comes after the comparison of 10.8, as a change of its own.
+- The order of the turns follows from the players in the world (`turn_order`, `turn_players`): the wizards, the race players by player number, the monster player last. The game stores no list of seats.
+- A race player can appear during a game. One that appears during a round plays in it if its place in the order has not passed. A defeated player, or one that has left the game, gets no turn.
+- The saved phase names the player whose turn it is, not a position in a list.
+- A seat of the master (`Seat`) says who plays a turn: `Seat::new` for one wizard, `Seat::non_wizards` for the controller that is asked in the turn of every other player (`f4x_ai::NeutralAi`, one AI for each race player and the roaming monsters).
+- The converter of old saves (10.8) turns a seat number into a player. A save made while the old shared seat was playing goes on in the monsters' turn, the last of the round, so that no turn is started twice.
+- One turn at a time changed the order of operations and of the random draws, so it came after the comparison of 10.8, as a change of its own.

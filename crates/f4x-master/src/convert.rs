@@ -1,12 +1,14 @@
 //! Saves written before game version 0.0.8 (save version 4), where the round, the end of the game,
-//! the master's place in the round and the computer players' plans were fields of the world, and a
-//! war was saved with the round it began (`docs/turn-structure.md` 10.8).
+//! the master's place in the round and the computer players' plans were fields of the world, a war
+//! was saved with the round it began (`docs/turn-structure.md` 10.8), and the place in the round
+//! named a seat: a wizard's, or the one after them that played every other player at once.
 //!
 //! This module is the only one that knows that form, so that it can be retired (task 823):
 //! `SaveFile::from_text` is its one caller.
 //!
 //! Tests: in tests/it/convert.rs.
 
+mod flow;
 mod race_player;
 
 use f4x_core::diplomacy::{DiplomacySave, Pair, ProposalSave, Stance, Treaty};
@@ -20,7 +22,6 @@ use serde::Deserialize;
 
 use crate::game::end::GameOver;
 use crate::game::save::{GameState, Plans, SaveFile};
-use crate::State;
 
 /// The save layout this module reads.
 const OLD_SAVE_VERSION: u32 = 4;
@@ -116,16 +117,7 @@ pub(crate) fn from_old(text: &str, game_version: &str) -> Result<SaveFile, LoadE
     }
     let old: OldSnapshot = ron::from_str(text).map_err(|e| LoadError::Parse(e.to_string()))?;
     let round = old.turn;
-    let game = GameState {
-        round,
-        // A place in the round that cannot be read is no place: the first seat plays.
-        phase: old
-            .flow
-            .as_deref()
-            .and_then(|flow| ron::from_str::<State>(flow).ok())
-            .map(|state| state.phase),
-        game_over: old.game_over,
-    };
+    let flow = old.flow;
     let diplomacy = DiplomacySave {
         pairs: old
             .diplomacy
@@ -183,6 +175,14 @@ pub(crate) fn from_old(text: &str, game_version: &str) -> Result<SaveFile, LoadE
     if found < version_parts(race_player::SINCE) {
         race_player::upgrade(&mut world, &mut plans);
     }
+    let game = GameState {
+        round,
+        // A place in the round that cannot be read is no place: the first wizard plays.
+        phase: flow
+            .as_deref()
+            .and_then(|flow| flow::phase(flow, &world.players)),
+        game_over: old.game_over,
+    };
     Ok(SaveFile {
         version: SAVE_VERSION,
         game_version: GAME_VERSION.to_string(),
