@@ -16,7 +16,7 @@ Long-term ideas are Low-priority tasks in the same file.
 
 ## Where things are
 
-The crates and who may depend on whom: `docs/design.md` section 2 and `docs/rust_coding_rules.md`. The state model: `docs/ecs-structure.md`. Lessons: `docs/KNOWLEDGE.md`.
+The crates and who may depend on whom: `docs/design.md` section 2 and `docs/rust_coding_rules.md`. The world (`f4x-core`) says what is in the game and what can be done; the game (`f4x-master`) advances time (`docs/turn-structure.md` section 10). The state model: `docs/ecs-structure.md`. Lessons: `docs/KNOWLEDGE.md`.
 
 ## Commands
 

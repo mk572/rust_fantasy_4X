@@ -60,9 +60,11 @@ In the code `World` is the game's world (the map and everything on it), `ecs` is
 
 Section 3 is the design of the entities; section 3.9 is the save.
 
-`World::apply(Command) -> Vec<Event>` is the only way state changes. Commands name
-entities by `hecs::Entity`; events report what happened. The client, the AI and tests all
-use the same entry point.
+What a player does reaches the world as `World::apply(Command, rng) -> Vec<Event>`; commands name
+entities by `hecs::Entity`; events report what happened. The `World` does not advance time: a
+`Game` (`f4x-master`) owns it, passes the players' commands on (`Game::apply(player, command)`), calls
+the turn operations (`turn.rs`) and holds the random numbers. The client and the AI go through the
+game; tests of core use the world alone.
 
 ### Three kinds of data
 
@@ -82,7 +84,7 @@ a field of `World`. A player is one per player and still an entity, because othe
 The fields of `World` (`ecs`, `map`, `fog`, `content`, `player_index`) are private to `f4x-core`. The
 other crates ask the game through its queries (`units()`, `economy()`, the handles `player(id)` and `wizard(id)`, and `world/access.rs`:
 `content()`, `map()`, `player_ids()`, `is_explored`, `city_buildings`...), play through
-`World::apply`, and set a game up by hand (tests, scenarios, tools) through the setters of
+`Game::apply`, and set a game up by hand (tests, scenarios, tools) through the setters of
 `world/access.rs` and the `cheat_*` mutators of `world/cheat.rs`, which the console's override commands, debug screens and tests use. An AI wizard reads through a `PlayerView` (`player/view.rs`): its own things, the cities of
 others on squares it has explored and the units on squares it sees, so it cannot know more than a
 human player. Tests of other crates may read a component with the hidden

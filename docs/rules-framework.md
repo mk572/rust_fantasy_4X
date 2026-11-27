@@ -145,8 +145,8 @@ engine still lacks a native primitive.
 general game-event system. The game does not broadcast events to every rule and automatically
 run matching effects. Instead, each subsystem explicitly reads the rules it knows how to
 interpret, and the turn itself is an ordered sequence of direct method calls. The authoritative
-turn sequence is documented in [game-flow.md](game-flow.md) and implemented by
-`world/mod.rs::end_turn` and `turn.rs::process_turn`.
+turn sequence is documented in [game-flow.md](game-flow.md): the game (`f4x-master`) orders the steps,
+and each is a world operation in `f4x-core`'s `turn.rs`.
 
 The complete `Trigger` enum has two triggers (task 491 removed five that nothing dispatched):
 
@@ -166,13 +166,13 @@ data directly where they need specialised behaviour.
 
 The start-of-turn event is currently a notification, not an effect trigger:
 
-1. `World::end_turn` performs its pre-turn cleanup, increments `World.turn`, processes stasis,
-   refills unit movement and emits `Event::TurnStarted { turn }`.
-2. It then calls `process_turn`, which directly calls the turn-step methods in a fixed order.
-   Among those are treasury settlement, random events, city production and growth, global and world enchantments, experience, wizard magic, healing, threats and
-   offers.
-3. After `process_turn`, `end_turn` records history, processes diplomacy, handles purifying,
-   stranded ships and road work, then follows unit standing orders.
+1. At a round's start the game raises its round counter and calls `World::start_round`, which ages
+   the wars, emits `Event::TurnStarted { turn }` and runs the world events and the threats.
+2. At each player's turn start it calls `World::start_player_turn`, which calls the turn-step
+   methods directly in a fixed order: research, growth, experience, healing, the moves refill,
+   offers, road work and standing orders among them.
+3. The turn's end (`World::end_player_turn`: treasury, magic, production) and the round's end
+   (`World::end_round`: global and world enchantments, diplomacy) are ordered the same way.
 
 The precise order is maintained in [game-flow.md](game-flow.md). `Event::TurnStarted` is returned to the caller
 alongside other outcome/notification events; it is not sent back into the rules executor.

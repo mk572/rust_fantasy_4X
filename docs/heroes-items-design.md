@@ -283,7 +283,7 @@ system because they share the schedule, fame and the pop-up (task 143).
 trait): there is none (the chances, prices and the computer's answers are plain functions, tested without a game, and
 `World` rolls the offers); `Offer::Mercenaries` carries the unit's id and a 0-based level; an offer
 waits in `Player::offers` (saved) until `AcceptOffer { player, index, name }` or `RejectOffer`, and
-lapses at the next turn change. `determine_offers` runs last in `process_turn`. Every wizard
+lapses at the next turn change. `determine_offers` runs in `World::start_player_turn`. Every wizard
 meets the merchant; the computer wizards answer in `f4x-ai/src/offer.rs` (by what the item is worth to them, task 504). The console has `offers`,
 `accept`, `reject` and the override `offer <hero|mercenaries|item>`; the client shows a box over the map
 (`offer_prompt.rs`, `--offer KIND` with `--shot`). The fixes of the original's bugs are in
@@ -306,7 +306,7 @@ items are destroyed" and, for Disintegrate and the like, "gone for good" in the 
 - **Commands.** `AcceptOffer`, `RejectOffer`, `MoveItem`, `ScrapItem`, `CraftItem`
   (`AcceptOffer` carries the hero's name), through the dispatcher like `found_wizard`.
 - **Events.** `HeroJoined`, `HeroSpellFailed`, `ItemsAwarded`, `ItemMade`, the offer events.
-- **Turn.** `determine_offers` runs last in `process_turn`; the Noble gold, Sage research and
+- **Turn.** `determine_offers` runs in `World::start_player_turn`; the Noble gold, Sage research and
   Legendary fame add to the existing `Income` and `Treasury` inputs (`wizard/magic_income.rs`,
   `player/finance.rs`).
 - **Removal.** Every place that takes a unit out of the game goes through `World::remove_unit(unit,

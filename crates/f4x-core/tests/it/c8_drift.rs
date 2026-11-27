@@ -6,8 +6,6 @@
 //! meant, regenerate the pins and review the diff of the file:
 //!
 //! `F4X_REFRESH_PINS=1 cargo test -p f4x-core --features testutil --test it c8_`
-//!
-//! The long plays that need `new_game` and the AI are in `f4x-ai/tests/it`.
 
 use crate::support::{commands, text, worlds};
 use f4x_core::check::digest;

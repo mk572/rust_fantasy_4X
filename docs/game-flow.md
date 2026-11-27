@@ -4,21 +4,28 @@ How a game runs: the command and event layer, what happens in a turn and in what
 and how movement, production and the treasury work. For how state is stored see
 [`ecs-structure.md`](ecs-structure.md); for the map see [`map-layers.md`](map-layers.md).
 
-Code: `crates/f4x-core/src/{lib,turn,movement,pathing,production,economy,units,vision}.rs`.
+Code: the game in `crates/f4x-master/src/game.rs` and `game/`; the world in `crates/f4x-core/src/` (`turn.rs`, `world/command.rs`, `unit/movement.rs`, `unit/pathing.rs`, `city/production.rs`, `player/finance.rs`, `map/vision.rs`).
 
 ## 1. The shape of the loop
 
 ```
-client / AI / test                         f4x-core
-─────────────────                          ───────────────────────────────
-read state with queries  ────────────────▶ &World methods (no change)
-send a Command           ────────────────▶ World::apply(command)
-                         ◀──────────────── Vec<Event>  (what happened, or why not)
+client / AI / console       f4x-master                        f4x-core
+─────────────────────       ───────────────────────           ───────────────────────────────
+read state with queries ──▶ &Game (reads like a world) ─────▶ &World methods (no change)
+send a Command          ──▶ Game::apply(player, command) ───▶ World::apply(command, rng)
+let time pass           ──▶ a step of the turn order ───────▶ World::start_player_turn and others
+                        ◀──────────────── Vec<Event>  (what happened, or why not)
 draw, log, animate from events and queries
 ```
 
-- **Everything that changes the game is a `Command`** passed to `World::apply`. There is no
-  other way to mutate state from outside the core.
+- **Everything a player does is a `Command`** sent to `Game::apply(player, command)`. The game refuses
+  one that is not the sender's to give (`World::may_command`, `Rejection::NotYourCommand`), one that
+  only sets a world up (`Command::is_setup`, `Rejection::SetupOnly`), on another player's turn one that
+  is no reaction (`Rejection::NotYourTurn`, `turn-structure.md` 10.4) and any command after the end.
+- **A command given to the world directly** (`World::apply`: the game itself, setup, tests) carries no
+  sender, so **ownership is not checked** there: the caller is trusted.
+- **Time is the game's.** The steps of the turn order (section 4) are no commands; no player sends
+  them. Setup, tests and cheats also change the world through its setters.
 - **`apply` returns events**: facts the caller can show or log. A refused command returns
   `Event::Rejected(reason)`; it does not panic and changes nothing.
 - **Queries are read-only, not necessarily cheap**: methods taking `&self` do not
@@ -28,20 +35,14 @@ draw, log, animate from events and queries
   game-state change makes it stale, rather than rerunning every query every frame. Cheap
   checks can still be made on demand; expensive derived information should be cached and
   invalidated or refreshed when its dependencies change.
-- **Determinism:** the same starting `World`, the same seed and the same commands in the same
-  order give the same result. All randomness goes through `World::roll`; anything that
-  visits entities does so in creation order (each unit and city carries a creation number,
-  `Serial`; `hecs` entity ids are reused and are not used for ordering).
-- **Saves are snapshots** (section 8): the whole game is written out and read back. Within one
-  run the command log still reproduces a game from its seed; commands carry entity ids, so a
-  log cannot be replayed across a load (the loaded entities have new ids).
-
-The core has per-player lifecycle operations (section 4) but does not decide who acts when:
-`f4x-master` runs the rounds and seats. A player's command goes through
-`Game::apply(player, command)`, which refuses one that is not the sender's to give
-(`World::may_command`, `Rejection::NotYourCommand`) and one that only sets a world up
-(`Command::is_setup`, `Rejection::SetupOnly`). A command called directly on the core carries no
-sender, so **ownership is not checked** there: the caller is trusted.
+- **Determinism:** the same saved game, the same commands and the same steps in the same order give the
+  same result. All randomness comes from the game's `GameRng`, which it passes to each world operation
+  that draws (`turn-structure.md` 10.10); anything that visits entities does so in creation order (each
+  unit and city carries a creation number, `Serial`; `hecs` entity ids are reused and are not used for
+  ordering).
+- **Saves are snapshots** (section 8): the whole game is written out and read back. A replay
+  (`f4x_master::Replay`, `game/replay.rs`) is a saved game plus every command and step since; it names
+  units and cities by creation number, so it plays back on the loaded game.
 
 ## 2. Commands and their events
 
@@ -99,8 +100,9 @@ Rejection reasons are typed: `FoundCity(FoundCityError)`, `Move(MoveError)`,
   must be on the same tile and have moves left; each pays its own cost; the move fails if any
   unit cannot enter the tile.
 - **Hostile tiles.** If the target holds units of another player, or another player's city,
-  nothing moves and the core emits `AttackRequested { attackers, from, to, defenders }`.
-  Combat resolution is not built yet; the client logs it.
+  nothing moves and the core emits `AttackRequested { attackers, from, to, defenders }`. The sender
+  then sends `BeginBattle` or `AutoResolve` (`combat.md`); an attack on the human is held until it
+  answers (`turn-structure.md` 10.4).
 - **Plane shift.** Allowed on a tower tile, or for a stack whose every unit has planar
   travel, or at an Astral Gate. A stack in a tower is on both planes at once (the original's
   `in_tower`, `Units_In_Tower`, `Player_Army_At_Square` / `Enemy_Army_At_Square`): the tower is a
@@ -135,18 +137,19 @@ Rejection reasons are typed: `FoundCity(FoundCityError)`, `Move(MoveError)`,
 ## 4. The turn
 
 A game runs in **rounds**; in each round every player takes one **turn**, in a fixed order (the
-wizards, the human first, then each independent race player, then the monsters). The core
-offers four lifecycle operations, and the game (`f4x_master::Game`) makes them as **steps**:
-no commands, no player sends them, but each is written into a replay and ends the undo history.
-The master runs them in order and asks the controller of each player (a human or an AI) to act in between
-(`docs/turn-structure.md` has the design and the cadence table, section 7.1):
+wizards, the human first, then each independent race player, then the monsters). The game
+(`f4x_master::Game`) holds the round counter and the order and makes four kinds of **step**
+(`game/step.rs`), each calling one operation of the world (`turn.rs`); each step is written into a
+replay and ends the undo history. The master runs them in order and asks the controller of each player
+(a human or an AI) to act in between (`docs/turn-structure.md` has the design and the cadence table,
+section 7.1):
 
-| Phase | Step of the game | What it does |
+| Phase | Step of the game | What the world does |
 |---|---|---|
-| Round start | `start_round(round)` | `World.turn` becomes `round`, `TurnStarted`, world events (`process_events`), threats (`process_threats`) |
-| Turn start | `start_player_turn(player, round)` | what changes the land and the people, then the player's units become ready (4.1) |
-| Turn end | `end_player_turn(player)` | the player's income, bills and production (4.2) |
-| Round end | `end_round` | durations and world-wide processes, once (4.3) |
+| Round start | `Game::start_round` | the round counter goes up (the game's); `World::start_round(round)`: wars age, `TurnStarted`, world events (`process_events`), threats (`process_threats`) |
+| Turn start | `Game::start_player_turn(player)` | what changes the land and the people, then the player's units become ready (4.1) |
+| Turn end | `Game::end_player_turn(player)` | the player's income, bills and production (4.2) |
+| Round end | `Game::end_round` | world-wide processes, once (4.3) |
 
 `Game::play_round` is the change of rounds at once, for tests and tools: every player ends their
 turn, the round ends, the next begins, and every player starts theirs.
@@ -161,31 +164,32 @@ units before the rivals can attack) and growth is the next turn **start**.
 2. Except in the first round: learn the research that finished and choose the next spell
    (`process_research`); Gaia's Blessing and Chaos Rift (terrain and buildings change before
    food is counted); outposts, population growth and pestilence of the player's cities
-   (`grow_city`); unit experience and healing.
+   (`grow_city`); unit experience and healing. While Time Stop lasts, only experience and healing.
 3. Refill each unit's moves (units in stasis, and units not owned by the Time Stop caster,
    receive zero); clear completed standby. A unit finished at the last turn end moves now.
-4. Roll the player's offers; purify work; marooned ships sail and stranded units drown; road
-   work; follow standing orders in unit creation order.
+4. Roll the player's offers; purify work; ships in port unload, marooned ships sail and stranded
+   units drown; road work; follow standing orders in unit creation order.
 
 ### 4.2 `World::end_player_turn(player)`
 
-1. Close the player's raze windows.
-2. Raise farmers to the minimum needed to feed each inhabited city.
-3. Settle the treasury (section 5): gold and food income, then food and gold upkeep. A wizard
-   under Time Stop is skipped.
-4. `process_magic`: mana income, research points, mana upkeep, casting progress and the
+1. Proposals made in the turn and not answered lapse.
+2. Close the player's raze windows.
+3. Raise farmers to the minimum needed to feed each inhabited city.
+4. Settle the treasury (section 5): gold and food income, then food and gold upkeep.
+5. `process_magic`: mana income, research points, mana upkeep, casting progress and the
    resolution of a finished spell.
-5. Production: each city checks that its item is possible, refreshes autobuild and applies its
+6. Production: each city checks that its item is possible, refreshes autobuild and applies its
    production (a building or unit may complete).
 
-The monsters' owner has units only and takes no part in 2 to 5.
+The monsters' owner has units only and takes no part in 3 to 6; at its turn start its units only gain
+experience and heal, and its lairs heal. While Time Stop lasts, the other players take no part in 3
+to 6, and its keeper pays no gold or food (4) and builds nothing (6).
 
 ### 4.3 `World::end_round()`
 
-Temporary effects count down; global enchantments (Herb Mastery healing, vision) and world
-enchantments (Great Wasting, Armageddon, Meteor Storm) run; volcanoes cool and corruption fades;
-history is recorded; diplomacy timers advance. These run once per round however many players
-there are.
+Global enchantments (Herb Mastery healing, vision) and world enchantments (Great Wasting,
+Armageddon, Meteor Storm) run; volcanoes cool and corruption fades; history is recorded; diplomacy
+advances. These run once per round however many players there are.
 
 Combat is not automatically invoked by the turn pipeline when movement encounters a hostile
 tile: movement emits `AttackRequested`, and the caller/client must handle that request.
@@ -194,7 +198,7 @@ they are not callbacks into the rules engine.
 
 ## 5. The treasury
 
-`World::treasury(player)` previews what the next turn end will do; the turn end applies the same
+`World::budget(player)` previews what the next turn end will do; the turn end applies the same
 numbers.
 
 **Income**, from the player's cities as they stand at the turn end, before production changes them:
@@ -260,8 +264,8 @@ own state, that snapshot and the computer players' plans; `f4x_master::{save_gam
 the file work. Code: `f4x-core/src/world/save.rs`, `world/save/file.rs`,
 `f4x-master/src/game/save.rs`.
 
-**What a save holds:** the seed and how many random numbers have been drawn (so the random
-stream resumes exactly), the round, the end of the game, the creation counter, the map (terrain, features, roads),
+**What a save holds:** in the game's part, the seed and how many random numbers have been drawn (so the random
+stream resumes exactly), the round and the end of the game; in the world's, the creation counter, the map (terrain, features, roads),
 each player's explored area (bit-packed), the players, every unit (with moves, damage,
 experience and any standing order) and every city (population, farmers, buildings,
 enchantments, race, current item and progress).
@@ -312,7 +316,7 @@ release.
 ## 9. What the client does with this
 
 The macroquad client (`f4x-client`) runs this loop each frame: read input, turn it into a
-`Command`, `apply` it, add any events to its message log, then draw from queries. It never
+`Command`, send it to the game (`Game::apply`), add any events to its message log, then draw from queries. It never
 touches the `hecs::World` directly except to read. The `--shot` mode runs a few commands
 (`--turns N`) and renders a single frame, which is how the flow is checked without a person.
 
@@ -324,10 +328,11 @@ otherwise go hungry, so the starting troops do not starve unnoticed.
 ## 10. Adding to the flow
 
 - **A player action:** a `Command` variant, handled in `World::apply`, with its check as a
-  `&self` method the client can also call, and `Event`s for what it changes. Add a test
-  that applies the command to a hand-built world.
-- **A turn step:** a method called from `process_turn` or `end_turn` at the right place in the
-  order above. Keep it deterministic (sorted iteration, `World::roll`) and tested over several
-  turns.
+  `&self` method the client can also call, and `Event`s for what it changes. Say who may send it
+  (`World::command_actor`, and `game/reaction.rs` if it answers another player). Add a test in core
+  that applies the command to a fresh world.
+- **Turn work:** a world method called from one of the turn operations (`turn.rs`) at the right
+  place in the order above. Keep it deterministic (sorted iteration, the `GameRng` passed in). Test
+  the operation in core, and what needs several turns in `f4x-master`.
 - **A new rejection reason:** extend the relevant error enum rather than inventing a string,
   so the client can match on it.

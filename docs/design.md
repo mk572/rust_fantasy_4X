@@ -21,11 +21,11 @@ Related documents: [`rules-framework.md`](rules-framework.md) (the rules layer),
 ```
 crates/f4x-def/      the static definitions, their loaders and cross-reference validation (RON); `content/` is the shipped rules data
 crates/f4x-battle/   the tactical battle (reads f4x-def): the rules and the field of a fight; core builds on it, and the elements of the battle move down from core into it step by step
-crates/f4x-core/     the simulation (reads f4x-def and f4x-battle): no I/O but save files, no rendering, never depends on the client
+crates/f4x-core/     the world (reads f4x-def and f4x-battle): what is in it and what can be done in it; no I/O but save files, no rendering, never depends on the client
 crates/f4x-newgame/  what runs once per game: map generator, placement of nodes, lairs and neutral cities, the wizards and their start (uses f4x-core's public API)
 crates/f4x-lang/     the words of the game: messages by key, names, name lists (`text.md`)
 crates/f4x-ai/       the AI players: they see what a player sees and answer with `Command`s (`ai-design.md`)
-crates/f4x-master/   the flow of a game: rounds and turns per player, its end, saves, undo and replays (`turn-structure.md`)
+crates/f4x-master/   the game: it owns the world and advances time (rounds, a turn per player, its end), saves, undo and replays (`turn-structure.md`)
 crates/f4x-learn/    the learning environment of the AIs (`learning-ai.md`)
 crates/f4x-console/  the text console: every action as a line of text (`console.md`)
 crates/f4x-client/   rendering, input, UI (macroquad); `extract/` reads the original's art
@@ -39,7 +39,7 @@ Gitignored, local only: `assets-local/` (extracted art, screenshots), `content-l
 
 The crate rules (who may depend on whom) are in [`rust_coding_rules.md`](rust_coding_rules.md). `f4x-core` must never depend on the client or on a crate above it; that keeps it testable and fast to iterate.
 
-This holds for tests too: no crate below `f4x-master` depends on it. A test that needs what the game does (turns passing, replays, undo) lives in `f4x-master`.
+**The world and the game** (task 822, [`turn-structure.md`](turn-structure.md) section 10). `f4x-core`'s `World` says what is in the world and what can be done in it, one operation at a time (apply a command, start a player's turn, end a round); it knows no round counter, no order of play and no end of the game. `f4x-master`'s `Game` owns a `World` and advances time: the round, whose turn it is, when each operation runs, the end of the game, the open reactions, the random numbers, saves, undo and replays. No crate below `f4x-master` depends on it, for tests either: a test that needs turns to pass, replays or undo lives in `f4x-master`.
 
 **What stays in `f4x-core/src/battle` and why** (the file check of task 741, 21 November 2026). A rule of the fight, a type of it or a function of the battle alone is `f4x-battle`'s (or `f4x-def`'s when the rules of the content need it too): the battle, its spells (`Battle::apply_spell`, unit casts, the demon), the spoils, who comes back as undead, where the units stand and the settings that change a fight. What stays in core is whatever reads or writes the overland world, and it only gathers the facts and hands them over as arguments (`AimWorld`, `CastWorld`, small structs and flags): building a battle unit from an overland one, the choice of who fights, the field of a square (terrain, roads, city, walls), the wizard's casts and mana, the save and load that tie a battle to the world's entities, and the write-back of a finished battle (wounds, deaths, items, spoils, relations, fleeing, the winner moving in, raised undead, conquest). A function that stays is thin: if it has a rule in it that needs no world, the rule moves.
 
@@ -109,11 +109,8 @@ apart. Layers, rules, generation and differences from the original are in
 - New content needs no recompilation, which is mod-friendly.
 
 ## 6. Game flow and systems
-All player and AI actions are `Command` values applied with `World::apply`, which validates
-them and returns `Event`s (refusals are events, not panics). Read-only queries take `&self`
-and are used freely by the client. A turn is `EndTurn`: refill moves, process cities (outposts
-grow, production completes, population changes), settle each player's treasury (income, spare
-food sold, upkeep, disbanding the unpaid), heal the wounded, then continue standing orders.
+All player and AI actions are `Command` values sent to the game (`Game::apply(player, command)`, `f4x-master`), which refuses what is not the player's to give and passes the rest to `World::apply`; that validates them and returns `Event`s (refusals are events, not panics). Read-only queries take `&self`
+and are used freely by the client. Time passes in rounds, and in each round every player takes a turn: the turn start grows outposts and cities, heals the wounded, refills moves and continues standing orders; the turn end settles the treasury (income, spare food sold, upkeep, disbanding the unpaid), runs the wizard's magic and completes production; the round end runs the world-wide work once.
 Movement is counted in moves with halves (`HalfInt`; a road step costs 0.5), stacks hold nine, and moving onto hostile units emits `AttackRequested`, which a client turns into `Command::BeginBattle`. Production, buying and selling, the
 treasury and healing rules are all written out in [`game-flow.md`](game-flow.md); the order of a round and of the players' turns is in [`turn-structure.md`](turn-structure.md).
 

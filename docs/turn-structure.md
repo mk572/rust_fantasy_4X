@@ -1,6 +1,6 @@
 # Turn structure design
 
-Status: design direction for task [477](TASKS.md), the player-turn and round lifecycle, which `f4x-master` and the four lifecycle operations of `f4x-core` carry out (section 7.1). The next step, the split of the game from the world (task 822), is in section 10; where it disagrees with an earlier section, section 10 is newer.
+Status: built. Sections 1 to 9 are the design of task 477, the player-turn and round lifecycle, which `f4x-master` and the four turn operations of `f4x-core` carry out (section 7.1). Section 10 is the split of the game from the world (task 822); where it disagrees with an earlier section, section 10 holds.
 
 ## 1. Goals
 
@@ -110,11 +110,9 @@ Elimination during a round must be handled explicitly. An eliminated player who 
 
 ## 7. Relationship to the existing turn pipeline
 
-The current `World::end_turn` / `process_turn` pipeline mixes player-specific work with world-wide periodic work. It cannot simply be called in full once for each player: that would multiply global events, durations and other round-level effects by the number of players. `f4x-master` orchestrates the lifecycle, but it should call focused `f4x-core` operations for the work assigned to each boundary rather than move the simulation rules out of core.
+Before task 477 one pipeline in core mixed player-specific work with world-wide periodic work, so it could not be called once per player without multiplying global events and durations. Now `f4x-core` keeps the rules as focused operations, one for each boundary, and `f4x-master` owns the round counter, the phase transitions, the order of play and the calls to the player controllers. [game-flow.md](game-flow.md) section 4 lists what each operation does.
 
-Task 475 separates the existing pre- and post-counter portions of current turn advancement. That is useful groundwork, but the final design must move orchestration to `f4x-master` and establish the lifecycle described here. `f4x-core` retains the game rules and focused state-changing operations; `f4x-master` owns the round counter, phase transitions and calls to player controllers. Use names that make player-turn, round-start and round-end boundaries unambiguous.
-
-Before moving each existing operation, make a system-by-system inventory from [game-flow.md](game-flow.md). For each operation, record:
+For each operation added to a turn, decide and record:
 
 - whether it runs per player, per round, or on a more specific condition;
 - which player or world state it reads and changes;
@@ -122,16 +120,13 @@ Before moving each existing operation, make a system-by-system inventory from [g
 - whether it must run exactly once, and how that is enforced;
 - how it behaves under elimination, stasis, loading and game end.
 
-Update `game-flow.md` after implementation so it describes the new lifecycle rather than the old single-player end-turn sequence.
-
 ### 7.1 Inventory of the current pipeline (decided 6 November 2026)
 
 Decisions: the economy of a player runs **per player** (at that player's turn end); the world-wide
 work runs once per round; the order of players is fixed (the wizards, the human first), and the
 players without a wizard (independent race players, then the monsters) act after them, each in a
-turn of its own (10.11), before round-end work. The
-core keeps `World.turn` as the round counter; `Command::EndTurn` stays as a compatibility
-composition of the four phases for tests and tools (all players, in order).
+turn of its own (10.11), before round-end work. Since task 822 the round counter is the game's and the
+composition of all four phases for tests and tools is `Game::play_round` (section 10).
 
 **Revision (7 November 2026, replaces the table's cadence for the steps below).** The original's
 turn change (`NEXTTURN.c`) is: gold income, mana income and research and casting, upkeep (food,
@@ -228,13 +223,15 @@ This document defines the lifecycle and design constraints, not a demand to rewr
 
 ## 10. Splitting the game from the world (task 822)
 
-**Built so far:** `f4x_master::Game` owns the world; the master drives it, and the AI, the console, the client and the tools hold it. It reads like a world, and a command goes through `Game::apply`; setup and cheats use `Game::world_mut` and `Game::world_and_rng`. Undo and the replay log are the game's (`game/undo.rs`, `game/replay.rs`). So is the turn order (`game/step.rs`): the lifecycle commands and `EndTurn` are gone, the game makes the steps (`Game::start_round` and the others, `Game::play_round`) through `World::advance`, `turn_players` is master's, and the replay log holds commands and steps. A command in the log carries its sender. The round counter, the phase and the end of the game are the game's (`GameState`, `game/end.rs`); the plans are the controllers'; the save file has the parts of 10.8, without the seats, and older saves are converted (`convert.rs`, game version 0.0.8). Every player has a turn of its own (10.11). The world operations that need the round take it as an argument (`start_round`, `start_player_turn`, `score`, `cheat_offer`), and everyone outside the world asks `Game::round`. The random numbers are the game's too (10.10). Every command has a sender (`Game::apply(player, command)`, 10.4). The rivals' offers, requests and wars towards the human are made at the end of their own turns, and a played turn does not end while a proposal made in it, or in answer to one, waits: the master asks the controller of whoever it waits for (`Controller::react`, phase `TurnEnd`). On another player's turn the game takes a reaction only, and an attack on the human waits for its answer (10.4); a war on whoever casts a spell on you waits for task 785.
+**Built (task 822):** `f4x_master::Game` owns the world; the master drives it, and the AI, the console, the client and the tools hold it. It reads like a world, and a command goes through `Game::apply`; setup and cheats use `Game::world_mut` and `Game::world_and_rng`. Undo and the replay log are the game's (`game/undo.rs`, `game/replay.rs`). So is the turn order (`game/step.rs`): the lifecycle commands and `EndTurn` are gone, the game makes the steps (`Game::start_round` and the others, `Game::play_round`) through `World::advance`, `turn_players` is master's, and the replay log holds commands and steps. A command in the log carries its sender. The round counter, the phase and the end of the game are the game's (`GameState`, `game/end.rs`); the plans are the controllers'; the save file has the parts of 10.8, without the seats, and older saves are converted (`convert.rs`, game version 0.0.8). Every player has a turn of its own (10.11). The world operations that need the round take it as an argument (`start_round`, `start_player_turn`, `score`, `cheat_offer`), and everyone outside the world asks `Game::round`. The random numbers are the game's too (10.10). Every command has a sender (`Game::apply(player, command)`, 10.4). The rivals' offers, requests and wars towards the human are made at the end of their own turns, and a played turn does not end while a proposal made in it, or in answer to one, waits: the master asks the controller of whoever it waits for (`Controller::react`, phase `TurnEnd`). On another player's turn the game takes a reaction only, and an attack on the human waits for its answer (10.4); a war on whoever casts a spell on you waits for task 785.
 
 The **world** (`f4x-core`'s `World`, named `Game` until 26 November 2026) says what is in the world and what can be done in it. The **game** (`Game` in `f4x-master`) owns a `World` and advances time.
 
 **Decided (26 November 2026):** the game owns the round counter and hands it to the world operations that need it. The world keeps no copy. This replaces "the core keeps `World.turn`" in section 7.1.
 
 ### 10.1 Inventory
+
+Made before the split: where each item of the `World` of that time went.
 
 | Item, today on `World` | Goes to | Note |
 |---|---|---|

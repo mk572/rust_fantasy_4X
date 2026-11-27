@@ -48,11 +48,11 @@ value in a test, a test performs an action and checks what the player sees.
   `testutil::sweep`.
 - **No AI.** The battle player of core's tests is `testutil::battle_policy`.
 - **Long plays are not core's tests.** A game played for many turns with `new_game` and the AI uses several
-  crates, so it is an integration test of a crate that sees them all: `f4x-ai/tests/it` (which already depends on
-  `f4x-newgame`) and the soaks of `f4x-tools`. Core's tests stay to what core can do alone: fixtures, short
-  scripted plays and hand-made situations. What core gives those multi-crate tests is the **checkers**:
-  `world_problems` (class 2) and the digest of a game (class 8) are public in core (behind the `testutil`
-  feature), so the long plays call them after every command or turn without carrying a copy.
+  crates; those are the soaks of `f4x-tools` and tests of a crate that sees them all. Core's tests stay to what
+  core can do alone: fixtures, short scripted plays and hand-made situations. The **checkers** `world_problems`
+  (class 2) and the digest of a game (class 8) are public in core (behind the `testutil` feature), so tests of
+  other crates call them without carrying a copy; today those are the tests of `f4x-master`, and no long play
+  with the AI does.
 - **Small worlds by hand** are made by the `put_*` helpers on a `World` loaded from a fresh save, never by
   editing the rule set.
 
@@ -79,10 +79,8 @@ books and retorts fit the sheet; no hero holds an item twice; battle units are i
 queues name things that exist.
 
 Guard: an **independent checker** `world_problems(&World) -> Vec<Problem>`, written from the rules and not from the
-code under test, with negative tests in core (each invariant broken on purpose is found). Core runs it after every
-command of short scripted plays on the four fresh saves; the **long seeded plays** (many turns, the AI, a matrix of
-worlds and rule settings, `F4X_WORLDS=N` for more) are integration tests in `f4x-ai/tests/it` that call the same
-checker after every command.
+code under test, with negative tests in core (each invariant broken on purpose is found). Core runs it on the fresh
+saves and after short scripted plays; `f4x-master` runs it turn after turn over the same worlds and settings.
 
 ### 3. The same inputs give another game
 
@@ -158,8 +156,8 @@ the game played on past the usual end.
 
 Guard: seeded plays whose digest (not the whole text) is pinned in a file, so a rule change that moves a game is a
 visible, deliberate act: the file is regenerated and the diff reviewed. The pinned digests are not a rule; they
-record what the game does today. The digest function is core's; the plays that need `new_game` and the AI are
-integration tests in `f4x-ai/tests/it`, and core pins only its own short scripted plays on the fresh saves.
+record what the game does today. The digest function is core's; core pins what a run of commands does to the fresh
+saves, `f4x-master` the plays with turns. No play with the AI is pinned.
 
 ### 9. Subsystem behaviour
 
@@ -201,9 +199,7 @@ What of a class needs turns to pass is in `crates/f4x-master/tests/it`:
 | 7 the turn and the numbers (all of it) | `arithmetic`, `treasury` |
 | 8 drift of the turns | `drift` |
 
-The long plays
-with several crates are in `f4x-ai/tests/it`, a module of their own (`c2_core_invariants`, `c8_core_drift`) that
-says in its header that it belongs to this design. Names follow the project's singular rule.
+Names follow the project's singular rule.
 
 ## Order of work
 
@@ -237,8 +233,8 @@ Found by the rebuilt tests, each fixed in the code with the test that found it:
   If a command ever mixes the two, this sweep is where it shows.
 - Which invariants of class 2 the rules really demand: the list above is a start from reading names, to be checked
   against `docs/design.md` and the code as the checker is written.
-- Whether the long plays belong in `f4x-ai/tests/it` or in a crate of their own that sees core, newgame and the AI
-  (`f4x-tools` has the soaks but is a binary); `f4x-ai` is the start because it has the dependencies today.
+- Long plays with the AI that call the checkers do not exist. They would belong in `f4x-ai/tests/it`, which has the
+  dependencies, or in a crate of their own (`f4x-tools` has the soaks but is a binary).
 - How much of class 9 survives the first pass: the rebuild decides by need, and a subsystem that already has its needs
   covered by classes 1 to 8 gets few tests of its own.
 
