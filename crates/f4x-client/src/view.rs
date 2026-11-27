@@ -148,8 +148,6 @@ pub struct App {
     pub(crate) diplomats: f4x_ai::Diplomats,
     /// Budget and income, made again only when the game changed (`frame_cache.rs`).
     pub(crate) cache: crate::frame_cache::FrameCache,
-    /// Attacks on the human this turn, waiting to be fought one after the other.
-    pub(crate) defences: std::collections::VecDeque<crate::attack_prompt::PendingAttack>,
     /// The turn change is under way: the rivals take their turns one after another and the
     /// human may be defending against one (this holds what happened so far).
     pub(crate) turn_events: Option<Vec<Event>>,
@@ -391,14 +389,13 @@ impl App {
             ais: Vec::new(),
             diplomats: f4x_ai::Diplomats::new(),
             cache: Default::default(),
-            defences: Default::default(),
             turn_events: None,
             autosave: std::path::PathBuf::from(AUTOSAVE),
             master_state: f4x_master::State {
                 phase: f4x_master::Phase::Acting(HUMAN),
             },
             seating: Default::default(),
-            neutral_ai: f4x_ai::NeutralAi::defended_by(&[HUMAN]),
+            neutral_ai: f4x_ai::NeutralAi::default(),
             book_prefs: Default::default(),
             queued_research: None,
             help: Default::default(),
@@ -516,7 +513,6 @@ impl App {
             .map(|id| {
                 let mut ai = f4x_ai::Ai::new(id);
                 ai.join(&self.diplomats);
-                ai.leave_defence_to(&[HUMAN]);
                 ai
             })
             .collect()
@@ -1369,7 +1365,6 @@ impl App {
     /// else is held up.
     fn reset_master(&mut self) {
         use f4x_master::{Phase, State};
-        self.defences.clear();
         self.turn_events = None;
         let human = State {
             phase: Phase::Acting(HUMAN),
@@ -1389,15 +1384,15 @@ impl App {
             })
             .unwrap_or(human);
         self.seating = Default::default();
-        self.neutral_ai = f4x_ai::NeutralAi::defended_by(&[HUMAN]);
+        self.neutral_ai = f4x_ai::NeutralAi::default();
         self.neutral_ai.share(&self.diplomats);
     }
 
     /// End the turn. First put more citizens on farms if the army would otherwise go hungry
     /// (the city screen lets you set farmers by hand; this just protects the troops). Then the
     /// master takes the round on: the human's turn ends, each computer player plays its turn (an
-    /// attack on the human is fought before the next one plays), the round ends and the next
-    /// begins with the human's turn.
+    /// attack on the human is answered and fought before the next one plays), the round ends and
+    /// the next begins with the human's turn.
     pub(crate) fn end_turn(&mut self) {
         if self.turn_events.is_some() {
             return;
@@ -1413,16 +1408,14 @@ impl App {
     }
 
     /// Let the master go on from where it stopped: a rival's attack on the human has been
-    /// fought, what a rival proposes has been answered, or the turn was just ended. Stops again
-    /// at the next attack on the human or proposal to them, or at the human's next turn, when it
-    /// reports what the rivals and the turn did.
+    /// answered and fought, what a rival proposes has been answered, or the turn was just ended.
+    /// Stops again at the next attack on the human or proposal to them, or at the human's next
+    /// turn, when it reports what the rivals and the turn did.
     pub(crate) fn resume_turn(&mut self) {
         if self.modals.has(crate::modal::kind::ATTACK) || self.game.in_battle() {
             return;
         }
-        if let Some(attack) = self.next_defence() {
-            self.modals
-                .open(crate::attack_prompt::AttackAsk::new(attack));
+        if !self.seating.absent && self.ask_defence() {
             return;
         }
         let Some(mut events) = self.turn_events.take() else {
@@ -1434,19 +1427,14 @@ impl App {
         let progress = self.run_master();
         self.game.set_undo(undo);
         events.extend(progress.events);
-        if let f4x_master::Stopped::Waiting(player) = progress.stopped {
-            if player != HUMAN {
-                // A computer player has attacked the human: fight it, then go on.
-                self.turn_events = Some(events);
-                self.resume_turn();
-                return;
-            }
-            if self.master_state.phase != f4x_master::Phase::Acting(HUMAN) {
-                // A turn waits for the human's answer to a proposal (`queue_proposal` asks);
-                // the frame loop goes on once it has one.
-                self.turn_events = Some(events);
-                return;
-            }
+        let waits = matches!(progress.stopped, f4x_master::Stopped::Waiting(_));
+        if waits && self.master_state.phase != f4x_master::Phase::Acting(HUMAN) {
+            // A turn waits for the human: to answer an attack, which is asked at once, or a
+            // proposal (`queue_proposal` asks), or to finish a battle. The frame loop goes on
+            // once that is done.
+            self.turn_events = Some(events);
+            self.ask_defence();
+            return;
         }
         // What the rivals did out of sight is not shown: only what touches the human.
         let events: Vec<Event> = events
@@ -1468,28 +1456,18 @@ impl App {
     fn run_master(&mut self) -> f4x_master::Progress {
         use crate::turn_seats::{HumanSeat, NeutralTurns, RivalSeat};
         use f4x_master::{Master, Seat, Until};
-        // The seats share the small `seating` memory and the queue of defences; one acts at a time.
+        // The seats share the small `seating` memory; one acts at a time.
         let seating = std::cell::RefCell::new(std::mem::take(&mut self.seating));
-        let defences = std::cell::RefCell::new(std::mem::take(&mut self.defences));
         let mut autosave_failed: Option<String> = None;
         let progress = {
             let mut seats: Vec<Seat> =
                 vec![Seat::new(HUMAN, Box::new(HumanSeat { seating: &seating }))];
             for ai in self.ais.iter_mut() {
-                seats.push(Seat::new(
-                    ai.player,
-                    Box::new(RivalSeat {
-                        ai,
-                        seating: &seating,
-                        defences: &defences,
-                    }),
-                ));
+                seats.push(Seat::new(ai.player, Box::new(RivalSeat { ai })));
             }
-            seats.push(Seat::non_wizards(Box::new(NeutralTurns {
-                inner: &mut self.neutral_ai,
-                seating: &seating,
-                defences: &defences,
-            })));
+            seats.push(Seat::non_wizards(Box::new(NeutralTurns(
+                &mut self.neutral_ai,
+            ))));
             // The master stops at the start of every round, and the game is saved there: the one
             // moment when no seat is half way through its turn.
             let mut master = Master::resume(seats, self.master_state).checkpoints();
@@ -1515,23 +1493,27 @@ impl App {
             self.log.push(self.text_with("log.save_failed", &args));
         }
         self.seating = seating.into_inner();
-        self.defences = defences.into_inner();
         progress
     }
 
-    /// The next attack on the human that is still real (a unit may have died to an earlier one).
-    pub(crate) fn next_defence(&mut self) -> Option<crate::attack_prompt::PendingAttack> {
-        while let Some(attack) = self.defences.pop_front() {
-            let alive = |u: &hecs::Entity| self.game.units().unit_owner(*u).is_some();
-            let mine = attack
-                .defenders
-                .first()
-                .is_some_and(|&u| self.game.units().unit_owner(u) == Some(HUMAN));
-            if mine && attack.attackers.iter().all(alive) && attack.defenders.iter().all(alive) {
-                return Some(attack);
-            }
-        }
-        None
+    /// The attack on the human that waits for an answer, as the map asks it.
+    pub(crate) fn next_defence(&self) -> Option<crate::attack_prompt::PendingAttack> {
+        let attack = self.game.waiting_attack().filter(|a| a.defender == HUMAN)?;
+        Some(crate::attack_prompt::PendingAttack {
+            attackers: attack.attackers,
+            defenders: attack.defenders,
+            defending: true,
+        })
+    }
+
+    /// Ask the human about the attack that waits for an answer; false when none does.
+    fn ask_defence(&mut self) -> bool {
+        let Some(attack) = self.next_defence() else {
+            return false;
+        };
+        self.modals
+            .open(crate::attack_prompt::AttackAsk::new(attack));
+        true
     }
 
     /// Whether the human sees this event of a rival's turn: their refusals, the founding of a
@@ -1591,25 +1573,8 @@ impl App {
         self.seating.absent = true;
         for _ in 0..turns {
             self.end_turn();
-            // No one defends in person here: the computer fights the attacks on the human.
+            // No one defends in person here: the master has the computer fight the attacks.
             while self.turn_events.is_some() {
-                while let Some(attack) = self.next_defence() {
-                    let command = Command::AutoResolve {
-                        mana_budget: None,
-                        attackers: attack.attackers,
-                        defenders: attack.defenders,
-                    };
-                    // The attacker's order, which the client gives for it
-                    // (`docs/turn-structure.md` 10.4).
-                    let sender = self.game.command_actor(&command).unwrap_or(HUMAN);
-                    let events = self.game.apply(sender, command);
-                    // A smoke test or screenshot run: an attack the game will not resolve is a
-                    // bug to stop at (the panic shows the refusal), not one to play on from.
-                    assert!(
-                        !events.iter().any(|e| matches!(e, Event::Rejected(_))),
-                        "{events:?}"
-                    );
-                }
                 self.resume_turn();
             }
         }
@@ -1738,7 +1703,7 @@ impl App {
             && self.turn_pending == 0
             && self.turn_events.is_none()
             && !self.modals.blocks_turn()
-            && self.defences.is_empty()
+            && self.next_defence().is_none()
             && !self.game.in_battle()
     }
 

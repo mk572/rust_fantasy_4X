@@ -7,7 +7,7 @@ use f4x_core::player::view::PlayerView;
 use f4x_core::world::{Command, Event, World};
 
 use crate::view::distance;
-use crate::{Ai, Attack};
+use crate::Ai;
 use f4x_master::Game;
 
 /// How strong the guards of a site are, as `unit_strength` measures units, when the player has
@@ -236,31 +236,5 @@ pub(crate) fn assault(
         {
             break;
         }
-    }
-}
-
-/// Fight the battle the AI means to fight: the human defends in person when `ai` leaves the
-/// defence to them (the host plays it out), else the battle AI plays both sides.
-pub(crate) fn strike(
-    ai: &mut Ai,
-    game: &mut Game,
-    attackers: Vec<hecs::Entity>,
-    defenders: Vec<hecs::Entity>,
-    events: &mut Vec<Event>,
-) {
-    if crate::military::held_by_treaty(ai, game, &defenders) {
-        return;
-    }
-    let in_person = defenders
-        .first()
-        .and_then(|&d| game.units().unit_owner(d))
-        .is_some_and(|owner| ai.defended_by.contains(&owner));
-    if in_person {
-        ai.attacks.push(Attack {
-            attackers,
-            defenders,
-        });
-    } else {
-        crate::military::resolve(ai, game, attackers, defenders, events);
     }
 }

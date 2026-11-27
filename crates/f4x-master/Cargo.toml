@@ -12,11 +12,11 @@ testutil = ["f4x-core/testutil"]
 f4x-battle.workspace = true
 f4x-core.workspace = true
 f4x-def.workspace = true
+hecs.workspace = true
 serde.workspace = true
 ron.workspace = true
 
 [dev-dependencies]
-hecs.workspace = true
 f4x-master = { path = ".", features = ["testutil"] }
 f4x-core = { workspace = true, features = ["testutil"] }
 f4x-newgame.workspace = true

@@ -484,8 +484,8 @@ uses that function and the §8 rules as its starting logic, kept as AI code with
 data, not as rules of the game. **The game never changes a treaty or starts or ends a war by itself** (rule restated 23 November 2026, after copies of the original's code broke it: war on taking a city, `G_DIPL_PickSides`, the break after trespassing, removed). Treaties and war change only by a player's command (`DeclareWar`, `BreakTreaty`, an answered proposal) and by nothing else, except that those of a player who is gone end: a defeated wizard's, and a race's when it loses its last city ("Neutral players"). The game puts a limit where the original had none: a player cannot attack a pact or alliance partner until they have broken the treaty (the original lets them attack and breaks it for them). **Direction (23 November 2026, task 775):** the core only sends the event of what happened to a wizard; the AI (`f4x-ai`) keeps and adjusts its own ratings. The relation numbers the core still moves below are to move into the AI. Until that is done, the core's own automatic parts remain rules: relation changes from
 events (§5), drift and growth (§7), and the effects of an accepted treaty or declared war (§6).
 Pending proposals are saved with the game. The turn a proposal is made in does not end before its
-receiver has been asked to answer (`turn-structure.md` 10.4); one still unanswered lapses as refused at
-the end of the round.
+receiver has been asked to answer (`turn-structure.md` 10.4); one still unanswered lapses as refused with
+that turn.
 
 **9.3 Hooks into existing code:**
 - contact: in exploration and the per-turn unit sweep (the fog and visibility code);

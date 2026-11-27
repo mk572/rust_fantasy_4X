@@ -437,6 +437,14 @@ pub fn commands(w: &World) -> Vec<Command> {
             defenders: vec![pair[1]],
             mana_budget: None,
         });
+        for auto in [false, true] {
+            out.push(Command::Defend {
+                attackers: vec![pair[0]],
+                fighters: vec![pair[1]],
+                auto,
+                mana: None,
+            });
+        }
     }
     out.push(Command::BeginBattle {
         attackers: Vec::new(),

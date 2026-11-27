@@ -1,27 +1,22 @@
 //! The client's seats for `f4x-master`: the human's seat waits until the player ends the turn,
-//! and holds another player's turn while a proposal waits for the human's answer; a computer
-//! player's turn is played at once and then waits while an attack on the human is fought, so the
-//! next one plays on the board the battle left.
+//! and holds another player's turn while an attack or a proposal waits for the human's answer, or
+//! the battle of an attack is fought; a computer player's turn is played at once.
 //!
 //! Tests: none of its own; `tests/` plays turns through the client's `end_turns`.
 
-use crate::attack_prompt::PendingAttack;
-use f4x_ai::{Ai, Attack};
+use f4x_ai::Ai;
 use f4x_core::player::PlayerId;
 use f4x_core::world::Event;
 use f4x_master::Game;
 use f4x_master::{Controller, Status};
 use std::cell::RefCell;
-use std::collections::VecDeque;
 
 /// What persists between the client's calls into the master, besides the master's own state.
 #[derive(Default)]
 pub(crate) struct Seating {
     /// The player pressed End Turn: the human seat finishes on its next call.
     pub human_done: bool,
-    /// The computer player that is acting has played and now waits for the defences.
-    pub played: bool,
-    /// Nobody sits at the screen (`App::end_turns`): what is proposed to the human is left.
+    /// Nobody sits at the screen (`App::end_turns`): what waits for the human is left.
     pub absent: bool,
 }
 
@@ -39,7 +34,7 @@ impl Controller for HumanSeat<'_> {
         }
     }
 
-    /// The map asks the player (`App::queue_proposal`).
+    /// The map asks the player (`App::resume_turn`, `App::queue_proposal`).
     fn react(&mut self, _: &mut Game, _: PlayerId, _: &mut Vec<Event>) -> Status {
         if self.seating.borrow().absent {
             Status::Done
@@ -49,41 +44,15 @@ impl Controller for HumanSeat<'_> {
     }
 }
 
-fn queue(defences: &RefCell<VecDeque<PendingAttack>>, attacks: Vec<Attack>) {
-    for attack in attacks {
-        defences.borrow_mut().push_back(PendingAttack {
-            attackers: attack.attackers,
-            defenders: attack.defenders,
-            defending: true,
-        });
-    }
-}
-
-/// Whether the turn is done: it has played and no attack on the human waits any more.
-fn finished(seating: &RefCell<Seating>, defences: &RefCell<VecDeque<PendingAttack>>) -> Status {
-    if defences.borrow().is_empty() {
-        seating.borrow_mut().played = false;
-        Status::Done
-    } else {
-        Status::Waiting
-    }
-}
-
 /// A rival wizard.
 pub(crate) struct RivalSeat<'a> {
     pub ai: &'a mut Ai,
-    pub seating: &'a RefCell<Seating>,
-    pub defences: &'a RefCell<VecDeque<PendingAttack>>,
 }
 
 impl Controller for RivalSeat<'_> {
     fn play(&mut self, game: &mut Game, _: PlayerId, events: &mut Vec<Event>) -> Status {
-        if !self.seating.borrow().played {
-            events.extend(self.ai.play_turn(game));
-            queue(self.defences, self.ai.take_attacks());
-            self.seating.borrow_mut().played = true;
-        }
-        finished(self.seating, self.defences)
+        events.extend(self.ai.play_turn(game));
+        Status::Done
     }
 
     fn react(&mut self, game: &mut Game, _: PlayerId, events: &mut Vec<Event>) -> Status {
@@ -106,31 +75,22 @@ impl Controller for RivalSeat<'_> {
 }
 
 /// The players without a wizard: the independent race players and the monsters.
-pub(crate) struct NeutralTurns<'a> {
-    pub inner: &'a mut f4x_ai::NeutralAi,
-    pub seating: &'a RefCell<Seating>,
-    pub defences: &'a RefCell<VecDeque<PendingAttack>>,
-}
+pub(crate) struct NeutralTurns<'a>(pub &'a mut f4x_ai::NeutralAi);
 
 impl Controller for NeutralTurns<'_> {
     fn play(&mut self, game: &mut Game, player: PlayerId, events: &mut Vec<Event>) -> Status {
-        if !self.seating.borrow().played {
-            self.inner.play(game, player, events);
-            queue(self.defences, self.inner.take_attacks());
-            self.seating.borrow_mut().played = true;
-        }
-        finished(self.seating, self.defences)
+        self.0.play(game, player, events)
     }
 
     fn react(&mut self, game: &mut Game, player: PlayerId, events: &mut Vec<Event>) -> Status {
-        Controller::react(&mut *self.inner, game, player, events)
+        Controller::react(&mut *self.0, game, player, events)
     }
 
     fn plans(&self) -> Vec<(PlayerId, String)> {
-        self.inner.plans()
+        self.0.plans()
     }
 
     fn notice(&mut self, game: &Game, events: &[Event]) {
-        Controller::notice(&mut *self.inner, game, events);
+        Controller::notice(&mut *self.0, game, events);
     }
 }

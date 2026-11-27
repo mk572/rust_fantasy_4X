@@ -1279,10 +1279,8 @@ impl Diplomacy {
             .collect()
     }
 
-    /// The part of the turn that belongs to diplomacy (`Next_Turn_Calc` order): proposals that
-    /// nobody answered lapse, peace runs down, the enchantments in force sour or sweeten,
-    /// relations drift, new wizards are met, and the patience comes back.
-    pub(crate) fn process_diplomacy(&mut self, ctx: &mut DiplomacyCtx<'_>) {
+    /// The proposals nobody answered lapse: a turn is ending.
+    pub(crate) fn lapse_proposals(&mut self) {
         let lapsed = std::mem::take(&mut self.proposals);
         for proposal in lapsed {
             self.queue.push(DiplomacyEvent::ProposalAnswered {
@@ -1291,6 +1289,12 @@ impl Diplomacy {
                 lapsed: true,
             });
         }
+    }
+
+    /// The part of the round's end that belongs to diplomacy (`Next_Turn_Calc` order): peace
+    /// runs down, the enchantments in force sour or sweeten, relations drift, new wizards are
+    /// met, and the patience comes back.
+    pub(crate) fn process_diplomacy(&mut self, ctx: &mut DiplomacyCtx<'_>) {
         for s in self.stances.values_mut() {
             s.peace_duration = s.peace_duration.saturating_sub(1);
         }

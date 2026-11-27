@@ -15,6 +15,7 @@
     "refuse_map.move_error_warded": "Ein Zauberschutz dieser Stadt hält Geschöpfe seines Bereichs fern.",
     "refuse_map.move_error_treaty": "Mit diesem Zauberer besteht ein Vertrag: brich ihn zuerst.",
     "refuse_map.battle_start_error_treaty": "Mit diesem Zauberer besteht ein Vertrag: brich ihn zuerst.",
+    "refuse_map.battle_start_error_no_such_attack": "Es gibt keinen solchen Angriff zu beantworten.",
     "refuse_map.no_path_no_units": "Es wurden keine Einheiten gewählt, oder sie sind nicht auf der Karte.",
     "refuse_map.no_path_already_there": "Die Einheiten sind bereits auf diesem Feld.",
     "refuse_map.no_path_other_plane": "Dieses Feld liegt auf der anderen Ebene.",

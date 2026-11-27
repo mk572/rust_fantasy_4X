@@ -110,7 +110,9 @@ impl World {
     /// defends against the rivals' turns and a shortage costs its units now. Raze windows shut;
     /// farmers are kept on the farms; the treasury settles (gold and food income, upkeep); the
     /// wizard's magic runs (mana income, research points, mana upkeep, casting); the cities build.
+    /// First of all, what was proposed in the turn and not answered lapses.
     pub fn end_player_turn(&mut self, player: PlayerId, rng: &mut GameRng) -> Vec<Event> {
+        self.diplomacy.lapse_proposals();
         self.close_raze_windows(player);
         let mut events = Vec::new();
         // The monsters' owner has units only: no cities, no treasury, no magic.

@@ -405,6 +405,15 @@ impl Ctx<'_> {
             }
             self.events.extend(events);
         }
+        // The console has no way to answer an attack on the human: the computer fights it.
+        while let Some(attack) = self.game.waiting_attack() {
+            let events = self.game.leave_attack(&attack);
+            for e in &events {
+                let text = describe::event(self.game, e);
+                self.out.push(text);
+            }
+            self.events.extend(events);
+        }
         match refused {
             Some(why) => Err(ConsoleError::Refused(why)),
             None => Ok(()),

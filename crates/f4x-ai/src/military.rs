@@ -117,35 +117,10 @@ pub(crate) fn held_by_treaty(ai: &Ai, world: &World, defenders: &[hecs::Entity])
         .is_some_and(|owner| world.bound_by_treaty(ai.player, owner))
 }
 
-/// Attack: a human defender fights the battle in person (kept for the client), any other is
-/// resolved at once.
+/// Attack: the battle is fought at once, the mana the wizard may spend in it set by `budget.rs`
+/// (a hard fight for a city gets all it may, a sure win in the open little). An attack on the
+/// human waits for its answer instead (`f4x-master`, `Game::waiting_attack`).
 pub(crate) fn engage(
-    ai: &mut Ai,
-    game: &mut Game,
-    attackers: Vec<hecs::Entity>,
-    defenders: Vec<hecs::Entity>,
-    events: &mut Vec<Event>,
-) {
-    if held_by_treaty(ai, game, &defenders) {
-        return;
-    }
-    let defended_in_person = defenders
-        .first()
-        .and_then(|&d| game.units().unit_owner(d))
-        .is_some_and(|owner| ai.defended_by.contains(&owner));
-    if defended_in_person {
-        ai.attacks.push(crate::Attack {
-            attackers,
-            defenders,
-        });
-    } else {
-        resolve(ai, game, attackers, defenders, events);
-    }
-}
-
-/// Fight the battle at once, the mana the wizard may spend in it set by `budget.rs` (a hard
-/// fight for a city gets all it may, a sure win in the open little).
-pub(crate) fn resolve(
     ai: &mut Ai,
     game: &mut Game,
     attackers: Vec<hecs::Entity>,
@@ -308,13 +283,6 @@ mod tests {
             let mut ai = Ai::new(P0);
             let mut events = Vec::new();
             engage(
-                &mut ai,
-                &mut w,
-                attackers.clone(),
-                defenders.clone(),
-                &mut events,
-            );
-            crate::assault::strike(
                 &mut ai,
                 &mut w,
                 attackers.clone(),

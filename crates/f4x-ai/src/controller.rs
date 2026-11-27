@@ -3,7 +3,7 @@
 //!
 //! Tests: in tests/it.
 
-use crate::{Ai, Attack, Diplomats};
+use crate::{Ai, Diplomats};
 use f4x_core::player::{PlayerId, MONSTERS};
 use f4x_core::world::Event;
 use f4x_master::Game;
@@ -41,12 +41,9 @@ impl Controller for AiSeat<'_> {
 /// The computer play of every player without a wizard, each in a turn of its own: the neutral
 /// player of each race plays as any AI does (task 522), with the same [`Ai`] and the same turn,
 /// and the roaming monsters in theirs. It keeps one [`Ai`] for each race player, made when the
-/// player first plays or when a loaded game carries plans for it. Attacks on the players in `defended_by` are not resolved but kept for the host (see
-/// [`NeutralAi::take_attacks`]).
+/// player first plays or when a loaded game carries plans for it.
 #[derive(Default)]
 pub struct NeutralAi {
-    defended_by: Vec<PlayerId>,
-    attacks: Vec<Attack>,
     ais: BTreeMap<PlayerId, Ai>,
     record_refusals: bool,
     /// The game's table of memories, which the race players join when they are made.
@@ -54,25 +51,12 @@ pub struct NeutralAi {
 }
 
 impl NeutralAi {
-    /// Computer play whose attacks on these players are left to them to fight.
-    pub fn defended_by(players: &[PlayerId]) -> Self {
-        Self {
-            defended_by: players.to_vec(),
-            ..Self::default()
-        }
-    }
-
     /// The race players join this table of memories (`Ai::join`) when they are made.
     pub fn share(&mut self, diplomats: &Diplomats) {
         self.diplomats = diplomats.clone();
         for ai in self.ais.values_mut() {
             ai.join(diplomats);
         }
-    }
-
-    /// The attacks on defended players since the last call, oldest first.
-    pub fn take_attacks(&mut self) -> Vec<Attack> {
-        std::mem::take(&mut self.attacks)
     }
 
     /// Keep every command the game refuses, for [`NeutralAi::take_refusals`].
@@ -112,12 +96,11 @@ impl NeutralAi {
 
     /// The AI of a race player, made now if it has none.
     fn ai_of(&mut self, id: PlayerId) -> &mut Ai {
-        let (defended_by, record) = (self.defended_by.clone(), self.record_refusals);
+        let record = self.record_refusals;
         let diplomats = self.diplomats.clone();
         self.ais.entry(id).or_insert_with(|| {
             let mut ai = Ai::new(id);
             ai.join(&diplomats);
-            ai.leave_defence_to(&defended_by);
             ai.record_refusals(record);
             ai
         })
@@ -127,14 +110,9 @@ impl NeutralAi {
     pub fn play_turn(&mut self, game: &mut Game, player: PlayerId, events: &mut Vec<Event>) {
         crate::battle::install();
         if player == MONSTERS {
-            let (more, attacks) = crate::monster::roam(game, &self.defended_by);
-            events.extend(more);
-            self.attacks.extend(attacks);
+            events.extend(crate::monster::roam(game));
         } else if game.race_of_player(player).is_some() {
-            let ai = self.ai_of(player);
-            events.extend(ai.play_turn(game));
-            let attacks = ai.take_attacks();
-            self.attacks.extend(attacks);
+            events.extend(self.ai_of(player).play_turn(game));
         }
     }
 }

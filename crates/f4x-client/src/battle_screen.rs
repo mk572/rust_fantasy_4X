@@ -599,14 +599,14 @@ impl App {
     }
 
     /// Whose name a battle command goes under: the player it acts for. The client gives the
-    /// orders of the other side too, in the battle the human fights, and starts a rival's
-    /// attack on the human, until the rival sends its own (`docs/turn-structure.md` 10.4).
+    /// orders of the other side too, in the battle the human fights
+    /// (`docs/turn-structure.md` 10.4).
     fn battle_sender(&self, command: &Command) -> f4x_core::player::PlayerId {
         self.game.command_actor(command).unwrap_or(HUMAN)
     }
 
-    /// Start a battle for the stack the human just moved, for a site's guards, or for a
-    /// rival's attack on the human.
+    /// Start a battle for the stack the human just moved, for a site's guards, or in answer to
+    /// a rival's attack on the human.
     pub(crate) fn begin_battle(&mut self, command: Command) {
         let sender = self.battle_sender(&command);
         let events = self.game.apply(sender, command);

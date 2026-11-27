@@ -7,11 +7,13 @@
 //! The random numbers are the game's: it hands its generator to each world operation that draws.
 //!
 //! The turn order (`game/step.rs`), what a player may do on another's turn (`game/reaction.rs`),
+//! the attacks that wait for an answer (`game/attack.rs`),
 //! the end of the game (`game/end.rs`), the saved game (`game/save.rs`), undo (`game/undo.rs`)
 //! and replays (`game/replay.rs`) are the game's: they see every command.
 //!
 //! Tests: in tests/it.
 
+pub mod attack;
 pub mod end;
 pub mod reaction;
 pub mod replay;
@@ -20,6 +22,7 @@ pub mod step;
 pub mod undo;
 
 use f4x_battle::battle::BattleCommand;
+use f4x_core::battle::world::BattleStartError;
 use f4x_core::player::PlayerId;
 use f4x_core::world::rng::GameRng;
 use f4x_core::world::{Command, Event, Rejection, World};
@@ -81,6 +84,8 @@ impl Game {
     /// command only sets a world up, when it is another player's to give
     /// ([`World::may_command`]), and on another player's turn ([`Game::turn`]) when it is no
     /// reaction (`game/reaction.rs`). What opens or answers a reaction ends the undo history.
+    /// An attack on the human is not fought but held until it answers (`game/attack.rs`): such a
+    /// command has no events of its own.
     pub fn apply(&mut self, player: PlayerId, command: Command) -> Vec<Event> {
         // A refusal changes nothing and records nothing.
         if let Some(why) = self.refusal(player, &command) {
@@ -89,11 +94,24 @@ impl Game {
         self.record_command(player, &command);
         let reacting = self.turn().is_some_and(|active| active != player);
         let requests = self.world.diplomacy.proposals().to_vec();
-        let mut events = self.run_undoable(command);
+        let answered = self.answered_attack(&command);
+        let mut events = match self.attack_to_hold(&command) {
+            Some((attackers, defenders)) => match self.hold_attack(attackers, defenders) {
+                Ok(()) => {
+                    self.forget_history();
+                    Vec::new()
+                }
+                Err(why) => vec![Event::Rejected(Rejection::BattleStart(why))],
+            },
+            None => self.run_undoable(command.clone()),
+        };
         // A refused command changed nothing, so it is not part of the record.
         if events.iter().any(|e| matches!(e, Event::Rejected(_))) {
             self.forget_last_command();
         } else {
+            if let Some(at) = answered {
+                self.state.attacks.remove(at);
+            }
             let opened = self.open_reactions(&events);
             if opened || reacting || requests != self.world.diplomacy.proposals() {
                 self.forget_history();
@@ -117,6 +135,10 @@ impl Game {
             && !self.is_reaction(player, command)
         {
             Some(Rejection::NotYourTurn)
+        } else if matches!(command, Command::Defend { .. })
+            && self.answered_attack(command).is_none()
+        {
+            Some(Rejection::BattleStart(BattleStartError::NoSuchAttack))
         } else {
             None
         }

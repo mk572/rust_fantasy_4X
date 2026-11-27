@@ -2,6 +2,7 @@
 //! validation, defeated seats and resuming from a saved state. Replays and undo are in the files
 //! of their names.
 
+mod attack;
 mod convert;
 mod end;
 mod reaction;

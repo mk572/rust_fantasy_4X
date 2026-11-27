@@ -9,7 +9,8 @@ use f4x_core::player::view::PlayerView;
 use f4x_core::world::serial::Serial;
 use f4x_core::world::{Command, Event, World};
 
-use crate::assault::{assault, march, strike};
+use crate::assault::{assault, march};
+use crate::military::engage;
 use crate::site::{
     city_defence, edge, expected_vs, lost_before, neutral_city, sites_near, unarmed_share,
 };
@@ -133,7 +134,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     ai.order(game, Command::MoveStack { units, to: city }, events);
                 }
             } else {
-                strike(ai, game, units, defenders, events);
+                engage(ai, game, units, defenders, events);
             }
             // A city taken ends the raid: the party moves in and is its garrison.
             if events[before..]

@@ -8,24 +8,22 @@ use std::collections::HashMap;
 
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
-use f4x_core::player::{PlayerId, MONSTERS};
+use f4x_core::player::MONSTERS;
 use f4x_core::world::{Command, Event};
 
-use crate::assault::{march, strike};
-use crate::military::expected_defence;
+use crate::assault::march;
+use crate::military::{engage, expected_defence};
 use crate::scout::best_target;
 use crate::view::{distance, stack_strength};
-use crate::{Ai, Attack};
+use crate::Ai;
 use f4x_master::Game;
 
 /// Monsters attack a city when they are this much stronger than what they expect to meet.
 const EDGE: f32 = 1.0;
 
-/// Play the monsters' turn. A battle against a player in `defended_by` is returned, for the
-/// host to play out.
-pub fn roam(game: &mut Game, defended_by: &[PlayerId]) -> (Vec<Event>, Vec<Attack>) {
+/// Play the monsters' turn.
+pub fn roam(game: &mut Game) -> Vec<Event> {
     let mut ai = Ai::new(MONSTERS);
-    ai.leave_defence_to(defended_by);
     let mut events = Vec::new();
     let stacks: Vec<(Position, Vec<hecs::Entity>)> = {
         let view = PlayerView::new(game, MONSTERS);
@@ -45,8 +43,7 @@ pub fn roam(game: &mut Game, defended_by: &[PlayerId]) -> (Vec<Event>, Vec<Attac
     for (pos, units) in stacks {
         act(&mut ai, game, pos, units, &mut events);
     }
-    let attacks = ai.take_attacks();
-    (events, attacks)
+    events
 }
 
 /// What one stack does: hit a city next to it, settle in a stand next to it, or head for the
@@ -107,7 +104,7 @@ fn act(
             }
             Some((defenders, theirs)) if mine >= theirs * EDGE => {
                 let band = crate::view::party(&PlayerView::new(game, MONSTERS), &units);
-                strike(ai, game, band, defenders, events);
+                engage(ai, game, band, defenders, events);
                 return;
             }
             _ => {}
@@ -231,7 +228,7 @@ mod tests {
         );
         know(&mut w, city);
         end_turn(&mut w);
-        let (events, _) = roam(&mut w, &[]);
+        let events = roam(&mut w);
         assert!(
             events
                 .iter()
@@ -263,8 +260,8 @@ mod tests {
         );
         know(&mut w, city);
         end_turn(&mut w);
-        let (events, attacks) = roam(&mut w, &[]);
-        assert!(attacks.is_empty(), "no human to hand the fight to");
+        w.set_human(None);
+        let events = roam(&mut w);
         assert!(
             events.iter().any(|e| matches!(
                 e,
@@ -290,7 +287,7 @@ mod tests {
     }
 
     #[test]
-    fn an_attack_on_the_human_is_kept_for_the_host() {
+    fn an_attack_on_the_human_waits_for_its_answer() {
         let mut w = game(INLAND_CITY, 8 /* high_men */);
         let city = at(INLAND_CITY.0, INLAND_CITY.1);
         spawn(&mut w, P0, city, 104 /* high_men_spearmen */, 1);
@@ -303,8 +300,9 @@ mod tests {
         );
         know(&mut w, city);
         end_turn(&mut w);
-        let (_, attacks) = roam(&mut w, &[P0]);
-        assert_eq!(attacks.len(), 1);
+        w.set_human(Some(P0));
+        roam(&mut w);
+        assert!(w.waiting_attack().is_some_and(|a| a.defender == P0));
         assert!(!w.in_battle());
     }
 
@@ -336,7 +334,7 @@ mod tests {
         spawn(&mut w, MONSTERS, at(5, 8), 174 /* zombies */, 2);
         know(&mut w, node_at);
         end_turn(&mut w);
-        let (events, _) = roam(&mut w, &[]);
+        let events = roam(&mut w);
         assert!(
             events
                 .iter()
@@ -359,7 +357,7 @@ mod tests {
         let units = spawn(&mut w, MONSTERS, at(5, 5), 174 /* zombies */, 2);
         w.explore(MONSTERS, at(5, 5), HalfInt::from_raw(3));
         end_turn(&mut w);
-        let (events, _) = roam(&mut w, &[]);
+        let events = roam(&mut w);
         assert!(
             events.iter().any(|e| matches!(e, Event::UnitsMoved { .. })),
             "{events:?}"
@@ -376,7 +374,7 @@ mod tests {
         spawn(&mut w, MONSTERS, at(9, 9), 174 /* zombies */, 1);
         know(&mut w, city);
         end_turn(&mut w);
-        let (events, _) = roam(&mut w, &[]);
+        let events = roam(&mut w);
         assert!(!events
             .iter()
             .any(|e| matches!(e, Event::CityRampaged { .. })));

@@ -15,6 +15,7 @@
     "refuse_map.move_error_warded": "A Spell Ward on that city bars creatures of its realm.",
     "refuse_map.move_error_treaty": "You have a treaty with that wizard: break it first.",
     "refuse_map.battle_start_error_treaty": "You have a treaty with that wizard: break it first.",
+    "refuse_map.battle_start_error_no_such_attack": "There is no such attack to answer.",
     "refuse_map.no_path_no_units": "No units were chosen, or they are not on the map.",
     "refuse_map.no_path_already_there": "The units are already on that square.",
     "refuse_map.no_path_other_plane": "That square is on the other plane.",

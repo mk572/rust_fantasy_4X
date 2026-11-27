@@ -619,6 +619,24 @@ impl World {
                 defenders,
                 mana_budget,
             } => self.auto_resolve_with(&attackers, &defenders, mana_budget, rng),
+            Command::Defend {
+                attackers,
+                fighters,
+                auto: true,
+                mana,
+            } => {
+                let defender = fighters.first().and_then(|&u| self.units().unit_owner(u));
+                let budget = defender.zip(mana);
+                self.auto_resolve_with(&attackers, &fighters, budget, rng)
+            }
+            Command::Defend {
+                attackers,
+                fighters,
+                auto: false,
+                ..
+            } => self
+                .start_battle(&attackers, &fighters, rng)
+                .unwrap_or_else(|e| vec![Event::Rejected(Rejection::BattleStart(e))]),
             Command::EnterSite { units, to } => self
                 .enter_site(&units, to, rng)
                 .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Site(e))]),

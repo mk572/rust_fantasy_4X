@@ -1138,7 +1138,7 @@ mod tests {
         spent(&mut w, mana)
     }
 
-    /// The same fight as the strategic AI starts it (`military::resolve`, which sets the budget
+    /// The same fight as the strategic AI starts it (`military::engage`, which sets the budget
     /// by the stake and the odds, `budget.rs`); returns the budget it set and the mana spent.
     fn strategic_ai_fight(
         spells: &[u16],
@@ -1148,7 +1148,7 @@ mod tests {
         let budget = crate::budget::for_attack(&PlayerView::new(&w, P0), &ours, &theirs)
             .map(|(_, mana)| mana);
         let mut ai = crate::Ai::new(P0);
-        crate::military::resolve(&mut ai, &mut w, ours, theirs, &mut Vec::new());
+        crate::military::engage(&mut ai, &mut w, ours, theirs, &mut Vec::new());
         Ok((budget, spent(&mut w, mana)?))
     }
 

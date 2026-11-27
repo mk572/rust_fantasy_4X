@@ -256,17 +256,17 @@ mod tests {
         spawn(&mut w, P1, at(7, 3), 104 /* high_men_spearmen */, 1);
         w.make_contact(P0, P1);
         w.declare_war(P0, P1);
+        // The attack waits for the human, so that it can be looked at.
+        w.set_human(Some(P1));
         let mut ai = Ai::new(P0);
-        ai.leave_defence_to(&[P1]);
         run(&mut ai, &mut w, &mut Vec::new());
-        let attacks = ai.take_attacks();
-        assert_eq!(attacks.len(), 1);
-        assert_eq!(attacks[0].attackers.len(), side);
+        let attack = w.waiting_attack().expect("an attack");
+        assert_eq!(attack.attackers.len(), side);
         assert!(side < stack.len());
         let view = PlayerView::new(&w, P0);
         let left: Vec<_> = stack
             .iter()
-            .filter(|u| !attacks[0].attackers.contains(u))
+            .filter(|u| !attack.attackers.contains(u))
             .collect();
         assert_eq!(left.len(), tile - side);
         assert!(left
@@ -275,30 +275,29 @@ mod tests {
     }
 
     #[test]
-    fn an_attack_on_a_wizard_who_defends_in_person_is_kept_not_fought() {
+    fn an_attack_on_the_human_waits_for_its_answer() {
         let (mut w, defenders) = field(true);
+        w.set_human(Some(P1));
         let mut ai = Ai::new(P0);
-        ai.leave_defence_to(&[P1]);
         let mut events = Vec::new();
         run(&mut ai, &mut w, &mut events);
-        let attacks = ai.take_attacks();
-        assert_eq!(attacks.len(), 1, "{events:?}");
-        assert_eq!(attacks[0].defenders, defenders);
-        assert_eq!(attacks[0].attackers.len(), 6);
+        let attack = w.waiting_attack().expect("an attack");
+        assert_eq!(attack.defenders, defenders, "{events:?}");
+        assert_eq!(attack.attackers.len(), 6);
         assert!(
             w.units().unit_owner(defenders[0]).is_some(),
             "nothing was fought"
         );
-        assert!(ai.take_attacks().is_empty(), "taken once");
     }
 
     #[test]
-    fn without_one_the_same_attack_is_fought_at_once() {
+    fn an_attack_on_a_computer_player_is_fought_at_once() {
         let (mut w, defenders) = field(true);
+        w.set_human(None);
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();
         run(&mut ai, &mut w, &mut events);
-        assert!(ai.take_attacks().is_empty());
+        assert_eq!(w.waiting_attack(), None);
         assert!(
             w.units().unit_owner(defenders[0]).is_none(),
             "the spearman fell: {events:?}"
@@ -312,7 +311,7 @@ mod tests {
         let (mut w, defenders) = field(false);
         let mut ai = Ai::new(P0);
         run(&mut ai, &mut w, &mut Vec::new());
-        assert!(ai.take_attacks().is_empty());
+        assert_eq!(w.waiting_attack(), None);
         assert!(w.units().unit_owner(defenders[0]).is_some());
     }
 

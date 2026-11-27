@@ -338,19 +338,6 @@ pub struct Ai {
     /// the kind's name (`wizardry::note_unmet`), for the soak.
     #[serde(skip)]
     unmet_spells: RefCell<std::collections::BTreeMap<&'static str, u32>>,
-    /// Players who fight their own defence (a human): an attack on them is kept for
-    /// [`Ai::take_attacks`] instead of being resolved.
-    #[serde(skip)]
-    defended_by: Vec<PlayerId>,
-    #[serde(skip)]
-    attacks: Vec<Attack>,
-}
-
-/// An attack on a player who defends in person: the attacking stack and the stack hit.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Attack {
-    pub attackers: Vec<hecs::Entity>,
-    pub defenders: Vec<hecs::Entity>,
 }
 
 impl Ai {
@@ -373,8 +360,7 @@ impl Ai {
     }
 
     /// Give each AI in `ais` the plans a saved game carries for its player. An AI it has no plans
-    /// for, or plans that cannot be read, starts afresh. Who defends in person (a setting of the
-    /// seats, not a plan) is kept.
+    /// for, or plans that cannot be read, starts afresh.
     pub fn recall(plans: &[(PlayerId, String)], ais: &mut [Ai]) {
         for ai in ais {
             let saved = plans
@@ -382,7 +368,6 @@ impl Ai {
                 .find(|(player, _)| *player == ai.player)
                 .and_then(|(_, text)| Ai::from_text(text).ok());
             if let Some(mut saved) = saved {
-                saved.defended_by = std::mem::take(&mut ai.defended_by);
                 // The table keeps the handle it has; the memory goes into it.
                 let memory = saved.memory.get().clone();
                 ai.memory.replace(memory);
@@ -517,20 +502,7 @@ impl Ai {
             roles: roles::Registry::default(),
             clock: plan_clock::PlanClock::default(),
             unmet_spells: RefCell::default(),
-            defended_by: Vec::new(),
-            attacks: Vec::new(),
         }
-    }
-
-    /// These players fight the battles against them themselves: the AI does not auto-resolve an
-    /// attack on them but keeps it, for the caller to play out (see [`Ai::take_attacks`]).
-    pub fn leave_defence_to(&mut self, players: &[PlayerId]) {
-        self.defended_by = players.to_vec();
-    }
-
-    /// The attacks this turn on players who defend in person, oldest first.
-    pub fn take_attacks(&mut self) -> Vec<Attack> {
-        std::mem::take(&mut self.attacks)
     }
 
     /// Count a turn on which a situation called for a kind of spell the wizard does not know.

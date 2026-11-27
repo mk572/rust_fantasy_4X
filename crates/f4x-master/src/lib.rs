@@ -26,6 +26,7 @@
 mod convert;
 mod game;
 
+pub use game::attack::{self, Attack, HeldAttack};
 pub use game::end::{self, GameOver};
 pub use game::reaction::{self, Reaction};
 pub use game::replay::{self, Entry, Replay, ReplayError};
@@ -37,6 +38,7 @@ pub use game::step::{self, turn_order, turn_players, Step};
 pub use game::undo::{self, UndoError};
 pub use game::Game;
 
+use f4x_battle::side::Side;
 use f4x_core::diplomacy::Proposal;
 use f4x_core::player::{PlayerId, MONSTERS};
 use f4x_core::world::{Command, Event, World};
@@ -57,10 +59,12 @@ pub trait Controller {
     /// Play or go on playing the turn of `player`. Events are appended to `events`.
     fn play(&mut self, game: &mut Game, player: PlayerId, events: &mut Vec<Event>) -> Status;
 
-    /// Something of the turn being played waits for `player`: a proposal made to it. The
-    /// controller answers it with commands, or leaves it. `Waiting` holds the turn until the
-    /// controller is asked again (a human who has not answered); `Done` lets the turn go on,
-    /// answered or not. Events are appended to `events`. The default leaves it.
+    /// Something of the turn being played waits for `player`: an attack on it
+    /// ([`Game::waiting_attack`]), the battle it fights in answer to one, or a proposal made to
+    /// it. The controller answers with commands, or leaves it. `Waiting` holds the turn until
+    /// the controller is asked again (a human who has not answered); `Done` lets the turn go on,
+    /// answered or not: an attack that is left is fought by the computer, and a proposal lapses
+    /// with the turn. Events are appended to `events`. The default leaves it.
     fn react(&mut self, _game: &mut Game, _player: PlayerId, _events: &mut Vec<Event>) -> Status {
         Status::Done
     }
@@ -129,8 +133,8 @@ pub enum Phase {
     TurnStart(PlayerId),
     /// The player is playing.
     Acting(PlayerId),
-    /// The player's turn has been played and is about to end: it waits here while a proposal of
-    /// the turn is unanswered.
+    /// The player's turn has been played and is about to end: it waits here while an attack or a
+    /// proposal of the turn is unanswered.
     TurnEnd(PlayerId),
     /// Every player has played; the round is about to end.
     RoundEnd,
@@ -351,9 +355,18 @@ impl<'a> Master<'a> {
             .map_or(Phase::RoundEnd, Phase::TurnStart)
     }
 
-    /// Ask whoever a proposal of the turn of `active` waits for to answer it
-    /// ([`Controller::react`]); an answer in return is asked for too. Returns the player the
-    /// turn waits for.
+    /// Ask the controller that plays `player` to answer what waits for it
+    /// ([`Controller::react`]). A player without a seat leaves it.
+    fn ask(&mut self, game: &mut Game, player: PlayerId, events: &mut Vec<Event>) -> Status {
+        let seat = self.seat_of(game, player);
+        seat.map_or(Status::Done, |seat| {
+            self.seats[seat].controller.react(game, player, events)
+        })
+    }
+
+    /// Ask whoever an attack or a proposal of the turn of `active` waits for to answer it; an
+    /// answer in return is asked for too, and an attack that is left is fought. Returns the
+    /// player the turn waits for.
     fn held_by(
         &mut self,
         game: &mut Game,
@@ -361,15 +374,30 @@ impl<'a> Master<'a> {
         events: &mut Vec<Event>,
     ) -> Option<PlayerId> {
         loop {
+            let defending = game.battle().map(|b| b.player_of(Side::Defender));
+            if let Some(defender) = defending {
+                // A battle fought in answer to an attack holds the turn until it is over.
+                if defender != active && self.ask(game, defender, events) == Status::Waiting {
+                    return Some(defender);
+                }
+                if !game.in_battle() {
+                    continue;
+                }
+            } else if let Some(attack) = game.waiting_attack() {
+                if self.ask(game, attack.defender, events) == Status::Waiting {
+                    return Some(attack.defender);
+                }
+                if !game.in_battle() && game.waiting_attack().as_ref() == Some(&attack) {
+                    events.extend(game.leave_attack(&attack));
+                }
+                continue;
+            }
             let open = requests(game, active);
             let mut asked: Vec<PlayerId> = open.iter().map(|p| p.to).collect();
             asked.sort_by_key(|&p| turn_order(p));
             asked.dedup();
             for player in asked {
-                let Some(seat) = self.seat_of(game, player) else {
-                    continue;
-                };
-                if self.seats[seat].controller.react(game, player, events) == Status::Waiting {
+                if self.ask(game, player, events) == Status::Waiting {
                     return Some(player);
                 }
             }

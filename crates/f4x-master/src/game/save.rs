@@ -18,6 +18,7 @@ use f4x_def::content::Content;
 use f4x_def::load::ContentIssue;
 use serde::{Deserialize, Serialize};
 
+use super::attack::HeldAttack;
 use super::end::GameOver;
 use super::reaction::Reaction;
 use super::Game;
@@ -48,6 +49,9 @@ pub struct GameState {
     /// What the players may still answer of what happened to them in this turn.
     #[serde(default)]
     pub reactions: Vec<Reaction>,
+    /// The attacks that wait for their defender's answer, the oldest first.
+    #[serde(default)]
+    pub attacks: Vec<HeldAttack>,
 }
 
 impl GameState {
@@ -60,6 +64,7 @@ impl GameState {
             game_over: None,
             players,
             reactions: Vec::new(),
+            attacks: Vec::new(),
         }
     }
 }

@@ -363,7 +363,7 @@ and the value per mana (softened by `MANA_SOFTENING`) order the casts. What each
 - a takeover (Possession, Creature Binding) is worth 1.5 times the unit: the enemy loses it and we gain it.
 
 **Task 601 (17 November 2026): the strategic AI sets the budget** (`f4x-ai/src/budget.rs`, used by
-`military::resolve` for every attack of a wizard: the army, the perimeter, the pickup, the raids on sites and
+`military::engage` for every attack of a wizard: the army, the perimeter, the pickup, the raids on sites and
 cities). The limit is the spare mana (the reserve, less ten turns of any shortfall of the income
 against the upkeep) times *stake* times *need*; at 0.75 or more there is no limit. *Stake*: a
 city 1.0 (taken, held or fought for), a lair 0.6, our own ground within three squares of a

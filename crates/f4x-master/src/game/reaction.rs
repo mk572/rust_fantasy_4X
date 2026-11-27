@@ -86,8 +86,9 @@ impl Game {
         };
         match command {
             Command::Anyway(inner) => self.is_reaction(player, inner),
-            // An attack is answered in the battle; only the side to play may give an order.
-            Command::Battle(_) => true,
+            // An attack that waits, and its battle, where only the side to play may give an
+            // order. Whether there is such an attack is checked for every sender.
+            Command::Defend { .. } | Command::Battle(_) => true,
             Command::Diplomacy(talk) => match *talk {
                 DiplomacyCommand::Answer { from, .. } | DiplomacyCommand::Counter { from, .. } => {
                     asked(from)

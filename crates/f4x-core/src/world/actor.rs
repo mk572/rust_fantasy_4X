@@ -30,6 +30,7 @@ impl World {
             | Command::Meld { units }
             | Command::ShiftPlane { units }
             | Command::EarthGate { units, .. } => first(units),
+            Command::Defend { fighters, .. } => first(fighters),
             Command::BeginBattle { attackers, .. } | Command::AutoResolve { attackers, .. } => {
                 first(attackers)
             }
@@ -98,6 +99,7 @@ fn ordered_units(command: &Command) -> &[hecs::Entity] {
         Command::BeginBattle { attackers, .. } | Command::AutoResolve { attackers, .. } => {
             attackers
         }
+        Command::Defend { fighters, .. } => fighters,
         _ => &[],
     }
 }

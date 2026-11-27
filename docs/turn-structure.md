@@ -228,7 +228,7 @@ This document defines the lifecycle and design constraints, not a demand to rewr
 
 ## 10. Splitting the game from the world (task 822)
 
-**Built so far:** `f4x_master::Game` owns the world; the master drives it, and the AI, the console, the client and the tools hold it. It reads like a world, and a command goes through `Game::apply`; setup and cheats use `Game::world_mut` and `Game::world_and_rng`. Undo and the replay log are the game's (`game/undo.rs`, `game/replay.rs`). So is the turn order (`game/step.rs`): the lifecycle commands and `EndTurn` are gone, the game makes the steps (`Game::start_round` and the others, `Game::play_round`) through `World::advance`, `turn_players` is master's, and the replay log holds commands and steps. A command in the log carries its sender. The round counter, the phase and the end of the game are the game's (`GameState`, `game/end.rs`); the plans are the controllers'; the save file has the parts of 10.8, without the seats, and older saves are converted (`convert.rs`, game version 0.0.8). Every player has a turn of its own (10.11). The world operations that need the round take it as an argument (`start_round`, `start_player_turn`, `score`, `cheat_offer`), and everyone outside the world asks `Game::round`. The random numbers are the game's too (10.10). Every command has a sender (`Game::apply(player, command)`, 10.4). The rivals' offers, requests and wars towards the human are made at the end of their own turns, and a played turn does not end while a proposal made in it, or in answer to one, waits: the master asks the controller of whoever it waits for (`Controller::react`, phase `TurnEnd`). On another player's turn the game takes a reaction only (10.4). Not yet built: the attack as a request (10.4).
+**Built so far:** `f4x_master::Game` owns the world; the master drives it, and the AI, the console, the client and the tools hold it. It reads like a world, and a command goes through `Game::apply`; setup and cheats use `Game::world_mut` and `Game::world_and_rng`. Undo and the replay log are the game's (`game/undo.rs`, `game/replay.rs`). So is the turn order (`game/step.rs`): the lifecycle commands and `EndTurn` are gone, the game makes the steps (`Game::start_round` and the others, `Game::play_round`) through `World::advance`, `turn_players` is master's, and the replay log holds commands and steps. A command in the log carries its sender. The round counter, the phase and the end of the game are the game's (`GameState`, `game/end.rs`); the plans are the controllers'; the save file has the parts of 10.8, without the seats, and older saves are converted (`convert.rs`, game version 0.0.8). Every player has a turn of its own (10.11). The world operations that need the round take it as an argument (`start_round`, `start_player_turn`, `score`, `cheat_offer`), and everyone outside the world asks `Game::round`. The random numbers are the game's too (10.10). Every command has a sender (`Game::apply(player, command)`, 10.4). The rivals' offers, requests and wars towards the human are made at the end of their own turns, and a played turn does not end while a proposal made in it, or in answer to one, waits: the master asks the controller of whoever it waits for (`Controller::react`, phase `TurnEnd`). On another player's turn the game takes a reaction only, and an attack on the human waits for its answer (10.4); a war on whoever casts a spell on you waits for task 785.
 
 The **world** (`f4x-core`'s `World`, named `Game` until 26 November 2026) says what is in the world and what can be done in it. The **game** (`Game` in `f4x-master`) owns a `World` and advances time.
 
@@ -302,9 +302,9 @@ The game does not take a sender's word that something is a reaction. An event th
 - Open reactions are part of the saved game.
 - An attacker sends the attack on its own turn; the client does not start a battle on an AI's behalf.
 - A rival's unprompted offers and demands are no reactions: they are made in the rival's own turn (`approach_human`, the last thing of it).
-- Built (27 November 2026): the turn waits for its proposals. A controller that is asked answers (an AI at once, a human when they have), or leaves the proposal, which still lapses at the end of the round, not yet with its turn.
+- Built (27 November 2026): the turn waits for its proposals. A controller that is asked answers (an AI at once, a human when they have), or leaves the proposal, which lapses as the turn ends (`World::end_player_turn`).
 - A reaction being allowed does not mean a front end or the AI uses it. A war question after a lost city, or an AI that strikes back at once, is new behaviour and not part of task 822.
-- `World::command_actor` names a player for every command: the speaker of a talk, the owner of the attacking stack of a fight, the side to play of a battle order. `World::may_command` also refuses a stack with another player's unit in it.
+- `World::command_actor` names a player for every command: the speaker of a talk, the owner of the attacking stack of a fight (of the fighters, in an answer to an attack), the side to play of a battle order. `World::may_command` also refuses a stack with another player's unit in it.
 
 **Built (27 November 2026): the turn check** (`game/reaction.rs`):
 
@@ -315,7 +315,14 @@ The game does not take a sender's word that something is a reaction. An event th
 - Refused with `Rejection::NotYourTurn`. A command that opens or answers a reaction ends the undo history.
 - The console in override mode gives an order the game refuses for this reason by hand, as it does a cheat: it is not part of a replay.
 
-**Until the attack is a request** a command is sometimes given in the name of a player other than the one whose code sends it: the battle AI of an attacking AI gives the orders of both sides, and the client gives the orders of the other side in the human's battle and starts a rival's attack on the human.
+**Built (27 November 2026): the attack as a request** (`game/attack.rs`):
+
+- Only the human answers an attack. `BeginBattle` or `AutoResolve` of another player against the human's units is not fought but held (`Game::waiting_attack`), saved by the creation numbers of the units, if the stacks are next to each other and can fight (`World::check_attack`); else it is refused. The attackers move no further that turn, so that they are still there when the answer comes. An attack on a computer player is fought as it is sent.
+- The defender answers with `Command::Defend`: who fights, and in person or left to the computer, with its own limit of mana. A computer attacker's limit is not kept: the one limit is the defender's.
+- The master asks the defender's controller before the attacker's turn ends, and holds the turn while a battle fought in person lasts. An attack that is left is fought by the computer. The console, which cannot ask, has an attack it causes fought at once.
+- The AI sends every attack the same way (`military::engage`) and knows nothing of who answers in person.
+
+**A command in another's name:** the battle AI of an attacking AI gives the orders of both sides, and the client gives the orders of the other side in the human's battle.
 
 ### 10.5 Game, master and the save (decided 26 November 2026)
 

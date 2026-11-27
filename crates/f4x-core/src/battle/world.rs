@@ -72,6 +72,8 @@ pub enum BattleStartError {
     NotAdjacent,
     /// The sides have a pact or an alliance: it has to be broken first, by a player.
     Treaty,
+    /// No attack of those units waits for these defenders' answer.
+    NoSuchAttack,
 }
 
 impl BattleStartError {
@@ -82,6 +84,7 @@ impl BattleStartError {
             Self::BadSides => "refuse_map.battle_start_error_bad_sides",
             Self::NotAdjacent => "refuse_map.battle_start_error_not_adjacent",
             Self::Treaty => "refuse_map.battle_start_error_treaty",
+            Self::NoSuchAttack => "refuse_map.battle_start_error_no_such_attack",
         }
     }
 }
@@ -444,16 +447,13 @@ impl World {
         }
     }
 
-    /// Begin a battle between two stacks. The defenders' square decides the terrain.
-    pub fn start_battle(
-        &mut self,
+    /// Who attacks whom and on which square, if the two stacks can fight: each one player's on
+    /// one square, the two players different and not bound by a treaty.
+    fn battle_sides(
+        &self,
         attackers: &[hecs::Entity],
         defenders: &[hecs::Entity],
-        rng: &mut GameRng,
-    ) -> Result<Vec<Event>, BattleStartError> {
-        if self.battle.is_some() {
-            return Err(BattleStartError::InProgress);
-        }
+    ) -> Result<(PlayerId, PlayerId, Position), BattleStartError> {
         let side_info = |world: &World, units: &[hecs::Entity]| -> Option<(PlayerId, Position)> {
             let first = *units.first()?;
             let pos = world.units().unit_position(first)?;
@@ -486,6 +486,58 @@ impl World {
         if self.bound_by_treaty(a_owner, d_owner) {
             return Err(BattleStartError::Treaty);
         }
+        Ok((a_owner, d_owner, site))
+    }
+
+    /// Whether the two stacks stand on neighbouring squares (or on one); `None` when that
+    /// cannot be told.
+    fn stacks_near(&self, attackers: &[hecs::Entity], defenders: &[hecs::Entity]) -> Option<bool> {
+        let a = self.units().unit_position(*attackers.first()?)?;
+        let mut d = self.units().unit_position(*defenders.first()?)?;
+        // The same tower square, seen from the attacker's plane.
+        if d.plane != a.plane {
+            d = self
+                .economy()
+                .tower_mirror(d)
+                .filter(|m| m.plane == a.plane)
+                .unwrap_or(d);
+        }
+        let map = self.map.as_ref()?;
+        Some(a.plane == d.plane && map.plane(a.plane).chebyshev((a.x, a.y), (d.x, d.y)) <= 1)
+    }
+
+    /// Whether `attackers` can attack `defenders` from where they stand: the sides of a battle,
+    /// next to each other. A battle that is being fought does not count.
+    pub fn check_attack(
+        &self,
+        attackers: &[hecs::Entity],
+        defenders: &[hecs::Entity],
+    ) -> Result<(), BattleStartError> {
+        if self.stacks_near(attackers, defenders) == Some(false) {
+            return Err(BattleStartError::NotAdjacent);
+        }
+        self.battle_sides(attackers, defenders).map(|_| ())
+    }
+
+    /// The units are committed to an attack that waits for its defender: they move no further
+    /// this turn.
+    pub fn commit_attackers(&mut self, attackers: &[hecs::Entity]) {
+        for &u in attackers {
+            self.put(u, crate::unit::MovesLeft(HalfInt::ZERO));
+        }
+    }
+
+    /// Begin a battle between two stacks. The defenders' square decides the terrain.
+    pub fn start_battle(
+        &mut self,
+        attackers: &[hecs::Entity],
+        defenders: &[hecs::Entity],
+        rng: &mut GameRng,
+    ) -> Result<Vec<Event>, BattleStartError> {
+        if self.battle.is_some() {
+            return Err(BattleStartError::InProgress);
+        }
+        let (a_owner, d_owner, site) = self.battle_sides(attackers, defenders)?;
         let mut units = Vec::new();
         let mut sources = Vec::new();
         // A fight at a city is fought round its walls, if it has them.
@@ -1284,21 +1336,7 @@ impl World {
         mana_budget: Option<(PlayerId, u32)>,
         rng: &mut GameRng,
     ) -> Vec<Event> {
-        let near = |world: &World| -> Option<bool> {
-            let a = world.units().unit_position(*attackers.first()?)?;
-            let mut d = world.units().unit_position(*defenders.first()?)?;
-            // The same tower square, seen from the attacker's plane.
-            if d.plane != a.plane {
-                d = world
-                    .economy()
-                    .tower_mirror(d)
-                    .filter(|m| m.plane == a.plane)
-                    .unwrap_or(d);
-            }
-            let map = world.map.as_ref()?;
-            Some(a.plane == d.plane && map.plane(a.plane).chebyshev((a.x, a.y), (d.x, d.y)) <= 1)
-        };
-        if near(self) == Some(false) {
+        if self.stacks_near(attackers, defenders) == Some(false) {
             return vec![Event::Rejected(crate::world::Rejection::BattleStart(
                 BattleStartError::NotAdjacent,
             ))];

@@ -49,6 +49,20 @@ pub enum Command {
         #[serde(with = "world::stable_ref::many")]
         defenders: Vec<hecs::Entity>,
     },
+    /// The answer to an attack on the sender that waits for one (`f4x-master`, which takes no
+    /// other): `fighters`, of the stack attacked, fight `attackers`.
+    Defend {
+        #[serde(with = "world::stable_ref::many")]
+        attackers: Vec<hecs::Entity>,
+        #[serde(with = "world::stable_ref::many")]
+        fighters: Vec<hecs::Entity>,
+        /// Leave the fight to the computer; else it is fought in person.
+        auto: bool,
+        /// With `auto`, the most mana the defender may spend from the reserve; `None` is no
+        /// limit beyond its skill and reserve.
+        #[serde(default)]
+        mana: Option<u32>,
+    },
     /// The command, after the player was told it would do nothing (a lasting spell the unit has
     /// already) and chose to go on. The AI never sends it.
     Anyway(Box<Command>),

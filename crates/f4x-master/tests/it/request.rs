@@ -155,6 +155,7 @@ fn a_proposal_that_is_left_does_not_hold_the_turn() {
         t.master.step(&mut t.game);
     }
     assert_eq!(t.master.state().phase, Phase::TurnStart(t.receiver));
+    assert_eq!(t.game.diplomacy.proposals(), [], "it lapsed with the turn");
     let asked = format!("react {}", t.receiver.0);
     assert_eq!(
         t.log.borrow().iter().filter(|&l| *l == asked).count(),

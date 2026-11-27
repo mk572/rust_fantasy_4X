@@ -182,10 +182,19 @@ impl App {
     }
 
     fn run_auto_battle(&mut self, attack: PendingAttack, mana: Option<u32>) {
-        self.auto_battle(Command::AutoResolve {
-            attackers: attack.attackers,
-            defenders: attack.defenders,
-            mana_budget: mana.map(|m| (HUMAN, m)),
+        self.auto_battle(if attack.defending {
+            Command::Defend {
+                attackers: attack.attackers,
+                fighters: attack.defenders,
+                auto: true,
+                mana,
+            }
+        } else {
+            Command::AutoResolve {
+                attackers: attack.attackers,
+                defenders: attack.defenders,
+                mana_budget: mana.map(|m| (HUMAN, m)),
+            }
         });
     }
 
@@ -427,9 +436,18 @@ impl App {
             self.start_auto_battle(attack)
         } else {
             let (attackers, defenders) = (attack.attackers, attack.defenders);
-            self.begin_battle(Command::BeginBattle {
-                attackers,
-                defenders,
+            self.begin_battle(if attack.defending {
+                Command::Defend {
+                    attackers,
+                    fighters: defenders,
+                    auto: false,
+                    mana: None,
+                }
+            } else {
+                Command::BeginBattle {
+                    attackers,
+                    defenders,
+                }
             });
             None
         }
@@ -575,46 +593,65 @@ mod tests {
         Ok(())
     }
 
+    /// A rival's unit beside one of the human's attacks it; the game holds the attack.
+    fn held(app: &mut App) -> Result<PendingAttack, String> {
+        let rival = PlayerId(1);
+        let target = *app.game.units().player_units(HUMAN).first().ok_or("none")?;
+        let at = app.game.units().unit_position(target).ok_or("no square")?;
+        let kind = app.game.units().unit_kind_id(target).ok_or("no kind")?;
+        for (dx, dy) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
+            let beside = f4x_core::map::Position {
+                x: at.x.saturating_add_signed(dx),
+                y: at.y.saturating_add_signed(dy),
+                ..at
+            };
+            if beside == at || !app.game.units().units_at(beside).is_empty() {
+                continue;
+            }
+            let unit = app.game.world_mut().spawn_unit(rival, beside, kind);
+            let events = app.game.apply(
+                rival,
+                Command::AutoResolve {
+                    attackers: vec![unit],
+                    defenders: vec![target],
+                    mana_budget: None,
+                },
+            );
+            if events.is_empty() {
+                return app.next_defence().ok_or_else(|| "not held".into());
+            }
+        }
+        Err("no square beside the human's unit".into())
+    }
+
     #[test]
     fn a_rivals_attack_is_asked_in_the_middle_of_the_round_and_the_round_goes_on_after_it(
     ) -> TestResult {
         let mut app = App::for_test();
         let round = app.game.round();
-        let pending = attack(&app, PlayerId(1), true)?;
-        // A rival has attacked while the master waited: the turn is half way through.
-        app.defences.push_back(pending.clone());
+        let pending = held(&mut app)?;
         app.turn_events = Some(Vec::new());
         app.resume_turn();
         assert!(app.modals.has(kind::ATTACK), "the attack is asked at once");
         assert!(app.turn_events.is_some(), "the round waits for the answer");
         assert_eq!(app.game.round(), round, "the round has not ended");
 
-        // The player answers: the box goes. (The fight itself is not run here: the two stacks
-        // of this test world are not next to each other, and the game refuses a battle then.)
         app.modals.remove(kind::ATTACK);
+        app.run_auto_battle(pending, None);
+        assert!(app.next_defence().is_none(), "the attack is answered");
         app.resume_turn();
         assert!(!app.modals.has(kind::ATTACK));
-        assert!(app.defences.is_empty());
+        assert!(app.turn_events.is_none(), "the round goes on");
         Ok(())
     }
 
     #[test]
-    fn an_attack_whose_unit_died_to_an_earlier_one_is_not_asked() -> TestResult {
+    fn an_attack_whose_unit_is_gone_is_not_asked() -> TestResult {
         let mut app = App::for_test();
-        let first = attack(&app, PlayerId(1), true)?;
-        let mut stale = first.clone();
-        // A defender that is no longer the human's.
-        let rival_unit = *app
-            .game
-            .units()
-            .player_units(PlayerId(1))
-            .first()
-            .ok_or("no rival unit")?;
-        stale.defenders = vec![rival_unit];
-        app.defences.push_back(stale);
-        app.defences.push_back(first.clone());
-        let next = app.next_defence().ok_or("the real attack is lost")?;
-        assert_eq!(next.defenders, first.defenders);
+        let pending = held(&mut app)?;
+        app.game
+            .world_mut()
+            .scenario_remove_unit(pending.attackers[0]);
         assert!(app.next_defence().is_none());
         Ok(())
     }

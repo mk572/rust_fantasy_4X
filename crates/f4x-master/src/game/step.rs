@@ -129,6 +129,7 @@ impl Game {
         self.state.phase = None;
         // What could be left unanswered lapses with the turn it happened in.
         self.state.reactions.clear();
+        self.state.attacks.clear();
         let players = match step {
             Step::PlayRound => self.turn_players().to_vec(),
             _ => Vec::new(),

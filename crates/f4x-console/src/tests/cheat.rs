@@ -198,6 +198,36 @@ fn the_override_mode_orders_units_of_a_player_whose_turn_it_is_not() {
     assert!(r.ok, "{}", r.text());
 }
 
+#[test]
+fn an_attack_on_the_human_by_the_wizard_the_console_plays_is_fought_at_once() {
+    let (mut w, mut c) = (game(), console());
+    w.world_mut().set_human(Some(HUMAN));
+    c.execute(&mut w, "mode override");
+    let rival = w.wizards().into_iter().find(|&id| id != HUMAN);
+    let rival = rival.expect("a rival");
+    let r = c.execute(&mut w, &format!("as {}", rival.0));
+    assert!(r.ok, "{}", r.text());
+    let mine = first_unit_of(&w, HUMAN);
+    let at = w.units().unit_position(mine).expect("a square");
+    let theirs = first_unit_of(&w, rival);
+    let beside = Position { x: at.x + 1, ..at };
+    w.world_mut().cheat_move_unit(theirs, beside);
+    let serial = w.units().serial_of(theirs).0;
+    let order = format!("auto {serial} {},{}", at.x, at.y);
+    let r = c.execute(&mut w, &order);
+    assert!(r.ok, "{}", r.text());
+    assert_eq!(w.waiting_attack(), None);
+    assert!(!w.in_battle());
+    let events = &r.events;
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, f4x_core::world::Event::BattleStarted { .. })),
+        "{}",
+        r.text()
+    );
+}
+
 /// The id of the first feature of a kind in the shipped content.
 fn feature_of(w: &World, kind: f4x_core::feature::def::FeatureKind) -> String {
     w.content()
