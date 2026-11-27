@@ -222,6 +222,12 @@ impl World {
         found
     }
 
+    /// Take over the saved map locations of `other`, the same game at another moment: an undo
+    /// takes back orders, not the bookmarks of the view.
+    pub fn keep_locations_of(&mut self, other: &World) {
+        self.locations.clone_from(&other.locations);
+    }
+
     /// Save a map location in a slot (0 to [`MAP_LOCATIONS`] - 1) of a player, replacing what
     /// the slot held. Returns false, and changes nothing, for a slot out of range or a square
     /// that is not on the map.

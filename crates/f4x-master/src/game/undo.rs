@@ -127,6 +127,7 @@ impl Game {
             Ok(mut world) => {
                 // A save carries no name lists: the caller gave them, and they stay.
                 world.set_names(self.world.names().clone());
+                world.keep_locations_of(&self.world);
                 self.world = world;
                 self.state = entry.state;
                 self.forget_last_command();

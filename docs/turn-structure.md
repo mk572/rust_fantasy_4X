@@ -311,7 +311,7 @@ The game does not take a sender's word that something is a reaction. An event th
 - Items won go to the vault first and the events do not say which they were, so the winner may move (not from a hero), sell or scrap anything in its armory until the turn ends.
 - Refused with `Rejection::NotYourTurn`. A command that opens or answers a reaction ends the undo history.
 - The console in override mode gives an order the game refuses for this reason by hand, as it does a cheat: it is not part of a replay.
-- Two things a player does in a front end go to the world directly (`Game::world_mut`), not as commands, so the turn check does not see them and no replay holds them: saving a map location (`World::save_location`, a bookmark of the view that changes nothing in play; an undo of an earlier order takes it back with the rest of the world), and the unit sheet's question who would drown if a spell were turned off (`World::drowned_if_off`, which takes the spell off for a moment and puts it back).
+- Two things a player does in a front end go to the world directly (`Game::world_mut`), not as commands, so the turn check does not see them and no replay holds them: saving a map location (`World::save_location`, a bookmark of the view that changes nothing in play; an undo leaves the saved locations as they are), and the unit sheet's question who would drown if a spell were turned off (`World::drowned_if_off`, which takes the spell off for a moment and puts it back).
 
 **Built (27 November 2026): the attack as a request** (`game/attack.rs`):
 
@@ -372,7 +372,7 @@ No command takes a round.
 
 - **Replays belong to the game**, since a log with turn and round steps cannot be played on a world alone. The log is the starting game followed by entries: a player's command with its sender, or a turn or round step. A command that auto-resolved a battle carries the orders given in it (task 812). Playback goes through the `Game` and needs no controllers or AI. Writing units and cities as creation numbers stays in core. Cheats are not recorded, as today.
 - **Old replay files are refused**; the converter (10.8) is for saves. A replay written by a 0.0.8 build from before the commands carried their sender is not read either.
-- **Undo belongs to the game** too: it restores the whole `Game`, open reactions included, and takes the command out of the replay log. What cannot be taken back stays as today (a command that explored, drew a random number or started a battle, and everything before it; the end of a turn); the game sees the draws itself, and the world tells it the other facts.
+- **Undo belongs to the game** too: it restores the whole `Game`, open reactions included (the saved map locations stay as they are, 10.4), and takes the command out of the replay log. What cannot be taken back stays as today (a command that explored, drew a random number or started a battle, and everything before it; the end of a turn); the game sees the draws itself, and the world tells it the other facts.
 - **Turn-order, replay and undo tests** move to `f4x-master`.
 - **No crate below master depends on it, for tests either** (27 November 2026, built the same day; during the move core's tests used a dev-dependency). A test that needs the core alone sits in `f4x-core` and calls the single world operations it is about; a test that needs turns to pass, replays or undo sits in `f4x-master`. So do the tests of `f4x-newgame` that let a new game play, with the world cases both use in `f4x_newgame::testutil`. No test helper in core repeats the turn order.
 

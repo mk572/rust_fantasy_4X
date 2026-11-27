@@ -30,6 +30,22 @@ fn the_name_lists_stay_after_an_undo() {
 }
 
 #[test]
+fn the_saved_map_locations_stay_after_an_undo() {
+    let (_, mut game) = games().remove(0);
+    let player = game.player_ids()[0];
+    let units = game.units();
+    let mine = units.player_units(player)[0];
+    let at = units.unit_position(mine).expect("on the map");
+    assert!(game.world_mut().save_location(player, 0, at));
+    game.set_undo(true);
+    a_change_that_can_be_taken_back(&mut game).expect("a change");
+    assert!(game.world_mut().save_location(player, 1, at));
+    let saved = game.locations(player);
+    game.undo().expect("takes it back");
+    assert_eq!(game.locations(player), saved);
+}
+
+#[test]
 fn what_cannot_be_taken_back_clears_the_history() {
     for (name, mut game) in games() {
         game.set_undo(true);
