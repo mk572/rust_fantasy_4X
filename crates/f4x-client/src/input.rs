@@ -92,7 +92,7 @@ impl Input {
     }
 }
 
-/// Frames built by hand, for the tests of click flows (`docs/rust_coding_rules.md`, UI test).
+/// Frames built by hand, for the tests of click flows (`docs/testing.md`, UI tests).
 #[cfg(test)]
 impl Input {
     /// The frame in which this key goes down.

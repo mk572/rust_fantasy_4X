@@ -203,7 +203,7 @@ About 45 tests in 13 files replaced a registry or edited a definition. Each was 
 | Healing and Fire Bolt made castable on the map (`on_the_map`) | Bless (own unit) and Famine (enemy city), which are overland spells; no overland spell aims at an enemy unit |
 | A very rare foe (cost 600), a hero made of cavalry | the Great Drake and the Hydra (summoned, 900 and 650); the dwarf hero at levels by experience |
 | One prefab item so the taken list shows plainly | the item on offer is read back from the offer |
-| **Kept**: the validator tests in `hook.rs`; the save naming a unit the content lacks; the console fallback names with no ready-made wizards; the seven AI wizard tests whose ready-made wizards have compositions the shipped set lacks (opposed realms, three Myrran, five books of two realms) | listed in `rust_coding_rules.md` |
+| **Kept**: the validator tests in `hook.rs`; the save naming a unit the content lacks; the console fallback names with no ready-made wizards; the seven AI wizard tests whose ready-made wizards have compositions the shipped set lacks (opposed realms, three Myrran, five books of two realms) | exceptions to "A test never builds its own rule set" |
 
 Not counted: tests that set a game setting or a config value (`g.settings.rules.melee_vs_fliers`, `max_tile`, `settlers_cost_citizen`, `rules.config.tax_unrest_percent`, `max_city_size`); those are not rule sets.
 

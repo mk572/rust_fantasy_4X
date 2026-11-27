@@ -16,7 +16,7 @@ Long-term ideas are Low-priority tasks in the same file.
 
 ## Where things are
 
-The crates and who may depend on whom: `docs/design.md` section 2 and `docs/rust_coding_rules.md`. The world (`f4x-core`) says what is in the game and what can be done; the game (`f4x-master`) advances time (`docs/turn-structure.md` section 10). The state model: `docs/ecs-structure.md`. Lessons: `docs/KNOWLEDGE.md`.
+The crates and who may depend on whom: `docs/design.md` section 2. The world (`f4x-core`) says what is in the game and what can be done; the game (`f4x-master`) advances time (`docs/turn-structure.md` section 10). The state model: `docs/ecs-structure.md`. Lessons: `docs/KNOWLEDGE.md`.
 
 ## Commands
 
@@ -38,10 +38,12 @@ Refer to `docs/ecs-structure.md`
 - **Game rules live in `docs/design.md`** and the topic docs it lists, not here. In particular, read
   design.md section 8 before touching anything the AI decides: the rules treat the AI like a human.
 
-- **Rust and testing rules** (safe coding, error handling, testing on the actual game data and rules,
+- **Rust and testing rules** (safe coding, error handling, testing on the actual data and rules,
   error handling and quality of tests) are in `docs/rust_coding_rules.md`; follow them when writing or
-  changing code and tests. A test never carries a game rule of its own (a limit, a count, a price): it reads
-  it from the game (`w.max_tile()`, the shipped content); `scripts/imaginary_tests.py` flags the offenders.
+  changing code and tests. That doc is general: it names nothing of this project, so what is particular
+  to this project's tests goes into `docs/testing.md`. A test never carries a game rule of its own (a
+  limit, a count, a price): it reads it from the game (`w.max_tile()`, the shipped content);
+  `scripts/imaginary_tests.py` flags the offenders.
 
 - **The `.ron` content is hash-guarded**: each crate with `.ron` files has a `content.sha256` and a test
   that fails when a file differs. After a change of content made on purpose, run

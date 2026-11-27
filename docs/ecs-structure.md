@@ -131,6 +131,13 @@ Three ways to give a domain what it needs, all in use:
   units is a function over `&mut hecs::World`, such as `unit::spawn`, `experience::gain_xp` and
   the `spell/temp_effect.rs` functions). A test builds a `hecs::World` and the content and no `World`.
 
+Components are given with `World::put` / `put_bundle` and taken off with `World::strip` (`put_in`,
+`strip_in` for a bare `hecs::World`): a component that is not there is fine, an entity that is gone
+stops a debug build. Failures are typed errors (`MoveError`, `ItemError`) or events
+(`Event::OrderFailed`); the AI records what it gives up with `Ai::note_failure`. `PlayerView` is the
+boundary that keeps the AI from holding a `&World`: it reads only what a human sees.
+`scripts/find_wrappers.py` lists functions that only pass a call on.
+
 Every domain of the game follows this, and the battle engine, the rules layer, the map and the fog always did. `f4x-tools world-methods` reports the number of `impl World` methods per file, as a guideline.
 
 

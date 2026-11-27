@@ -1,8 +1,8 @@
-//! Regression tests on the whole game, without the client (`docs/rust_coding_rules.md`).
+//! Regression tests on the whole game, without the client (`docs/testing.md`).
 //!
 //! Each scenario loads a prepared save from `tests/regression/<name>.save`, applies a fixed list
 //! of commands and compares the resulting game with `tests/regression/<name>.target`. To change
-//! a target on purpose or rebuild the saves, see `docs/rust_coding_rules.md` (`F4X_REFRESH_REGRESSION`).
+//! a target on purpose or rebuild the saves, see `docs/testing.md` (`F4X_REFRESH_REGRESSION`).
 
 use std::path::{Path, PathBuf};
 

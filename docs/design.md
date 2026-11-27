@@ -37,7 +37,7 @@ docs/                design and reference documents
 ```
 Gitignored, local only: `assets-local/` (extracted art, screenshots), `content-local/` (the help text and the screen-to-topic map imported from the author's own copy of the original game, plus the preset wizards written from them), `reference/` (the original's files and the ReMoM clone).
 
-The crate rules (who may depend on whom) are in [`rust_coding_rules.md`](rust_coding_rules.md). `f4x-core` must never depend on the client or on a crate above it; that keeps it testable and fast to iterate.
+Dependencies point one way, `f4x-client` -> `f4x-master` -> `f4x-core` -> `f4x-battle` -> `f4x-def`, and nothing points up that line; `f4x-newgame` sits above core and uses only its public API. Each crate's `Cargo.toml` says what it uses, and a crate loads the data it holds. `f4x-core` must never depend on the client or on a crate above it; that keeps it testable and fast to iterate.
 
 **The world and the game** (task 822, [`turn-structure.md`](turn-structure.md) section 10). `f4x-core`'s `World` says what is in the world and what can be done in it, one operation at a time (apply a command, start a player's turn, end a round); it knows no round counter, no order of play and no end of the game. `f4x-master`'s `Game` owns a `World` and advances time: the round, whose turn it is, when each operation runs, the end of the game, the open reactions, the random numbers, saves, undo and replays. No crate below `f4x-master` depends on it, for tests either: a test that needs turns to pass, replays or undo lives in `f4x-master`.
 
@@ -226,9 +226,9 @@ Every attack is made of a set of damage types (`f4x-def/src/rules/damage_type.rs
 
 ## 10. Cross-cutting
 - **Determinism:** seeded RNG (`rand_pcg`), held by the `Game` and passed to each world operation that draws (`&mut GameRng`); entity iteration in logic is sorted by creation number (`Serial`), never by `hecs` id; no floats in rules; integer maths with a fixed order in the stats engine.
-- **Save/load:** a save is a text snapshot (RON) of the whole game with content referenced by name, a version number and load-time checks; autosave runs each turn. Details in [`game-flow.md`](game-flow.md) section 8.
+- **Save/load:** a save is a text snapshot (RON) of the whole game with content referenced by number, a version number and load-time checks; the client autosaves at the start of each round. Details in [`game-flow.md`](game-flow.md) section 8.
 - **Replays:** commands name entities, and entity ids change on a load, so a command written down carries creation numbers (`Serial`) in their place (`f4x-core`, `world/stable_ref.rs`); the log and its playback are the game's (`f4x-master`, `game/replay.rs`).
-- **Testing and where tests live:** [`rust_coding_rules.md`](rust_coding_rules.md) (tests run on the shipped rules and real spells; unit tests sit in the file they test; integration tests in a crate's `tests/it/`).
+- **Testing and where tests live:** the general rules are in [`rust_coding_rules.md`](rust_coding_rules.md), how they apply here in [`testing.md`](testing.md).
 - **Lint and format:** `cargo fmt`, `cargo clippy` clean.
 
 ## 11. Decisions made so far
