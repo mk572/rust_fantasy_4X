@@ -59,6 +59,15 @@ impl Game {
         self.state.phase
     }
 
+    /// Whose turn is being played, as far as the game knows: the player of the master's saved
+    /// place in the round. `None` between turns, and in a game no master drives.
+    pub fn turn(&self) -> Option<PlayerId> {
+        match self.state.phase {
+            Some(Phase::Acting(player) | Phase::TurnEnd(player)) => Some(player),
+            _ => None,
+        }
+    }
+
     /// Record where the master is in the round, to be saved with the game.
     pub(crate) fn set_phase(&mut self, phase: Phase) {
         self.state.phase = Some(phase);
@@ -118,6 +127,8 @@ impl Game {
         self.record_step(step);
         self.forget_history();
         self.state.phase = None;
+        // What could be left unanswered lapses with the turn it happened in.
+        self.state.reactions.clear();
         let players = match step {
             Step::PlayRound => self.turn_players().to_vec(),
             _ => Vec::new(),
@@ -136,6 +147,7 @@ impl Game {
             Step::PlayRound => whole_round(world, rng, &players, round, over),
         });
         self.state.round = next;
+        self.open_reactions(&events);
         events.extend(self.check_end());
         events
     }

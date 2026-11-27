@@ -136,7 +136,9 @@ adds nothing to the undo history.
 | The log | `history` lists every override used |
 
 In override mode the ownership checks of the legal commands are off (an override console may order another
-wizard's units) and queries see everything.
+wizard's units) and queries see everything. While a turn is being played (a game loaded from a save made
+in one), an order of a player whose turn it is not is given by hand, as a cheat is: it is no part of a
+replay.
 
 **A cheated game stays marked.** Switching the mode on writes `mode override` to the game's override log,
 and every override command after it; the log is saved, so the mark survives save and load

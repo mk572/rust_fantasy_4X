@@ -19,6 +19,7 @@ use f4x_def::load::ContentIssue;
 use serde::{Deserialize, Serialize};
 
 use super::end::GameOver;
+use super::reaction::Reaction;
 use super::Game;
 use crate::{convert, turn_players, Phase};
 
@@ -44,6 +45,9 @@ pub struct GameState {
     /// Empty only in a save converted from an older layout, until it is restored.
     #[serde(default)]
     pub players: Vec<PlayerId>,
+    /// What the players may still answer of what happened to them in this turn.
+    #[serde(default)]
+    pub reactions: Vec<Reaction>,
 }
 
 impl GameState {
@@ -55,6 +59,7 @@ impl GameState {
             phase: None,
             game_over: None,
             players,
+            reactions: Vec::new(),
         }
     }
 }

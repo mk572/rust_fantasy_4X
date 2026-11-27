@@ -2789,6 +2789,7 @@ dependencies = [
  "f4x-def",
  "f4x-master",
  "f4x-newgame",
+ "hecs",
  "ron",
  "serde",
 ]

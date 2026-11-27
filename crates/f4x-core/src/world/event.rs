@@ -630,6 +630,9 @@ pub enum Rejection {
     NotYourCommand,
     /// The command sets a world up (`Command::is_setup`): no player may send it.
     SetupOnly,
+    /// It is another player's turn, and the command answers nothing that happened to the
+    /// sender.
+    NotYourTurn,
 }
 
 impl Rejection {
@@ -659,6 +662,7 @@ impl Rejection {
             Self::NoSuchPlayer => "refuse_map.no_such_player",
             Self::NotYourCommand => "refuse_map.not_your_command",
             Self::SetupOnly => "refuse_map.setup_only",
+            Self::NotYourTurn => "refuse_map.not_your_turn",
         }
     }
 }

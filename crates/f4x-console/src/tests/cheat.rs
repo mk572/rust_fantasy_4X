@@ -169,6 +169,35 @@ fn contact_meets_the_other_wizards_in_the_override_mode_only() {
     assert!(!c.execute(&mut w, "contact 99").ok);
 }
 
+/// Plays until it is told otherwise, which is never.
+struct Sitting;
+
+impl f4x_master::Controller for Sitting {
+    fn play(
+        &mut self,
+        _: &mut f4x_master::Game,
+        _: PlayerId,
+        _: &mut Vec<f4x_core::world::Event>,
+    ) -> f4x_master::Status {
+        f4x_master::Status::Waiting
+    }
+}
+
+#[test]
+fn the_override_mode_orders_units_of_a_player_whose_turn_it_is_not() {
+    let (mut w, mut c) = (game(), console());
+    let seat = f4x_master::Seat::new(HUMAN, Box::new(Sitting));
+    f4x_master::Master::new(vec![seat]).run(&mut w, f4x_master::Until::Waiting);
+    assert_eq!(w.turn(), Some(HUMAN));
+    let rival = w.wizards().into_iter().find(|&id| id != HUMAN);
+    let unit = first_unit_of(&w, rival.expect("a rival"));
+    let order = format!("stop {}", w.units().serial_of(unit).0);
+    assert!(!c.execute(&mut w, &order).ok, "not in the legal mode");
+    c.execute(&mut w, "mode override");
+    let r = c.execute(&mut w, &order);
+    assert!(r.ok, "{}", r.text());
+}
+
 /// The id of the first feature of a kind in the shipped content.
 fn feature_of(w: &World, kind: f4x_core::feature::def::FeatureKind) -> String {
     w.content()

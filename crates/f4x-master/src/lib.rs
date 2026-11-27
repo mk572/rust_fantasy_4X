@@ -27,6 +27,7 @@ mod convert;
 mod game;
 
 pub use game::end::{self, GameOver};
+pub use game::reaction::{self, Reaction};
 pub use game::replay::{self, Entry, Replay, ReplayError};
 pub use game::save::{
     self, load_game, save_game, summarize_save, GameState, Loaded, Plans, Restored, SaveFile,

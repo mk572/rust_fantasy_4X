@@ -184,6 +184,7 @@ pub(crate) fn from_old(text: &str, game_version: &str) -> Result<SaveFile, LoadE
         game_over: old.game_over,
         // The restored save makes the list.
         players: Vec::new(),
+        reactions: Vec::new(),
     };
     Ok(SaveFile {
         version: SAVE_VERSION,

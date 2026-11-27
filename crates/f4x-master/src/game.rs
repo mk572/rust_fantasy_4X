@@ -6,13 +6,14 @@
 //!
 //! The random numbers are the game's: it hands its generator to each world operation that draws.
 //!
-//! The turn order (`game/step.rs`), the end of the game (`game/end.rs`), the saved game
-//! (`game/save.rs`), undo (`game/undo.rs`) and replays (`game/replay.rs`) are the game's: they see
-//! every command.
+//! The turn order (`game/step.rs`), what a player may do on another's turn (`game/reaction.rs`),
+//! the end of the game (`game/end.rs`), the saved game (`game/save.rs`), undo (`game/undo.rs`)
+//! and replays (`game/replay.rs`) are the game's: they see every command.
 //!
 //! Tests: in tests/it.
 
 pub mod end;
+pub mod reaction;
 pub mod replay;
 pub mod save;
 pub mod step;
@@ -77,19 +78,26 @@ impl Game {
 
     /// A command `player` sends: run, written down when the game is recording, and kept for
     /// undo. Refused when the game has ended, when the game does not have the player, when the
-    /// command only sets a world up, and when it is another player's to give
-    /// ([`World::may_command`]). Whose turn it is is not checked here
-    /// ([`Master::apply`](crate::Master::apply) does).
+    /// command only sets a world up, when it is another player's to give
+    /// ([`World::may_command`]), and on another player's turn ([`Game::turn`]) when it is no
+    /// reaction (`game/reaction.rs`). What opens or answers a reaction ends the undo history.
     pub fn apply(&mut self, player: PlayerId, command: Command) -> Vec<Event> {
         // A refusal changes nothing and records nothing.
         if let Some(why) = self.refusal(player, &command) {
             return vec![Event::Rejected(why)];
         }
         self.record_command(player, &command);
+        let reacting = self.turn().is_some_and(|active| active != player);
+        let requests = self.world.diplomacy.proposals().to_vec();
         let mut events = self.run_undoable(command);
         // A refused command changed nothing, so it is not part of the record.
         if events.iter().any(|e| matches!(e, Event::Rejected(_))) {
             self.forget_last_command();
+        } else {
+            let opened = self.open_reactions(&events);
+            if opened || reacting || requests != self.world.diplomacy.proposals() {
+                self.forget_history();
+            }
         }
         events.extend(self.check_end());
         events
@@ -105,6 +113,10 @@ impl Game {
             Some(Rejection::SetupOnly)
         } else if !self.world.may_command(player, command) {
             Some(Rejection::NotYourCommand)
+        } else if self.turn().is_some_and(|active| active != player)
+            && !self.is_reaction(player, command)
+        {
+            Some(Rejection::NotYourTurn)
         } else {
             None
         }

@@ -4,6 +4,7 @@
 
 mod convert;
 mod end;
+mod reaction;
 mod replay;
 mod request;
 mod save;

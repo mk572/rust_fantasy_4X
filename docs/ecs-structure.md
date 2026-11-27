@@ -364,8 +364,8 @@ log refer to them, and a race that returns finds what it had.
 The map layers and the fog (dense grids), the content registries, `Diplomacy` (pairs of players, keyed
 by `PlayerId`), the world events table, and the battle in progress (a
 `Battle` with its own world for its spell instances). Battle units are not entities in `World::ecs`.
-The round counter, the place in the round, the end of the game, the random numbers, the undo history
-and the replay log are not the world's: they belong to the game (`f4x-master`).
+The round counter, the place in the round, the end of the game, the open reactions, the random
+numbers, the undo history and the replay log are not the world's: they belong to the game (`f4x-master`).
 
 ### 3.11 How the code reads and writes the new entities
 

@@ -25,7 +25,7 @@ pub mod setup;
 pub mod talk;
 
 use f4x_core::player::PlayerId;
-use f4x_core::world::{Command, Event};
+use f4x_core::world::{Command, Event, Rejection};
 use std::path::PathBuf;
 
 use args::Args;
@@ -363,7 +363,13 @@ impl Ctx<'_> {
                 true => self.game.command_actor(&cmd).unwrap_or(me),
                 false => me,
             };
-            let events = self.game.apply(sender, cmd);
+            let mut events = self.game.apply(sender, cmd.clone());
+            // The game takes no such order from a player whose turn it is not: override mode
+            // gives it by hand, as it does a cheat.
+            if self.overriding() && events == [Event::Rejected(Rejection::NotYourTurn)] {
+                let (world, rng) = self.game.world_and_rng();
+                events = world.apply(cmd, rng);
+            }
             for e in &events {
                 match e {
                     Event::Rejected(why) => {
