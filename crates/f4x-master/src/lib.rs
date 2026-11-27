@@ -41,7 +41,7 @@ pub use game::Game;
 use f4x_battle::side::Side;
 use f4x_core::diplomacy::Proposal;
 use f4x_core::player::{PlayerId, MONSTERS};
-use f4x_core::world::{Command, Event, World};
+use f4x_core::world::{Event, World};
 use serde::{Deserialize, Serialize};
 
 /// What a controller reports after it was asked to play.
@@ -171,15 +171,6 @@ impl std::fmt::Display for FlowError {
 
 impl std::error::Error for FlowError {}
 
-/// Why a command was refused.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Refused {
-    /// Nobody is acting (between turns, or the game is over).
-    NobodyActing,
-    /// `actor` is not the player that is acting now.
-    NotYourTurn { active: PlayerId, actor: PlayerId },
-}
-
 /// What a step or a run came to.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Progress {
@@ -307,21 +298,6 @@ impl<'a> Master<'a> {
     /// Whether the game is over.
     pub fn is_over(&self) -> bool {
         self.state.phase == Phase::Over
-    }
-
-    /// Apply a command for `actor`: refused here unless it is the actor's turn; the game then
-    /// refuses what is not the actor's to give ([`Game::apply`]).
-    pub fn apply(
-        &self,
-        game: &mut Game,
-        actor: PlayerId,
-        command: Command,
-    ) -> Result<Vec<Event>, Refused> {
-        let active = self.active_player().ok_or(Refused::NobodyActing)?;
-        if active != actor {
-            return Err(Refused::NotYourTurn { active, actor });
-        }
-        Ok(game.apply(actor, command))
     }
 
     /// The index of the seat that plays `player`'s turns: the wizard's own, or for a player

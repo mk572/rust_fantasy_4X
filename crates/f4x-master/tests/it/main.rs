@@ -1,6 +1,6 @@
-//! The master on real games: the order of the seats, human controllers that wait, command
-//! validation, defeated seats and resuming from a saved state. Replays and undo are in the files
-//! of their names.
+//! The master on real games: the order of the seats, human controllers that wait, defeated seats
+//! and resuming from a saved state. Replays, undo and what the game refuses are in the files of
+//! their names.
 
 mod arithmetic;
 mod attack;
@@ -34,9 +34,9 @@ use std::rc::Rc;
 
 use f4x_core::player::PlayerId;
 use f4x_core::world::save::ContentCheck;
-use f4x_core::world::{Command, Event, Rejection, World};
+use f4x_core::world::{Event, World};
 use f4x_master::{
-    turn_players, Controller, Game, Master, Phase, Refused, SaveFile, Seat, Status, Stopped, Until,
+    turn_players, Controller, Game, Master, Phase, SaveFile, Seat, Status, Stopped, Until,
 };
 use f4x_newgame::setup::{new_game, NewGame};
 
@@ -143,66 +143,6 @@ fn a_waiting_controller_pauses_the_master_and_play_resumes() {
     let p = m.run(&mut w, Until::Rounds(1));
     assert_eq!(p.stopped, Stopped::Ready, "the round ended");
     assert_eq!(log.borrow().len(), 2, "the human and then the AI played");
-}
-
-#[test]
-fn only_the_acting_player_may_command() {
-    let mut w = game(2);
-    let log: Log = Log::default();
-    let ids = w.player_ids();
-    let mut m = Master::new(seats(&w, &log));
-    assert_eq!(
-        m.apply(
-            &mut w,
-            ids[0],
-            Command::SetTaxRate {
-                player: ids[0],
-                rate: 1
-            }
-        ),
-        Err(Refused::NobodyActing)
-    );
-    // Step to the first seat's turn.
-    while m.active_player().is_none() {
-        m.step(&mut w);
-    }
-    assert_eq!(m.active_player(), Some(ids[0]));
-    assert!(m
-        .apply(
-            &mut w,
-            ids[0],
-            Command::SetTaxRate {
-                player: ids[0],
-                rate: 1
-            }
-        )
-        .is_ok());
-    assert_eq!(
-        m.apply(
-            &mut w,
-            ids[1],
-            Command::SetTaxRate {
-                player: ids[1],
-                rate: 1
-            }
-        ),
-        Err(Refused::NotYourTurn {
-            active: ids[0],
-            actor: ids[1]
-        })
-    );
-    // The turn is the actor's, but the command is not.
-    assert_eq!(
-        m.apply(
-            &mut w,
-            ids[0],
-            Command::SetTaxRate {
-                player: ids[1],
-                rate: 1
-            }
-        ),
-        Ok(vec![Event::Rejected(Rejection::NotYourCommand)])
-    );
 }
 
 #[test]

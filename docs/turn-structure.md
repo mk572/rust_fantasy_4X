@@ -100,7 +100,7 @@ Not every subsystem needs generic effect rules. Existing specialised systems may
 - invoking each eligible player's turn and advancing to the next;
 - entering and completing round-end processing exactly once.
 
-The master mediates player commands: they must be associated with the active player and rejected when submitted for another player. It then delegates the actual game-state changes to `f4x-core`. System-owned round-boundary work is not a player command and must not be blocked by active-player validation.
+Player commands go to the game (`Game::apply`), which refuses what is not the sender's to give and, on another player's turn, all but a reaction (10.4). It then delegates the actual game-state changes to `f4x-core`. System-owned round-boundary work is not a player command and must not be blocked by active-player validation.
 
 The dependency direction is one-way: `f4x-master` depends on `f4x-core`; the client depends on `f4x-master`; AI/controller crates may depend on both core and master to implement the controller interface. `f4x-master` must not depend on the client or a concrete AI crate. It defines the controller/seat interface and invokes it. A human controller is implemented by the client and must be able to pause while waiting for user input; the master should expose a resumable/waiting state rather than block the UI event loop. An AI controller can complete its turn through the same interface without client-specific code.
 
@@ -223,7 +223,7 @@ This document defines the lifecycle and design constraints, not a demand to rewr
 
 ## 10. Splitting the game from the world (task 822)
 
-**Built (task 822):** `f4x_master::Game` owns the world; the master drives it, and the AI, the console, the client and the tools hold it. It reads like a world, and a command goes through `Game::apply`; setup and cheats use `Game::world_mut` and `Game::world_and_rng`. Undo and the replay log are the game's (`game/undo.rs`, `game/replay.rs`). So is the turn order (`game/step.rs`): the lifecycle commands and `EndTurn` are gone, the game makes the steps (`Game::start_round` and the others, `Game::play_round`) through `World::advance`, `turn_players` is master's, and the replay log holds commands and steps. A command in the log carries its sender. The round counter, the phase and the end of the game are the game's (`GameState`, `game/end.rs`); the plans are the controllers'; the save file has the parts of 10.8, without the seats, and older saves are converted (`convert.rs`, game version 0.0.8). Every player has a turn of its own (10.11). The world operations that need the round take it as an argument (`start_round`, `start_player_turn`, `score`, `cheat_offer`), and everyone outside the world asks `Game::round`. The random numbers are the game's too (10.10). Every command has a sender (`Game::apply(player, command)`, 10.4). The rivals' offers, requests and wars towards the human are made at the end of their own turns, and a played turn does not end while a proposal made in it, or in answer to one, waits: the master asks the controller of whoever it waits for (`Controller::react`, phase `TurnEnd`). On another player's turn the game takes a reaction only, and an attack on the human waits for its answer (10.4); a war on whoever casts a spell on you waits for task 785.
+**Built (task 822):** `f4x_master::Game` owns the world; the master drives it, and the AI, the console, the client and the tools hold it. It reads like a world, and a command goes through `Game::apply`; setup and cheats use `Game::world_mut` and `Game::world_and_rng`. Undo and the replay log are the game's (`game/undo.rs`, `game/replay.rs`). So is the turn order (`game/step.rs`): the lifecycle commands and `EndTurn` are gone, the game makes the steps (`Game::start_round` and the others, `Game::play_round`) through `World::advance`, `turn_players` is master's, and the replay log holds commands and steps. A command in the log carries its sender. The round counter, the phase and the end of the game are the game's (`GameState`, `game/end.rs`); the plans are the controllers'; the save file has the parts of 10.8, and older saves are converted (`convert.rs`, game version 0.0.8). Every player has a turn of its own (10.11). The world operations that need the round take it as an argument (`start_round`, `start_player_turn`, `score`, `cheat_offer`), and everyone outside the world asks `Game::round`. The random numbers are the game's too (10.10). Every command has a sender (`Game::apply(player, command)`, 10.4). The rivals' offers, requests and wars towards the human are made at the end of their own turns, and a played turn does not end while a proposal made in it, or in answer to one, waits: the master asks the controller of whoever it waits for (`Controller::react`, phase `TurnEnd`). On another player's turn the game takes a reaction only, and an attack on the human waits for its answer (10.4); a war on whoever casts a spell on you waits for task 785.
 
 The **world** (`f4x-core`'s `World`, named `Game` until 26 November 2026) says what is in the world and what can be done in it. The **game** (`Game` in `f4x-master`) owns a `World` and advances time.
 
@@ -311,6 +311,7 @@ The game does not take a sender's word that something is a reaction. An event th
 - Items won go to the vault first and the events do not say which they were, so the winner may move (not from a hero), sell or scrap anything in its armory until the turn ends.
 - Refused with `Rejection::NotYourTurn`. A command that opens or answers a reaction ends the undo history.
 - The console in override mode gives an order the game refuses for this reason by hand, as it does a cheat: it is not part of a replay.
+- Two things a player does in a front end go to the world directly (`Game::world_mut`), not as commands, so the turn check does not see them and no replay holds them: saving a map location (`World::save_location`, a bookmark of the view that changes nothing in play; an undo of an earlier order takes it back with the rest of the world), and the unit sheet's question who would drown if a spell were turned off (`World::drowned_if_off`, which takes the spell off for a moment and puts it back).
 
 **Built (27 November 2026): the attack as a request** (`game/attack.rs`):
 
@@ -326,8 +327,8 @@ The game does not take a sender's word that something is a reaction. An event th
 | `Game` (game state, saved) | `Master` (runs the game, rebuilt at runtime) |
 |---|---|
 | the world | the controllers: the code that plays each seat |
-| round, phase, active seat | round-start checkpoints |
-| seats: which players, in what order | saving: asks each controller for its plans |
+| round, phase (with the player whose turn it is) | round-start checkpoints |
+| the players, in the order of their turns | saving: asks each controller for its plans |
 | game over | loading: gives each controller its plans back |
 | open reactions (10.4) | |
 | the random numbers (10.10) | |
@@ -359,7 +360,7 @@ No command takes a round.
 | Part | Holds |
 |---|---|
 | header | the save and game version |
-| game | seed and draws, round, phase, active seat, seats, game over, open reactions |
+| game | seed and draws, round, phase (with the player whose turn it is), the players in the order of their turns, game over, open reactions, waiting attacks |
 | world | everything else; it still loads on its own, for core's tests |
 | plans | one block per computer player |
 
@@ -386,7 +387,7 @@ No command takes a round.
 
 ### 10.11 Players and seats (26 November 2026, built 27 November 2026)
 
-There is no neutral seat. The players are the wizards, the independent race players (no wizard, one for each race, each played by an AI) and the monster player, and each has a turn of its own, with its own start, play, end and (once built) reactions.
+There is no neutral seat. The players are the wizards, the independent race players (no wizard, one for each race, each played by an AI) and the monster player, and each has a turn of its own, with its own start, play, end and reactions.
 
 - Every race has its player from the start of the game to its end (decided 27 November 2026); the monster player exists from the start too. None is made or removed during a game.
 - The `Game` keeps the list of the players in the order of their turns and saves it (`GameState::players`, `Game::turn_players`): the wizards, the race players by player number, the monster player last. The list is made when the game begins and does not change.
