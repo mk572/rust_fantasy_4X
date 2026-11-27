@@ -247,9 +247,9 @@ impl Neutrals {
     }
 
     /// Give the neutral players the plans a loaded game carries.
-    pub fn recall(&mut self, plans: &[(PlayerId, String)]) {
+    pub fn recall(&mut self, game: &Game, plans: &[(PlayerId, String)]) {
         if self.version == Version::New {
-            self.new.recall(plans);
+            self.new.recall(game, plans);
         }
     }
 

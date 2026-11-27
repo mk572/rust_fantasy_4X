@@ -514,7 +514,7 @@ pub fn game(
         ai.join(&diplomats);
     }
     neutrals.share(&diplomats);
-    neutrals.recall(&saved_plans);
+    neutrals.recall(&game, &saved_plans);
     neutrals.record_refusals(
         refused_out
             .lock()

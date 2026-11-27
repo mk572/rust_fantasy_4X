@@ -1236,7 +1236,9 @@ impl App {
 
     /// Write the game to `path`, reporting the outcome in the message log.
     pub fn save_to(&mut self, path: &Path) {
-        let plans = f4x_ai::Ai::plans_of(&self.ais);
+        // What the autosave collects from the seats: the rivals', then the independent players'.
+        let mut plans = f4x_ai::Ai::plans_of(&self.ais);
+        plans.extend(self.neutral_seat.plans());
         match f4x_master::save_game(path, &self.game, plans) {
             Ok(()) => {
                 let args = Args::new()
@@ -1300,7 +1302,7 @@ impl App {
         self.ais = self.rival_wizards();
         f4x_ai::Ai::recall(&plans, &mut self.ais);
         self.reset_master();
-        self.neutral_seat.recall(&plans);
+        self.neutral_seat.recall(&self.game, &plans);
         // A game saved in a battle comes back in it: the frame loop opens the battle screen.
         self.close_page(&Screen::Battle);
         self.game_over_seen = false;
@@ -3098,6 +3100,47 @@ mod tests {
         app.load_from(&path).expect("the save loads");
         let _ = std::fs::remove_file(&path);
         assert_ne!(app.game.revision(), saved, "a load");
+    }
+
+    #[test]
+    fn a_save_keeps_the_plans_of_every_computer_player_the_independent_ones_too(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        use f4x_core::world::save::ContentCheck;
+        let mut app = App::for_test();
+        // The independent players play once: that is when they come to have something in mind.
+        let independent: Vec<PlayerId> = app
+            .game
+            .player_ids()
+            .into_iter()
+            .filter(|&p| app.game.race_of_player(p).is_some())
+            .collect();
+        assert!(
+            !independent.is_empty(),
+            "the test game has no independent player"
+        );
+        app.neutral_seat
+            .play_turn(&mut app.game, &independent, &mut Vec::new());
+        let path = std::env::temp_dir().join(format!("f4x-plans-{}.save", std::process::id()));
+        let content = app.game.content().clone();
+        let saved = |app: &mut App| {
+            app.save_to(&path);
+            f4x_master::load_game(&path, content.clone(), ContentCheck::Strict)
+                .map(|loaded| loaded.plans)
+        };
+        let first = saved(&mut app)?;
+        let computer: Vec<PlayerId> = app
+            .game
+            .player_ids()
+            .into_iter()
+            .filter(|&p| p != HUMAN && p != f4x_core::player::MONSTERS)
+            .collect();
+        let planned: Vec<PlayerId> = first.iter().map(|(p, _)| *p).collect();
+        assert_eq!(planned, computer);
+        // Saved again straight after loading, before anyone has played.
+        app.load_from(&path)?;
+        assert_eq!(saved(&mut app)?, first);
+        std::fs::remove_file(&path)?;
+        Ok(())
     }
 
     #[test]

@@ -35,8 +35,8 @@ impl Controller for AiSeat<'_> {
 
 /// The neutral seat (task 522): the neutral player of each race plays as any AI does, with the
 /// same [`Ai`] and the same turn, and the roaming monsters play after them. The seat keeps one
-/// [`Ai`] for each race player, made when the player first plays (with the plans a saved game
-/// carries for it) and dropped when the player is gone. Attacks on the players in `defended_by`
+/// [`Ai`] for each race player, made when the player first plays or when a loaded game carries
+/// plans for it, and dropped when the player is gone. Attacks on the players in `defended_by`
 /// are not resolved but kept for the host (see [`NeutralSeat::take_attacks`]).
 #[derive(Default)]
 pub struct NeutralSeat {
@@ -46,8 +46,6 @@ pub struct NeutralSeat {
     record_refusals: bool,
     /// The game's table of memories, which the race players join when they are made.
     diplomats: Diplomats,
-    /// The plans a loaded game carries, for the race players that are not made yet.
-    saved: Plans,
 }
 
 impl NeutralSeat {
@@ -85,12 +83,17 @@ impl NeutralSeat {
         self.ais.values().flat_map(Ai::take_refusals).collect()
     }
 
-    /// Give the race players the plans a loaded game carries (see [`Ai::recall`]): those there
-    /// are now, and those made later.
-    pub fn recall(&mut self, plans: &[(PlayerId, String)]) {
-        self.saved = plans.to_vec();
+    /// Give the race players of `game` the plans it was saved with (see [`Ai::recall`]). A race
+    /// player with plans gets its AI now, so that it hears what happens before its turn and its
+    /// plans are saved again with the game.
+    pub fn recall(&mut self, game: &Game, plans: &[(PlayerId, String)]) {
+        for &(id, _) in plans {
+            if game.race_of_player(id).is_some() {
+                self.ai_of(id);
+            }
+        }
         for ai in self.ais.values_mut() {
-            Ai::recall(&self.saved, std::slice::from_mut(ai));
+            Ai::recall(plans, std::slice::from_mut(ai));
         }
     }
 
@@ -122,12 +125,10 @@ impl NeutralSeat {
     fn ai_of(&mut self, id: PlayerId) -> &mut Ai {
         let (defended_by, record) = (self.defended_by.clone(), self.record_refusals);
         let diplomats = self.diplomats.clone();
-        let saved = &self.saved;
         self.ais.entry(id).or_insert_with(|| {
             let mut ai = Ai::new(id);
             ai.join(&diplomats);
             ai.leave_defence_to(&defended_by);
-            Ai::recall(saved, std::slice::from_mut(&mut ai));
             ai.record_refusals(record);
             ai
         })
