@@ -391,7 +391,7 @@ has seen, the treaties and the proposals.
    plus 100 a city) is 130 percent of the next best's. The weaker wizards ask each other for a pact, then an alliance
    (one turn in six per wizard met; one it is not on good enough terms with for a pact gets a gift of gold first, no oftener
    than once in 20 turns), and two wizards that fear the same leader are 30 points more
-   willing to say yes (`goodwill`). When the leader no longer leads, the asking stops; `AIS_DIPLO_COALITION_END=1` breaks the alliance (task 597; the default is measured in `ai-design.md` 12.2). Breaking a treaty costs the
+   willing to say yes (`goodwill`). When the leader no longer leads, the asking stops; the switch `AIS_DIPLO_COALITION_END` broke the alliance instead (task 597, measured in `ai-design.md` 12.2; gone with system A). Breaking a treaty costs the
    breaker standing with every wizard (`break_treaties`).
 4. *War and peace.* A war that is lost (it lost more cities than it took and has under 80 percent of the other's army, or
    two cities more than it took, or under 60 percent of the other's power), or the more dangerous of two fronts, is offered
@@ -432,7 +432,8 @@ has seen, the treaties and the proposals.
    full offer clears both margins (`trade::open_ask`). The human puts a trade together on the `Trade` menu by adding gold, a spell, an item,
    a unit or a hero to each side.
    **Gold to pay with.** The AI keeps a treasury of `AIS_GOLD_RESERVE_BASE` (40) plus `AIS_GOLD_RESERVE_INCOME` (3) turns of its net gold
-   income when it buys production (`economy::gold_reserve`), so a richer wizard saves more; trades spend that stack down to 40.
+   income (`economy::gold_reserve`), so a richer wizard saves more; it keeps that back when it buys production and when it
+   buys from another wizard.
 6. *Remarks and memory.* `DiplomacyCommand::Remark` (`DiplomacyEvent::Remarked`) tells the other wizard why: the human sees
    one line in the log (`diplomacy.remark_*`). `affinity` counts a treaty the other broke with it against the other
    (15), and the soak tally counts each remark (`wars on a weaker neighbour`, `appeasements`, `coalition requests`,
@@ -442,9 +443,10 @@ has seen, the treaties and the proposals.
 for 25 fame, at most 8), a Charismatic retort (6), the same race (8), books in the same realms (3 each, at most 6), less 4
 for Life against Death. `self_interest` is what it takes off: 25 toward a neighbour it is far ahead of (and so means to
 attack), 15 toward the leader. Both go into the rating of every proposal (`rate`) and into the AI's own willingness
-(`negotiate`, the dominant war). Every number is in `Knobs`; `AIS_DIPLO_<NAME>=value` sets one for a soak, and
-`AIS_DIPLO_ON_DOMINANT`, `_APPEASE`, `_COALITION`, `_WARS`, `_PEACE_GATE`, `_FACTORS` and `_ARMS` (0 or 1) switch a part off to
-measure it alone.
+(`negotiate`, the dominant war). The numbers that are still read are the `diplomacy` group of `ai_strategy.ron`;
+`AIS_DIPLO_<NAME>=value` sets one for a soak, and `AIS_DIPLO_ON_FACTORS`, `_ON_ARMS` and `_ON_TRADE` (0 or 1) switch a
+part off to measure it alone. The switches `AIS_DIPLO_ON_DOMINANT`, `_APPEASE`, `_COALITION`, `_WARS` and
+`_PEACE_GATE` went with system A (task 779).
 
 Left (task 384): AI-to-AI demands and threats, the original's alliance and pact-breaking chances of a superiority war,
 and the tuning of the numbers above by soak.

@@ -13,6 +13,7 @@
 //! A holder whose enemy is gone gives the role back. `Ai::threatened` (the cities the economy
 //! builds soldiers for) is set here from the same look. See `docs/ai-unit-registry.md`.
 
+use crate::lever::Levered;
 use crate::roles::Role;
 use crate::view::{is_fighter, stack_strength};
 use crate::Ai;
@@ -20,11 +21,6 @@ use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::world::{Command, Event};
 use f4x_master::Game;
-
-/// Squares beyond the 21 where a tower or a node still counts as in the zone of a city.
-const SITE_RANGE: i32 = 4;
-/// The soldiers further than this from the enemy are not called.
-const REACH: u32 = 6;
 
 /// A stack of the enemy in the zone of one of our cities.
 struct Threat {
@@ -55,7 +51,7 @@ pub fn zone(view: &PlayerView, city: Position) -> Vec<Position> {
         if p.plane == city.plane
             && view
                 .distance(city, p)
-                .is_some_and(|d| d <= SITE_RANGE as u32)
+                .is_some_and(|d| d <= view.levers().attack.perimeter_site_range as u32)
             && !squares.contains(&p)
         {
             squares.push(p);
@@ -136,14 +132,14 @@ pub fn run(
                 let near = view
                     .unit_position(u)
                     .and_then(|p| view.distance(p, threat.square))
-                    .is_some_and(|d| d <= REACH);
+                    .is_some_and(|d| d <= view.levers().attack.perimeter_reach);
                 if near && view.unit_moves_left(u) > 0 && !view.unit_has_order(u) {
                     pool.push(u);
                 }
             }
             view.sort_by_serial(&mut pool);
             pool.dedup();
-            (their, pool, crate::military::attack_ratio())
+            (their, pool, view.levers().attack.attack)
         };
         if pool.is_empty() {
             continue;

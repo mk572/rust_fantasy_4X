@@ -4,11 +4,12 @@
 //!
 //! Tests: below, on the shipped content, with a second city.
 
+use crate::lever::Levered;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::world::{Command, Event};
 
-use crate::view::{garrison_wanted, is_fighter, unit_strength};
+use crate::view::{base_garrison, garrison_wanted, is_fighter, unit_strength};
 use crate::Ai;
 use f4x_master::Game;
 
@@ -16,10 +17,6 @@ use f4x_master::Game;
 pub fn city_cap(view: &PlayerView, at: Position) -> usize {
     view.tile_limit(at)
 }
-
-/// Moves from which a unit is fast: it serves the scouting and the war better than the defence
-/// of a city (cavalry, fliers).
-const FAST: i32 = 2;
 
 /// The strength an average soldier of the wizard has: the unit the defence wanted of a city is
 /// counted in.
@@ -37,11 +34,10 @@ fn typical_strength(view: &PlayerView) -> f32 {
 }
 
 /// What share of the peace-time defence a wizard in `phase` keeps (task 645): while it builds, a
-/// young city is held by little and the gold goes to settlers and buildings. A tuning number
-/// (`AIS_BUILD_GARRISON`), to be measured by the soak.
-fn phase_factor(phase: crate::phase::Phase) -> f32 {
+/// young city is held by little and the gold goes to settlers and buildings (`build_garrison`).
+fn phase_factor(view: &PlayerView, phase: crate::phase::Phase) -> f32 {
     match phase {
-        crate::phase::Phase::Build => crate::knob("BUILD_GARRISON", 0.6),
+        crate::phase::Phase::Build => view.levers().garrison.build_garrison,
         crate::phase::Phase::Secure | crate::phase::Phase::Win => 1.0,
     }
 }
@@ -58,15 +54,14 @@ pub fn wanted_strength(view: &PlayerView, at: Position, round: u32) -> f32 {
 /// does not keep in a city with no enemy near it. The autobuilder counts the same.
 pub fn wanted_share(view: &PlayerView, at: Position, round: u32) -> f32 {
     let wanted = garrison_wanted(view, at);
-    let base = if view.fortress() == Some(at) { 2 } else { 1 };
-    if wanted != base {
+    if wanted != base_garrison(view, at) {
         return wanted as f32;
     }
     // While the wizard builds up, a city with no enemy near it holds the share of its defence the
     // phase gives; above one soldier the share is rounded down to whole soldiers: the two units a
     // wizard starts with are one garrison and one scout, not two garrisons (and `reinforce.rs` does
     // not call the scout back to make up the difference).
-    let share = wanted as f32 * phase_factor(crate::phase::phase(view, round));
+    let share = wanted as f32 * phase_factor(view, crate::phase::phase(view, round));
     if share > 1.0 {
         share.floor()
     } else {
@@ -105,7 +100,7 @@ pub fn post(
             (
                 !police(u),
                 hero(u),
-                view.unit_stat(u, f4x_def::rules::Stat::Moves) >= FAST,
+                view.unit_stat(u, f4x_def::rules::Stat::Moves) >= view.levers().garrison.fast_moves,
             )
         };
         key(a)
@@ -127,10 +122,6 @@ pub fn post(
     }
     kept
 }
-
-/// Fighters a city keeps in the late game beyond [`garrison_wanted`]: a spare, so that a raid or a
-/// wandering monster does not find it empty.
-const LATE_SPARE: usize = 1;
 
 /// Late in the game the cheap units (spearmen, swordsmen) are let go: they cost gold and food, take
 /// room in the city's stack and fight no tower or city. A city keeps at least what it wants and the
@@ -154,7 +145,7 @@ pub fn thin_out(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 .into_iter()
                 .filter(|&u| is_fighter(&view, u) && mine.contains(&u))
                 .collect();
-            let keep = garrison_wanted(&view, pos) + LATE_SPARE;
+            let keep = garrison_wanted(&view, pos) + view.levers().garrison.late_spare;
             if fighters.len() <= keep {
                 continue;
             }
@@ -231,7 +222,7 @@ mod tests {
         // Wanted is one at peace and a spare: two stay, and they are the better of the cheap.
         assert!(left.len() < 8, "{} units left", left.len());
         assert!(paladins.iter().all(|p| left.contains(p)));
-        assert!(left.len() >= garrison_wanted(&view, coast) + LATE_SPARE);
+        assert!(left.len() >= garrison_wanted(&view, coast) + view.levers().garrison.late_spare);
         Ok(())
     }
 

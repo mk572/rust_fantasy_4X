@@ -2,6 +2,7 @@
 //! (`docs/ai-design.md` section 7): it races for the spell when it can finish first, and
 //! otherwise declares war on the caster and sends its armies after that wizard's cities.
 
+use crate::lever::Levered;
 use f4x_core::diplomacy::{DiplomacyCommand, Treaty};
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
@@ -10,9 +11,6 @@ use f4x_def::rules::SpellId;
 
 use crate::Ai;
 use f4x_master::Game;
-
-/// The race is run only when the AI would finish this many times sooner than the rival.
-const LEAD: f32 = 1.25;
 
 /// What the AI has seen of one rival's casting: the turn and the mana left to pay.
 pub(crate) type Sighting = (u32, i32);
@@ -102,7 +100,8 @@ pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let Some((rival, rival_eta)) = threat else {
         return;
     };
-    ai.racing = mine.is_some_and(|m| m * LEAD < rival_eta);
+    let lead = game.levers().magic.race_lead;
+    ai.racing = mine.is_some_and(|m| m * lead < rival_eta);
     if ai.racing {
         ai.war_on = None;
         // Drop whatever else is being cast: the next step casts the Spell of Mastery.

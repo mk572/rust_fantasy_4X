@@ -5,49 +5,11 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::lever::{allows, levers, wanted};
+pub use super::lever::{Lever, OverrideError};
 use crate::issue::{ContentIssue, Issues};
 
 const FILE: &str = "ai_battle.ron";
-
-/// One lever, as a check or an override reaches it.
-pub enum Lever<'a> {
-    /// A weight, a share or odds.
-    Number(&'a mut f32),
-    /// A distance or a count.
-    Count(&'a mut u32),
-}
-
-impl<'a> From<&'a mut f32> for Lever<'a> {
-    fn from(v: &'a mut f32) -> Self {
-        Lever::Number(v)
-    }
-}
-
-impl<'a> From<&'a mut u32> for Lever<'a> {
-    fn from(v: &'a mut u32) -> Self {
-        Lever::Count(v)
-    }
-}
-
-/// A group of levers: the struct, and `each`, which goes over its levers by name, so that no list
-/// of them can leave one out. `Default` (zeros) is for the empty `Rules` only; the file names
-/// every lever.
-macro_rules! levers {
-    ($(#[$meta:meta])* $group:ident { $($name:ident: $kind:ty,)* }) => {
-        $(#[$meta])*
-        #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
-        #[serde(deny_unknown_fields)]
-        pub struct $group {
-            $(pub $name: $kind,)*
-        }
-
-        impl $group {
-            fn each(&mut self, f: &mut dyn FnMut(&'static str, Lever<'_>)) {
-                $(f(stringify!($name), Lever::from(&mut self.$name));)*
-            }
-        }
-    };
-}
 
 levers!(
     /// How the units move and strike.
@@ -147,15 +109,6 @@ const AT_MOST_ONE: &[&str] = &[
 /// The levers that must be more than 0, as the AI divides by them.
 const ABOVE_ZERO: &[&str] = &["mana_softening"];
 
-/// Why an override was not taken.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OverrideError {
-    /// No lever has the name.
-    UnknownLever,
-    /// The text is not a value the lever can take.
-    BadValue,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct BattleAiRules {
@@ -186,15 +139,7 @@ impl BattleAiRules {
             if !lever_name.eq_ignore_ascii_case(name) {
                 return;
             }
-            result = match lever {
-                Lever::Number(v) => text
-                    .parse()
-                    .ok()
-                    .filter(|&n| allows(lever_name, n))
-                    .map(|n| *v = n),
-                Lever::Count(v) => text.parse().ok().map(|n| *v = n),
-            }
-            .ok_or(OverrideError::BadValue);
+            result = lever.take(text, |v| ok(lever_name, v));
         });
         result?;
         *self = next;
@@ -207,33 +152,18 @@ impl BattleAiRules {
         let mut p = Issues::new();
         let mut copy = *self;
         copy.each(&mut |group, name, lever| {
-            if let Lever::Number(&mut v) = lever {
-                if !allows(name, v) {
-                    p.out_of_range(FILE, group, name, v, wanted(name));
-                }
+            let v = lever.value();
+            if !ok(name, v) {
+                p.out_of_range(FILE, group, name, v, wanted(name, AT_MOST_ONE, ABOVE_ZERO));
             }
         });
         p.into_vec()
     }
 }
 
-/// Whether the number lever `name` may be `v`.
-fn allows(name: &str, v: f32) -> bool {
-    v.is_finite()
-        && v >= 0.0
-        && (v <= 1.0 || !AT_MOST_ONE.contains(&name))
-        && (v > 0.0 || !ABOVE_ZERO.contains(&name))
-}
-
-/// What [`allows`] asks of the lever, for the report.
-fn wanted(name: &str) -> &'static str {
-    if AT_MOST_ONE.contains(&name) {
-        "a share, 0 to 1"
-    } else if ABOVE_ZERO.contains(&name) {
-        "a number above 0"
-    } else {
-        "a number of 0 or more"
-    }
+/// Whether the lever `name` may be `v`.
+fn ok(name: &str, v: f64) -> bool {
+    allows(name, v, false, AT_MOST_ONE, ABOVE_ZERO)
 }
 
 #[cfg(test)]
@@ -283,15 +213,7 @@ mod tests {
             );
             let values = |mut r: BattleAiRules| {
                 let mut found = Vec::new();
-                r.each(&mut |_, name, lever| {
-                    found.push((
-                        name,
-                        match lever {
-                            Lever::Number(v) => *v,
-                            Lever::Count(v) => *v as f32,
-                        },
-                    ))
-                });
+                r.each(&mut |_, name, lever| found.push((name, lever.value() as f32)));
                 found
             };
             for ((name, was), (_, is)) in values(before).into_iter().zip(values(after)) {

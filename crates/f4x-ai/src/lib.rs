@@ -30,6 +30,7 @@ mod expand;
 mod forge;
 mod garrison;
 mod intent;
+mod lever;
 mod meld;
 mod memory;
 mod military;
@@ -38,6 +39,7 @@ mod naval;
 mod objective;
 mod offer;
 mod opinion;
+mod overrides;
 mod perimeter;
 mod persist;
 mod phase;
@@ -74,6 +76,8 @@ use f4x_core::player::PlayerId;
 use f4x_core::world::serial::Serial;
 use f4x_core::world::{Command, Event, World};
 use f4x_master::{Game, Plans};
+
+use crate::lever::Levered;
 
 /// A command the game refused, with where in the AI it was sent from (for finding out why the AI
 /// sends orders the game will not take).
@@ -418,7 +422,7 @@ impl Ai {
                     a.razed,
                     a.wars,
                     a.broken,
-                    m.ruthlessness(a.who, round, diplo_b::Knobs::current().ruth_half)
+                    m.ruthlessness(a.who, round, world.levers().diplomacy_b.ruth_half)
                 )
             })
             .collect();
@@ -591,7 +595,8 @@ impl Ai {
         }
         // Units built or hired since the last turn await orders from the first moment.
         roles::register(self, game, game.round());
-        let dropped = self.drop_stale_plans(game.round());
+        let planning = game.levers().planning;
+        let dropped = self.drop_stale_plans(&planning, game.round());
         if dropped.sea {
             naval::release_scouts(self, game, &mut events);
         }
@@ -897,14 +902,6 @@ pub use offer::answer_resales;
 pub use controller::{play_round, AiSeat, NeutralAi};
 pub use memory::Diplomats;
 pub use opinion::{relation_key, relation_level, RELATION_KEYS};
-
-/// A tuning number that an experiment may set from the environment (`AIS_<NAME>`).
-pub(crate) fn knob(name: &str, default: f32) -> f32 {
-    std::env::var(format!("AIS_{name}"))
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(default)
-}
 
 #[cfg(test)]
 mod memory_tests {

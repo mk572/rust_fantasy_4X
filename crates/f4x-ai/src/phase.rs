@@ -2,14 +2,10 @@
 //! split, how many soldiers go raiding, how bold the armies are. It is read from what the wizard
 //! can see, never from a counter, and it can go back (a lost war that costs cities).
 
+use crate::lever::Levered;
 use f4x_core::player::view::PlayerView;
 
 use crate::wizardry::{kind, Kind};
-
-/// The turn from which a game is in its late phase whatever else is true.
-const LATE_TURN: u32 = 300;
-/// The turn before which a wizard that has not settled its cities is still building up.
-const EARLY_TURN: u32 = 200;
 
 /// The three phases of a game.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -59,9 +55,9 @@ pub fn phase(view: &PlayerView, round: u32) -> Phase {
     let wanted = crate::objective::traits(view).cities_wanted;
     let cities = view.my_cities().len();
     let turn = round;
-    if mastery_under_way(view) || turn >= LATE_TURN || cities >= 2 * wanted {
+    if mastery_under_way(view) || turn >= view.levers().planning.late_turn || cities >= 2 * wanted {
         Phase::Win
-    } else if cities < wanted && turn < EARLY_TURN {
+    } else if cities < wanted && turn < view.levers().planning.early_turn {
         Phase::Build
     } else {
         Phase::Secure
@@ -217,9 +213,9 @@ mod tests {
     #[test]
     fn a_late_turn_is_the_winning_phase() -> Result<(), Box<dyn std::error::Error>> {
         let mut w = fresh_game()?;
-        w.set_round(LATE_TURN);
+        w.set_round(crate::testworld::levers().planning.late_turn);
         assert_eq!(phase(&PlayerView::new(&w, P1), w.round()), Phase::Win);
-        w.set_round(EARLY_TURN);
+        w.set_round(crate::testworld::levers().planning.early_turn);
         // Not enough cities, but the early turns are over: secure.
         assert_eq!(phase(&PlayerView::new(&w, P1), w.round()), Phase::Secure);
         Ok(())

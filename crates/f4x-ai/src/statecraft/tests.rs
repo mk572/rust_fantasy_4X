@@ -1,4 +1,5 @@
 use super::*;
+use crate::testworld::levers;
 use crate::testworld::{at, game, spawn, COAST_CITY, P0, P1};
 use f4x_core::rules::RealmId;
 use f4x_core::world::Event;
@@ -85,7 +86,7 @@ fn the_factors_ease_a_treaty_a_little_and_a_broken_one_is_remembered() -> TestRe
         None,
     );
     let charismatic = affinity(&w, &ai.minds(), P0, P1);
-    assert_eq!(charismatic, plain + Knobs::current().charismatic);
+    assert_eq!(charismatic, plain + levers().diplomacy.charismatic);
     // Life against Death do not get on.
     wizard(&mut w, P1, &[(RealmId::new(4 /* death */), 3)], &[], None);
     assert!(affinity(&w, &ai.minds(), P0, P1) < plain);
@@ -110,7 +111,7 @@ fn the_factors_ease_a_treaty_a_little_and_a_broken_one_is_remembered() -> TestRe
     ai.notice(&w, &events);
     assert_eq!(
         affinity(&w, &ai.minds(), P0, P1),
-        before - Knobs::current().broken_memory
+        before - levers().diplomacy.broken_memory
     );
     Ok(())
 }
@@ -148,7 +149,7 @@ fn neutral_races_take_part_too() -> TestResult {
     let value =
         crate::diplo_b_stance::values(&w, P0, neutral, &scene, &ai.memory.get(), reach, w.round())
             .enemy;
-    assert!(value >= crate::diplo_b::Knobs::current().declare, "{value}");
+    assert!(value >= levers().diplomacy_b.declare, "{value}");
     Ok(())
 }
 

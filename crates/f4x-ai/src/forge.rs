@@ -3,33 +3,27 @@
 //! few strong units and not a crowd of spearmen. Cheap units stay as garrisons; the strong ones
 //! are what clears a tower or storms a rival's city.
 
+use f4x_def::rules::ai_strategy::ForgeLevers;
+
+use crate::lever::Levered;
 use f4x_core::city::production::{ProductionError, ProductionItem};
 use f4x_core::player::view::PlayerView;
 use f4x_def::rules::{BuildingId, UnitId, UnitKind};
 
 use crate::phase::{phase, Phase};
 
-/// The turn from which the forge cities are chosen (earlier, a wizard still grows).
-const FORGE_TURN: u32 = 150;
-/// One forge city for this many cities, at least two and at most [`MOST_FORGES`].
-const CITIES_PER_FORGE: usize = 5;
-const MOST_FORGES: usize = 4;
-/// Gold above which a conqueror's forges grow to half its cities, at most [`MOST_FORGES_RICH`].
-const RICH_GOLD: i32 = 3000;
-const MOST_FORGES_RICH: usize = 12;
-
 /// Is the wizard past the build-up, so that its cities work toward the strong units?
 pub(crate) fn active(view: &PlayerView, round: u32) -> bool {
-    round >= FORGE_TURN && phase(view, round) != Phase::Build
+    round >= view.levers().forge.forge_turn && phase(view, round) != Phase::Build
 }
 
-/// How many forge cities a wizard of `cities` cities has: one for [`CITIES_PER_FORGE`], two at
+/// How many forge cities a wizard of `cities` cities has: one for `cities_per_forge`, two at
 /// least; a rich conqueror forges in half its cities.
-fn forge_count(cities: usize, rich: bool) -> usize {
+fn forge_count(levers: &ForgeLevers, cities: usize, rich: bool) -> usize {
     if rich {
-        (cities / 2).clamp(2, MOST_FORGES_RICH)
+        (cities / 2).clamp(2, levers.most_forges_rich.max(2))
     } else {
-        (cities / CITIES_PER_FORGE).clamp(2, MOST_FORGES)
+        (cities / levers.cities_per_forge).clamp(2, levers.most_forges.max(2))
     }
 }
 
@@ -49,9 +43,9 @@ pub(crate) fn forges(view: &PlayerView, round: u32) -> Vec<hecs::Entity> {
         .collect();
     cities.sort_by_key(|&(size, c)| (std::cmp::Reverse(size), view.serial_of(c)));
     // A conqueror with gold to spare makes the strong units in half its cities.
-    let rich = view.treasury().gold.floor() >= RICH_GOLD
+    let rich = view.treasury().gold.floor() >= view.levers().forge.forge_rich_gold
         && crate::phase::goal(view) == crate::phase::Goal::Conquest;
-    let n = forge_count(cities.len(), rich);
+    let n = forge_count(&view.levers().forge, cities.len(), rich);
     cities.into_iter().take(n).map(|(_, c)| c).collect()
 }
 
@@ -90,10 +84,6 @@ pub(crate) fn top_unit(view: &PlayerView, city: hecs::Entity) -> Option<UnitId> 
         .max_by_key(|&u| (rules.units.get(u).cost, u))
 }
 
-/// A unit is low-tier when it costs this percent of its race's top land unit or less (spearmen
-/// and swordsmen against the berserkers or the drakes).
-const LOW_TIER_PCT: u32 = 35;
-
 /// Is the unit one of the cheap ones of its race: no use in the field late in the game?
 pub(crate) fn low_tier(view: &PlayerView, unit: hecs::Entity) -> bool {
     let Some(def) = view.unit_def(unit) else {
@@ -113,7 +103,7 @@ pub(crate) fn low_tier(view: &PlayerView, unit: hecs::Entity) -> bool {
             .filter(|&u| view.content().rules.units.get(u).is_fighter())
             .map(|u| rules.units.get(u).cost)
             .max()
-            .is_some_and(|top| def.cost * 100 <= LOW_TIER_PCT * top)
+            .is_some_and(|top| def.cost * 100 <= view.levers().forge.low_tier_percent * top)
 }
 
 /// What a forge city does next toward its top unit.
@@ -147,6 +137,10 @@ pub(crate) fn step(view: &PlayerView, city: hecs::Entity) -> Step {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn levers() -> ForgeLevers {
+        crate::testworld::shipped().rules.ai_strategy.forge
+    }
     use crate::testworld::{game, COAST_CITY, P0};
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -183,10 +177,10 @@ mod tests {
 
     #[test]
     fn a_conqueror_with_gold_to_spare_forges_in_more_cities() {
-        assert_eq!(forge_count(10, false), 2);
-        assert_eq!(forge_count(30, false), MOST_FORGES);
-        assert_eq!(forge_count(10, true), 5);
-        assert_eq!(forge_count(60, true), MOST_FORGES_RICH);
-        assert_eq!(forge_count(3, true), 2, "never fewer than two");
+        assert_eq!(forge_count(&levers(), 10, false), 2);
+        assert_eq!(forge_count(&levers(), 30, false), levers().most_forges);
+        assert_eq!(forge_count(&levers(), 10, true), 5);
+        assert_eq!(forge_count(&levers(), 60, true), levers().most_forges_rich);
+        assert_eq!(forge_count(&levers(), 3, true), 2, "never fewer than two");
     }
 }

@@ -6,6 +6,9 @@
 //!
 //! Tests: below.
 
+use f4x_def::rules::ai_strategy::RazeLevers;
+
+use crate::lever::Levered;
 use f4x_core::diplomacy::Treaty;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
@@ -17,68 +20,6 @@ use f4x_def::rules::BuildingId;
 use crate::view::{is_fighter, stack_strength};
 use crate::Ai;
 use f4x_master::Game;
-
-/// How near a city counts as being on the same land: the AI cannot count the armies of the
-/// former owner (it sees what a human sees), so it counts the cities each side holds near it.
-const NEAR: u32 = 14;
-/// How near a soldier must stand to count as there to hold the city.
-const REACH: u32 = 3;
-
-/// The weights of the decision (`AIS_RAZE_<NAME>`), in points that speak for razing.
-struct Knobs {
-    maniacal: i32,
-    ruthless: i32,
-    chaotic: i32,
-    aggressive: i32,
-    /// Per step of racial unrest between the wizard's people and the city's.
-    race_step: i32,
-    /// The land worth that speaks neither way, the percent of the difference that counts, and
-    /// the most the land can say either way.
-    land_fair: i32,
-    land_pct: i32,
-    land_cap: i32,
-    /// What each citizen takes off, the production cost of buildings that takes off one point,
-    /// and the most a city's size can say.
-    citizen: i32,
-    built_per_point: i32,
-    size_cap: i32,
-    /// No other own city near; per enemy city near beyond the own ones, and the most that says;
-    /// what city walls take off.
-    alone: i32,
-    exposed: i32,
-    exposed_cap: i32,
-    walls: i32,
-    /// No soldier to hold the city; a part of the wanted strength counts for that part.
-    unheld: i32,
-    /// The city is razed above this.
-    threshold: i32,
-}
-
-impl Knobs {
-    fn current() -> Self {
-        let k =
-            |name: &str, default: i32| crate::knob(&format!("RAZE_{name}"), default as f32) as i32;
-        Self {
-            maniacal: k("MANIACAL", 30),
-            ruthless: k("RUTHLESS", 15),
-            chaotic: k("CHAOTIC", 10),
-            aggressive: k("AGGRESSIVE", 5),
-            race_step: k("RACE_STEP", 10),
-            land_fair: k("LAND_FAIR", 30),
-            land_pct: k("LAND_PCT", 100),
-            land_cap: k("LAND_CAP", 25),
-            citizen: k("CITIZEN", 2),
-            built_per_point: k("BUILT_PER_POINT", 50).max(1),
-            size_cap: k("SIZE_CAP", 40),
-            alone: k("ALONE", 20),
-            exposed: k("EXPOSED", 8),
-            exposed_cap: k("EXPOSED_CAP", 24),
-            walls: k("WALLS", 10),
-            unheld: k("UNHELD", 25),
-            threshold: k("THRESHOLD", 50),
-        }
-    }
-}
 
 /// What speaks for razing a city, by reason; a negative part speaks for keeping it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -99,7 +40,7 @@ impl Case {
 
 /// What the wizard's temper says, or `None` for one that keeps the city whatever else speaks:
 /// a peaceful wizard always, a lawful one unless it fights the former owner.
-fn temper_part(view: &PlayerView, from: PlayerId, k: &Knobs) -> Option<i32> {
+fn temper_part(view: &PlayerView, from: PlayerId, k: &RazeLevers) -> Option<i32> {
     let temper = view
         .wizard()
         .map(|w| crate::objective::temper(w.personality(), view.difficulty()));
@@ -116,7 +57,7 @@ fn temper_part(view: &PlayerView, from: PlayerId, k: &Knobs) -> Option<i32> {
 }
 
 /// How the city's people get on with the wizard's (the game's racial unrest between them).
-fn race_part(view: &PlayerView, city: hecs::Entity, k: &Knobs) -> i32 {
+fn race_part(view: &PlayerView, city: hecs::Entity, k: &RazeLevers) -> i32 {
     let (Some(mine), Some(theirs)) = (view.my_race(), view.city_race(city)) else {
         return 0;
     };
@@ -132,13 +73,13 @@ fn race_part(view: &PlayerView, city: hecs::Entity, k: &Knobs) -> i32 {
 }
 
 /// Poor land speaks for razing, good land for keeping.
-fn land_part(view: &PlayerView, at: Position, k: &Knobs) -> i32 {
+fn land_part(view: &PlayerView, at: Position, k: &RazeLevers) -> i32 {
     let worth = crate::city_site::land_worth(view, at).round() as i32;
     ((k.land_fair - worth) * k.land_pct / 100).clamp(-k.land_cap, k.land_cap)
 }
 
 /// The more people live in the city and the more is built there, the more speaks for keeping it.
-fn size_part(view: &PlayerView, city: hecs::Entity, k: &Knobs) -> i32 {
+fn size_part(view: &PlayerView, city: hecs::Entity, k: &RazeLevers) -> i32 {
     let citizens = view.city_economy(city).map_or(0, |e| e.figures);
     let built: u32 = view
         .city_buildings(city)
@@ -157,9 +98,12 @@ fn defence_part(
     city: hecs::Entity,
     at: Position,
     from: PlayerId,
-    k: &Knobs,
+    k: &RazeLevers,
 ) -> i32 {
-    let near = |p: Position| view.distance(at, p).is_some_and(|d| d <= NEAR);
+    let near = |p: Position| {
+        view.distance(at, p)
+            .is_some_and(|d| d <= view.levers().shared.rival_range)
+    };
     let mut enemies = view.rivals_at_war();
     enemies.push(from);
     let theirs = view
@@ -185,7 +129,7 @@ fn defence_part(
 
 /// How much of the defence the city wants is missing: the soldiers in it and near it count, those
 /// that hold another own city do not.
-fn garrison_part(view: &PlayerView, at: Position, k: &Knobs, round: u32) -> i32 {
+fn garrison_part(view: &PlayerView, at: Position, k: &RazeLevers, round: u32) -> i32 {
     let cities: Vec<Position> = view.my_cities().into_iter().map(|(_, p)| p).collect();
     let there: Vec<hecs::Entity> = view
         .my_units()
@@ -194,7 +138,10 @@ fn garrison_part(view: &PlayerView, at: Position, k: &Knobs, round: u32) -> i32 
         .filter(|&u| {
             view.unit_position(u).is_some_and(|p| {
                 p == at
-                    || (!cities.contains(&p) && view.distance(at, p).is_some_and(|d| d <= REACH))
+                    || (!cities.contains(&p)
+                        && view
+                            .distance(at, p)
+                            .is_some_and(|d| d <= view.levers().raze.reach))
             })
         })
         .collect();
@@ -217,7 +164,7 @@ fn case(
     city: hecs::Entity,
     at: Position,
     from: PlayerId,
-    k: &Knobs,
+    k: &RazeLevers,
     round: u32,
 ) -> Option<Case> {
     Some(Case {
@@ -233,7 +180,7 @@ fn case(
 /// Decide for every city of a wizard taken in the events so far this turn.
 pub(crate) fn run(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    let k = Knobs::current();
+    let k = game.levers().raze;
     let taken: Vec<(hecs::Entity, PlayerId)> = events
         .iter()
         .filter_map(|e| match e {
@@ -328,7 +275,7 @@ mod tests {
                 self.city,
                 self.at,
                 P1,
-                &Knobs::current(),
+                &self.w.levers().raze,
                 self.w.round(),
             )
         }
@@ -467,7 +414,8 @@ mod tests {
         let empty = Taken::new(Personality::Ruthless, 8 /* high_men */, FAR)?;
         let unheld = empty.parts()?.garrison;
         assert!(unheld > 0);
-        for (offset, counts) in [(0, true), (REACH, true), (REACH + 1, false)] {
+        let reach = empty.w.levers().raze.reach;
+        for (offset, counts) in [(0, true), (reach, true), (reach + 1, false)] {
             let mut t = Taken::new(Personality::Ruthless, 8 /* high_men */, FAR)?;
             let square = at(t.at.x - offset, t.at.y);
             let many = t.w.max_battle_side();

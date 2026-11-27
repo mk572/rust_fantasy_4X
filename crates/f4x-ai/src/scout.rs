@@ -6,6 +6,9 @@
 //! two never head for the same patch. When nothing reachable has unexplored ground near it the
 //! scouts rejoin the army.
 
+use f4x_def::rules::ai_strategy::ScoutingLevers;
+
+use crate::lever::Levered;
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::view::PlayerView;
 use f4x_core::world::serial::Serial;
@@ -17,31 +20,18 @@ use crate::view::{distance, is_fighter, is_ship};
 use crate::Ai;
 use f4x_master::Game;
 
-/// How many squares of walking a square of new ground is worth.
-const WALK_COST: f32 = 0.35;
-/// Turns a scout may stand still on an order before its target is given up.
-const STUCK_TURNS: u32 = 3;
-/// Scouting targets this close to another scout's are left to it.
-const KEEP_APART: u32 = 5;
-
-/// How many fighters a sea scout carries to put ashore.
-const PARTY: usize = 2;
-
 /// How many scouts the wizard wants. While it builds up (`phase::Phase::Build`) it looks harder
 /// for places to settle and for its neighbours: two scouts until it has four cities. No settler is
 /// built before a place for a city is known, so the sooner the land is seen the sooner the second
 /// city is founded.
-pub(crate) fn wanted(cities: usize, building: bool) -> usize {
+pub(crate) fn wanted(levers: &ScoutingLevers, cities: usize, building: bool) -> usize {
     let base = match cities {
         0 => 0,
         1..=3 => 1 + usize::from(building),
         _ => 2,
     };
-    base + crate::knob("SCOUTS", 0.0) as usize
+    base + levers.scouts as usize
 }
-
-/// A plane explored less than this is still blind to the wizard.
-const BLIND_SHARE: f32 = 0.6;
 
 /// The same square on the other plane.
 fn across(at: Position) -> Position {
@@ -67,7 +57,7 @@ fn blind_across(view: &PlayerView, tower: Position, round: u32) -> bool {
             .my_units()
             .into_iter()
             .any(|u| view.unit_position(u).is_some_and(|p| p.plane == far))
-        && view.explored_share(far) < BLIND_SHARE
+        && view.explored_share(far) < view.levers().scouting.blind_share
 }
 
 /// Make sure the wizard has enough scouts and send them out.
@@ -93,7 +83,7 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             crate::phase::phase(&view, game.round()) == crate::phase::Phase::Build,
         )
     };
-    if scouts.len() < wanted(cities, building) {
+    if scouts.len() < wanted(&game.levers().scouting, cities, building) {
         if let Some(unit) = recruit(ai, game, None) {
             let serial = PlayerView::new(game, me).serial_of(unit);
             let _ = ai
@@ -145,7 +135,7 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         }
         // A scout that has not moved for a few turns although it has an order is stuck: give
         // its target up (a guarded or blocked patch) and choose another.
-        let stuck = ai.roles.track(serial, pos, !idle) >= STUCK_TURNS;
+        let stuck = ai.roles.track(serial, pos, !idle) >= game.levers().scouting.stuck_turns;
         if stuck {
             if let Some(t) = ai.roles.target_of(serial, crate::roles::Role::Scout) {
                 ai.bad_scout_targets.push(t);
@@ -211,7 +201,7 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     }
 }
 
-/// The sea scout in a city takes spare fighters aboard, up to [`PARTY`] in all, to put ashore on
+/// The sea scout in a city takes spare fighters aboard, up to `sea_party` in all, to put ashore on
 /// land nobody holds. The party sails with the ship (the order names them) and is left alone by
 /// the rest of the scouting meanwhile. Returns the fighters taken aboard now, with the ones
 /// already aboard.
@@ -235,7 +225,8 @@ fn board(
     if view.city_at(at).is_none() {
         return party;
     }
-    let room = (view.unit_stat(ship, Stat::Transport).max(0) as usize).min(PARTY);
+    let room = (view.unit_stat(ship, Stat::Transport).max(0) as usize)
+        .min(view.levers().scouting.sea_party);
     let mut spare: Vec<hecs::Entity> = view
         .garrison(at)
         .into_iter()
@@ -510,9 +501,9 @@ pub(crate) fn best_target_with(
     let mut best: Option<(f32, Position)> = None;
     for &p in &reachable {
         if p == from
-            || claimed
-                .iter()
-                .any(|&c| distance(view, c, p).is_some_and(|d| d < KEEP_APART))
+            || claimed.iter().any(|&c| {
+                distance(view, c, p).is_some_and(|d| d < view.levers().scouting.keep_apart)
+            })
         {
             continue;
         }
@@ -521,12 +512,12 @@ pub(crate) fn best_target_with(
             continue;
         }
         let walk = distance(view, from, p).unwrap_or(99) as f32;
-        let mut value = fresh as f32 - walk * WALK_COST * 4.0;
+        let mut value = fresh as f32 - walk * view.levers().scouting.walk_cost * 4.0;
         if recon
             .iter()
-            .any(|&r| distance(view, r, p).is_some_and(|d| d <= crate::war_plan::RECON_NEAR))
+            .any(|&r| distance(view, r, p).is_some_and(|d| d <= view.levers().target.recon_near))
         {
-            value += crate::war_plan::RECON_BONUS;
+            value += view.levers().target.recon_bonus;
         }
         // A strict comparison with the position as a tie-break keeps the choice deterministic
         // whatever order the set is walked in.
@@ -562,6 +553,7 @@ fn unexplored_near(view: &PlayerView, at: Position, look: HalfInt) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testworld::levers;
     use crate::testworld::{at, game, spawn, spawn_tower, COAST_CITY, P0};
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -572,18 +564,18 @@ mod tests {
 
     #[test]
     fn the_number_of_scouts_grows_with_the_cities() {
-        assert_eq!(wanted(0, true), 0);
-        assert_eq!(wanted(1, false), 1);
-        assert_eq!(wanted(3, false), 1);
-        assert_eq!(wanted(4, false), 2);
-        assert_eq!(wanted(12, false), 2);
+        assert_eq!(wanted(&levers().scouting, 0, true), 0);
+        assert_eq!(wanted(&levers().scouting, 1, false), 1);
+        assert_eq!(wanted(&levers().scouting, 3, false), 1);
+        assert_eq!(wanted(&levers().scouting, 4, false), 2);
+        assert_eq!(wanted(&levers().scouting, 12, false), 2);
     }
 
     #[test]
     fn a_wizard_that_builds_up_wants_a_second_scout() {
-        assert_eq!(wanted(1, true), 2);
-        assert_eq!(wanted(3, true), 2);
-        assert_eq!(wanted(2, false), 1);
+        assert_eq!(wanted(&levers().scouting, 1, true), 2);
+        assert_eq!(wanted(&levers().scouting, 3, true), 2);
+        assert_eq!(wanted(&levers().scouting, 2, false), 1);
     }
 
     /// The two units a wizard starts with are one garrison and one scout (a new game, no map seen).
@@ -645,7 +637,7 @@ mod tests {
         let first = best_target(&view, walker, city(), &[]).ok_or("a first target")?;
         let second = best_target(&view, walker, city(), &[first]).ok_or("a second target")?;
         let apart = distance(&view, first, second).ok_or("the targets are on one plane")?;
-        assert!(apart >= KEEP_APART, "{apart}");
+        assert!(apart >= levers().scouting.keep_apart, "{apart}");
         Ok(())
     }
 
@@ -784,7 +776,10 @@ mod tests {
         );
         ai.sea_scouting = true;
         scout(&mut ai, &mut w, &mut Vec::new());
-        assert_eq!(ai.roles.count(crate::roles::Role::SeaParty), PARTY);
+        assert_eq!(
+            ai.roles.count(crate::roles::Role::SeaParty),
+            levers().scouting.sea_party
+        );
         assert!(ai
             .roles
             .members(crate::roles::Role::SeaParty)
@@ -968,7 +963,7 @@ mod tests {
             .first()
             .ok_or("the scout has a target")?;
         // No turn passes, so the scout has no moves left: each look finds it where it was.
-        for _ in 0..=STUCK_TURNS {
+        for _ in 0..=levers().scouting.stuck_turns {
             scout(&mut ai, &mut w, &mut Vec::new());
         }
         assert!(

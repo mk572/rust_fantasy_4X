@@ -37,7 +37,7 @@ cast, settlers, army, city production (`lib.rs`). Each part:
 | Part | What it does now |
 |---|---|
 | `diplomacy.rs` | Answers proposals with its own rating (`diplomacy::rate`, the original's `Diplomacy_Test`); a fierce militarist or expansionist declares war on a weaker neighbour (`quarrel`); a wizard may declare war on a Spell of Mastery caster (`mastery_scare`). Never proposes anything. |
-| `raze` | After its attacks: razes a city just taken from a wizard when the points against keeping it pass a threshold, with no roll: the temper (a peaceful wizard never razes, a lawful one only a city of a wizard it fights), the racial unrest between its people and the city's, the worth of the land, the city's citizens and the cost of its buildings, how hard the city is to hold (own and enemy cities within 14 squares, walls) and the soldiers in or within 3 squares of it against the defence it wants. Weights: `AIS_RAZE_*`. Never a city of the independents. |
+| `raze` | After its attacks: razes a city just taken from a wizard when the points against keeping it pass a threshold, with no roll: the temper (a peaceful wizard never razes, a lawful one only a city of a wizard it fights), the racial unrest between its people and the city's, the worth of the land, the city's citizens and the cost of its buildings, how hard the city is to hold (own and enemy cities within `rival_range`, 12 squares, walls) and the soldiers in or within 3 squares of it against the defence it wants. Weights: `AIS_RAZE_*`. Never a city of the independents. |
 | `economy::taxes` | The lowest tax rate that leaves a small surplus. |
 | `economy::research` | When idle, takes the first of the offered candidates (the core lists the fastest first). |
 | `economy::cast` | Starts the dearest summoning spell it can pay for with a third of the mana left over. Nothing else is cast, so most spells are dead weight. |
@@ -180,6 +180,16 @@ Not everything in these notes was read; the sections that were are named.
 
 Each is a step with its own test and soak result (section 9).
 
+**The levers.** Every number that tunes what the strategic AI does is in
+`crates/f4x-def/content/ai_strategy.ron` (`StrategyAiRules`), grouped by subject, each with a comment
+on what it steers. The file holds every value: one left out is an error, and the code has no default.
+The environment variable `AIS_<NAME>` overrides a lever for a run (`AIS_ATTACK=1.6`), with the
+group's prefix where the head of a group in the file gives one (`AIS_DIPLO_B_OFFER`,
+`AIS_MILITARIST_STRIKE_BASE`; `AIS_CITIES` and `AIS_STRIKE` set every objective). The variables are
+read once; a value the lever cannot take, and a name that is no lever's, are reported on stderr and
+ignored. A rule of the game is not a lever (the AI reads it where the engine does), and a fact of
+the code (the table of neighbour squares, the order a list is walked in) stays in the code.
+
 ### 5.1 Exploration (step 1)
 
 The cause of "no wars" is that nobody finds the enemy. Replace `nearest_unexplored` (radius 14,
@@ -240,7 +250,7 @@ ships (step 8).
   soldiers, rivers), the squares another city already works count for less, and the score rises with
   nearness to the wizard's own cities and falls with nearness to a rival's (more at war) and with a
   crossing: a site over the sea or on the other plane ranks below any site on the home land. The weights
-  are content (`crates/f4x-def/content/ai_sites.ron`, `SiteRules`), and `phase::width` leans wide while the
+  are levers (the `city_site` group of `ai_strategy.ron`), and `phase::width` leans wide while the
   list is not empty. Of two
   sites too close to be two cities only the better is kept. Settlers get their sites in rank order, the
   best site to the nearest settler (`assign`); a site is left out only for a reason the view shows (an
@@ -300,7 +310,7 @@ and learn tests still pass.
 `crates/f4x-def/content/ai_battle.ron` (`BattleAiRules`), grouped by subject, each with a comment on
 what it steers; the names below in code type are its entries. The file holds every value: one left
 out is an error, and the code has no default. The environment variable `AIK_<NAME>` overrides a
-lever for a run (`AIK_FLEE_STRENGTH_RATIO=3`; the strategic AI's knobs are `AIS_<NAME>`). The
+lever for a run (`AIK_FLEE_STRENGTH_RATIO=3`; the strategic AI's levers are `AIS_<NAME>`, section 5). The
 variables are read once, at the battle AI's first decision; a value the lever cannot take, and a
 name that is no lever's, are reported on stderr and ignored. What is a rule of the game is not a lever: the AI reads it from `battle.ron`
 as the battle does (`combat_die` and `armor_piercing_defense_percent` in `expected_damage`,
@@ -752,7 +762,8 @@ Before the objectives (same code otherwise): 0 of 8 won, 12 to 78 s a game. A wi
 (often 1 to 3 of them outposts) and 5 to 30 units; the treasury sits at 50 to 100 gold.
 
 **Statecraft, 14 November 2026 (task 510, `docs/diplomacy.md` section 8).** Measured with the parts switched off
-(`AIS_DIPLO_ON_*=0`) and on, on `small-2p`, `hard-3p` and `islands-3p` of `scripts/soak_variety.sh`, six rounds of seeds (24, 18 and 24
+(`AIS_DIPLO_ON_*=0`; of these switches only those of the factors, the arms and the trade are left, the others went with
+the diplomacy system they belonged to, task 779) and on, on `small-2p`, `hard-3p` and `islands-3p` of `scripts/soak_variety.sh`, six rounds of seeds (24, 18 and 24
 games, 66 each way; the numbers are before the later gift to a hostile coalition partner and the 25-turn peace cooldown):
 
 | | Won | By conquest | Mean winning turn | Wars declared a game | Peace offers a game | Refused or lapsed proposals a game |
@@ -767,7 +778,8 @@ asks for (no war on two fronts, peace for a lost war), not a loss of strength; t
 while the war is young and has taken nothing (`peace_ok`). The soak prints four new counts after the diplomacy kinds: `wars on a
 weaker neighbour`, `appeasements`, `coalition requests`, `war-weary peace offers`.
 
-**Trades, items and coalitions, 14 November 2026 (tasks 504 and 597).** 42 games (`small-2p`, `crowded-5p`, `islands-3p`, `hard-3p`,
+**Trades, items and coalitions, 14 November 2026 (tasks 504 and 597).** (`AIS_DIPLO_COALITION_END` is gone with
+that diplomacy system, task 779; the results stay as a record.) 42 games (`small-2p`, `crowded-5p`, `islands-3p`, `hard-3p`,
 three rounds of seeds), the same games in each run, so the games differ only by what changed:
 
 | Run | Games won | By conquest | Trades done a game | Alliances ended |
@@ -962,7 +974,8 @@ every turn by `war::run`, which sets its campaign from it; the recon list read b
 `scout::best_target_with`. `expected_defence` reads the garrison from the city report for a city the AI
 has explored, as the human's enemy city screen does, so the remembered strength (`city_memory`) is only
 the fallback. Not built: several groups, the route recon, the demands to the builder and the dispatcher.
-The numbers (`FORTRESS_WORTH`, `GOAL_ACROSS`, `NEXT_DEFENCE` and the others in `war_plan.rs`) are first
+The numbers (`fortress_worth`, `goal_across`, `defence_squares` and the others of the `target` group of
+`ai_strategy.ron`) are first
 guesses, to be set from soaks with more than two wizards.
 
 ## 16. Enchant Road (task 642)
@@ -971,7 +984,7 @@ guesses, to be set from soaks with more than two wizards.
 a step between two enchanted road squares costs no movement, so a road is worth enchanting from end
 to end, a cast for every five squares. The places to join to the fortress, in order: a harbour city
 (when the fortress is inland), the other large cities (8 citizens or more), the border towns (an own
-city within `BORDER_RANGE` of a wizard's city) and the open towers. A place needs to be joined to the
+city within `rival_range` of a wizard's city) and the open towers. A place needs to be joined to the
 enchanted network of its continent once: the road is searched from the place to the nearest square of
 that network, not to the fortress, and a continent without the fortress has its own network around
 its largest city. The cast square is the third square from the enchanted end of the road between
@@ -1022,4 +1035,4 @@ profile read it). The war jobs of task 646 use `party_mobility` to pick a strike
 
 ## Quick strikes (17 November 2026)
 
-`strike.rs` runs first in the dispatcher's turn, before any unit has used a move or received an order. A stack next to an enemy square it can clearly beat (the party of nine against what is seen there, with the ratios of `military::attack_ratio`, `committed_ratio` and, out of a city, `sortie_ratio`) fights now. Targets: units of wizards and neutral cities we are at war with, and roaming monster bands; never a lair's guards, and never a town that is a war target (the plan's goal and next target, `ai.campaign`, `ai.march_target`). The strike changes nothing in the registry; the units that fought stand on the enemy's square and the dispatcher's repair sends them on to their targets. A city's garrison may join when no other enemy is near the city; its soldiers walk home at once. The engine needs all attackers on one square, so gathering units from several squares first is a later step.
+`strike.rs` runs first in the dispatcher's turn, before any unit has used a move or received an order. A stack next to an enemy square it can clearly beat (the party of nine against what is seen there, with the levers `attack`, `committed` and, out of a city, `sortie`) fights now. Targets: units of wizards and neutral cities we are at war with, and roaming monster bands; never a lair's guards, and never a town that is a war target (the plan's goal and next target, `ai.campaign`, `ai.march_target`). The strike changes nothing in the registry; the units that fought stand on the enemy's square and the dispatcher's repair sends them on to their targets. A city's garrison may join when no other enemy is near the city; its soldiers walk home at once. The engine needs all attackers on one square, so gathering units from several squares first is a later step.

@@ -12,6 +12,7 @@
 //! What it offers: a spell swap, a spell for gold either way, and an item or a unit for gold,
 //! each by the price the other would accept ([`price`]), picking the offer that gains it most.
 
+use crate::lever::Levered;
 use f4x_core::diplomacy::trade as core;
 use f4x_core::diplomacy::{Goods, Proposal, ProposalKind, Treaty};
 use f4x_core::player::view::PlayerView;
@@ -23,50 +24,9 @@ use crate::diplomacy::Verdict;
 use crate::memory::Diplomats;
 use crate::statecraft::{arms_enemy, goodwill};
 
-/// The numbers of a trade, in one place (`AIS_DIPLO_<NAME>` for a soak).
-pub(crate) struct Knobs {
-    /// What a trade must bring, in percent of what it costs, between strangers, with a pact and
-    /// with an ally.
-    pub margin_none: i32,
-    pub margin_pact: i32,
-    pub margin_alliance: i32,
-    /// Percent of margin less for every ten points of relation above zero (more below), and for
-    /// every ten points of goodwill (`statecraft::goodwill`).
-    pub margin_per_relation: i32,
-    pub margin_per_goodwill: i32,
-    /// The least and most the margin can be.
-    pub margin_least: i32,
-    pub margin_most: i32,
-    /// Gold the AI keeps back when it buys.
-    pub reserve: i32,
-    /// The gold it will not sell a spell or an item for less than.
-    pub least_price: i32,
-    /// The switch of the whole part (1 on, 0 off), for a soak.
-    pub on: bool,
-}
-
-impl Knobs {
-    pub(crate) fn current() -> Self {
-        let k =
-            |name: &str, default: i32| crate::knob(&format!("DIPLO_{name}"), default as f32) as i32;
-        Self {
-            margin_none: k("TRADE_MARGIN_NONE", 98),
-            margin_pact: k("TRADE_MARGIN_PACT", 95),
-            margin_alliance: k("TRADE_MARGIN_ALLIANCE", 90),
-            margin_per_relation: k("TRADE_MARGIN_PER_RELATION", 1),
-            margin_per_goodwill: k("TRADE_MARGIN_PER_GOODWILL", 1),
-            margin_least: k("TRADE_MARGIN_LEAST", 85),
-            margin_most: k("TRADE_MARGIN_MOST", 140),
-            reserve: k("TRADE_RESERVE", 40),
-            least_price: k("TRADE_LEAST_PRICE", 40),
-            on: k("ON_TRADE", 1) != 0,
-        }
-    }
-}
-
 /// What a trade must bring `judge` in percent of what it gives `other`: the margin.
 pub(crate) fn margin(world: &World, minds: &Diplomats, judge: PlayerId, other: PlayerId) -> i32 {
-    let k = Knobs::current();
+    let k = world.levers().trade;
     let base = match world.treaty(judge, other) {
         Treaty::Alliance => k.margin_alliance,
         Treaty::Pact => k.margin_pact,
@@ -80,7 +40,7 @@ pub(crate) fn margin(world: &World, minds: &Diplomats, judge: PlayerId, other: P
     let eased = base
         - k.margin_per_relation * relation / 10
         - k.margin_per_goodwill * goodwill(world, minds, judge, other, kind) / 10;
-    eased.clamp(k.margin_least, k.margin_most)
+    eased.min(k.margin_most).max(k.margin_least)
 }
 
 /// Whether handing `goods` to `to` arms an enemy of `from`: a spell, an item or a unit, not gold.
@@ -99,7 +59,7 @@ pub(crate) fn verdict(
     give: Goods,
     get: Goods,
 ) -> Verdict {
-    if !Knobs::current().on {
+    if !world.levers().diplomacy.on_trade {
         return Verdict::Accepted;
     }
     if arms(world, judge, asker, get) || !will_give(world, judge, get) {
@@ -215,7 +175,7 @@ pub(crate) fn respond(
         return Reply::Accept;
     }
     if proposal.round + 1 >= world.content().rules.config.diplomacy.max_rounds
-        || !Knobs::current().on
+        || !world.levers().diplomacy.on_trade
         || arms(world, judge, asker, get)
         || !will_give(world, judge, get)
     {
@@ -313,7 +273,7 @@ fn name_price(
     asker: PlayerId,
     get: Goods,
 ) -> Option<ProposalKind> {
-    let k = Knobs::current();
+    let k = world.levers().trade;
     let need = (core::worth(world, judge, get) * margin(world, minds, judge, asker) / 100)
         .max(k.least_price);
     let paid_in = holdings(world, asker, judge)
@@ -343,7 +303,7 @@ fn name_offer(
     asker: PlayerId,
     give: Goods,
 ) -> Option<ProposalKind> {
-    let k = Knobs::current();
+    let k = world.levers().trade;
     let budget = core::worth(world, judge, give) * 100 / margin(world, minds, judge, asker);
     let gold = budget.min(spendable(world, judge));
     let cheap = |g: Goods| {
@@ -375,7 +335,7 @@ fn price(
     buyer: PlayerId,
     thing: Goods,
 ) -> Option<i32> {
-    let k = Knobs::current();
+    let k = world.levers().trade;
     // Rounded up, so that the price clears the seller's own margin (`meets` checks it in hundredths).
     let ask = (core::worth(world, seller, thing) * margin(world, minds, seller, buyer) + 99) / 100;
     let ask = ask.max(k.least_price);
@@ -386,7 +346,7 @@ fn price(
 /// The gold `me` can spend on a purchase.
 fn spendable(world: &World, me: PlayerId) -> i32 {
     let gold = world.player(me).map_or(0, |p| p.treasury().gold.floor());
-    (gold - Knobs::current().reserve).max(0)
+    (gold - crate::economy::gold_reserve(world, me)).max(0)
 }
 
 /// One offer and what it brings the one who makes it, in gold.
@@ -484,7 +444,7 @@ fn buy_spell(world: &World, minds: &Diplomats, me: PlayerId, other: PlayerId) ->
 /// Sell something of `me`'s to `other` for gold: a spell, an item from the armory or a unit that
 /// is in a city.
 fn sell(world: &World, minds: &Diplomats, me: PlayerId, other: PlayerId) -> Option<Offer> {
-    let budget = spendable(world, other) + Knobs::current().reserve;
+    let budget = world.player(other).map_or(0, |p| p.treasury().gold.floor());
     let mut things: Vec<Goods> = Vec::new();
     if let (Some(mine), Some(theirs)) = (world.wizard(me), world.wizard(other)) {
         things.extend(
@@ -559,7 +519,7 @@ pub(crate) fn offer(
     me: PlayerId,
     other: PlayerId,
 ) -> Option<ProposalKind> {
-    if !Knobs::current().on
+    if !world.levers().diplomacy.on_trade
         || world.treaty(me, other) == Treaty::War
         || !PlayerView::new(world, me).is_diplomat(other)
     {

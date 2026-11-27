@@ -13,15 +13,14 @@
 //! winner takes the enemy's square), so the repair of the dispatcher (`dispatch::revalidate`)
 //! sends it on to its target again; a city's soldier is sent back to its city at once.
 
+use crate::lever::Levered;
 use f4x_core::diplomacy::Treaty;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::MONSTERS;
 use f4x_core::world::{Command, Event, World};
 
-use crate::military::{
-    campaign_ratio, committed_ratio, engage, neighbours, sortie_ratio, stacks, THREAT_RADIUS,
-};
+use crate::military::{campaign_ratio, engage, neighbours, stacks};
 use crate::roles::{MusterKind, Role};
 use crate::view::{fighting_strength, party, stack_strength};
 use crate::Ai;
@@ -63,7 +62,7 @@ fn fair_target(
 /// Whether the garrison of the city at `pos` may go out against the stack on `target`: no other
 /// enemy is near the city that the soldiers who stay could not meet.
 fn city_safe_without(view: &PlayerView, pos: Position, target: Position) -> bool {
-    view.enemies_near(pos, THREAT_RADIUS)
+    view.enemies_near(pos, view.levers().shared.near_city_radius)
         .into_iter()
         .all(|(square, _)| square == target)
 }
@@ -110,9 +109,9 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 .iter()
                 .any(|&u| ai.roles.is(view.serial_of(u), Role::March));
             let ratio = if at_city {
-                sortie_ratio()
+                view.levers().attack.sortie
             } else if committed {
-                committed_ratio()
+                view.levers().attack.committed
             } else {
                 edge
             };
@@ -129,7 +128,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     // A square we see is a square we know the defence of.
                     let theirs = fighting_strength(&view, &defenders)
                         * if view.city_at(target).is_some() {
-                            1.3
+                            view.levers().shared.city_defence_factor
                         } else {
                             1.0
                         };

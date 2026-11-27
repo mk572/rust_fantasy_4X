@@ -7,12 +7,15 @@
 //! a road along it when any square of it has none. When the city has no such link it is marked
 //! looked at and the engineer walks to the nearest city not yet looked at. When every city has been
 //! looked at the engineer works toward the campaign target, else the nearest tower, a stretch at a
-//! time, from wherever it stands; within `ENEMY_NEAR` squares of a rival's city it works only with
+//! time, from wherever it stands; within `engineer_escort_range` squares of a rival's city it works only with
 //! an escort (`escort::guard`) and waits for one. With nothing left it gives the role back. The marks are cleared when the number of
 //! cities changes. One engineer unit is built (`build_engineer`) while there is work and none exists.
 //!
 //! See `docs/ai-unit-registry.md`.
 
+use f4x_def::rules::ai_strategy::EngineerLevers;
+
+use crate::lever::Levered;
 use crate::roles::Role;
 use crate::Ai;
 use f4x_core::city::production::ProductionItem;
@@ -21,16 +24,6 @@ use f4x_core::player::view::PlayerView;
 use f4x_core::rules::Stat;
 use f4x_core::world::{Command, Event, World};
 use f4x_master::Game;
-
-/// The nearest cities an engineer links a city to.
-const NEIGHBOURS: usize = 3;
-/// Squares apart the cities of a link are at most.
-const LINK_RANGE: u32 = 12;
-/// Cities for each engineer the wizard wants while there is road to build.
-const CITIES_PER_ENGINEER: usize = 3;
-
-/// Squares of a road toward the campaign target built at a time.
-const STRETCH: usize = 8;
 
 /// The engineers: units that build roads.
 fn is_engineer(view: &PlayerView, unit: hecs::Entity) -> bool {
@@ -120,7 +113,7 @@ fn work(
                 .iter()
                 .filter(|&&(_, p)| p != here)
                 .filter_map(|&(_, p)| view.distance(here, p).map(|d| (d, p)))
-                .filter(|&(d, _)| d <= LINK_RANGE)
+                .filter(|&(d, _)| d <= view.levers().engineers.link_range)
                 .collect()
         };
         near.sort_by_key(|&(d, p)| (d, p.plane as u8, p.y, p.x));
@@ -134,7 +127,7 @@ fn work(
                 .map(|(_, p)| p)
                 .collect()
         };
-        for (_, to) in near.into_iter().take(NEIGHBOURS) {
+        for (_, to) in near.into_iter().take(game.levers().engineers.linked_cities) {
             if others.contains(&to) {
                 continue;
             }
@@ -224,9 +217,6 @@ fn build(
     .is_ok()
 }
 
-/// Squares from a rival's city within which an engineer works with an escort.
-const ENEMY_NEAR: u32 = 8;
-
 /// The way a road is built toward: the campaign target, else the nearest tower, whichever has a
 /// way to it that lacks a road. The squares of that way, the last (the city or tower itself) left
 /// out, and the first without a road.
@@ -275,16 +265,20 @@ fn frontier(
         }
     }
     if first == 0 {
-        let stretch: Vec<Position> = path.into_iter().take(STRETCH).collect();
+        let stretch: Vec<Position> = path
+            .into_iter()
+            .take(game.levers().engineers.road_stretch)
+            .collect();
         let end = *stretch.last()?;
         let near_enemy = {
             let view = PlayerView::new(game, me);
             view.known_cities().into_iter().any(|(_, owner, city)| {
                 owner != me
                     && view.is_rival_wizard(owner)
-                    && stretch
-                        .iter()
-                        .any(|&p| view.distance(p, city).is_some_and(|d| d <= ENEMY_NEAR))
+                    && stretch.iter().any(|&p| {
+                        let range = view.levers().engineers.engineer_escort_range;
+                        view.distance(p, city).is_some_and(|d| d <= range)
+                    })
             })
         };
         if near_enemy && !crate::escort::guard(ai, game, engineer, events) {
@@ -307,9 +301,9 @@ fn frontier(
 }
 
 /// How many engineers the wizard wants while there is road to build: one for each
-/// [`CITIES_PER_ENGINEER`] cities, one at least.
-fn engineers_wanted(cities: usize) -> usize {
-    cities.div_ceil(CITIES_PER_ENGINEER).max(1)
+/// `cities_per_engineer` cities, one at least.
+fn engineers_wanted(levers: &EngineerLevers, cities: usize) -> usize {
+    cities.div_ceil(levers.cities_per_engineer).max(1)
 }
 
 /// The engineers' production: while there is road to build and fewer engineers than
@@ -330,7 +324,7 @@ pub fn build_engineer(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             .iter()
             .filter(|&&u| is_engineer(&view, u))
             .count();
-        let wanted = engineers_wanted(cities.len());
+        let wanted = engineers_wanted(&view.levers().engineers, cities.len());
         if !work || engineers >= wanted {
             return;
         }
@@ -403,6 +397,10 @@ fn engineer_item(view: &PlayerView, city: hecs::Entity) -> Option<ProductionItem
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn engineers() -> EngineerLevers {
+        crate::testworld::levers().engineers
+    }
     use crate::testworld::{at, game, spawn, COAST_CITY, INLAND_CITY, P0};
     use f4x_master::Game;
 
@@ -554,13 +552,22 @@ mod tests {
         Ok(())
     }
 
-    /// The wizard wants one engineer for each [`CITIES_PER_ENGINEER`] cities, and one at least.
+    /// The wizard wants one engineer for each `cities_per_engineer` cities, and one at least.
     #[test]
     fn a_wizard_wants_one_engineer_for_every_few_cities() {
-        assert_eq!(engineers_wanted(1), 1);
-        assert_eq!(engineers_wanted(CITIES_PER_ENGINEER), 1);
-        assert_eq!(engineers_wanted(CITIES_PER_ENGINEER + 1), 2);
-        assert_eq!(engineers_wanted(3 * CITIES_PER_ENGINEER), 3);
+        assert_eq!(engineers_wanted(&engineers(), 1), 1);
+        assert_eq!(
+            engineers_wanted(&engineers(), engineers().cities_per_engineer),
+            1
+        );
+        assert_eq!(
+            engineers_wanted(&engineers(), engineers().cities_per_engineer + 1),
+            2
+        );
+        assert_eq!(
+            engineers_wanted(&engineers(), 3 * engineers().cities_per_engineer),
+            3
+        );
     }
 
     /// Two engineers in a city take two different links.

@@ -5,10 +5,8 @@
 //! The army: keep cities garrisoned, hit enemies that are weaker, gather a force and march
 //! it on the nearest enemy city, and send spare units to explore.
 
-use crate::military::{
-    average_strength, expected_defence, neighbours, stacks, COMMITTED_LANDING, GUESS_DEFENDERS,
-    HELD_WEIGHT, MARCH_TURNS, UNREACHABLE_TURNS,
-};
+use crate::lever::Levered;
+use crate::military::{average_strength, expected_defence, neighbours, stacks};
 use crate::roles::MusterKind;
 use crate::view::{distance, fighting_strength, is_fighter, party, stack_strength, unit_strength};
 use crate::{race, Ai};
@@ -213,7 +211,7 @@ fn march_on(
 ) {
     let me = ai.player;
     // Targets that could not be reached are tried again after a while.
-    if game.round().saturating_sub(ai.unreachable_since) > UNREACHABLE_TURNS {
+    if game.round().saturating_sub(ai.unreachable_since) > game.levers().attack.unreachable_turns {
         ai.unreachable.clear();
     }
     // Gather at the rally city the war plan names; march when strong enough.
@@ -231,7 +229,12 @@ fn march_on(
         // target gets the walk to it on top of the usual time (the slowest unit covers a square
         // a turn), or the stack would turn back before it arrived.
         let trip = distance(&view, rally, target).unwrap_or(0);
-        let too_long = march_called_off(game.round(), ai.march_started, trip);
+        let too_long = march_called_off(
+            game.round(),
+            ai.march_started,
+            trip,
+            game.levers().attack.march_turns,
+        );
         if too_long || ai.march_target != Some(target) {
             if ai.roles.any(crate::roles::Role::March) {
                 events.push(Event::MarchCalledOff {
@@ -371,9 +374,9 @@ fn march_on(
         // The party is full at the most a battle holds (more only crowd the squares), or strong
         // enough, or there are too few free units to make a march at all.
         let party_size = PlayerView::new(game, me).max_battle_side();
-        if (have >= needed && have_units >= MIN_MARCH)
+        if (have >= needed && have_units >= game.levers().attack.min_march)
             || have_units >= party_size
-            || available < MIN_MARCH
+            || available < game.levers().attack.min_march
         {
             continue;
         }
@@ -479,7 +482,7 @@ fn march_on(
     // The troops at the tower cross in stacks of what a square holds.
     let stack = game.max_battle_side();
     for chunk in at_tower.chunks(stack) {
-        if chunk.len() < MIN_CROSSING.min(elsewhere.len()) {
+        if chunk.len() < game.levers().attack.min_crossing.min(elsewhere.len()) {
             continue;
         }
         if !PlayerView::new(game, me).can_shift_plane(chunk) {
@@ -499,13 +502,13 @@ fn march_on(
     // (`pickup.rs`). Those already ashore on the target's land mass march on it when they are
     // strong enough.
     if ai.naval.is_some_and(|p| p.target == target) {
-        if force >= wanted && at_rally.len() >= MIN_MARCH {
+        if force >= wanted && at_rally.len() >= game.levers().attack.min_march {
             set_sail(ai, game, target, &at_rally, events);
         }
         march_landed(ai, game, free, target, events);
         return;
     }
-    if force >= wanted && at_rally.len() >= MIN_MARCH {
+    if force >= wanted && at_rally.len() >= game.levers().attack.min_march {
         let mut launched: Vec<Serial> = Vec::new();
         let mut refused = false;
         // Units march as stacks: those on one square, as many as a square holds at most.
@@ -625,18 +628,12 @@ fn set_sail(
     ai.march_started = game.round();
 }
 
-/// Has a march gone on too long? It has [`MARCH_TURNS`] and the walk to a far target on top (the
+/// Has a march gone on too long? It has `march_turns` and the walk to a far target on top (the
 /// slowest unit covers a square a turn), so a stack bound for a distant city is not called back
 /// on the way.
-fn march_called_off(now: u32, started: u32, trip: u32) -> bool {
-    now.saturating_sub(started) > MARCH_TURNS + trip
+fn march_called_off(now: u32, started: u32, trip: u32, march_turns: u32) -> bool {
+    now.saturating_sub(started) > march_turns + trip
 }
-
-/// The fewest units a march starts with.
-pub(crate) const MIN_MARCH: usize = 3;
-
-/// The fewest troops that cross a plane together.
-const MIN_CROSSING: usize = 3;
 
 /// The towers the wizard has cleared, on the plane of its capital, that its troops can walk to,
 /// the nearest first.
@@ -679,14 +676,6 @@ fn planar_target(
     })
 }
 
-/// Squares of walking a rival's fortress city is worth: taking the seat ends its wizard.
-const FORTRESS_BONUS: f32 = 12.0;
-/// Squares of walking a city on the way to the rival's fortress is worth: taking it opens the road
-/// and cuts the fortress off.
-const ROUTE_BONUS: f32 = 6.0;
-/// A city is "on the way" when going through it makes the walk to the fortress this much longer.
-const ROUTE_SLACK: u32 = 2;
-
 /// What a city is worth beyond its distance and its garrison (task 502): the rival's fortress city
 /// first, then the cities that lie between the army and that fortress. The nearest known fortress
 /// city of the same owner is the one the road leads to.
@@ -702,7 +691,7 @@ fn strategic_bonus(view: &PlayerView, from: Position, owner: PlayerId, city: Pos
         return 0.0;
     };
     if fort == city {
-        return FORTRESS_BONUS;
+        return view.levers().target.fortress_bonus;
     }
     let (Some(direct), Some(to_city), Some(on)) = (
         distance(view, from, fort),
@@ -711,8 +700,8 @@ fn strategic_bonus(view: &PlayerView, from: Position, owner: PlayerId, city: Pos
     ) else {
         return 0.0;
     };
-    if to_city + on <= direct + ROUTE_SLACK && to_city < direct {
-        ROUTE_BONUS
+    if to_city + on <= direct + view.levers().target.route_slack && to_city < direct {
+        view.levers().target.route_bonus
     } else {
         0.0
     }
@@ -749,9 +738,11 @@ fn best_enemy_city(
         })
         .filter_map(|(_, owner, p)| {
             let d = distance(view, from, p)? as f32;
-            let held = memory.get(&p).map_or(GUESS_DEFENDERS, |m| m.0 / average);
+            let guess = view.levers().attack.guess;
+            let held = memory.get(&p).map_or(guess, |m| m.0 / average);
             Some((
-                d + HELD_WEIGHT * held - strategic_bonus(view, from, owner, p),
+                d + view.levers().target.defence_squares * held
+                    - strategic_bonus(view, from, owner, p),
                 p,
             ))
         })
@@ -870,7 +861,8 @@ fn march_landed(
         };
         let strong_enough = {
             let view = PlayerView::new(game, me);
-            band.len() >= 2 && stack_strength(&view, &band) >= expected * COMMITTED_LANDING
+            band.len() >= 2
+                && stack_strength(&view, &band) >= expected * view.levers().attack.committed_landing
         };
         if !strong_enough {
             continue;
@@ -905,6 +897,22 @@ fn march_landed(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn min_march() -> usize {
+        crate::testworld::shipped()
+            .rules
+            .ai_strategy
+            .attack
+            .min_march
+    }
+
+    fn march_turns() -> u32 {
+        crate::testworld::shipped()
+            .rules
+            .ai_strategy
+            .attack
+            .march_turns
+    }
     use crate::testworld::{at, game, spawn, COAST_CITY, P0, P1};
     use f4x_core::world::World;
     use f4x_def::half_int::HalfInt;
@@ -991,7 +999,7 @@ mod tests {
             Ok(musters.first().map_or(0, |(_, _, members)| members.len()))
         };
         let (early, late) = (sent(1)?, sent(400)?);
-        assert_eq!(early, MIN_MARCH);
+        assert_eq!(early, min_march());
         assert!(late > early, "{late} against {early}");
         Ok(())
     }
@@ -1015,14 +1023,14 @@ mod tests {
         assert_eq!(muster.objective, Some(at(4, 4)));
         assert_eq!(muster.rally, capital);
         // Only the units the march needs are sent; the others stay where they are, available.
-        assert_eq!(members.len(), MIN_MARCH, "{members:?}");
+        assert_eq!(members.len(), min_march(), "{members:?}");
         let view = PlayerView::new(&w, P0);
         let sent: Vec<_> = troops
             .iter()
             .copied()
             .filter(|&u| ai.roles.is(view.serial_of(u), Role::Muster))
             .collect();
-        assert_eq!(sent.len(), MIN_MARCH);
+        assert_eq!(sent.len(), min_march());
         for &u in troops.iter().filter(|u| !sent.contains(u)) {
             assert!(!view.unit_has_order(u), "left alone");
             assert_eq!(view.unit_position(u), Some(at(5, 9)));
@@ -1075,7 +1083,7 @@ mod tests {
             .iter()
             .filter(|&&u| ai.roles.is(view.serial_of(u), Role::Muster))
             .count();
-        assert_eq!(sent, MIN_MARCH, "the healthy ones are sent");
+        assert_eq!(sent, min_march(), "the healthy ones are sent");
         Ok(())
     }
 
@@ -1208,7 +1216,14 @@ mod tests {
             wanted(&strong),
             wanted(&none)
         );
-        assert!(wanted(&strong) <= crate::war_plan::MAX_FORCE);
+        assert!(
+            wanted(&strong)
+                <= crate::testworld::shipped()
+                    .rules
+                    .ai_strategy
+                    .target
+                    .max_force
+        );
         // The army attacks from one square: no more is wanted than a square holds.
         assert!(wanted(&strong) <= view.max_battle_side());
     }
@@ -1516,11 +1531,11 @@ mod tests {
         assert!(trip > 3, "the target is far from the rally: {trip}");
         // Past the usual time, within the walk on top of it.
         ai.march_started = w.round();
-        for _ in 0..=MARCH_TURNS {
+        for _ in 0..=march_turns() {
             w.play_round();
         }
         let mut events = Vec::new();
-        ai.march_started = w.round() - (MARCH_TURNS + 1);
+        ai.march_started = w.round() - (march_turns() + 1);
         let before = events.len();
         run(&mut ai, &mut w, &mut events);
         assert!(
@@ -1535,13 +1550,33 @@ mod tests {
     #[test]
     fn a_march_to_a_far_target_gets_the_walk_on_top_of_the_usual_time() {
         // A near target: called off one turn past the usual time.
-        assert!(!march_called_off(100 + MARCH_TURNS, 100, 0));
-        assert!(march_called_off(100 + MARCH_TURNS + 1, 100, 0));
+        assert!(!march_called_off(
+            100 + march_turns(),
+            100,
+            0,
+            march_turns()
+        ));
+        assert!(march_called_off(
+            100 + march_turns() + 1,
+            100,
+            0,
+            march_turns()
+        ));
         // A target 30 squares away has 30 turns more.
-        assert!(!march_called_off(100 + MARCH_TURNS + 30, 100, 30));
-        assert!(march_called_off(100 + MARCH_TURNS + 31, 100, 30));
+        assert!(!march_called_off(
+            100 + march_turns() + 30,
+            100,
+            30,
+            march_turns()
+        ));
+        assert!(march_called_off(
+            100 + march_turns() + 31,
+            100,
+            30,
+            march_turns()
+        ));
         // A clock that ran backwards (a loaded save) does not call it off.
-        assert!(!march_called_off(5, 100, 0));
+        assert!(!march_called_off(5, 100, 0, march_turns()));
     }
 
     /// A rival's city across the sea: the army at the port, strong enough, is tagged for a ship
@@ -1596,7 +1631,7 @@ mod tests {
         }
         assert_eq!(w.treaty(P0, P1), f4x_core::diplomacy::Treaty::War);
         let tagged = ai.roles.needing(Crossing::Sea);
-        assert!(tagged.len() >= MIN_MARCH, "{:?}", ai.roles);
+        assert!(tagged.len() >= min_march(), "{:?}", ai.roles);
         let enemy = at(
             crate::testworld::ENEMY_CITY.0,
             crate::testworld::ENEMY_CITY.1,

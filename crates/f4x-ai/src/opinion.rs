@@ -947,7 +947,7 @@ mod tests {
     #[test]
     fn a_conquest_makes_the_winner_feared_whatever_one_thinks_of_it() {
         let w = pair(8, 8, 100);
-        let k = crate::diplo_b::Knobs::current();
+        let k = crate::testworld::levers().diplomacy_b;
         let third = PlayerId(7);
         for (event, points) in [
             (

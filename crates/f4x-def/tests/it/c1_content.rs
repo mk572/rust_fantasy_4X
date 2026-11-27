@@ -836,17 +836,25 @@ fn each_of_a_pair_of_lair_rolls_must_roll_and_the_spreads_must_differ_by_at_leas
 }
 
 #[test]
-fn site_rules_that_are_not_numbers_are_refused() {
-    use f4x_def::rules::ai_site::SiteRules;
-    refused::<SiteRules>("ai_sites.ron", "ai_sites.ron", |s| s.mana = -1.0);
-    refused::<SiteRules>("ai_sites.ron", "ai_sites.ron", |s| s.gold = f32::NAN);
-    refused::<SiteRules>("ai_sites.ron", "ai_sites.ron", |s| {
-        s.sea_cost = f32::INFINITY
-    });
-    refused::<SiteRules>("ai_sites.ron", "ai_sites.ron", |s| s.shared_share = 1.5);
-    refused::<SiteRules>("ai_sites.ron", "ai_sites.ron", |s| s.enemy_range = 0);
-    refused::<SiteRules>("ai_sites.ron", "ai_sites.ron", |s| {
-        s.land_values[0].1 = -2.0
+fn strategic_ai_levers_out_of_their_range_are_refused() {
+    use f4x_def::rules::ai_strategy::StrategyAiRules;
+    let refuse = |lever: &str, change: fn(&mut StrategyAiRules)| {
+        refused::<StrategyAiRules>("ai_strategy.ron", lever, change)
+    };
+    refuse("mana", |s| s.city_site.mana = -1.0);
+    refuse("gold", |s| s.city_site.gold = f32::NAN);
+    refuse("sea_cost", |s| s.city_site.sea_cost = f32::INFINITY);
+    refuse("shared_share", |s| s.city_site.shared_share = 1.5);
+    refuse("enemy_range", |s| s.city_site.enemy_range = 0);
+    refuse("land_values", |s| s.city_site.land_values[0].1 = -2.0);
+    refuse("mood_div", |s| s.diplomacy_b.mood_div = 0);
+    refuse("near_city_radius", |s| s.shared.near_city_radius = -1);
+}
+
+#[test]
+fn a_merchant_that_sells_for_nothing_is_refused() {
+    refused::<RulesConfig>("rules.ron", "item_price_markup", |c| {
+        c.offer.item_price_markup = 0
     });
 }
 

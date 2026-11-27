@@ -4,6 +4,9 @@
 //! summoning spell, a buff for the strongest units, a buff for a city, a lasting spell on the
 //! whole wizard.
 
+use f4x_def::rules::ai_strategy::{SplitLevers, StrategyAiRules};
+
+use crate::lever::Levered;
 use f4x_core::diplomacy::Treaty;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
@@ -87,29 +90,6 @@ pub enum Kind {
     Other,
 }
 
-/// Unexplored squares a block must hold to be worth Earth Lore.
-const EXPLORE_FLOOR: u32 = 70;
-/// Share of a stack's hit points (percent) that must be gone to be worth Nature's Cures.
-const CURE_PERCENT: u32 = 35;
-/// Spells costing more than this are only begun when the wizard pays for them within
-/// `MAX_CASTING_TURNS`: for the cost of a dear spell the wizard gets more from several quick ones.
-const DEAR_SPELL: i32 = 300;
-/// The most turns the AI spends paying for one dear spell.
-const MAX_CASTING_TURNS: i32 = 5;
-/// Squares from the summoning circle (or another plane) a stack must be to be worth a recall.
-const RECALL_DISTANCE: u32 = 8;
-/// Share of a stranded stack's hit points (percent) that must be gone to be worth a recall.
-const RECALL_PERCENT: u32 = 50;
-/// Squares from a city within which an enemy stack is worth a Stasis.
-const STASIS_RADIUS: i32 = 3;
-/// Turns of net mana income within which a summon that cannot be paid yet is saved for.
-const SAVING_TURNS: i32 = 15;
-/// Mana kept in the reserve before the AI starts a global enchantment.
-const GLOBAL_RESERVE: i32 = 200;
-/// How many times the strength of a unit a werewolf must be for Lycanthropy to be worth it: only
-/// the obsolete (spearmen next to werewolves) are turned.
-const LYCANTHROPY_EDGE: f32 = 1.5;
-
 fn has_hook(def: &SpellDef, name: &str) -> bool {
     def.effects
         .iter()
@@ -133,7 +113,7 @@ fn summons_melder(view: &PlayerView, def: &SpellDef) -> bool {
 /// The own fighter Lycanthropy turns into a werewolf, the production cost of the unit given up
 /// (counted one for one as mana in the rating only, not in the mana needed) and the rate: the
 /// strength gained per mana in all. Only a unit the werewolf is clearly better than is turned
-/// (`LYCANTHROPY_EDGE`); of those, the one with the best rate.
+/// (`lycanthropy_edge`); of those, the one with the best rate.
 pub(crate) fn lycanthropy_target(
     view: &PlayerView,
     spell: SpellId,
@@ -157,8 +137,9 @@ pub(crate) fn lycanthropy_target(
         .filter_map(|u| {
             let power = unit_strength(view, u);
             let extra = view.unit_def(u)?.cost as i32;
-            (wolf_power >= power * LYCANTHROPY_EDGE && view.can_aim(spell, Some(Target::Unit(u))))
-                .then(|| ((wolf_power - power) / (cast + extra as f32), u, extra))
+            (wolf_power >= power * view.levers().magic.lycanthropy_edge
+                && view.can_aim(spell, Some(Target::Unit(u))))
+            .then(|| ((wolf_power - power) / (cast + extra as f32), u, extra))
         })
         .max_by(|a, b| a.0.total_cmp(&b.0))
         .map(|(rate, u, extra)| (u, extra, rate))
@@ -407,9 +388,10 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     crate::craft::run(ai, game, events);
 }
 
-/// Gold a wizard keeps; what is above it, once the cities have bought what they can, is turned
-/// into mana (Alchemy), which pays for more spells, crafting and moving items.
-const GOLD_KEPT: i32 = 1000;
+/// The mana wanted before a spell of this cost is begun (`mana_wanted_percent`).
+fn mana_before(levers: &StrategyAiRules, cost: i32) -> i32 {
+    cost * levers.magic.mana_wanted_percent / 100
+}
 
 /// The mana the wizard could put to use now: what its dearest summon it can aim costs with the
 /// margin the casting rule asks for (zero when it has none to cast).
@@ -423,7 +405,7 @@ fn mana_wanted(view: &PlayerView, blocked: &[f4x_core::map::Plane], round: u32) 
         .copied()
         .filter(|&s| matches!(kind(view.spell(s)), Kind::Summon | Kind::SummonHero))
         .filter(|&s| view.can_aim(s, None))
-        .map(|s| view.casting_cost(s) * 3 / 2)
+        .map(|s| mana_before(view.levers(), view.casting_cost(s)))
         .max()
         .unwrap_or(0);
     // The Spell of Mastery being cast: what is still owed is mana to buy, whatever the gold is
@@ -448,7 +430,7 @@ fn alchemy(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         };
         let short =
             mana_wanted(&view, &ai.tower_blocked, game.round()) - view.treasury().mana.floor();
-        let spare = view.treasury().gold.floor() - GOLD_KEPT;
+        let spare = view.treasury().gold.floor() - view.levers().magic.gold_kept;
         let percent = w
             .stat(
                 &view.content().rules,
@@ -535,28 +517,14 @@ fn stop_aimless(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 
 // ---- the power split ------------------------------------------------------------
 
-/// The balanced split every wizard starts from: (mana, research, skill) in percent. Goals, the phase
-/// and the state of the game move it (`split_target`).
-const BASE_SPLIT: [i32; 3] = [30, 40, 30];
-/// The steps the shares move in.
-const STEP: i32 = 5;
-/// The least a share is (skill keeps a fifth so that spells can still be cast at once).
-const MIN_SHARE: [i32; 3] = [0, 0, 20];
-/// Turns a mana reserve is meant to last when the income falls short of the upkeep.
-const MANA_HORIZON: i32 = 40;
-/// A reserve this big (and big against the income) is more than the wizard can spend soon.
-const RICH_RESERVE: i32 = 1500;
-/// The split while the Spell of Mastery is being cast: mana pays for it and skill sets how much
-/// can be paid a turn.
-const MASTERY_SPLIT: (u8, u8, u8) = (50, 0, 50);
-/// The split of a wizard that has nothing left to research: no research, a bigger share for casting.
-const DONE_RESEARCHING: (u8, u8, u8) = (60, 0, 40);
-/// The split of a wizard that races to research the Spell of Mastery.
-const RACING_SPLIT: (u8, u8, u8) = (15, 65, 20);
+/// The least the shares of the split are.
+fn least_shares(levers: &SplitLevers) -> [i32; 3] {
+    [levers.least_mana, levers.least_research, levers.least_skill]
+}
 
 /// Move `amount` points of the split from one share to another, as far as the first can give.
-fn shift(split: &mut [i32; 3], from: usize, to: usize, amount: i32) {
-    let moved = amount.min(split[from] - MIN_SHARE[from]).max(0);
+fn shift(split: &mut [i32; 3], least: [i32; 3], from: usize, to: usize, amount: i32) {
+    let moved = amount.min(split[from] - least[from]).max(0);
     split[from] -= moved;
     split[to] += moved;
 }
@@ -567,28 +535,30 @@ fn split_target(view: &PlayerView, traits: &crate::objective::Traits, round: u32
     const MANA: usize = 0;
     const RESEARCH: usize = 1;
     const SKILL: usize = 2;
-    let mut t = BASE_SPLIT;
+    let levers = view.levers().split;
+    let (least, step) = (least_shares(&levers), levers.split_step);
+    let mut t = [levers.base_mana, levers.base_research, levers.base_skill];
     match crate::phase::phase(view, round) {
         // Growing: spells and their research come first, little is cast.
-        crate::phase::Phase::Build => shift(&mut t, MANA, RESEARCH, 10),
+        crate::phase::Phase::Build => shift(&mut t, least, MANA, RESEARCH, 10),
         crate::phase::Phase::Secure => {}
         // Winning: the spells are known, now they are cast.
         crate::phase::Phase::Win => {
-            shift(&mut t, RESEARCH, MANA, 15);
-            shift(&mut t, RESEARCH, SKILL, 5);
+            shift(&mut t, least, RESEARCH, MANA, 15);
+            shift(&mut t, least, RESEARCH, SKILL, 5);
         }
     }
     // A goal that likes magic casts more; one that spends its mana to the bone researches more.
     for _ in 0..traits.split_shift {
-        shift(&mut t, RESEARCH, MANA, STEP);
+        shift(&mut t, least, RESEARCH, MANA, step);
     }
     if traits.lean_mana {
-        shift(&mut t, MANA, RESEARCH, STEP);
+        shift(&mut t, least, MANA, RESEARCH, step);
     }
     // A big reserve is not spent for the lack of power but for the lack of skill and spells.
     let reserve = view.treasury().mana.floor();
-    if reserve > RICH_RESERVE {
-        shift(&mut t, MANA, RESEARCH, 10);
+    if reserve > levers.rich_reserve {
+        shift(&mut t, least, MANA, RESEARCH, 10);
     }
     t
 }
@@ -606,8 +576,14 @@ fn split(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             m.researching().is_some_and(is_mastery),
         )
     };
+    let levers = game.levers().split;
     if casting_mastery {
-        ai.order(game, set_split(me, MASTERY_SPLIT), events);
+        let shares = (
+            levers.mastery_mana,
+            levers.mastery_research,
+            levers.mastery_skill,
+        );
+        ai.order(game, set_split(me, shares), events);
         return;
     }
     // Nothing left to research: research points go to waste, so the power goes to mana and to the
@@ -620,11 +596,17 @@ fn split(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             && view.research_choices().is_empty()
     };
     if nothing_to_research {
-        ai.order(game, set_split(me, DONE_RESEARCHING), events);
+        let shares = (levers.done_mana, levers.done_research, levers.done_skill);
+        ai.order(game, set_split(me, shares), events);
         return;
     }
     if racing {
-        ai.order(game, set_split(me, RACING_SPLIT), events);
+        let shares = (
+            levers.racing_mana,
+            levers.racing_research,
+            levers.racing_skill,
+        );
+        ai.order(game, set_split(me, shares), events);
         return;
     }
     let mut target = {
@@ -640,18 +622,18 @@ fn split(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         let view = PlayerView::new(game, me);
         let income = view.income();
         let deficit_allowed = f4x_def::half_int::HalfInt::from_int(
-            view.treasury().mana.floor().max(0) / MANA_HORIZON,
+            view.treasury().mana.floor().max(0) / levers.mana_horizon.max(1),
         );
         if income.split.mana - income.mana_upkeep + deficit_allowed
             >= f4x_def::half_int::HalfInt::ZERO
-            || (target[1] == 0 && target[2] <= MIN_SHARE[2])
+            || (target[1] == 0 && target[2] <= levers.least_skill)
         {
             break;
         }
         if target[1] > 0 {
-            shift(&mut target, 1, 0, STEP);
+            shift(&mut target, least_shares(&levers), 1, 0, levers.split_step);
         } else {
-            shift(&mut target, 2, 0, STEP);
+            shift(&mut target, least_shares(&levers), 2, 0, levers.split_step);
         }
     }
     ai.order(game, set_split(me, as_split(chosen)), events);
@@ -856,7 +838,8 @@ fn pick_target(view: &PlayerView, spell: SpellId) -> Option<Target> {
             let mut cities = view.my_cities();
             cities.sort_by_key(|&(c, p)| {
                 (
-                    view.enemies_near(p, STASIS_RADIUS).is_empty(),
+                    view.enemies_near(p, view.levers().shared.near_city_radius)
+                        .is_empty(),
                     Some(p) != fortress,
                     view.serial_of(c),
                 )
@@ -942,7 +925,8 @@ pub(crate) fn best_circle(view: &PlayerView) -> Option<Position> {
         .into_iter()
         .max_by_key(|&at| {
             (
-                view.enemies_near(at, STASIS_RADIUS).len(),
+                view.enemies_near(at, view.levers().shared.near_city_radius)
+                    .len(),
                 std::cmp::Reverse(view.city_at(at).map(|c| view.serial_of(c))),
             )
         })
@@ -968,9 +952,6 @@ fn raise_target(view: &PlayerView, kind: usize) -> Target {
         _ => Target::Hero(kind),
     }
 }
-
-/// The fewest fighters beyond the garrison that Plane Shift is cast for.
-const MIN_SHIFT: usize = 6;
 
 /// The Plane Shift spell the wizard knows, if any.
 pub(crate) fn plane_shift_spell(view: &PlayerView) -> Option<SpellId> {
@@ -1017,7 +998,7 @@ pub(crate) fn shift_gather(view: &PlayerView) -> Option<Position> {
 }
 
 /// The city to raise an Astral Gate in: the army is gathered in the city it crosses from
-/// (`Ai::crossing`) with the garrison and at least [`MIN_SHIFT`] fighters over, its campaign is
+/// (`Ai::crossing`) with the garrison and at least `min_shift` fighters over, its campaign is
 /// on the other plane, and the gate is not there yet.
 fn gate_target(ai: &Ai, view: &PlayerView, spell: SpellId) -> Option<Target> {
     let gather = ai.crossing?;
@@ -1031,21 +1012,15 @@ fn gate_target(ai: &Ai, view: &PlayerView, spell: SpellId) -> Option<Target> {
         .into_iter()
         .filter(|&u| is_fighter(view, u))
         .count();
-    (fighters >= crate::view::garrison_wanted(view, gather) + MIN_SHIFT)
+    (fighters >= crate::view::garrison_wanted(view, gather) + view.levers().magic.min_shift)
         .then_some(Target::City(city))
         .filter(|&t| view.can_aim(spell, Some(t)))
 }
 
-/// Own cities at least this far from the rally city get an Earth Gate: nearer ones walk as fast.
-const GATE_FAR: u32 = 8;
-/// Cities with an Earth Gate at the most (the rally city and two that send troops to it): each
-/// pays 5 mana a turn.
-const GATES_MAX: usize = 3;
-
 /// The city to raise an Earth Gate in: with a campaign on, the rally city the army gathers in
 /// (`war_plan::rally`) first, then the own city on its plane that is farthest from it, at least
-/// [`GATE_FAR`] away, the largest of those (it makes the most troops); `war::march_on` sends a
-/// unit through a pair of gates when it can. At most [`GATES_MAX`] cities have one.
+/// `gate_far` away, the largest of those (it makes the most troops); `war::march_on` sends a
+/// unit through a pair of gates when it can. At most `gates_max` cities have one.
 fn earth_gate_target(ai: &Ai, view: &PlayerView, spell: SpellId) -> Option<Target> {
     let campaign = ai.campaign?;
     let cities = view.my_cities();
@@ -1060,7 +1035,7 @@ fn earth_gate_target(ai: &Ai, view: &PlayerView, spell: SpellId) -> Option<Targe
         ai.crossing,
     );
     let gated = |c: hecs::Entity| view.city_enchantments(c).contains(&spell);
-    if cities.iter().filter(|&&(c, _)| gated(c)).count() >= GATES_MAX {
+    if cities.iter().filter(|&&(c, _)| gated(c)).count() >= view.levers().magic.gates_max {
         return None;
     }
     let rally_city = cities.iter().find(|&&(_, p)| p == rally).map(|&(c, _)| c)?;
@@ -1071,7 +1046,7 @@ fn earth_gate_target(ai: &Ai, view: &PlayerView, spell: SpellId) -> Option<Targe
             .filter_map(|&(c, p)| {
                 let d = crate::view::distance(view, p, rally)?;
                 let size = view.city_report(c).map_or(0, |r| r.figures);
-                (d >= GATE_FAR).then_some((size, d, c))
+                (d >= view.levers().magic.gate_far).then_some((size, d, c))
             })
             .collect();
         far.sort_by_key(|&(size, d, c)| {
@@ -1087,7 +1062,8 @@ fn earth_gate_target(ai: &Ai, view: &PlayerView, spell: SpellId) -> Option<Targe
         let any_far = cities.iter().any(|&(c, p)| {
             c != rally_city
                 && p.plane == rally.plane
-                && crate::view::distance(view, p, rally).is_some_and(|d| d >= GATE_FAR)
+                && crate::view::distance(view, p, rally)
+                    .is_some_and(|d| d >= view.levers().magic.gate_far)
         });
         if !any_far {
             return None;
@@ -1098,7 +1074,7 @@ fn earth_gate_target(ai: &Ai, view: &PlayerView, spell: SpellId) -> Option<Targe
 }
 
 /// The unit to cast Plane Shift on: the army is gathered in the city it crosses from
-/// (`Ai::crossing`), with the garrison and at least [`MIN_SHIFT`] fighters over, and its campaign
+/// (`Ai::crossing`), with the garrison and at least `min_shift` fighters over, and its campaign
 /// is on the other plane. The whole stack goes, so the strongest unit is named.
 fn shift_target(ai: &Ai, view: &PlayerView, spell: SpellId) -> Option<Target> {
     let gather = ai.crossing?;
@@ -1111,7 +1087,7 @@ fn shift_target(ai: &Ai, view: &PlayerView, spell: SpellId) -> Option<Target> {
         .into_iter()
         .filter(|&u| is_fighter(view, u))
         .collect();
-    if fighters.len() < crate::view::garrison_wanted(view, gather) + MIN_SHIFT {
+    if fighters.len() < crate::view::garrison_wanted(view, gather) + view.levers().magic.min_shift {
         return None;
     }
     fighters
@@ -1218,7 +1194,7 @@ fn island_upkeep(view: &PlayerView) -> i32 {
         .map_or(0, |id| rules.units.get(id).upkeep.mana as i32)
 }
 
-/// The square of the strongest enemy stack within `STASIS_RADIUS` of an own city that is stronger
+/// The square of the strongest enemy stack within `near_city_radius` of an own city that is stronger
 /// than what holds the city.
 fn threat_square(view: &PlayerView) -> Option<Position> {
     let mut best: Option<(f32, Position)> = None;
@@ -1229,7 +1205,7 @@ fn threat_square(view: &PlayerView) -> Option<Position> {
             .filter(|&u| is_fighter(view, u))
             .collect();
         let held = fighting_strength(view, &held);
-        for (square, units) in view.enemies_near(city, STASIS_RADIUS) {
+        for (square, units) in view.enemies_near(city, view.levers().shared.near_city_radius) {
             let strength = fighting_strength(view, &units);
             if strength > held && best.is_none_or(|(b, _)| strength > b) {
                 best = Some((strength, square));
@@ -1239,9 +1215,16 @@ fn threat_square(view: &PlayerView) -> Option<Position> {
     best.map(|(_, square)| square)
 }
 
+/// The army up to which the AI summons creatures.
+fn army_cap(view: &PlayerView) -> usize {
+    let magic = view.levers().magic;
+    magic.army_cap_base + magic.army_cap_city * view.my_cities().len()
+}
+
 /// Is a spell of this cost worth beginning for a wizard that pays `power` for it each turn?
-fn quick_enough(cost: i32, power: i32) -> bool {
-    cost <= DEAR_SPELL || cost <= MAX_CASTING_TURNS * power
+fn quick_enough(levers: &StrategyAiRules, cost: i32, power: i32) -> bool {
+    let magic = levers.magic;
+    cost <= magic.dear_spell || cost <= magic.max_casting_turns * power
 }
 
 /// The strength of a dispel cast overland: the base cost, three times that for the "True" spells.
@@ -1312,7 +1295,8 @@ fn explore_target(view: &PlayerView) -> Option<Position> {
             }
         }
     }
-    best.filter(|&(n, _)| n >= EXPLORE_FLOOR).map(|(_, p)| p)
+    best.filter(|&(n, _)| n >= view.levers().magic.explore_floor)
+        .map(|(_, p)| p)
 }
 
 /// One unit of the most hurt stack in a city, if a good part of the stack is hurt.
@@ -1326,7 +1310,7 @@ fn hurt_stack_unit(view: &PlayerView) -> Option<hecs::Entity> {
             missing += max.saturating_sub(hits);
             total += max;
         }
-        if total == 0 || missing * 100 / total < CURE_PERCENT {
+        if total == 0 || missing * 100 / total < view.levers().magic.cure_percent {
             continue;
         }
         if best.is_none_or(|(m, _)| missing > m) {
@@ -1362,7 +1346,7 @@ fn stranded_unit(view: &PlayerView) -> Option<hecs::Entity> {
         // Near any circle it is not stranded.
         if circles.iter().any(|&circle| {
             view.distance(at, circle)
-                .is_some_and(|d| d < RECALL_DISTANCE)
+                .is_some_and(|d| d < view.levers().magic.recall_distance)
         }) {
             continue;
         }
@@ -1373,7 +1357,7 @@ fn stranded_unit(view: &PlayerView) -> Option<hecs::Entity> {
             missing += max.saturating_sub(hits);
             total += max;
         }
-        if total == 0 || missing * 100 / total < RECALL_PERCENT {
+        if total == 0 || missing * 100 / total < view.levers().magic.recall_percent {
             continue;
         }
         if best.is_none_or(|(m, _)| missing > m) {
@@ -1425,9 +1409,10 @@ fn resurrect(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
         }
         let mana = game.player(me).map_or(0, |p| p.treasury().mana.floor());
         let cost = game.casting_cost(me, spell, false);
-        // The same gate as the other spells: paid from the reserve, not more than fifty turns.
+        // The same gate as the other spells: paid from the reserve, not too many turns.
         let per_turn = mana / 10 + game.income(me).split.mana.floor();
-        if cost * 3 / 2 > mana || cost / 50 > per_turn {
+        let levers = game.levers();
+        if mana_before(levers, cost) > mana || cost / levers.magic.most_paying_turns > per_turn {
             return false;
         }
         game.units().ai_resurrection_pick()
@@ -1594,7 +1579,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             // starved).
             let room = magic.power_split().mana <= 55;
             let target = aim_for(ai, &view, spell, k);
-            let now = cost * 3 / 2 <= mana;
+            let now = mana_before(view.levers(), cost) <= mana;
             let wanted = match k {
                 Kind::Mastery => true,
                 // Summoned creatures cost upkeep mana: only while the army is thin.
@@ -1606,7 +1591,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                         == crate::phase::Phase::Win
                         && crate::phase::goal(&view) == crate::phase::Goal::Conquest;
                     now && (room || conquering)
-                        && (fighters < 12 + 2 * view.my_cities().len()
+                        && (fighters < army_cap(&view)
                             || (conquering && upkeep_ok(&view, def)))
                         // The game makes room on a full square, or refuses the spell.
                         && view.can_aim(spell, target)
@@ -1639,7 +1624,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 Kind::CityBuff => now && room && upkeep_ok(&view, def) && target.is_some(),
                 Kind::GlobalBuff => {
                     now && room
-                        && mana - cost >= GLOBAL_RESERVE
+                        && mana - cost >= view.levers().shared.mana_reserve
                         && upkeep_ok(&view, def)
                         && !magic.has_global(spell)
                         && crate::intent::global_wanted(&view, def)
@@ -1657,15 +1642,19 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                     now && room && upkeep_ok(&view, def) && target.is_some()
                 }
                 Kind::LandCurse | Kind::LandBoost => {
-                    now && room && mana - cost >= GLOBAL_RESERVE && target.is_some()
+                    now && room
+                        && mana - cost >= view.levers().shared.mana_reserve
+                        && target.is_some()
                 }
                 // Blows at an enemy at war, from mana the AI can spare.
                 Kind::CityCurse | Kind::WizardCurse | Kind::Disjunction => {
-                    now && room && mana - cost >= GLOBAL_RESERVE && target.is_some()
+                    now && room
+                        && mana - cost >= view.levers().shared.mana_reserve
+                        && target.is_some()
                 }
                 Kind::WorldSpell => {
                     now && room
-                        && mana - cost >= GLOBAL_RESERVE
+                        && mana - cost >= view.levers().shared.mana_reserve
                         && upkeep_ok(&view, def)
                         && !magic.has_global(spell)
                         && crate::intent::global_wanted(&view, def)
@@ -1674,19 +1663,21 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             };
             if !wanted
                 && matches!(k, Kind::Summon | Kind::SummonHero)
-                && cost * 3 / 2 > mana
-                && cost * 3 / 2 <= mana + SAVING_TURNS * net.max(0)
+                && mana_before(view.levers(), cost) > mana
+                && mana_before(view.levers(), cost)
+                    <= mana + view.levers().magic.saving_turns * net.max(0)
                 && room
                 && view.can_aim(spell, target)
-                && (k == Kind::SummonHero || fighters < 12 + 2 * view.my_cities().len())
+                && (k == Kind::SummonHero || fighters < army_cap(&view))
             {
                 saving = true;
             }
-            // Not more than fifty turns of what the AI can put towards it.
+            // Not too many turns of what the AI can put towards it.
             let per_turn = mana / 10 + income.split.mana.floor();
             if wanted
                 && (k == Kind::Mastery
-                    || (cost / 50 <= per_turn && quick_enough(cost, view.casting_power())))
+                    || (cost / view.levers().magic.most_paying_turns <= per_turn
+                        && quick_enough(view.levers(), cost, view.casting_power())))
             {
                 found = Some((spell, target));
                 break;
@@ -1711,6 +1702,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testworld::levers;
     use crate::testworld::{at, fresh_game, game, shipped, spawn, COAST_CITY, ENEMY_CITY, P0, P1};
     use f4x_core::diplomacy::DiplomacyCommand;
     use f4x_core::player::{PlayerId, Treasury};
@@ -1856,9 +1848,9 @@ mod tests {
     #[test]
     fn an_objective_moves_the_kinds_it_weights_up_the_order_of_casting() {
         use crate::objective::traits_of;
-        let pragmatist = traits_of(Some(Objective::Pragmatist));
-        let militarist = traits_of(Some(Objective::Militarist));
-        let perfectionist = traits_of(Some(Objective::Perfectionist));
+        let pragmatist = traits_of(crate::testworld::levers(), Some(Objective::Pragmatist));
+        let militarist = traits_of(crate::testworld::levers(), Some(Objective::Militarist));
+        let perfectionist = traits_of(crate::testworld::levers(), Some(Objective::Perfectionist));
         // The ladder: summons before buffs before curses.
         assert!(cast_rank(Kind::Summon, &pragmatist) < cast_rank(Kind::GlobalBuff, &pragmatist));
         assert!(cast_rank(Kind::GlobalBuff, &pragmatist) < cast_rank(Kind::CityCurse, &pragmatist));
@@ -2160,14 +2152,18 @@ mod tests {
         use crate::objective::{traits_of, Like};
         let spells = &shipped().rules.spells;
         let bears = spells.get(spell(6 /* war_bears */)?);
-        let militarist = traits_of(Some(Objective::Militarist));
+        let militarist = traits_of(crate::testworld::levers(), Some(Objective::Militarist));
         assert!(liked(bears, kind(bears), &militarist));
         assert!(!liked(
             bears,
             kind(bears),
-            &traits_of(Some(Objective::Perfectionist))
+            &traits_of(crate::testworld::levers(), Some(Objective::Perfectionist))
         ));
-        assert!(!liked(bears, kind(bears), &traits_of(None)));
+        assert!(!liked(
+            bears,
+            kind(bears),
+            &traits_of(crate::testworld::levers(), None)
+        ));
         assert!(militarist.likes.contains(&Like::Summon));
         Ok(())
     }
@@ -2531,7 +2527,10 @@ mod tests {
             (0..h)
                 .flat_map(|y| (0..width).map(move |x| (x, y)))
                 .map(|(x, y)| Position { x, y, ..home })
-                .filter(|&p| crate::view::distance(&view, p, home).is_some_and(|d| d >= GATE_FAR))
+                .filter(|&p| {
+                    crate::view::distance(&view, p, home)
+                        .is_some_and(|d| d >= w.levers().magic.gate_far)
+                })
                 .collect()
         };
         let far = candidates
@@ -2808,12 +2807,12 @@ mod tests {
     #[test]
     fn a_dear_spell_is_only_begun_when_it_is_paid_for_in_five_turns() {
         assert!(
-            quick_enough(DEAR_SPELL, 1),
+            quick_enough(levers(), levers().magic.dear_spell, 1),
             "cheap spells are never held back"
         );
-        assert!(!quick_enough(1000, 150), "seven turns");
-        assert!(quick_enough(1000, 200), "five turns");
-        assert!(!quick_enough(1500, 0), "no casting power at all");
+        assert!(!quick_enough(levers(), 1000, 150), "seven turns");
+        assert!(quick_enough(levers(), 1000, 200), "five turns");
+        assert!(!quick_enough(levers(), 1500, 0), "no casting power at all");
     }
 
     #[test]
@@ -3060,7 +3059,7 @@ mod tests {
         };
         // The spell's cost with the margin, and nothing for the spearman.
         for _ in 0..40 {
-            treasury(&mut w, P1)?.mana = HalfInt::from_int(cost * 3 / 2 + 1);
+            treasury(&mut w, P1)?.mana = HalfInt::from_int(mana_before(levers(), cost) + 1);
             // Turns kill units of a world with no food or gold: keep the army up.
             for p in &land {
                 spawn(&mut w, P1, *p, 104, 3);

@@ -5,6 +5,7 @@
 //! wizard's books favour its realm. The AI never names a spell itself. The weights are numbers
 //! in one place, so a run can tune them (`AIS_RATE_*`) and a later fit can learn them.
 
+use crate::lever::Levered;
 use crate::military::average_strength;
 use crate::view::{fighting_strength, is_fighter};
 use f4x_core::map::Plane;
@@ -13,17 +14,6 @@ use f4x_def::rules::effects::Effect;
 use f4x_def::rules::{CastContext, SpellDef, SpellId};
 
 use crate::wizardry::Kind;
-
-/// How much a spell of a realm the wizard has many books in gains (1.0 is a wizard with all its
-/// books in that realm).
-fn affinity_weight() -> f32 {
-    crate::knob("RATE_AFFINITY", 0.5)
-}
-
-/// The weight of a summoned creature's strength against the mana it takes to keep.
-fn upkeep_weight() -> f32 {
-    crate::knob("RATE_UPKEEP", 12.0)
-}
 
 /// What the creatures a spell summons are worth in battle, in the AI's own measure.
 fn summoned_strength(view: &PlayerView, def: &SpellDef) -> f32 {
@@ -49,8 +39,9 @@ fn summoned_strength(view: &PlayerView, def: &SpellDef) -> f32 {
 /// (an ability the units have, a stat it does not read) is worth nothing and has no unit.
 pub(crate) fn best_buff(view: &PlayerView, spell: SpellId) -> Option<(hecs::Entity, f32)> {
     let def = view.spell(spell);
-    let mana =
-        (view.casting_cost(spell).max(1) as f32 + def.upkeep as f32 * upkeep_weight()).max(1.0);
+    let mana = (view.casting_cost(spell).max(1) as f32
+        + def.upkeep as f32 * view.levers().magic.rate_upkeep)
+        .max(1.0);
     let mut units: Vec<hecs::Entity> = view
         .my_units()
         .into_iter()
@@ -79,7 +70,10 @@ pub fn rate(view: &PlayerView, spell: SpellId, kind: Kind) -> f32 {
     let cost = view.casting_cost(spell).max(1) as f32;
     let upkeep = def.upkeep as f32;
     let base = match kind {
-        Kind::Summon => summoned_strength(view, def) / (cost + upkeep * upkeep_weight()).max(1.0),
+        Kind::Summon => {
+            summoned_strength(view, def)
+                / (cost + upkeep * view.levers().magic.rate_upkeep).max(1.0)
+        }
         // The strength the werewolf adds over the unit it replaces for the spell's mana and the
         // unit given up, one for one: a summon of the same strength and cost is better, as it
         // costs no unit.
@@ -87,13 +81,13 @@ pub fn rate(view: &PlayerView, spell: SpellId, kind: Kind) -> f32 {
         Kind::UnitBuff => best_buff(view, spell).map_or(0.0, |b| b.1),
         // The cheapest spell that takes a walker over the sea (its cost and the upkeep as for a
         // summon): the one on the cheapest terms goes first.
-        Kind::Cross => 1000.0 / (cost + upkeep * upkeep_weight()).max(1.0),
+        Kind::Cross => 1000.0 / (cost + upkeep * view.levers().magic.rate_upkeep).max(1.0),
         _ => cost / (1.0 + upkeep),
     };
     let affinity = view.wizard().map_or(1.0, |w| {
         let total = w.total_books().max(1) as f32;
         let books = w.books_in(def.realm) as f32 / total;
-        1.0 + affinity_weight() * books
+        1.0 + view.levers().magic.rate_affinity * books
     });
     base * affinity
 }
@@ -101,11 +95,6 @@ pub fn rate(view: &PlayerView, spell: SpellId, kind: Kind) -> f32 {
 // The mana a wizard's spells add to a fight, in soldiers (task 502): a tower's guards are worth
 // 900 to 3,900, nine soldiers alone do not beat them, but the battle spells the pool can pay for
 // do the work of more soldiers.
-
-/// Mana that does the work of one average soldier in a fight (a bolt or a blessing: 15 to 25).
-pub(crate) const MANA_PER_SOLDIER: f32 = 20.0;
-/// Most soldiers' worth the spells are counted for: a battle lasts a few rounds.
-pub(crate) const MOST_SOLDIERS: f32 = 6.0;
 
 /// Does the wizard know a spell it can cast in a battle?
 fn has_battle_spell(view: &PlayerView) -> bool {
@@ -127,12 +116,13 @@ fn usable_mana(view: &PlayerView) -> f32 {
 }
 
 /// The strength the wizard's spells add to a party in a site fight: nothing without a battle
-/// spell, else the soldiers the usable mana is worth, at most [`MOST_SOLDIERS`].
+/// spell, else the soldiers the usable mana is worth, at most `most_soldiers`.
 pub(crate) fn spell_power(view: &PlayerView) -> f32 {
     if !has_battle_spell(view) {
         return 0.0;
     }
-    (usable_mana(view) / MANA_PER_SOLDIER).min(MOST_SOLDIERS) * average_strength(view)
+    let levers = view.levers().magic;
+    (usable_mana(view) / levers.mana_per_soldier).min(levers.most_soldiers) * average_strength(view)
 }
 
 /// The share (0 to 1) of `units` units the wizard can give magical weapons before a fight: it
@@ -184,7 +174,8 @@ pub(crate) fn mana_goal(view: &PlayerView, blocked: &[Plane], round: u32) -> i32
         .collect();
     let best_nine = fighting_strength(view, &fighters);
     let each = average_strength(view).max(1.0);
-    let reachable = best_nine + MOST_SOLDIERS * each;
+    let levers = view.levers().magic;
+    let reachable = best_nine + levers.most_soldiers * each;
     let Some(start) = view.my_cities().first().map(|&(_, p)| p) else {
         return 0;
     };
@@ -196,9 +187,9 @@ pub(crate) fn mana_goal(view: &PlayerView, blocked: &[Plane], round: u32) -> i32
                 && p.plane == start.plane
                 && crate::view::distance(view, start, p).is_some()
         })
-        .map(|(p, _)| crate::site::expected(view, p) * crate::site::edge())
+        .map(|(p, _)| crate::site::expected(view, p) * view.levers().attack.attack)
         .filter(|&need| need > best_nine && need <= reachable)
-        .map(|need| ((need - best_nine) / each * MANA_PER_SOLDIER).ceil() as i32)
+        .map(|need| ((need - best_nine) / each * levers.mana_per_soldier).ceil() as i32)
         .min()
         .unwrap_or(0)
 }

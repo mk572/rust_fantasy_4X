@@ -12,6 +12,7 @@
 //!
 //! Tests: at the end of this file, on the shipped rules.
 
+use crate::lever::Levered;
 use f4x_core::city::gate::{ASTRAL_GATE, EARTH_GATE, GATE};
 use f4x_core::diplomacy::Treaty;
 use f4x_core::map::Position;
@@ -177,11 +178,6 @@ pub(crate) fn is_earth_gate(def: &SpellDef) -> bool {
     def.has_hook_arg(GATE, EARTH_GATE)
 }
 
-/// How near an own city an enemy stack must stand to be struck.
-const STRIKE_RADIUS: i32 = 3;
-/// The share of a city's garrison an enemy stack must match to be worth a storm.
-const STRIKE_SHARE: f32 = 0.5;
-
 /// The square of the strongest enemy stack near one of the wizard's cities that is at least half
 /// as strong as what holds the city, when the spell can be aimed at it.
 pub(crate) fn strike_square(view: &PlayerView, spell: SpellId) -> Option<Target> {
@@ -193,9 +189,9 @@ pub(crate) fn strike_square(view: &PlayerView, spell: SpellId) -> Option<Target>
             .filter(|&u| is_fighter(view, u))
             .collect();
         let held = fighting_strength(view, &held);
-        for (square, units) in view.enemies_near(city, STRIKE_RADIUS) {
+        for (square, units) in view.enemies_near(city, view.levers().shared.near_city_radius) {
             let strength = fighting_strength(view, &units);
-            if strength >= held * STRIKE_SHARE
+            if strength >= held * view.levers().attack.strike_share
                 && strength > 0.0
                 && best.is_none_or(|(b, _)| strength > b)
                 && view.can_aim(spell, Some(Target::Tile(square)))

@@ -8,6 +8,7 @@
 //! city with none to spare sends its settler alone. The registry ties the escort to its charge
 //! (`with`); see `docs/ai-unit-registry.md`.
 
+use crate::lever::Levered;
 use crate::roles::Role;
 use crate::view::{is_fighter, unit_strength};
 use crate::Ai;
@@ -70,13 +71,11 @@ pub fn walk(
     ai.send(game, Command::GoTo { units, to }, events).is_ok()
 }
 
-/// Squares within which an enemy unit is a danger to a charge walking alone.
-const ENEMY_NEAR: i32 = 4;
-
-/// Whether an enemy unit the wizard sees stands within [`ENEMY_NEAR`] squares of `at`.
+/// Whether an enemy unit the wizard sees stands within `escort_enemy_near` squares of `at`.
 fn enemy_near(view: &PlayerView, at: Position) -> bool {
-    (-ENEMY_NEAR..=ENEMY_NEAR).any(|dy| {
-        (-ENEMY_NEAR..=ENEMY_NEAR).any(|dx| {
+    let range = view.levers().care.escort_enemy_near;
+    (-range..=range).any(|dy| {
+        (-range..=range).any(|dx| {
             view.shift(at, dx, dy)
                 .and_then(|p| view.hostile_at(p))
                 .is_some_and(|units| !units.is_empty())
@@ -109,16 +108,10 @@ fn guarded(ai: &Ai, view: &PlayerView, charge: Serial) -> bool {
         })
 }
 
-/// Ability of the Healer.
-const HEALER: f4x_def::rules::Ability = f4x_def::rules::Ability::new(27 /* healer */);
-
-/// A hero this much weaker than the average fighter needs a guard in the field.
-const WEAK_HERO: f32 = 0.5;
-
 /// Whether the unit cannot defend itself and is worth a guard when it stands alone in the field:
 /// a healer, or a hero much weaker than the army.
 fn needs_escort(view: &PlayerView, unit: hecs::Entity) -> bool {
-    if view.unit_has_ability(unit, HEALER) {
+    if view.unit_has_ability(unit, crate::recover::HEALER) {
         return true;
     }
     if !view
@@ -142,7 +135,7 @@ fn needs_escort(view: &PlayerView, unit: hecs::Entity) -> bool {
         return false;
     }
     let average = fighters.iter().sum::<f32>() / fighters.len() as f32;
-    unit_strength(view, unit) < average * WEAK_HERO
+    unit_strength(view, unit) < average * view.levers().care.weak_hero
 }
 
 /// The healers and weak heroes that stand alone outside a city.

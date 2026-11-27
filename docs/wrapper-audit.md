@@ -27,6 +27,7 @@ listed as *Open* for tasks of their own, all done now (tasks 658 to 663).
 | Wrapper | Where | Change |
 |---|---|---|
 | `view_turn` | f4x-ai `naval.rs` | removed; callers use `view.turn()` |
+| `attack_ratio`, `sortie_ratio`, `committed_ratio`, `site::edge`, `affinity_weight`, `upkeep_weight` | f4x-ai | removed (task 831): callers read the lever |
 | `World::fighter_strength` | f4x-core `battle/world.rs` | removed; callers use `units().unit_power` |
 | `World::pass_hero` | f4x-core `diplomacy` | removed; the call uses `pass_unit` |
 | `met_near` | f4x-core `diplomacy` | removed; the call uses `foreign_owners_near` |
@@ -200,9 +201,6 @@ Callers is a text count and an upper bound.
 | task | f4x-ai | `crates/f4x-ai/src/intent.rs:166` | `is_land_boost` | `is_in` | 1 | Keep | converts, defaults or names a test; the name adds meaning |
 | task | f4x-ai | `crates/f4x-ai/src/intent.rs:171` | `is_astral_gate` | `has_hook_arg` | 1 | Keep | converts, defaults or names a test; the name adds meaning |
 | task | f4x-ai | `crates/f4x-ai/src/meld.rs:22` | `is_melder` | `unit_has_ability` | 3 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-ai | `crates/f4x-ai/src/military.rs:17` | `attack_ratio` | `knob` | 4 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
-| task | f4x-ai | `crates/f4x-ai/src/military.rs:21` | `sortie_ratio` | `knob` | 2 | Keep | names a tuning knob with its default in one place |
-| task | f4x-ai | `crates/f4x-ai/src/military.rs:37` | `committed_ratio` | `knob` | 2 | Keep | names a tuning knob with its default in one place |
 | task | f4x-ai | `crates/f4x-ai/src/naval.rs:149` | `is_tower` | `any` | 6 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-ai | `crates/f4x-ai/src/objective.rs:134` | `traits` | `traits_of` | 54 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-ai | `crates/f4x-ai/src/objective.rs:151` | `aggression_steps` | `from` | 1 | False hit | does arithmetic, a comparison or a search, not a call |
@@ -223,10 +221,7 @@ Callers is a text count and an upper bound.
 | task | f4x-ai | `crates/f4x-ai/src/roles.rs:616` | `Registry::party_of` | `and_then` | 2 | Keep | hides a private representation (component, map or cache) |
 | task | f4x-ai | `crates/f4x-ai/src/roles.rs:621` | `Registry::with_of` | `and_then` | 4 | Keep | reads a private representation (component, map, table) with a default or a conversion |
 | task | f4x-ai | `crates/f4x-ai/src/scout.rs:476` | `best_target` | `best_target_with` | 6 | Keep | pair: the short form binds the default of the longer one, and has more than two callers |
-| task | f4x-ai | `crates/f4x-ai/src/site.rs:21` | `edge` | `knob` | 120 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-ai | `crates/f4x-ai/src/site.rs:26` | `expected` | `unwrap_or_else` | 32 | Keep | reads a private representation (component, map, table) with a default or a conversion |
-| task | f4x-ai | `crates/f4x-ai/src/spellhelper.rs:19` | `affinity_weight` | `knob` | 1 | Keep | names a tuning knob with its default in one place |
-| task | f4x-ai | `crates/f4x-ai/src/spellhelper.rs:24` | `upkeep_weight` | `knob` | 1 | Keep | names a tuning knob with its default in one place |
 | task | f4x-ai | `crates/f4x-ai/src/testworld.rs:29` | `content` | `clone` | 1003 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-ai | `crates/f4x-ai/src/testworld.rs:61` | `game` | `game_seeded` | 1736 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |
 | task | f4x-ai | `crates/f4x-ai/src/testworld.rs:66` | `game_rival_across` | `build_game` | 7 | Keep | binds fixed arguments or a default to a general function; the name says which (read) |

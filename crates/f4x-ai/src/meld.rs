@@ -6,6 +6,7 @@
 //! The spirit that melds is used up. One that stands still on its way for a few turns drops the
 //! order, is logged with the cause, and takes another node; nothing is held against the node.
 
+use crate::lever::Levered;
 use crate::roles::Role;
 use crate::Ai;
 use f4x_core::map::Position;
@@ -13,9 +14,6 @@ use f4x_core::player::view::PlayerView;
 use f4x_core::world::{Command, Event};
 use f4x_def::rules::Ability;
 use f4x_master::Game;
-
-/// Turns a spirit may stand still on its way before the node is given up.
-const PATIENCE: u32 = 4;
 
 /// Whether the unit is a spirit that can meld.
 pub fn is_melder(view: &PlayerView, unit: hecs::Entity) -> bool {
@@ -108,7 +106,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         // Nothing is remembered against the node (a node that is taken or guarded is not open).
         let stuck = ai.roles.track(serial, here, ordered);
         let mut skip = None;
-        if let (Some(t), true) = (target, stuck >= PATIENCE) {
+        if let (Some(t), true) = (target, stuck >= game.levers().care.meld_patience) {
             ai.note_failure(
                 game,
                 format!("spirit at {here:?} stood still on its way to {t:?}"),
@@ -238,7 +236,7 @@ mod tests {
             .target_of(serial, Role::Meld)
             .ok_or("it has a node")?;
         // The turns pass and the spirit does not move.
-        for _ in 0..=PATIENCE {
+        for _ in 0..=w.levers().care.meld_patience {
             run(&mut ai, &mut w, &mut Vec::new());
         }
         let now = ai

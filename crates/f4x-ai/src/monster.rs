@@ -4,6 +4,7 @@
 //! (the game turns the units into its guards when they arrive), and when they find a city they
 //! attack it.
 
+use crate::lever::Levered;
 use std::collections::HashMap;
 
 use f4x_core::map::Position;
@@ -17,9 +18,6 @@ use crate::scout::best_target;
 use crate::view::{distance, stack_strength};
 use crate::Ai;
 use f4x_master::Game;
-
-/// Monsters attack a city when they are this much stronger than what they expect to meet.
-const EDGE: f32 = 1.0;
 
 /// Play the monsters' turn.
 pub fn roam(game: &mut Game) -> Vec<Event> {
@@ -102,7 +100,7 @@ fn act(
                     return;
                 }
             }
-            Some((defenders, theirs)) if mine >= theirs * EDGE => {
+            Some((defenders, theirs)) if mine >= theirs * game.levers().attack.monster_edge => {
                 let band = crate::view::party(&PlayerView::new(game, MONSTERS), &units);
                 engage(ai, game, band, defenders, events);
                 return;
@@ -151,7 +149,10 @@ fn act(
             }
         }
         for (_, _, city) in view.known_cities() {
-            if mine < expected_defence(&view, &HashMap::new(), turn, city) * EDGE {
+            if mine
+                < expected_defence(&view, &HashMap::new(), turn, city)
+                    * view.levers().attack.monster_edge
+            {
                 continue;
             }
             let key = (

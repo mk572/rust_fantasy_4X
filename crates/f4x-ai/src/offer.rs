@@ -2,6 +2,7 @@
 //! merchant only calls on a human wizard). The rules are the original's `AI_Accept_Hero` and
 //! `AI_Accept_Mercenaries`, in `f4x_core::player::offer`.
 
+use crate::lever::Levered;
 use f4x_core::item::armory::ItemSpot;
 use f4x_core::item::Item;
 use f4x_core::player::offer::{ai_accepts_hero, ai_accepts_item, ai_accepts_mercenaries, Offer};
@@ -13,9 +14,6 @@ use f4x_def::half_int::HalfInt;
 use crate::Ai;
 use f4x_master::Game;
 
-/// Mana the wizard must hold to send an item to a hero away from the fortress.
-const FAR_RESERVE: i32 = 120;
-
 /// What an item is worth to this hero, in gold: its value, half as much again when it suits the
 /// hero's trade (a caster likes spell skill and charges, a fighter attack and defence) and half
 /// when it does not.
@@ -25,39 +23,33 @@ pub(crate) fn use_value(world: &World, hero: hecs::Entity, item: &Item) -> i32 {
     let magic = b.spell_skill + b.spell_save + i32::from(item.charges.is_some());
     let melee = b.attack + b.to_hit + b.defense + b.resistance;
     let cost = item.cost as i32;
+    let levers = world.levers().items;
     match (caster, magic > 0, melee > 0) {
-        (true, true, _) | (false, _, true) => cost * USE_SUITS_PCT / 100,
-        (false, true, false) => cost * USE_MISFIT_PCT / 100,
+        (true, true, _) | (false, _, true) => cost * levers.use_suits_percent / 100,
+        (false, true, false) => cost * levers.use_misfit_percent / 100,
         _ => cost,
     }
 }
 
-/// The percent of an item's value a hero it suits and a hero it does not suit count it for.
-const USE_SUITS_PCT: i32 = 150;
-const USE_MISFIT_PCT: i32 = 50;
-/// An item that takes the place of the one a hero carries must be worth this percent of it.
-const BETTER_PCT: i32 = 130;
-/// The unusable items the vault may hold before the wizard scraps the cheapest.
-const KEEP_UNUSABLE: usize = 2;
-
 /// Put the items of the vault and the award list on the heroes that use them best: a free slot
 /// takes the item of the most use to that hero that fits, and a slot already taken gives its item
-/// up for one worth at least [`BETTER_PCT`] percent of it (the old one goes back to the vault).
+/// up for one worth at least `better_percent` percent of it (the old one goes back to the vault).
 /// Moving an item to a hero away from the fortress costs mana (the item screen's 20), which the
-/// wizard pays when it has [`FAR_RESERVE`] to spare.
+/// wizard pays when it has `mana_reserve` to spare.
 pub fn equip(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     use f4x_core::item::armory::ItemWorld;
     let (heroes, fortress) = {
         let view = PlayerView::new(game, ai.player);
         (view.my_heroes(), view.fortress())
     };
+    let better_percent = game.levers().items.better_percent;
     for hero in heroes {
         let mut far = false;
         let slots = {
             let view = PlayerView::new(game, ai.player);
             if view.unit_position(hero) != fortress {
                 far = true;
-                if view.treasury().mana.floor() < FAR_RESERVE {
+                if view.treasury().mana.floor() < view.levers().shared.mana_reserve {
                     continue;
                 }
             }
@@ -90,7 +82,7 @@ pub fn equip(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                     .filter(|(_, item)| kind.fits(item.kind))
                     .map(|(spot, item)| (spot, use_value(game, hero, item)))
                     .max_by_key(|&(_, value)| value)
-                    .filter(|&(_, value)| carried.is_none_or(|c| value * 100 >= c * BETTER_PCT))
+                    .filter(|&(_, value)| carried.is_none_or(|c| value * 100 >= c * better_percent))
                     .map(|(spot, _)| spot)
             };
             if let Some(from) = from {
@@ -111,7 +103,7 @@ pub fn equip(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 }
 
 /// Break up the items that no hero of the wizard could carry, the cheapest first, once more than
-/// [`KEEP_UNUSABLE`] of them lie in the armory (a hero hired later might use them, and a
+/// `keep_unusable` of them lie in the armory (a hero hired later might use them, and a
 /// neighbour might buy them: `crate::trade`), for mana.
 fn scrap(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     use f4x_core::item::armory::{ItemWorld, Spot};
@@ -142,7 +134,7 @@ fn scrap(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 .filter(|(_, item)| !kinds.iter().any(|k| k.fits(item.kind)))
                 .map(|(spot, item)| (spot, item.cost))
                 .collect();
-            if unusable.len() <= KEEP_UNUSABLE {
+            if unusable.len() <= game.levers().items.keep_unusable {
                 return;
             }
             unusable.sort_by_key(|&(_, cost)| cost);
@@ -166,19 +158,14 @@ fn scrap(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 
 /// Whether an item on offer is worth its price to the wizard: it can afford it (the price is at
 /// most half its gold), and the item is worth to it, with the heroes it has to carry it, at least
-/// [`WORTH_PCT`] percent of the price.
+/// `worth_percent` percent of the price.
 fn item_wanted(world: &World, player: PlayerId, item: &Item, price: i32, gold: HalfInt) -> bool {
     let heroes = PlayerView::new(world, player).my_heroes().len();
+    let markup = world.content().rules.config.offer.item_price_markup as i32;
     ai_accepts_item(price, gold, heroes)
-        && f4x_core::diplomacy::trade::item_worth(world, player, item) * MARKUP * 100
-            >= price * WORTH_PCT
+        && f4x_core::diplomacy::trade::item_worth(world, player, item) * markup * 100
+            >= price * world.levers().items.worth_percent
 }
-
-/// What an item must be worth to the wizard to buy it, in percent of the price without the
-/// merchant's markup (`MARKUP`, `player::offer::item_price`): a hero with a free slot for it makes
-/// it worth more than that, a hero with a taken slot as much, no hero half.
-const WORTH_PCT: i32 = 100;
-const MARKUP: i32 = 3;
 
 /// Answer every offer waiting: hire or decline. The last offer goes first, so that an answer
 /// does not move the ones still to be given.
@@ -286,6 +273,7 @@ pub fn answer_resales(game: &mut Game) -> Vec<Event> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testworld::levers;
     use f4x_core::player::offer::OfferKind;
     use f4x_core::player::PlayerId;
     use f4x_master::Game;
@@ -428,13 +416,13 @@ mod tests {
             w.treasury_mut(P1).ok_or("a treasury")?.mana = f4x_def::half_int::HalfInt::from_int(m);
             Ok(())
         };
-        mana(&mut w, FAR_RESERVE - 1)?;
+        mana(&mut w, levers().shared.mana_reserve - 1)?;
         equip(&ai, &mut w, &mut Vec::new());
         assert!(
             w.items().carried(hero).is_empty(),
             "too little mana: it waits"
         );
-        mana(&mut w, FAR_RESERVE + 100)?;
+        mana(&mut w, levers().shared.mana_reserve + 100)?;
         equip(&ai, &mut w, &mut Vec::new());
         assert!(
             !w.items().carried(hero).is_empty(),

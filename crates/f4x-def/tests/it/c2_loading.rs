@@ -75,7 +75,7 @@ const REQUIRED: &[&str] = &[
     "rules.ron",
     "battle.ron",
     "lairs.ron",
-    "ai_sites.ron",
+    "ai_strategy.ron",
     "ai_battle.ron",
     "rules_settings.ron",
 ];

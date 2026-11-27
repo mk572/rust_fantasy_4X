@@ -10,7 +10,7 @@
     // outmatched, much weaker, slightly weaker; turned over they mark the other way.
     forecast: (bands_pct: (33, 60, 85)),
     diplomacy: (subversion_penalty: 25, max_rounds: 4, pact_relation: 10, alliance_relation: 50),
-    offer: (first_turn: 30, ai_first_turn: 50, max_chance: 10, ai_bonus: 10),
+    offer: (first_turn: 30, ai_first_turn: 50, max_chance: 10, ai_bonus: 10, item_price_markup: 3),
     outpost: (start_tens: 3, city_tens: 10),
     threat: (raider_limit: 30, rampage_damage: 40, cheapest_monster: 25, big_events_from_turn: 150, spared_realms: [3 /* life */],
         // The raid from the sea (setting `sea_raids`): the ship by turn, the party's size and strength by turn.

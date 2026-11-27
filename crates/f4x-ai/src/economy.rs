@@ -1,5 +1,8 @@
 //! Research, spells and what the cities build.
 
+use f4x_def::rules::ai_strategy::EconomyLevers;
+
+use crate::lever::Levered;
 use f4x_core::city::autobuild::{BuildPlan, Focus, Mix};
 use f4x_core::city::production::ProductionItem;
 use f4x_core::map::Position;
@@ -16,12 +19,12 @@ use f4x_master::Game;
 /// The lowest tax rate (up to a limit) that leaves the treasury a small surplus, else the
 /// rate that earns the most. Rebels from high taxes are counted by the treasury forecast.
 pub fn taxes(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
-    const MAX_RATE: u8 = 3;
-    let wanted_net = crate::knob("NET", 3.0) as i32;
+    let wanted_net = game.levers().economy.net;
+    let max_rate = game.levers().economy.max_tax_rate;
     let me = ai.player;
     let mut best: Option<(HalfInt, u8)> = None;
     let mut chosen = None;
-    for rate in 0..=MAX_RATE {
+    for rate in 0..=max_rate {
         game.apply(me, Command::SetTaxRate { player: me, rate });
         let net = PlayerView::new(game, me).budget().net_gold();
         if best.is_none_or(|(n, _)| net > n) {
@@ -37,9 +40,10 @@ pub fn taxes(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 }
 
 /// How many ships the wizard wants. A landing on a big army needs a fleet: one ship per twelve
-/// fighters beyond the first, at most [`MAX_SHIPS`].
+/// fighters beyond the first, at most `max_ships`.
 fn ships_wanted(ai: &Ai, view: &PlayerView) -> usize {
-    let base = crate::knob("SHIPS", 1.0) as usize;
+    let levers = view.levers().economy;
+    let base = levers.ships;
     if ai.naval.is_none() {
         return base;
     }
@@ -48,11 +52,8 @@ fn ships_wanted(ai: &Ai, view: &PlayerView) -> usize {
         .into_iter()
         .filter(|&u| is_fighter(view, u))
         .count();
-    (base + fighters / 12).min(MAX_SHIPS)
+    (base + fighters / 12).min(levers.max_ships)
 }
-
-/// The most ships a landing builds.
-const MAX_SHIPS: usize = 4;
 
 /// How a wizard should grow: how many places for a city no settler has taken yet
 /// (`city_site::free_sites`), and how wide it leans (`phase::width`).
@@ -77,10 +78,6 @@ struct Roster {
     /// Units out scouting.
     scouts: usize,
 }
-
-/// Idle fighters from which the wizard builds no more soldiers: the army it has is waiting for
-/// something to do.
-const IDLE_SURPLUS: usize = 4;
 
 impl Roster {
     fn of(ai: &Ai, view: &PlayerView) -> Roster {
@@ -108,14 +105,14 @@ impl Roster {
 
     /// Whether the idle ships cannot carry what waits for transport (and, when a landing is
     /// planned, a landing party): one idle trireme does not make a fleet for twenty-five units.
-    fn short_of_ships(&self, landing: bool) -> bool {
-        let need = self.waiting + if landing { crate::naval::MIN_LOAD } else { 0 };
+    fn short_of_ships(&self, landing: bool, min_load: usize) -> bool {
+        let need = self.waiting + if landing { min_load } else { 0 };
         self.free_places < need
     }
 
     /// Whether the army has more soldiers than it has work for.
-    fn idle_army(&self) -> bool {
-        self.idle_fighters >= IDLE_SURPLUS
+    fn idle_army(&self, surplus: usize) -> bool {
+        self.idle_fighters >= surplus
     }
 }
 
@@ -161,27 +158,17 @@ struct Pressure {
     roster: Roster,
 }
 
-/// Gold from which the cities build units to spend it on, tall or not.
-const RICH_GOLD: i32 = 1500;
-
-/// Below this the wizard builds up (tall); above [`WIDE_ABOVE`] it spreads out (wide).
-const TALL_BELOW: f32 = 0.35;
-const WIDE_ABOVE: f32 = 0.65;
-
 /// Settlers a wizard that has all the cities it wanted keeps going while the land has room: more
 /// the wider it leans, none when it builds up.
-fn more_settlers(wide: f32) -> usize {
-    if wide <= TALL_BELOW {
+fn more_settlers(levers: &EconomyLevers, wide: f32) -> usize {
+    if wide <= levers.tall_below {
         0
-    } else if wide >= WIDE_ABOVE {
+    } else if wide >= levers.wide_above {
         3
     } else {
         2
     }
 }
-
-/// How far a rival's city counts as near, for the focus of a city's plan.
-const RIVAL_RANGE: u32 = 12;
 
 /// Give every city its auto-builder plan (`docs/auto-builder.md`); the cities then pick what to
 /// build by themselves each time they finish something. The AI's own part is the plan: what
@@ -228,7 +215,8 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     // Fewer scouts than a wizard that builds up wants (`scout::wanted`) and no soldier spare: one
     // city builds the unit that scouts (the first that is not full, so that the others go on with
     // their plans).
-    let scout_city = (roster.scouts < crate::scout::wanted(mine.len(), true)
+    let scout_city = (roster.scouts
+        < crate::scout::wanted(&game.levers().scouting, mine.len(), true)
         && roster.idle_fighters == 0
         && !ai.frontier_closed
         && crate::phase::phase(&PlayerView::new(game, me), game.round())
@@ -291,9 +279,10 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 continue;
             }
             // Units awaiting transport and no ship free to take them: the nearest port builds one.
-            let rescue_port = (roster.waiting > 0 && roster.short_of_ships(false))
-                .then(|| rescue_port(ai, &view))
-                .flatten();
+            let rescue_port = (roster.waiting > 0
+                && roster.short_of_ships(false, view.levers().transport.min_load))
+            .then(|| rescue_port(ai, &view))
+            .flatten();
             let port = ai.naval.map(|p| p.port).or(ai.sea_port).or(rescue_port);
             let broke = empire.broke();
             // The port of a landing builds the ship (and what the ship needs) when there is none.
@@ -304,7 +293,7 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             .flatten()
             // Ships that stand idle (`TransportFree`) are the fleet while they can carry what waits
             // and the landing party: when their places fall short, more are built.
-            .filter(|_| roster.short_of_ships(ai.naval.is_some()))
+            .filter(|_| roster.short_of_ships(ai.naval.is_some(), view.levers().transport.min_load))
             // Without a ship yard the best the port can build is a trireme, which takes two:
             // enough for a settler and a guard, so it counts as the ship; otherwise a landing
             // wants a ship that carries a landing party.
@@ -312,7 +301,7 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 let needed = if crate::naval::is_trireme(&view, item) {
                     1
                 } else {
-                    crate::naval::MIN_LOAD as i32
+                    view.levers().transport.min_load as i32
                 };
                 view.my_units()
                     .iter()
@@ -384,7 +373,9 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 plan.map(|plan| {
                     let rival_near = empire.known.iter().any(|&(_, o, p)| {
                         view.is_rival_wizard(o)
-                            && view.distance(pos, p).is_some_and(|d| d <= RIVAL_RANGE)
+                            && view
+                                .distance(pos, p)
+                                .is_some_and(|d| d <= view.levers().shared.rival_range)
                     });
                     let defenders = view
                         .garrison(pos)
@@ -550,17 +541,18 @@ fn plan_for(
         .into_iter()
         .filter(|&u| is_fighter(view, u))
         .count();
+    let levers = view.levers().economy;
     let treasury_ok = empire.net >= 1 && spare_food >= HalfInt::from_int(1);
     // The strike force is what the campaign needs, once there is one; before that a few per city.
-    let strike = war_force.unwrap_or_else(|| {
-        (crate::knob("STRIKE", traits.strike_base as f32) as i32).max(1) as usize + all / 2
-    });
+    let strike = war_force.unwrap_or_else(|| traits.strike_base.max(1) + all / 2);
     let strike = (strike as i32 + temper).max(1) as usize;
     // The registry says what the army is doing: soldiers waiting for orders are enough, and a war
     // with nobody marching wants attackers.
     let army_short = if threatened {
         true
-    } else if roster.idle_army() || crate::phase::phase(view, round) == crate::phase::Phase::Build {
+    } else if roster.idle_army(levers.idle_surplus)
+        || crate::phase::phase(view, round) == crate::phase::Phase::Build
+    {
         // While the wizard builds up, with nothing threatening, the army waits: the food and the
         // production go to settlers and buildings (a soldier eats a settler's food).
         false
@@ -570,15 +562,17 @@ fn plan_for(
     };
     // A wizard settles up to the number its objective wants at once, and after that for as long as
     // there is ground for a city (two settlers at a time): nothing in this game punishes size.
-    let expanding = all + *settlers_planned
-        < crate::knob("CITIES", traits.cities_wanted as f32) as usize
-        || (room && *settlers_planned < more_settlers(wide));
+    let expanding = all + *settlers_planned < traits.cities_wanted
+        || (room && *settlers_planned < more_settlers(&levers, wide));
     let rival_near = known.iter().any(|&(_, o, p)| {
-        view.is_rival_wizard(o) && view.distance(pos, p).is_some_and(|d| d <= RIVAL_RANGE)
+        view.is_rival_wizard(o)
+            && view
+                .distance(pos, p)
+                .is_some_and(|d| d <= view.levers().shared.rival_range)
     });
     let (primary, secondary) = if rival_near {
         (Focus::Offense, Some(Focus::Defense))
-    } else if (expanding && wide > TALL_BELOW) || wide >= WIDE_ABOVE {
+    } else if (expanding && wide > levers.tall_below) || wide >= levers.wide_above {
         traits.expanding
     } else {
         match traits.variety {
@@ -597,10 +591,10 @@ fn plan_for(
         Mix::Buildings
     } else if army_short {
         Mix::Units
-    } else if gold >= RICH_GOLD {
+    } else if gold >= levers.rich_gold {
         // Gold with nothing to buy: the cities make units, which it can buy.
         Mix::Units
-    } else if wide <= TALL_BELOW && garrison >= 1 {
+    } else if wide <= levers.tall_below && garrison >= 1 {
         // A tall wizard builds up its cities and keeps the army it has.
         Mix::Buildings
     } else if broke && garrison >= 1 {
@@ -613,7 +607,7 @@ fn plan_for(
     // builds up), except the first settler of a wizard with one city; a wizard under the number of cities its objective wants takes them all, any other
     // keeps one on the way (two or three when it leans wide), from a city big enough to spare them
     // and fed well enough to keep them.
-    let wanted = crate::knob("CITIES", traits.cities_wanted as f32) as usize;
+    let wanted = traits.cities_wanted;
     let cap = if free_sites == 0 {
         // Nothing known yet: the wizard with one city starts its first settler anyway. A settler takes
         // longer to build than the scouts take to find a place, and the city would spend those turns
@@ -622,7 +616,7 @@ fn plan_for(
     } else if all + *settlers_planned < wanted {
         free_sites
     } else {
-        free_sites.min(more_settlers(wide).max(1))
+        free_sites.min(more_settlers(&view.levers().economy, wide).max(1))
     };
     let settlers = *settlers_planned < cap
         && size >= 3
@@ -646,16 +640,15 @@ fn plan_for(
 
 /// The gold the wizard keeps in the treasury when it buys production: a base and some turns of
 /// its net income, so that a richer wizard saves more and has something to pay a trade with
-/// (`AIS_GOLD_RESERVE_BASE`, `AIS_GOLD_RESERVE_INCOME`).
+/// (`gold_reserve_base`, `gold_reserve_income`).
 pub(crate) fn gold_reserve(world: &World, me: PlayerId) -> i32 {
     let net = PlayerView::new(world, me)
         .budget()
         .net_gold()
         .floor()
         .max(0);
-    let base = crate::knob("GOLD_RESERVE_BASE", 40.0) as i32;
-    let turns = crate::knob("GOLD_RESERVE_INCOME", 3.0) as i32;
-    base + turns * net
+    let levers = world.levers().economy;
+    levers.gold_reserve_base + levers.gold_reserve_income * net
 }
 
 /// Buy what is being built when the treasury has gold to spare, settlers and the first
@@ -939,7 +932,11 @@ mod tests {
         ai.frontier_closed = true;
         crate::roles::register(&mut ai, &w, w.round());
         let roster = Roster::of(&ai, &PlayerView::new(&w, P0));
-        assert!(roster.idle_army(), "{}", roster.idle_fighters);
+        assert!(
+            roster.idle_army(w.levers().economy.idle_surplus),
+            "{}",
+            roster.idle_fighters
+        );
         let plan = plan_of(&w, &ai, capital(&w)?)?;
         assert_ne!(plan.mix, Mix::Units);
         Ok(())

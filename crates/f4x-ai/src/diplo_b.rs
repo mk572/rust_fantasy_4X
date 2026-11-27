@@ -1,8 +1,7 @@
 //! Diplomacy system B, part 1 (task 762, `docs/ai-diplomacy-b.md`): three values for each other wizard
 //! ([`Regard`]), the weariness of each war, and **one peace score** ([`peace_wish`]) that decides both
-//! when the wizard offers peace and whether it accepts one. Only a wizard of system B uses it
-//! (`Ai::system`); system A keeps `statecraft::wars`, `statecraft::peace_ok` and the peace roll of
-//! `diplomacy::negotiate`.
+//! when the wizard offers peace and whether it accepts one. System B is the AI's only diplomacy
+//! (task 779).
 //!
 //! * **Friendship**: the relation and the hidden relation of the pair (the core's), which makes it overlook
 //!   faults.
@@ -12,8 +11,9 @@
 //! * **Weariness** (`Memory`): up for a battle or a city lost, down for one won or taken, up a little every
 //!   turn without a clash, never below 0.
 //!
-//! Every number is in [`Knobs`] (`AIS_DIPLO_B_<NAME>`). Tests: below.
+//! Every number is in the `diplomacy_b` levers (`AIS_DIPLO_B_<NAME>`). Tests: below.
 
+use crate::lever::Levered;
 use f4x_core::diplomacy::{ProposalKind, Remark, Treaty};
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
@@ -23,194 +23,6 @@ use crate::memory::Memory;
 use crate::statecraft::{propose, remark, Scene};
 use crate::Ai;
 use f4x_master::Game;
-
-/// Every number of system B's peace.
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct Knobs {
-    /// The wish at which it offers peace, and the one at which it accepts one (lower).
-    pub offer: i32,
-    pub accept: i32,
-    /// Turns between two offers to the same wizard.
-    pub cool: u32,
-    /// What a battle or a city lost or won moves the weariness by.
-    pub battle_lost: i32,
-    pub battle_won: i32,
-    pub city_lost: i32,
-    pub city_taken: i32,
-    /// Weariness gained for every ten turns without a clash.
-    pub drift_per_ten: i32,
-    /// The most the strength gap moves the wish, either way.
-    pub gap: i32,
-    /// How much of the fear moves the wish (percent); the stronger side hears half of it.
-    pub fear_pct: i32,
-    /// Percent of the friendship (relation and hidden relation) that counts.
-    pub friend_pct: i32,
-    /// A neighbour this many percent weaker and nearer than `prey_distance` is prey, which lowers the wish.
-    pub prey_pct: i32,
-    pub prey_distance: u32,
-    pub prey: i32,
-    /// The more dangerous of two fronts is worth this much more.
-    pub two_fronts: i32,
-    /// A war this young is not ended by either side, and by how much.
-    pub young_age: u32,
-    pub young: i32,
-    /// The personality's mood divided by this is added.
-    pub mood_div: i32,
-    /// Nearness: 100 minus this for each square of distance between the nearest cities.
-    pub near_per_square: i32,
-    /// What a city razed, a war declared and a treaty broken add to a wizard's ruthlessness, and the
-    /// turns it takes to fade by half. The most of it that counts, in fear points.
-    pub ruth_raze: i32,
-    pub ruth_war: i32,
-    pub ruth_broken: i32,
-    /// A fortress taken and a wizard destroyed (task 782): fear in every wizard that has met the winner.
-    pub ruth_fortress: i32,
-    pub ruth_destroyed: i32,
-    pub ruth_half: u32,
-    pub ruth_cap: i32,
-    /// The wizard casting the Spell of Mastery is not made peace with (a minus), and, with a leader in
-    /// the game, peace with the others and war on the leader (a plus and a minus of this).
-    pub mastery: i32,
-    pub leader: i32,
-    // The choice of friends and enemies (`diplo_b_stance.rs`).
-    /// Turns between two looks at the others, the turns an enemy is kept at least, and the value below
-    /// which it is let go.
-    pub review: u32,
-    pub hold: u32,
-    pub keep: i32,
-    /// The enemy value a wizard needs to be chosen, and to be declared war on.
-    pub enemy_min: i32,
-    pub declare: i32,
-    /// A war already fought keeps the wizard from declaring another unless its army is this many times
-    /// the size of that enemy's army.
-    pub busy_army_x: i32,
-    /// What each war the wizard already fights takes off its willingness to declare another (from the enemy
-    /// value the declaration needs `declare` of).
-    pub war_damp: i32,
-    /// The most a weak, reachable neighbour is worth as prey; and what an enemy already fought, the leader
-    /// and the Mastery caster add; percent of the hostility (negative friendship) that counts; the fear at
-    /// which an equal or weaker wizard strikes first.
-    pub prey_value: i32,
-    pub at_war: i32,
-    pub leader_enemy: i32,
-    pub mastery_enemy: i32,
-    pub hostile_pct: i32,
-    pub strike_fear: i32,
-    /// No war before this turn and not on someone this much stronger (percent).
-    pub from_turn: u32,
-    pub too_strong_pct: i32,
-    /// Friend value: percent of friendship, what a shared enemy adds, percent of the fear of a stronger
-    /// neighbour (grovelling), what the league against the leader adds.
-    pub stance_friend_pct: i32,
-    pub common_enemy: i32,
-    pub grovel_pct: i32,
-    pub league: i32,
-    /// The friend value at which it asks for a pact, for an alliance, and gives a gift; turns between two
-    /// advances to the same wizard.
-    pub pact_min: i32,
-    pub ally_min: i32,
-    pub gift_min: i32,
-    pub court_cool: u32,
-    // Answering and talking (`diplo_b_talk.rs`).
-    /// The friend value at which a pact, an alliance is accepted; the friendship at which a war is
-    /// accepted on a third wizard (with the enemy value of the third); the lead in friendship over the
-    /// third that makes it break an alliance for the asker.
-    pub pact_accept: i32,
-    pub ally_accept: i32,
-    pub war_accept: i32,
-    pub break_accept: i32,
-    /// The friendship at which it warns a treaty partner, breaks the treaty, and declares war on someone it
-    /// has no treaty with.
-    pub warn_below: i32,
-    pub break_below: i32,
-    pub war_below: i32,
-    /// Turns between two warnings, demands, gifts and trade offers to the same player.
-    pub warn_cool: u32,
-    pub demand_cool: u32,
-    pub gift_cool: u32,
-    pub trade_cool: u32,
-    /// The friendship from which a treaty partner is given gifts; the fear from which a wizard yields
-    /// to a threat or a demand.
-    pub gift_friend: i32,
-    pub yield_fear: i32,
-    /// What an ally at war with a wizard adds to the enemy value of that wizard.
-    pub ally_war: i32,
-}
-
-impl Knobs {
-    pub(crate) fn current() -> Self {
-        let k = |name: &str, default: i32| {
-            crate::knob(&format!("DIPLO_B_{name}"), default as f32) as i32
-        };
-        Self {
-            offer: k("OFFER", 80),
-            accept: k("ACCEPT", 60),
-            cool: k("COOL", 15) as u32,
-            battle_lost: k("BATTLE_LOST", 5),
-            battle_won: k("BATTLE_WON", 4),
-            city_lost: k("CITY_LOST", 25),
-            city_taken: k("CITY_TAKEN", 25),
-            drift_per_ten: k("DRIFT_PER_TEN", 7),
-            gap: k("GAP", 50),
-            fear_pct: k("FEAR_PCT", 40),
-            friend_pct: k("FRIEND_PCT", 10),
-            prey_pct: k("PREY_PCT", 150),
-            prey_distance: k("PREY_DISTANCE", 30) as u32,
-            prey: k("PREY", 30),
-            two_fronts: k("TWO_FRONTS", 25),
-            young_age: k("YOUNG_AGE", 10) as u32,
-            young: k("YOUNG", 40),
-            mood_div: k("MOOD_DIV", 3).max(1),
-            near_per_square: k("NEAR_PER_SQUARE", 5),
-            ruth_raze: k("RUTH_RAZE", 15),
-            ruth_war: k("RUTH_WAR", 6),
-            ruth_broken: k("RUTH_BROKEN", 10),
-            ruth_fortress: k("RUTH_FORTRESS", 10),
-            ruth_destroyed: k("RUTH_DESTROYED", 20),
-            ruth_half: k("RUTH_HALF", 150) as u32,
-            ruth_cap: k("RUTH_CAP", 60),
-            mastery: k("MASTERY", 60),
-            leader: k("LEADER", 15),
-            review: k("REVIEW", 5) as u32,
-            hold: k("HOLD", 40) as u32,
-            keep: k("KEEP", 20),
-            enemy_min: k("ENEMY_MIN", 25),
-            declare: k("DECLARE", 30),
-            busy_army_x: k("BUSY_ARMY_X", 2),
-            war_damp: k("WAR_DAMP", 15),
-            prey_value: k("PREY_VALUE", 60),
-            at_war: k("AT_WAR", 30),
-            leader_enemy: k("LEADER_ENEMY", 25),
-            mastery_enemy: k("MASTERY_ENEMY", 60),
-            hostile_pct: k("HOSTILE_PCT", 30),
-            strike_fear: k("STRIKE_FEAR", 50),
-            from_turn: k("FROM_TURN", 5) as u32,
-            too_strong_pct: k("TOO_STRONG_PCT", 130),
-            stance_friend_pct: k("STANCE_FRIEND_PCT", 30),
-            common_enemy: k("COMMON_ENEMY", 30),
-            grovel_pct: k("GROVEL_PCT", 40),
-            league: k("LEAGUE", 20),
-            pact_min: k("PACT_MIN", 30),
-            ally_min: k("ALLY_MIN", 55),
-            gift_min: k("GIFT_MIN", 25),
-            court_cool: k("COURT_COOL", 20) as u32,
-            pact_accept: k("PACT_ACCEPT", 20),
-            ally_accept: k("ALLY_ACCEPT", 45),
-            war_accept: k("WAR_ACCEPT", 60),
-            break_accept: k("BREAK_ACCEPT", 40),
-            warn_below: k("WARN_BELOW", -30),
-            break_below: k("BREAK_BELOW", -50),
-            war_below: k("WAR_BELOW", -75),
-            warn_cool: k("WARN_COOL", 10) as u32,
-            demand_cool: k("DEMAND_COOL", 20) as u32,
-            gift_cool: k("GIFT_COOL", 30) as u32,
-            trade_cool: k("TRADE_COOL", 15) as u32,
-            gift_friend: k("GIFT_FRIEND", 60),
-            yield_fear: k("YIELD_FEAR", 50),
-            ally_war: k("ALLY_WAR", 30),
-        }
-    }
-}
 
 /// What a wizard feels about another (task 762).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -233,7 +45,7 @@ pub(crate) fn weariness(
     memory: &Memory,
     round: u32,
 ) -> i32 {
-    let k = Knobs::current();
+    let k = world.levers().diplomacy_b;
     let Some(age) = world.war_age(me, other) else {
         return 0;
     };
@@ -253,8 +65,8 @@ pub(crate) fn regard(
     memory: &Memory,
     round: u32,
 ) -> Regard {
-    let k = Knobs::current();
-    let sk = crate::statecraft::Knobs::current();
+    let k = world.levers().diplomacy_b;
+    let sk = world.levers().diplomacy;
     let opinion = memory.opinion(world, me, other);
     let friendship = opinion.hidden + opinion.friendship;
     let (mine, theirs) = (scene.power(world, me), scene.power(world, other));
@@ -328,8 +140,8 @@ pub(crate) fn peace_wish(
     memory: &Memory,
     round: u32,
 ) -> i32 {
-    let k = Knobs::current();
-    let sk = crate::statecraft::Knobs::current();
+    let k = world.levers().diplomacy_b;
+    let sk = world.levers().diplomacy;
     let scene = Scene::new(world, me);
     let r = regard(world, me, other, &scene, memory, round);
     let (m, t) = (
@@ -367,13 +179,13 @@ pub(crate) fn accepts(
     round: u32,
 ) -> bool {
     world.treaty(judge, asker) != Treaty::War
-        || peace_wish(world, judge, asker, memory, round) >= Knobs::current().accept
+        || peace_wish(world, judge, asker, memory, round) >= world.levers().diplomacy_b.accept
 }
 
 /// Whether `ai` asks `other` for peace now: at war, the wish is at the offer's mark and it has not
 /// asked lately.
 pub(crate) fn offer_due(ai: &Ai, world: &World, other: PlayerId, round: u32) -> bool {
-    let k = Knobs::current();
+    let k = world.levers().diplomacy_b;
     let memory = ai.memory.get();
     world.treaty(ai.player, other) == Treaty::War
         && memory
@@ -399,6 +211,7 @@ pub(crate) fn wars(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, scene:
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testworld::levers;
     use crate::testworld::{at, game, spawn, COAST_CITY, P0, P1};
     use f4x_core::diplomacy::DiplomacyCommand;
     use f4x_core::rules::RealmId;
@@ -570,7 +383,7 @@ mod tests {
 
     #[test]
     fn a_stalled_war_between_equals_drifts_to_an_offer_and_the_cool_down_holds() {
-        let k = Knobs::current();
+        let k = levers().diplomacy_b;
         let mut w = war(10, 10, 110);
         let mut ai = Ai::new(P0);
         let mut turn = 110;
@@ -623,7 +436,7 @@ mod tests {
     #[test]
     fn what_a_wizard_met_does_is_noted_as_ruthlessness_and_fades() {
         use f4x_core::diplomacy::DiplomacyEvent;
-        let k = Knobs::current();
+        let k = levers().diplomacy_b;
         let w = war(8, 8, 110);
         let mut m = Memory::default();
         m.notice(
@@ -705,7 +518,7 @@ mod tests {
 
     #[test]
     fn the_statecraft_of_a_wizard_on_b_offers_peace_by_the_score_and_a_on_a_does_not_use_it() {
-        let k = Knobs::current();
+        let k = levers().diplomacy_b;
         let mut w = war(1, 30, 200);
         let mut ai = Ai::new(P0);
         ai.notice(

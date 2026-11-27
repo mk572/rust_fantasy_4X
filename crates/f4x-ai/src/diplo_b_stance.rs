@@ -2,8 +2,7 @@
 //! from the three values of `diplo_b::Regard`. Every few turns each other wizard gets an **enemy value** and
 //! a **friend value**; at most one is the **main enemy** (kept for a while, so the choice does not flip each
 //! turn) and the only target of a declaration of war; the rest are courted by their friend value: a pact,
-//! an alliance, a gift. It takes the place, for a wizard of B, of the dominant war, the appeasing, the
-//! coalition and the war by temper of system A.
+//! an alliance, a gift.
 //!
 //! * **Enemy value**: a weak, reachable neighbour is prey (the more so the weaker); hostility (a negative
 //!   friendship); the leader and the Mastery caster; the one already fought; and, when it fears the other
@@ -14,12 +13,13 @@
 //!
 //! Tests: below.
 
+use crate::lever::Levered;
 use f4x_core::diplomacy::{DiplomacyCommand, ProposalKind, Remark, Treaty};
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
 use f4x_core::world::{Command, Event, World};
 
-use crate::diplo_b::{regard, Knobs};
+use crate::diplo_b::regard;
 use crate::memory::Memory;
 use crate::statecraft::{can_attack, leader_of, propose, remark, Power, Scene};
 use crate::Ai;
@@ -42,8 +42,8 @@ pub(crate) fn values(
     reachable: bool,
     round: u32,
 ) -> Values {
-    let k = Knobs::current();
-    let sk = crate::statecraft::Knobs::current();
+    let k = world.levers().diplomacy_b;
+    let sk = world.levers().diplomacy;
     let r = regard(world, me, other, scene, memory, round);
     let (mine, theirs): (Power, Power) = (scene.power(world, me), scene.power(world, other));
     let (m, t) = (mine.score(&sk).max(1), theirs.score(&sk));
@@ -134,7 +134,7 @@ fn choose_enemy(
     reach: &dyn Fn(PlayerId) -> bool,
     round: u32,
 ) -> Option<(PlayerId, u32)> {
-    let k = Knobs::current();
+    let k = world.levers().diplomacy_b;
     let value = |p| values(world, me, p, scene, memory, reach(p), round).enemy;
     // A pact or alliance partner is no enemy: the AI breaks no treaty to attack (the game refuses it), and
     // a treaty is ended by the talk (`diplo_b_talk`) before a war is chosen (task 776).
@@ -156,11 +156,11 @@ fn choose_enemy(
         .map(|(_, p)| (p, round))
 }
 
-/// Once a turn, in place of A's dominant war, appeasing and coalition (`statecraft::run`): look at the
-/// others now and then, choose the enemy, declare the war, court the friends.
+/// Once a turn (`statecraft::run`): look at the others now and then, choose the enemy, declare
+/// the war, court the friends.
 pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, scene: &Scene) {
     let me = ai.player;
-    let k = Knobs::current();
+    let k = game.levers().diplomacy_b;
     if game.round() < ai.memory.get().reviewed + k.review {
         return;
     }
@@ -220,7 +220,7 @@ fn declare(
     reachable: bool,
 ) {
     let me = ai.player;
-    let k = Knobs::current();
+    let k = game.levers().diplomacy_b;
     if game.round() < k.from_turn
         || game.treaty(me, enemy) != Treaty::None
         || game
@@ -230,7 +230,7 @@ fn declare(
     {
         return;
     }
-    let sk = crate::statecraft::Knobs::current();
+    let sk = game.levers().diplomacy;
     let busy = scene.others.iter().any(|&p| {
         game.treaty(me, p) == Treaty::War
             && scene.power(game, me).army < k.busy_army_x * scene.power(game, p).army.max(1)
@@ -280,7 +280,7 @@ pub(crate) fn court(
     reachable: bool,
 ) {
     let me = ai.player;
-    let k = Knobs::current();
+    let k = game.levers().diplomacy_b;
     let (friend, due) = {
         let memory = ai.memory.get();
         let scene = Scene::new(game, me);
@@ -321,6 +321,7 @@ pub(crate) fn court(
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use crate::testworld::levers;
     use crate::testworld::{at, game, spawn, COAST_CITY, P0, P1};
     use f4x_core::rules::RealmId;
     use f4x_def::half_int::HalfInt;
@@ -400,10 +401,10 @@ pub(crate) mod tests {
         let prey = value(&w, P0, P1, true);
         let strong = value(&pair(1, 30, 100), P0, P1, true);
         assert!(prey.enemy > strong.enemy, "{prey:?} against {strong:?}");
-        assert!(prey.enemy >= Knobs::current().enemy_min, "{prey:?}");
-        assert!(strong.enemy < Knobs::current().enemy_min, "{strong:?}");
+        assert!(prey.enemy >= levers().diplomacy_b.enemy_min, "{prey:?}");
+        assert!(strong.enemy < levers().diplomacy_b.enemy_min, "{strong:?}");
         // Out of reach nobody is a target, however weak.
-        assert!(value(&w, P0, P1, false).enemy < Knobs::current().enemy_min);
+        assert!(value(&w, P0, P1, false).enemy < levers().diplomacy_b.enemy_min);
     }
 
     #[test]

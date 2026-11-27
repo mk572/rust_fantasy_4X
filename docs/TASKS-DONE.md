@@ -661,9 +661,41 @@ original task numbers. Newest work is merged in ascending order by number.
 | 822 | Architecture | (done) Split the game (time, turn order, players: `f4x-master`) from the world (map, units, items, cities: `f4x-core`) |
 | 824 | AI | (done) Decide whether to raze a captured city by whether the wizard wants to keep it, without a random roll |
 | 828 | Core / AI | Army ledger: a roster of each player's units, used heavily by the AI's unit management (done) |
+| 831 | AI | A settings file for the strategic AI's levers (`ai_strategy.ron`) (done) |
 | 832 | AI | (done) A settings file for the battle AI's levers (`ai_battle.ron`), with no change of behaviour |
 
 ## Descriptions
+
+**831. (done) A settings file for the strategic AI.** Asked for by the user, 27 November 2026: the strategic AI and the battle AI each have all their levers in one file, and this comes before the strike-force work (`docs/ai-strike-force.md`). Today `f4x-def/content/ai_sites.ron` holds the weights for city sites and everything else is in the code: roughly 150 numeric constants, and about 130 tuning numbers read through `knob` (a default in the code that the environment variable `AIS_<NAME>` overrides). Not every constant is a lever: a number that tunes what the AI does moves, a fact of the code (a table of neighbour squares) and a rule of the game stay.
+- A new `f4x-def/content/ai_strategy.ron`, read like the other content (its struct in `f4x-def/src/rules`, the hash record updated with `scripts/ron_hashes.py`), grouped by subject, each value with a comment that says what it steers. The file holds every value; the code has no second default.
+- `AIS_<NAME>` keeps overriding a value, so soaks can still vary it. The prefix is the strategic AI's alone: `AIK_` overrides the levers of the battle AI, so a variable meant for one file never reaches the other.
+- An `AIS_` name that is no lever's, and a value its lever cannot take, are reported on stderr and ignored, as the battle AI does for `AIK_` (`f4x-ai/src/battle/lever.rs`).
+- `ai_sites.ron` becomes part of the file.
+- The levers move with no change of value, apart from the merged values below: the pinned scripted plays move only in the content fingerprint of their files. Tests read the values from the content.
+- The documents that name a knob or a constant that moved are updated.
+- **Duplicates become one entry each** (found 27 November 2026; the copies have the same value), read by every place that has a copy:
+  - the factor of a defence in a city, 1.3 (`military::expected_defence`, `site::city_defence`, `strike.rs`, `budget.rs`);
+  - how much longer a walk may be and still count as on the way, 2 (`ROUTE_SLACK` in `war.rs` and `war_plan.rs`);
+  - what a city on the way is worth in squares of walking, 6 (`ROUTE_BONUS`, `NEXT_ROUTE`);
+  - the squares of walking per average unit of a defence, 1.5 (`HELD_WEIGHT`, `NEXT_DEFENCE`);
+  - the base garrison, 2 in the fortress city and 1 elsewhere (`view::garrison_wanted`, `garrison::wanted_share`);
+  - the army limit for summoning, 12 and 2 a city (`wizardry.rs`);
+  - the mana wanted for a spell, 3/2 of its cost (`wizardry.rs`);
+  - the most turns a spell may take to pay for, 50 (`wizardry.rs`);
+  - the gold of a gift, 50 (`statecraft.rs`, `diplo_b_talk.rs`; the least treasury for it, 100 and 200, keeps two entries).
+  - The table of the eight neighbours (`military.rs`, `enchant_road.rs`) and the number of the Healer ability (`escort.rs`, `recover.rs`) are no levers: one constant each.
+- **Values that look alike are one entry too** (asked for by the user, 27 November 2026):
+  - the radius around an own city, 3 (threats, the strike spell, Stasis): `near_city_radius`;
+  - the edge against a site and the plain attack edge, 1.4 (`AIS_SITE` is gone): `attack`;
+  - the worth of a river for a city site and for a building, 0.5: `river_worth`;
+  - the mana held back, 200 for a craft and a global enchantment and 120 for sending an item: `mana_reserve`, 200;
+  - the distance at which a rival's city counts as near, 12 for a city's focus and the garrison and 14 for razing: `rival_range`, 12;
+  - the gold held back, 40 plus 3 turns of net income when buying production and a flat 40 when trading: the first, for both (`economy::gold_reserve`). What the other side of a sale can pay is the gold it holds (before: never reckoned below 40).
+- **Overrides that reach only some users are mended:** `AIS_CITIES` does not reach `phase::phase`, and `AIS_GUESS` does not reach the target choice of `war.rs` (`best_enemy_city`). Each reads the one entry.
+- **A rule copy goes:** the merchant's price markup of 3 (`MARKUP` in `offer.rs`, and `item_price` in `f4x-core/src/player/offer.rs`) moves into the rules content, where both read it.
+- **Switches of the removed diplomacy are deprecated:** `AIS_DIPLO_COALITION_END`, `AIS_DIPLO_ON_DOMINANT`, `_APPEASE`, `_COALITION`, `_WARS` and `_PEACE_GATE` went with system A (task 779). No new lever takes these names. `docs/diplomacy.md` and `docs/ai-design.md` mark them as gone where they name them (the soak results stay as a record), and the comments that speak of system A or `Ai::system` as current (`diplo_b.rs`, `diplo_b_stance.rs`, `docs/ai-diplomacy-b.md`) are corrected.
+
+Done 27 November 2026: `ai_strategy.ron` holds 342 levers (the constants, the `knob` numbers and the site weights). With the values moved and before the three that differed were merged, 8 games of 5 AI wizards over 250 turns gave the same logs as before, timings aside. Numbers written inside functions stay in the code for now (task 835).
 
 **832. (done) A settings file for the battle AI.** Asked for by the user, 27 November 2026, together with task 831. The battle AI's levers (roughly 40 numeric constants in `f4x-ai/src/battle`, none of them read through `knob`) move into a new `f4x-def/content/ai_battle.ron`, apart from the strategic AI's file. Not every constant is a lever: a number that tunes what the AI does moves, a fact of the code and a rule of the game stay.
 - The file is read like the other content (its struct in `f4x-def/src/rules`, the hash record updated with `scripts/ron_hashes.py`), grouped by subject, each value with a comment that says what it steers. It holds every value; the code has no second default.

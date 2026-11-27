@@ -1,6 +1,7 @@
 //! How the AI weighs what it sees: strengths and who can fight. It reads the game only through
 //! a [`PlayerView`], which holds what a player may know.
 
+use crate::lever::Levered;
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
@@ -114,26 +115,35 @@ pub fn distance(view: &PlayerView, a: Position, b: Position) -> Option<u32> {
     view.distance(a, b)
 }
 
-/// Squares within which a city of a wizard at war counts as near.
-pub(crate) const BORDER_RANGE: u32 = 12;
+/// Fighters a city keeps with no enemy at war: the fortress more than any other city.
+pub fn base_garrison(view: &PlayerView, at: Position) -> usize {
+    let levers = view.levers().garrison;
+    if view.fortress() == Some(at) {
+        levers.garrison_fortress
+    } else {
+        levers.garrison_city
+    }
+}
 
 /// Fighters a city keeps at home. A full garrison is for a city at war with an enemy city near,
-/// or one that matters (the fortress); every other city keeps one, the fortress two. The rest
+/// or one that matters (the fortress); every other city keeps less (`garrison_*`). The rest
 /// of the soldiers are free to scout, relieve, and take sites and neutral cities.
 pub fn garrison_wanted(view: &PlayerView, at: Position) -> usize {
     let fortress = view.fortress() == Some(at);
-    let base = if fortress { 2 } else { 1 };
+    let base = base_garrison(view, at);
+    let levers = view.levers().garrison;
+    let range = view.levers().shared.rival_range;
     let enemies = view.rivals_at_war();
     if enemies.is_empty() {
         return base;
     }
     let near = view.known_cities().into_iter().any(|(_, owner, p)| {
-        enemies.contains(&owner) && view.distance(at, p).is_some_and(|d| d <= BORDER_RANGE)
+        enemies.contains(&owner) && view.distance(at, p).is_some_and(|d| d <= range)
     });
     match (near, fortress) {
-        (true, true) => 6,
-        (true, false) => 4,
-        (false, true) => 3,
+        (true, true) => levers.garrison_front_fortress,
+        (true, false) => levers.garrison_front_city,
+        (false, true) => levers.garrison_war_fortress,
         (false, false) => base,
     }
 }

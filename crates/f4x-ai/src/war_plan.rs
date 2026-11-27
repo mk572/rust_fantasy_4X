@@ -1,12 +1,15 @@
 //! The war plan (task 648, `docs/ai-design.md` section 15): the layer between the diplomacy that
 //! decides on a war and the army that fights it. It rates every known enemy town twice, as the
 //! war goal (the prize, changed rarely) and as the next target (the step now), keeps each choice
-//! until something is clearly better (`GOAL_HOLD`, `NEXT_HOLD`), and names the recon: the towns
+//! until something is clearly better (`goal_hold`, `next_hold`), and names the recon: the towns
 //! with unexplored ground around them, which the scouts look at before others
 //! (`scout::best_target_with`). What is not built yet is in the doc and task 648.
 //!
 //! Tests: at the end of this file, the ratings on plain data and the plan on the shipped rules.
 
+use f4x_def::rules::ai_strategy::TargetLevers;
+
+use crate::lever::Levered;
 use std::collections::HashMap;
 
 use f4x_core::map::Position;
@@ -14,41 +17,6 @@ use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
 
 use crate::view::{distance, is_fighter};
-
-/// What the fortress adds to a town's worth.
-const FORTRESS_WORTH: f32 = 12.0;
-/// Worth of a citizen and of a building in a town.
-const SIZE_WORTH: f32 = 1.0;
-const BUILDING_WORTH: f32 = 0.5;
-/// A town of a wizard at war is worth this much more: the war is for it.
-const WAR_WORTH: f32 = 3.0;
-/// A town that is no wizard's (rebels, raiders) is worth this share of the same.
-const NEUTRAL_SHARE: f32 = 0.6;
-/// The goal's worth lost per square from our nearest city.
-const GOAL_DISTANCE: f32 = 0.2;
-/// The goal's worth lost when the army cannot walk to the town (the sea, the other plane).
-const GOAL_ACROSS: f32 = 15.0;
-/// The next target's rating: per square from our nearest city, per average unit of defence, for
-/// lying on the way to the goal, for being the foothold towards a goal across, and the share of
-/// the town's worth.
-const NEXT_DISTANCE: f32 = 1.0;
-const NEXT_DEFENCE: f32 = 1.5;
-const NEXT_ROUTE: f32 = 6.0;
-const NEXT_FOOTHOLD: f32 = 5.0;
-const NEXT_WORTH: f32 = 0.3;
-/// A town lies on the way when the walk through it is at most this much longer than the direct one.
-const ROUTE_SLACK: u32 = 2;
-/// A new goal (next target) must beat the one in hand by this much to replace it.
-const GOAL_HOLD: f32 = 3.0;
-const NEXT_HOLD: f32 = 2.0;
-/// The ground around a town counts as not yet seen when a square this near is unexplored.
-const RECON_RADIUS: i32 = 4;
-/// The most towns the plan asks the scouts to look at.
-const RECON_TOWNS: usize = 6;
-/// Added to the value of a scouting square near a recon town (squares of new ground are worth one each).
-pub(crate) const RECON_BONUS: f32 = 20.0;
-/// How near a scouting square must be to a recon town to get the bonus.
-pub(crate) const RECON_NEAR: u32 = 3;
 
 /// One town of the enemy, as the AI knows it.
 #[derive(Debug, Clone, PartialEq)]
@@ -82,9 +50,6 @@ pub(crate) struct WarPlan {
     pub recon: Vec<Position>,
 }
 
-/// The most fighters the war plan asks the cities to build for one campaign.
-pub(crate) const MAX_FORCE: usize = 20;
-
 /// What the war asks of the army to take `target`: the strength that beats what is expected
 /// there with the margin a march demands (`edge`, which follows the phase and the lead:
 /// `military::campaign_ratio`). The march waits for it, the cities build towards it.
@@ -101,8 +66,11 @@ pub(crate) fn strength_wanted(
 /// How many average fighters a strength is, for the cities that build them: at least what a march
 /// starts with, at most what a battle holds.
 pub(crate) fn units_for(view: &PlayerView, strength: f32) -> usize {
-    ((strength / crate::military::average_strength(view).max(1.0)).ceil() as usize)
-        .clamp(crate::war::MIN_MARCH, MAX_FORCE.min(view.max_battle_side()))
+    let levers = view.levers();
+    ((strength / crate::military::average_strength(view).max(1.0)).ceil() as usize).clamp(
+        levers.attack.min_march,
+        levers.target.max_force.min(view.max_battle_side()),
+    )
 }
 
 /// The city where the army gathers to march on `target`: the own city nearest to it, the port of
@@ -132,37 +100,44 @@ pub(crate) fn rally(
 }
 
 /// What a town is worth to take.
-pub(crate) fn worth(t: &Town) -> f32 {
-    let mut worth = t.figures as f32 * SIZE_WORTH + t.buildings as f32 * BUILDING_WORTH;
+pub(crate) fn worth(levers: &TargetLevers, t: &Town) -> f32 {
+    let mut worth =
+        t.figures as f32 * levers.size_worth + t.buildings as f32 * levers.building_worth;
     if t.fortress {
-        worth += FORTRESS_WORTH;
+        worth += levers.fortress_worth;
     }
     if t.war {
-        worth += WAR_WORTH;
+        worth += levers.war_worth;
     }
     if !t.rival {
-        worth *= NEUTRAL_SHARE;
+        worth *= levers.neutral_share;
     }
     worth
 }
 
 /// How good the town is as the goal of the war.
-pub(crate) fn goal_score(t: &Town) -> f32 {
-    let walk = t.from_us.unwrap_or(0) as f32 * GOAL_DISTANCE;
-    let across = if t.on_foot { 0.0 } else { GOAL_ACROSS };
-    worth(t) - walk - across
+pub(crate) fn goal_score(levers: &TargetLevers, t: &Town) -> f32 {
+    let walk = t.from_us.unwrap_or(0) as f32 * levers.goal_distance;
+    let across = if t.on_foot { 0.0 } else { levers.goal_across };
+    worth(levers, t) - walk - across
 }
 
 /// How good the town is as the next target. `defence` is in average units of the AI's own fighters.
-pub(crate) fn next_score(t: &Town, average: f32, on_route: bool, foothold: bool) -> f32 {
-    let walk = t.from_us.unwrap_or(40) as f32 * NEXT_DISTANCE;
-    let held = t.defence / average.max(1.0) * NEXT_DEFENCE;
-    let mut score = NEXT_WORTH * worth(t) - walk - held;
+pub(crate) fn next_score(
+    levers: &TargetLevers,
+    t: &Town,
+    average: f32,
+    on_route: bool,
+    foothold: bool,
+) -> f32 {
+    let walk = t.from_us.unwrap_or(40) as f32 * levers.next_distance;
+    let held = t.defence / average.max(1.0) * levers.defence_squares;
+    let mut score = levers.next_worth * worth(levers, t) - walk - held;
     if on_route {
-        score += NEXT_ROUTE;
+        score += levers.route_bonus;
     }
     if foothold {
-        score += NEXT_FOOTHOLD;
+        score += levers.next_foothold;
     }
     score
 }
@@ -250,17 +225,18 @@ pub(crate) fn revise(
         *plan = WarPlan::default();
         return None;
     }
+    let levers = &view.levers().target;
     // The goal: the best town, kept while it is not clearly bettered.
     let best_goal = towns
         .iter()
-        .map(|t| (goal_score(t), t.pos))
+        .map(|t| (goal_score(levers, t), t.pos))
         .reduce(|a, b| if better(b, a) { b } else { a })?;
     let held = plan
         .goal
         .and_then(|g| towns.iter().find(|t| t.pos == g))
-        .map(|t| (goal_score(t), t.pos));
+        .map(|t| (goal_score(levers, t), t.pos));
     let goal = match held {
-        Some(h) if best_goal.0 <= h.0 + GOAL_HOLD => h.1,
+        Some(h) if best_goal.0 <= h.0 + levers.goal_hold => h.1,
         _ => best_goal.1,
     };
     plan.goal = Some(goal);
@@ -286,10 +262,10 @@ pub(crate) fn revise(
                 distance(view, origin, t.pos),
                 distance(view, t.pos, goal),
             ) {
-                (Some(direct), Some(to), Some(on)) => to + on <= direct + ROUTE_SLACK,
+                (Some(direct), Some(to), Some(on)) => to + on <= direct + levers.route_slack,
                 _ => false,
             };
-        next_score(t, average, on_route, foothold == Some(t.pos))
+        next_score(levers, t, average, on_route, foothold == Some(t.pos))
     };
     let walkable = || towns.iter().filter(|t| t.on_foot);
     let best_next = walkable()
@@ -300,7 +276,7 @@ pub(crate) fn revise(
         .and_then(|n| walkable().find(|t| t.pos == n))
         .map(|t| (score(t), t.pos));
     plan.next = match (best_next, held) {
-        (Some(best), Some(h)) if best.0 <= h.0 + NEXT_HOLD => Some(h.1),
+        (Some(best), Some(h)) if best.0 <= h.0 + levers.next_hold => Some(h.1),
         (Some(best), _) => Some(best.1),
         (None, _) => None,
     };
@@ -320,22 +296,26 @@ pub(crate) fn revise(
         .into_iter()
         .filter(|t| unexplored_around(view, t.pos))
         .map(|t| t.pos)
-        .take(RECON_TOWNS)
+        .take(levers.recon_towns)
         .collect();
     plan.next
 }
 
-/// Is any square within `RECON_RADIUS` of `at` not yet explored?
+/// Is any square within `recon_radius` of `at` not yet explored?
 fn unexplored_around(view: &PlayerView, at: Position) -> bool {
-    (-RECON_RADIUS..=RECON_RADIUS).any(|dy| {
-        (-RECON_RADIUS..=RECON_RADIUS)
-            .any(|dx| view.shift(at, dx, dy).is_some_and(|p| !view.explored(p)))
+    let radius = view.levers().target.recon_radius;
+    (-radius..=radius).any(|dy| {
+        (-radius..=radius).any(|dx| view.shift(at, dx, dy).is_some_and(|p| !view.explored(p)))
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn levers() -> TargetLevers {
+        crate::testworld::shipped().rules.ai_strategy.target
+    }
     use crate::testworld::{at, game, spawn, COAST_CITY, ENEMY_CITY, P0, P1};
 
     fn town(x: u32, figures: u32) -> Town {
@@ -358,8 +338,8 @@ mod tests {
         let mut fortress = town(10, 5);
         fortress.fortress = true;
         let big = town(10, 12);
-        assert!(worth(&fortress) > worth(&big));
-        assert!(goal_score(&fortress) > goal_score(&big));
+        assert!(worth(&levers(), &fortress) > worth(&levers(), &big));
+        assert!(goal_score(&levers(), &fortress) > goal_score(&levers(), &big));
     }
 
     #[test]
@@ -370,10 +350,10 @@ mod tests {
         fortress.from_us = None;
         let juicy = town(14, 9);
         assert!(
-            goal_score(&juicy) > goal_score(&fortress),
+            goal_score(&levers(), &juicy) > goal_score(&levers(), &fortress),
             "{} against {}",
-            goal_score(&juicy),
-            goal_score(&fortress)
+            goal_score(&levers(), &juicy),
+            goal_score(&levers(), &fortress)
         );
     }
 
@@ -383,7 +363,7 @@ mod tests {
         let mut rebels = wizard.clone();
         rebels.rival = false;
         rebels.war = false;
-        assert!(worth(&rebels) < worth(&wizard));
+        assert!(worth(&levers(), &rebels) < worth(&levers(), &wizard));
     }
 
     #[test]
@@ -395,16 +375,17 @@ mod tests {
         let average = 10.0;
         // 6 squares more to walk, 7 average units less to fight: the weak town wins.
         assert!(
-            next_score(&back, average, false, false) > next_score(&near, average, false, false)
+            next_score(&levers(), &back, average, false, false)
+                > next_score(&levers(), &near, average, false, false)
         );
     }
 
     #[test]
     fn the_way_to_the_goal_and_the_foothold_raise_the_next_target() {
         let t = town(10, 6);
-        let base = next_score(&t, 10.0, false, false);
-        assert!(next_score(&t, 10.0, true, false) > base);
-        assert!(next_score(&t, 10.0, false, true) > base);
+        let base = next_score(&levers(), &t, 10.0, false, false);
+        assert!(next_score(&levers(), &t, 10.0, true, false) > base);
+        assert!(next_score(&levers(), &t, 10.0, false, true) > base);
     }
 
     /// The plan on a real map: the enemy's capital on the other island is no walk away, so the
@@ -538,10 +519,17 @@ mod tests {
             strength_wanted(&view, &strong, 2, target, 1.5),
         );
         assert!(b > a);
-        assert_eq!(units_for(&view, a), crate::war::MIN_MARCH);
+        assert_eq!(
+            units_for(&view, a),
+            crate::testworld::shipped()
+                .rules
+                .ai_strategy
+                .attack
+                .min_march
+        );
         assert_eq!(
             units_for(&view, b),
-            MAX_FORCE.min(view.max_battle_side()),
+            levers().max_force.min(view.max_battle_side()),
             "bounded by what a battle holds"
         );
     }

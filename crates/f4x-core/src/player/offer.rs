@@ -169,9 +169,10 @@ pub fn mercenary_price(cost: u32, level: u8, count: u32, percent: i32) -> i32 {
     price * percent / 100
 }
 
-/// What the merchant asks: three times the item's value, times the wizard's `percent` (`HireCostPercent`).
-pub fn item_price(cost: u32, percent: i32) -> i32 {
-    let price = cost as i32 * 3;
+/// What the merchant asks: the item's value times the merchant's markup (`item_price_markup` of
+/// `rules.ron`), times the wizard's `percent` (`HireCostPercent`).
+pub fn item_price(rules: &OfferRules, cost: u32, percent: i32) -> i32 {
+    let price = cost as i32 * rules.item_price_markup as i32;
     price * percent / 100
 }
 
@@ -380,7 +381,11 @@ impl World {
             0,
             &mut self.prefab_taken,
         );
-        let price = item_price(item.cost, self.hire_percent(player));
+        let price = item_price(
+            &self.content.rules.config.offer,
+            item.cost,
+            self.hire_percent(player),
+        );
         if HalfInt::from_int(price)
             <= self
                 .player(player)

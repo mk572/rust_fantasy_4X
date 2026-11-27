@@ -4,6 +4,7 @@
 //! wizard's spells (`spellhelper::spell_power`). What a site is worth and where the sites are is
 //! `site.rs`.
 
+use crate::lever::Levered;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::world::serial::Serial;
@@ -12,16 +13,11 @@ use f4x_core::world::{Command, Event, World};
 use crate::assault::{assault, march};
 use crate::military::engage;
 use crate::site::{
-    city_defence, edge, expected_vs, lost_before, neutral_city, sites_near, unarmed_share,
+    city_defence, expected_vs, lost_before, neutral_city, sites_near, unarmed_share,
 };
 use crate::view::{distance, is_fighter, stack_strength, unit_strength};
 use crate::Ai;
 use f4x_master::Game;
-
-/// The fewest spare soldiers that make a party.
-const SITE_PARTY: usize = 3;
-/// Turns a muster waits for its soldiers before it sets off with the ones that came.
-const MUSTER_TURNS: u32 = 20;
 
 pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
@@ -63,21 +59,23 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             let view = PlayerView::new(game, me);
             let strength = stack_strength(&view, &units) + crate::spellhelper::spell_power(&view);
             let unarmed = unarmed_share(&view, &units);
+            let edge = view.levers().attack.attack;
+            let retry = view.levers().sites.retry_edge;
             let next_to = crate::military::neighbours(&view, pos)
                 .into_iter()
                 .find(|&p| {
                     view.has_lair(p)
-                        && strength >= expected_vs(&view, p, unarmed) * edge()
-                        && !lost_before(&ai.site_losses, p, strength)
+                        && strength >= expected_vs(&view, p, unarmed) * edge
+                        && !lost_before(&ai.site_losses, p, strength, retry)
                 });
             let city_next = crate::military::neighbours(&view, pos)
                 .into_iter()
-                .find(|&p| neutral_city(&view, p) && strength >= city_defence(&view, p) * edge());
+                .find(|&p| neutral_city(&view, p) && strength >= city_defence(&view, p) * edge);
             // The site the party is set on stays its target while it is still worth taking:
             // "the nearest" changes as the party walks, and a party between two sites went to and
             // fro for ever.
             let mut sites = sites_near(&view, pos, strength, unarmed, &ai.tower_blocked);
-            sites.retain(|&t| !lost_before(&ai.site_losses, t, strength));
+            sites.retain(|&t| !lost_before(&ai.site_losses, t, strength, retry));
             let kept = units
                 .iter()
                 .find_map(|&u| {
@@ -248,7 +246,7 @@ pub fn form(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
             });
         }
         for party in units.chunks(game.max_battle_side()) {
-            if party.len() < SITE_PARTY {
+            if party.len() < game.levers().sites.site_party {
                 continue;
             }
             let sites = {
@@ -257,7 +255,8 @@ pub fn form(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
                     stack_strength(&view, party) + crate::spellhelper::spell_power(&view);
                 let unarmed = unarmed_share(&view, party);
                 let mut sites = sites_near(&view, pos, strength, unarmed, &ai.tower_blocked);
-                sites.retain(|&t| !lost_before(&ai.site_losses, t, strength));
+                let retry = view.levers().sites.retry_edge;
+                sites.retain(|&t| !lost_before(&ai.site_losses, t, strength, retry));
                 sites
             };
             for site in sites {
@@ -299,7 +298,10 @@ pub(crate) fn release(ai: &mut Ai, world: &World, round: u32) {
             view.unit_position(u)
                 .is_some_and(|p| distance(&view, p, muster.rally).is_some_and(|d| d <= 1))
         });
-        if alive.is_empty() || arrived || round.saturating_sub(muster.since) > MUSTER_TURNS {
+        if alive.is_empty()
+            || arrived
+            || round.saturating_sub(muster.since) > view.levers().sites.muster_turns
+        {
             ai.roles.end_muster(party);
         }
     }
@@ -358,7 +360,12 @@ pub(crate) fn gather(
                     && view.towers().iter().any(|&(t, _)| t == site);
                 if site.plane != city.plane
                     || blocked_tower
-                    || lost_before(&ai.site_losses, site, strength)
+                    || lost_before(
+                        &ai.site_losses,
+                        site,
+                        strength,
+                        view.levers().sites.retry_edge,
+                    )
                 {
                     continue;
                 }
@@ -618,9 +625,9 @@ mod tests {
             );
         }
         // The party has been out for 90 turns when it clears the site.
-        ai.drop_stale_plans(w.round());
+        ai.drop_stale_plans(&w.levers().planning, w.round());
         w.set_round(w.round() + 90);
-        ai.drop_stale_plans(w.round());
+        ai.drop_stale_plans(&w.levers().planning, w.round());
         let mut events = Vec::new();
         run(&mut ai, &mut w, &mut events);
         assert!(events
@@ -628,9 +635,9 @@ mod tests {
             .any(|e| matches!(e, Event::SiteCleared { player, .. } if *player == P0)));
         // Twenty turns later it would be 110 turns out, but the clear started the time again.
         w.set_round(w.round() + 20);
-        ai.drop_stale_plans(w.round());
+        ai.drop_stale_plans(&w.levers().planning, w.round());
         w.set_round(w.round() + 20);
-        ai.drop_stale_plans(w.round());
+        ai.drop_stale_plans(&w.levers().planning, w.round());
         assert!(ai.roles.any(crate::roles::Role::Raid), "not dropped");
         assert_eq!(ai.plans_dropped().iter().map(|(_, n)| n).sum::<u32>(), 0);
         Ok(())
@@ -811,7 +818,7 @@ mod tests {
     #[test]
     fn a_party_with_normal_weapons_leaves_guards_that_weapons_barely_hurt_unless_a_spell_arms_it(
     ) -> TestResult {
-        use crate::site::{edge, expected_vs, unarmed_share};
+        use crate::site::{expected_vs, unarmed_share};
         let rules = &game(COAST_CITY, 8).content().rules.clone();
         let ability = rules
             .abilities
@@ -831,9 +838,10 @@ mod tests {
             let view = PlayerView::new(&w, P0);
             let party = w.units().player_units(P0);
             let strength = stack_strength(&view, &party);
-            let armed = expected_vs(&view, at(8, 6), 0.0) * edge() <= strength;
+            let armed = expected_vs(&view, at(8, 6), 0.0) * w.levers().attack.attack <= strength;
             let unarmed = unarmed_share(&view, &party);
-            let blocked = expected_vs(&view, at(8, 6), unarmed) * edge() > strength;
+            let blocked =
+                expected_vs(&view, at(8, 6), unarmed) * w.levers().attack.attack > strength;
             if armed && blocked {
                 chosen = Some(k);
             }

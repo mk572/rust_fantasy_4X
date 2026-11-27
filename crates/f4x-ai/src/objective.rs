@@ -6,6 +6,9 @@
 //! wizard without an objective (the human's, a test's). The personality moves the army a little
 //! and decides who starts wars (`diplomacy::quarrel`).
 
+use f4x_def::rules::ai_strategy::StrategyAiRules;
+
+use crate::lever::Levered;
 use f4x_core::city::autobuild::Focus;
 use f4x_core::player::view::PlayerView;
 use f4x_core::wizard::objective::{Objective, Personality};
@@ -27,7 +30,8 @@ pub enum Like {
 /// The plan of a city: the focus pair it follows.
 pub type Focuses = (Focus, Option<Focus>);
 
-/// One objective's numbers.
+/// What one objective changes: its numbers (the `objectives` of `ai_strategy.ron`) and what it
+/// leans to, which the code keeps.
 #[derive(Debug, Clone, Copy)]
 pub struct Traits {
     /// The most cities settled before the AI only builds up.
@@ -53,86 +57,94 @@ pub struct Traits {
     pub variety: Option<(Focuses, u64)>,
     /// How far a kind of spell moves up the order of casting (`wizardry::cast_rank`): four is one
     /// step of the ladder (`AIDUDES.c` weights the categories of overland spells by objective).
-    pub cast_boost: &'static [(Like, i32)],
+    pub cast_boost: [(Like, i32); 5],
 }
 
-const PRAGMATIST: Traits = Traits {
-    cities_wanted: 7,
-    strike_base: 4,
+/// What an objective leans to.
+struct Lean {
+    expanding: Focuses,
+    settled: Focuses,
+    lean_mana: bool,
+    likes: &'static [Like],
+    other: Option<Focuses>,
+}
+
+const PRAGMATIST: Lean = Lean {
     expanding: (Focus::Production, Some(Focus::Population)),
     settled: (Focus::Balanced, None),
-    split_shift: 0,
     lean_mana: false,
     likes: &[],
-    like_share: 1.0,
-    variety: None,
-    cast_boost: &[],
+    other: None,
 };
 
-const MILITARIST: Traits = Traits {
-    cities_wanted: 6,
-    strike_base: 6,
+const MILITARIST: Lean = Lean {
     expanding: (Focus::Production, Some(Focus::Offense)),
     settled: (Focus::Offense, Some(Focus::Production)),
-    split_shift: 1,
     likes: &[Like::Summon, Like::UnitBuff],
-    like_share: 0.67,
-    variety: Some(((Focus::Gold, Some(Focus::Production)), 3)),
-    cast_boost: &[(Like::Summon, 8), (Like::UnitBuff, 8), (Like::Curse, 12)],
+    other: Some((Focus::Gold, Some(Focus::Production))),
     ..PRAGMATIST
 };
 
-const THEURGIST: Traits = Traits {
-    cities_wanted: 6,
-    strike_base: 3,
+const THEURGIST: Lean = Lean {
     expanding: (Focus::Production, Some(Focus::Magic)),
     settled: (Focus::Magic, Some(Focus::Population)),
     lean_mana: true,
     likes: &[Like::Holy],
-    like_share: 0.67,
-    variety: Some(((Focus::Production, Some(Focus::Gold)), 3)),
-    cast_boost: &[(Like::GlobalBuff, 12), (Like::CityBuff, 4)],
-    ..PRAGMATIST
+    other: Some((Focus::Production, Some(Focus::Gold))),
 };
 
-const PERFECTIONIST: Traits = Traits {
-    cities_wanted: 5,
-    strike_base: 3,
+const PERFECTIONIST: Lean = Lean {
     expanding: (Focus::Population, Some(Focus::Production)),
     settled: (Focus::Magic, Some(Focus::Gold)),
     lean_mana: true,
     likes: &[Like::CityBuff, Like::GlobalBuff],
-    like_share: 0.67,
-    variety: Some(((Focus::Population, Some(Focus::Production)), 3)),
-    cast_boost: &[(Like::CityBuff, 12), (Like::GlobalBuff, 12)],
-    ..PRAGMATIST
+    other: Some((Focus::Population, Some(Focus::Production))),
 };
 
-const EXPANSIONIST: Traits = Traits {
-    cities_wanted: 10,
+const EXPANSIONIST: Lean = Lean {
     expanding: (Focus::Population, Some(Focus::Production)),
     settled: (Focus::Production, Some(Focus::Population)),
     likes: &[Like::Explore],
-    like_share: 0.67,
-    variety: Some(((Focus::Gold, Some(Focus::Production)), 3)),
-    cast_boost: &[(Like::Summon, 4), (Like::CityBuff, 4)],
+    other: Some((Focus::Gold, Some(Focus::Production))),
     ..PRAGMATIST
 };
 
-/// The numbers of an objective.
-pub fn traits_of(objective: Option<Objective>) -> Traits {
-    match objective {
-        None | Some(Objective::Pragmatist) => PRAGMATIST,
-        Some(Objective::Militarist) => MILITARIST,
-        Some(Objective::Theurgist) => THEURGIST,
-        Some(Objective::Perfectionist) => PERFECTIONIST,
-        Some(Objective::Expansionist) => EXPANSIONIST,
+/// The numbers and leanings of an objective.
+pub(crate) fn traits_of(levers: &StrategyAiRules, objective: Option<Objective>) -> Traits {
+    let table = &levers.objectives;
+    let (lean, numbers) = match objective {
+        None | Some(Objective::Pragmatist) => (PRAGMATIST, table.pragmatist),
+        Some(Objective::Militarist) => (MILITARIST, table.militarist),
+        Some(Objective::Theurgist) => (THEURGIST, table.theurgist),
+        Some(Objective::Perfectionist) => (PERFECTIONIST, table.perfectionist),
+        Some(Objective::Expansionist) => (EXPANSIONIST, table.expansionist),
+    };
+    Traits {
+        cities_wanted: numbers.cities_wanted,
+        strike_base: numbers.strike_base,
+        expanding: lean.expanding,
+        settled: lean.settled,
+        split_shift: numbers.split_shift,
+        lean_mana: lean.lean_mana,
+        likes: lean.likes,
+        like_share: numbers.like_share,
+        variety: lean
+            .other
+            .filter(|_| numbers.variety_every > 0)
+            .map(|other| (other, numbers.variety_every)),
+        cast_boost: [
+            (Like::Summon, numbers.boost_summon),
+            (Like::UnitBuff, numbers.boost_unit_buff),
+            (Like::CityBuff, numbers.boost_city_buff),
+            (Like::GlobalBuff, numbers.boost_global_buff),
+            (Like::Curse, numbers.boost_curse),
+        ],
     }
 }
 
-/// The numbers of the viewing player's wizard.
-pub fn traits(view: &PlayerView) -> Traits {
-    traits_of(view.wizard().and_then(|w| w.objective()))
+/// The traits of the viewing player's wizard.
+pub(crate) fn traits(view: &PlayerView) -> Traits {
+    traits_of(view.levers(), view.wizard().and_then(|w| w.objective()))
 }
 
 /// The temper in order of aggression, the gentlest first.
@@ -182,33 +194,35 @@ pub fn army_bias(personality: Personality, difficulty: u8) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testworld::levers;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
     #[test]
     fn only_the_pragmatist_keeps_every_city_alike_and_the_ladder_of_spells() -> TestResult {
-        assert!(traits_of(None).variety.is_none() && traits_of(None).cast_boost.is_empty());
+        let none = traits_of(levers(), None);
+        assert!(none.variety.is_none() && none.cast_boost.iter().all(|&(_, by)| by == 0));
         for o in [
             Objective::Militarist,
             Objective::Theurgist,
             Objective::Perfectionist,
             Objective::Expansionist,
         ] {
-            let t = traits_of(Some(o));
+            let t = traits_of(levers(), Some(o));
             let (alt, every) = t
                 .variety
                 .ok_or("every objective but the pragmatist varies")?;
             assert!(every >= 2, "{o:?}");
             assert_ne!(alt, t.settled, "{o:?}");
-            assert!(!t.cast_boost.is_empty(), "{o:?}");
+            assert!(t.cast_boost.iter().any(|&(_, by)| by > 0), "{o:?}");
         }
         Ok(())
     }
 
     #[test]
     fn a_wizard_without_an_objective_has_the_pragmatist_row() {
-        let pragmatist = traits_of(Some(Objective::Pragmatist));
-        let t = traits_of(None);
+        let pragmatist = traits_of(levers(), Some(Objective::Pragmatist));
+        let t = traits_of(levers(), None);
         assert_eq!(
             (t.cities_wanted, t.strike_base, t.split_shift),
             (
@@ -217,7 +231,6 @@ mod tests {
                 pragmatist.split_shift
             )
         );
-        assert_eq!((t.cities_wanted, t.strike_base), (7, 4));
         assert_eq!(t.settled, (Focus::Balanced, None));
         assert_eq!(t.split_shift, 0);
         assert!(t.likes.is_empty());
@@ -225,14 +238,18 @@ mod tests {
 
     #[test]
     fn each_objective_moves_its_numbers_in_the_stated_direction() {
-        let base = traits_of(Some(Objective::Pragmatist));
-        assert!(traits_of(Some(Objective::Expansionist)).cities_wanted > base.cities_wanted);
-        assert!(traits_of(Some(Objective::Militarist)).strike_base > base.strike_base);
-        assert!(traits_of(Some(Objective::Militarist)).split_shift > 0);
-        assert!(traits_of(Some(Objective::Perfectionist)).cities_wanted < base.cities_wanted);
-        assert!(traits_of(Some(Objective::Theurgist)).lean_mana);
+        let base = traits_of(levers(), Some(Objective::Pragmatist));
+        assert!(
+            traits_of(levers(), Some(Objective::Expansionist)).cities_wanted > base.cities_wanted
+        );
+        assert!(traits_of(levers(), Some(Objective::Militarist)).strike_base > base.strike_base);
+        assert!(traits_of(levers(), Some(Objective::Militarist)).split_shift > 0);
+        assert!(
+            traits_of(levers(), Some(Objective::Perfectionist)).cities_wanted < base.cities_wanted
+        );
+        assert!(traits_of(levers(), Some(Objective::Theurgist)).lean_mana);
         for o in Objective::all() {
-            assert!(traits_of(Some(o)).like_share <= 1.0);
+            assert!(traits_of(levers(), Some(o)).like_share <= 1.0);
         }
     }
 

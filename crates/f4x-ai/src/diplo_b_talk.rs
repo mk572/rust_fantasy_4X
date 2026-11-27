@@ -1,6 +1,6 @@
 //! Diplomacy system B, part 3 (task 779, `docs/ai-diplomacy-b.md`): how a wizard rates what it is asked,
 //! and what it says to the human at the start of the human's turn. No dice: every answer is a rule of the
-//! three values of `diplo_b::Regard` and of `diplo_b_stance::values`, with its numbers in `diplo_b::Knobs`.
+//! three values of `diplo_b::Regard` and of `diplo_b_stance::values`, with its numbers in the `diplomacy_b` levers.
 //!
 //! * A **pact** or an **alliance** is accepted when the friend value (and the personality's mood) reaches
 //!   the mark and the friendship is above the floor of the rules.
@@ -15,12 +15,14 @@
 //!
 //! Tests: below.
 
+use crate::lever::Levered;
 use f4x_core::diplomacy::{army_strength, DiplomacyCommand, ProposalKind, Remark, Treaty};
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
 use f4x_core::world::{Command, Event, World};
+use f4x_def::rules::ai_strategy::DiplomacyBLevers;
 
-use crate::diplo_b::{regard, Knobs, Regard};
+use crate::diplo_b::{regard, Regard};
 use crate::diplo_b_stance::{court, declare_on, values};
 use crate::diplomacy::Verdict;
 use crate::memory::{Did, Diplomats};
@@ -29,7 +31,7 @@ use crate::Ai;
 use f4x_master::Game;
 
 /// The personality's mood, in friendship points.
-fn mood(world: &World, me: PlayerId, k: &Knobs) -> i32 {
+fn mood(world: &World, me: PlayerId, k: &DiplomacyBLevers) -> i32 {
     crate::objective::temper(world.personality(me), world.difficulty()).modifier() / k.mood_div
 }
 
@@ -42,7 +44,7 @@ pub(crate) fn rate(
     minds: &Diplomats,
 ) -> Verdict {
     let memory = &minds.of(judge);
-    let k = Knobs::current();
+    let k = game.levers().diplomacy_b;
     let scene = Scene::new(game, judge);
     let r = regard(game, judge, asker, &scene, memory, game.round());
     let rules = &game.content().rules.config.diplomacy;
@@ -69,7 +71,7 @@ pub(crate) fn rate(
         ProposalKind::Pact => yes(r.friendship > pact_floor && friend(game) >= k.pact_accept),
         ProposalKind::Alliance => yes(r.friendship > ally_floor && friend(game) >= k.ally_accept),
         ProposalKind::WarOn(third) => {
-            let sk = crate::statecraft::Knobs::current();
+            let sk = game.levers().diplomacy;
             let (m, t) = (
                 scene.power(game, judge).score(&sk).max(1),
                 scene.power(game, third).score(&sk),
@@ -103,7 +105,7 @@ fn yields_to_threat(
     judge: PlayerId,
     asker: PlayerId,
     r: &Regard,
-    k: &Knobs,
+    k: &DiplomacyBLevers,
 ) -> bool {
     if r.fear >= k.yield_fear {
         let gold = game.player(judge).map_or(0, |p| p.treasury().gold.floor());
@@ -153,7 +155,7 @@ pub(crate) fn approach_human(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) 
     if banished || !scene.others.contains(&human) {
         return;
     }
-    let k = Knobs::current();
+    let k = game.levers().diplomacy_b;
     let treaty = game.treaty(me, human);
     if treaty == Treaty::War {
         if crate::diplo_b::offer_due(ai, game, human, game.round())
@@ -216,7 +218,7 @@ fn demand(
     human: PlayerId,
     friendship: i32,
     treaty: Treaty,
-    k: &Knobs,
+    k: &DiplomacyBLevers,
 ) {
     let me = ai.player;
     let gold = game.player(human).map_or(0, |p| p.treasury().gold.floor());
@@ -255,7 +257,7 @@ fn gift(
     human: PlayerId,
     friendship: i32,
     treaty: Treaty,
-    k: &Knobs,
+    k: &DiplomacyBLevers,
 ) {
     let me = ai.player;
     let due = ai
@@ -281,13 +283,13 @@ fn gift(
         }
     }
     let gold = game.player(me).map_or(0, |p| p.treasury().gold.floor());
-    if gold >= 200 {
+    if gold >= game.levers().diplomacy.human_gift_least_gold {
         ai.order(
             game,
             Command::Diplomacy(DiplomacyCommand::GiveGold {
                 from: me,
                 to: human,
-                amount: 50,
+                amount: game.levers().diplomacy.gift_gold,
             }),
             events,
         );
@@ -299,7 +301,7 @@ fn gift(
 /// `approach_human`'s courting and by the human's own offers).
 pub(crate) fn negotiate(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    let k = Knobs::current();
+    let k = game.levers().diplomacy_b;
     let scene = Scene::new(game, me);
     let banished = PlayerView::new(game, me)
         .wizard()
@@ -330,6 +332,7 @@ pub(crate) fn negotiate(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 mod tests {
     use super::*;
     use crate::diplo_b_stance::tests::pair;
+    use crate::testworld::levers;
     use crate::testworld::{P0, P1};
     use f4x_master::Game;
 
@@ -476,7 +479,7 @@ mod tests {
         let mut w = with_human(pair(8, 8, 100));
         w.start_treaty(P0, P1, Treaty::Pact);
         // Down to between the marks for a warning and for breaking the treaty.
-        let k = Knobs::current();
+        let k = levers().diplomacy_b;
         let friendship = |w: &Game| {
             let scene = Scene::new(w, P0);
             regard(w, P0, P1, &scene, &ai.memory.get(), w.round()).friendship
@@ -502,7 +505,7 @@ mod tests {
         assert_eq!(warnings(&events), 1, "no warning");
         approach_human(&ai, &mut w, &mut events);
         assert_eq!(warnings(&events), 1, "warned twice in a turn");
-        w.set_round(w.round() + Knobs::current().warn_cool);
+        w.set_round(w.round() + levers().diplomacy_b.warn_cool);
         approach_human(&ai, &mut w, &mut events);
         assert_eq!(
             warnings(&events),
@@ -517,7 +520,7 @@ mod tests {
         let mut w = with_human(pair(8, 8, 100));
         w.start_treaty(P0, P1, Treaty::Pact);
         // Half way between the marks, so that what the turn does to the feeling stays between them.
-        let k = Knobs::current();
+        let k = levers().diplomacy_b;
         feel(&mut w, &ai, (k.warn_below + k.break_below) / 2);
         let events = ai.play_turn(&mut w);
         let warned = events.iter().any(|e| {

@@ -19,9 +19,12 @@
 //! **Factors and self-interest.** [`affinity`] is the modest bonus (fame, a Charismatic retort,
 //! the same race, shared books) that eases a pact, an alliance or a peace; it is balanced against
 //! the AI's own interest ([`self_interest`]: a friendly neighbour it is far ahead of is still a
-//! target, the leader is still left to the others). Every number is in [`Knobs`] and can be set
-//! from the environment for a soak (`AIS_DIPLO_<NAME>`, see `crate::knob`).
+//! target, the leader is still left to the others). Every number is in the `diplomacy` levers and
+//! can be set from the environment for a soak (`AIS_DIPLO_<NAME>`, see `crate::lever`).
 
+use f4x_def::rules::ai_strategy::DiplomacyLevers;
+
+use crate::lever::Levered;
 use f4x_core::diplomacy::{army_strength, DiplomacyCommand, ProposalKind, Remark, Treaty};
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
@@ -33,67 +36,6 @@ use crate::memory::Diplomats;
 use crate::Ai;
 use f4x_master::Game;
 
-/// Every number of the statecraft in one place.
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct Knobs {
-    /// Switches (1 on, 0 off), to measure a part alone in a soak (`AIS_DIPLO_<NAME>`): the factors and
-    /// self-interest of the willingness, and the arms-enemy refusal.
-    pub on_factors: bool,
-    pub on_arms: bool,
-    /// A city's worth in army points, to weigh cities against armies.
-    pub city_power: i32,
-    /// Self-interest: a neighbour with this percent of the AI's army and of its cities or less, and at least
-    /// this many cities of its own, is one the AI means to attack.
-    pub dominant_army: i32,
-    pub dominant_cities: i32,
-    pub dominant_min_cities: usize,
-    /// The leader holds this percent of the next best's power; two that fear the same leader get on better
-    /// by `coalition_bonus`.
-    pub leader_margin: i32,
-    pub coalition_bonus: i32,
-    /// The factors, each added to the willingness for a pact, an alliance or a peace.
-    pub fame_per_point: i32,
-    pub fame_cap: i32,
-    pub charismatic: i32,
-    pub same_race: i32,
-    pub shared_realm: i32,
-    pub shared_cap: i32,
-    pub opposed_realm: i32,
-    pub broken_memory: i32,
-    /// Self-interest, taken off the willingness: toward a neighbour it means to attack, and
-    /// toward the leader.
-    pub interest_target: i32,
-    pub interest_leader: i32,
-}
-
-impl Knobs {
-    pub(crate) fn current() -> Self {
-        let k =
-            |name: &str, default: i32| crate::knob(&format!("DIPLO_{name}"), default as f32) as i32;
-        let on = |name: &str| k(name, 1) != 0;
-        Self {
-            on_factors: on("ON_FACTORS"),
-            on_arms: on("ON_ARMS"),
-            city_power: k("CITY_POWER", 100),
-            dominant_army: k("DOMINANT_ARMY", 160),
-            dominant_cities: k("DOMINANT_CITIES", 150),
-            dominant_min_cities: k("DOMINANT_MIN_CITIES", 3) as usize,
-            leader_margin: k("LEADER_MARGIN", 130),
-            coalition_bonus: k("COALITION_BONUS", 30),
-            fame_per_point: k("FAME_PER_POINT", 25).max(1),
-            fame_cap: k("FAME_CAP", 8),
-            charismatic: k("CHARISMATIC", 6),
-            same_race: k("SAME_RACE", 8),
-            shared_realm: k("SHARED_REALM", 3),
-            shared_cap: k("SHARED_CAP", 6),
-            opposed_realm: k("OPPOSED_REALM", 4),
-            broken_memory: k("BROKEN_MEMORY", 15),
-            interest_target: k("INTEREST_TARGET", 25),
-            interest_leader: k("INTEREST_LEADER", 15),
-        }
-    }
-}
-
 /// Army and cities of one player, as the observer sees them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Power {
@@ -102,7 +44,7 @@ pub(crate) struct Power {
 }
 
 impl Power {
-    pub(crate) fn score(self, k: &Knobs) -> i32 {
+    pub(crate) fn score(self, k: &DiplomacyLevers) -> i32 {
         self.army + k.city_power * self.cities
     }
 }
@@ -163,7 +105,7 @@ impl Scene {
 /// The wizard that leads the game as `observer` sees it: casting the Spell of Mastery, or far
 /// ahead of the next best in army and cities. `None` when the observer leads or nobody does.
 pub(crate) fn leader_of(world: &World, observer: PlayerId) -> Option<PlayerId> {
-    let k = Knobs::current();
+    let k = world.levers().diplomacy;
     let view = PlayerView::new(world, observer);
     if let Some((caster, _)) = view
         .rival_mastery_casters()
@@ -191,7 +133,7 @@ pub(crate) fn leader_of(world: &World, observer: PlayerId) -> Option<PlayerId> {
 /// level or when it has met nobody. Above 1 the observer leads (task 697: a lead lowers the edge an
 /// army wants before it marches).
 pub(crate) fn lead_of(world: &World, observer: PlayerId) -> f32 {
-    let k = Knobs::current();
+    let k = world.levers().diplomacy;
     let scene = Scene::new(world, observer);
     let score = |p: PlayerId| scene.power(world, p).score(&k).max(1) as f32;
     scene
@@ -220,7 +162,7 @@ fn race_of(world: &World, who: PlayerId) -> Option<RaceId> {
 /// trade or a peace: the other's fame, a Charismatic retort, the same race, books in the same
 /// realms, less a treaty the other broke with it. None of these decides alone.
 pub(crate) fn affinity(world: &World, minds: &Diplomats, me: PlayerId, other: PlayerId) -> i32 {
-    let k = Knobs::current();
+    let k = world.levers().diplomacy;
     let mut a = 0;
     if let Some(w) = world.wizard(other) {
         a += (w.fame() / k.fame_per_point).clamp(0, k.fame_cap);
@@ -263,7 +205,7 @@ pub(crate) fn affinity(world: &World, minds: &Diplomats, me: PlayerId, other: Pl
 /// What stands against a friendly answer to `asker` for `judge`: the asker is a neighbour the
 /// judge is far ahead of and means to attack, or leads the game.
 pub(crate) fn self_interest(world: &World, judge: PlayerId, asker: PlayerId) -> i32 {
-    let k = Knobs::current();
+    let k = world.levers().diplomacy;
     let mut against = 0;
     if dominates(world, judge, asker, &k) {
         against += k.interest_target;
@@ -282,7 +224,7 @@ pub(crate) fn goodwill(
     asker: PlayerId,
     kind: ProposalKind,
 ) -> i32 {
-    let k = Knobs::current();
+    let k = world.levers().diplomacy;
     if !k.on_factors {
         return 0;
     }
@@ -299,7 +241,7 @@ pub(crate) fn goodwill(
 }
 
 /// Whether `me` is far ahead of `other` in army and cities.
-fn dominates(world: &World, me: PlayerId, other: PlayerId, k: &Knobs) -> bool {
+fn dominates(world: &World, me: PlayerId, other: PlayerId, k: &DiplomacyLevers) -> bool {
     let scene = Scene::new(world, me);
     let (mine, theirs) = (scene.power(world, me), scene.power(world, other));
     theirs.cities > 0
@@ -311,7 +253,7 @@ fn dominates(world: &World, me: PlayerId, other: PlayerId, k: &Knobs) -> bool {
 /// Whether a trade with `asker` would arm an enemy of `judge`: the asker is at war with it or
 /// with one of its allies, or leads the game.
 pub(crate) fn arms_enemy(world: &World, judge: PlayerId, asker: PlayerId) -> bool {
-    Knobs::current().on_arms
+    world.levers().diplomacy.on_arms
         && (world.treaty(judge, asker) == Treaty::War
             || world.player_ids().into_iter().any(|p| {
                 p != judge
@@ -389,13 +331,13 @@ pub(crate) fn gift_gold(
     why: Remark,
 ) -> bool {
     let me = ai.player;
-    let k = crate::diplo_b::Knobs::current();
+    let k = game.levers().diplomacy_b;
     let gold = game.player(me).map_or(0, |p| p.treasury().gold.floor());
     if !ai
         .memory
         .get()
         .due(to, crate::memory::Did::Gift, game.round(), k.gift_cool)
-        || gold < 100
+        || gold < game.levers().diplomacy.gift_least_gold
     {
         return false;
     }
@@ -405,7 +347,7 @@ pub(crate) fn gift_gold(
             Command::Diplomacy(DiplomacyCommand::GiveGold {
                 from: me,
                 to,
-                amount: 50,
+                amount: game.levers().diplomacy.gift_gold,
             }),
             events,
         )

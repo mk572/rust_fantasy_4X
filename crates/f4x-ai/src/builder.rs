@@ -10,6 +10,7 @@
 //! Engineers and ships are not chosen here: their own modules order them (`road`, `naval`), so
 //! that nothing builds them as a side effect of ranking units.
 
+use crate::lever::Levered;
 use f4x_core::city::autobuild::{garrison_minimum, BuildPlan, Focus, Mix};
 use f4x_core::city::production::ProductionItem;
 use f4x_core::player::view::PlayerView;
@@ -17,11 +18,6 @@ use f4x_def::half_int::HalfInt;
 use f4x_def::rules::effects::Effect;
 use f4x_def::rules::{BuildingId, ModOp, Stat, UnitDef, UnitId};
 
-/// Net gold per turn below which a city builds toward gold first.
-const GOLD_FLOOR: i32 = 3;
-/// Gold buildings are the first of the basics only below this net; above it production and food
-/// come first.
-const RICH_ENOUGH: i32 = 8;
 /// What the city needs to know besides its plan.
 #[derive(Clone, Copy)]
 pub struct Need {
@@ -230,23 +226,21 @@ fn listed_buildings(view: &PlayerView, city: hecs::Entity, need: Need) -> Vec<Bu
 /// The miners guild: it adds half to the gold, mana and ore savings of the tiles in the city's area.
 const MINERS_GUILD: BuildingId = BuildingId::new(34); // miners_guild
 
-/// Land that gives production (forests, hills, mountains, desert) is a specialty only when there is
-/// a good deal of it: a point of worth for each tile's 3%, and nothing below [`LAND_PRODUCTION_MIN`].
-const LAND_PRODUCTION_MIN: f32 = 12.0;
-
-/// A river square gives two food: a specialty in food from this many of them, half a point each.
-const RIVERS_MIN: u32 = 4;
-
-fn river_worth(rivers: u32) -> f32 {
-    if rivers >= RIVERS_MIN {
-        rivers as f32 * 0.5
+/// What the rivers of a city are worth to its choice of food buildings: nothing below
+/// `rivers_min` squares.
+fn river_worth(view: &PlayerView, rivers: u32) -> f32 {
+    if rivers >= view.levers().building.rivers_min {
+        rivers as f32 * view.levers().shared.river_worth
     } else {
         0.0
     }
 }
 
-fn terrain_production_worth(percent: f32) -> f32 {
-    if percent >= LAND_PRODUCTION_MIN {
+/// Land that gives production (forests, hills, mountains, desert) is a specialty only when there
+/// is a good deal of it: a point of worth for each tile's 3%, and nothing below
+/// `land_production_min`.
+fn terrain_production_worth(view: &PlayerView, percent: f32) -> f32 {
+    if percent >= view.levers().building.land_production_min {
         percent / 3.0
     } else {
         0.0
@@ -288,7 +282,7 @@ fn specialty(view: &PlayerView, city: hecs::Entity, need: Need) -> Option<Buildi
             best_adding(view, city, need, &[Stat::CityMana]).or(miners),
         ),
         (
-            sp.food + river_worth(sp.rivers),
+            sp.food + river_worth(view, sp.rivers),
             best_adding(
                 view,
                 city,
@@ -297,7 +291,7 @@ fn specialty(view: &PlayerView, city: hecs::Entity, need: Need) -> Option<Buildi
             ),
         ),
         (
-            sp.unit_cost_percent / 5.0 + terrain_production_worth(sp.terrain_production),
+            sp.unit_cost_percent / 5.0 + terrain_production_worth(view, sp.terrain_production),
             best_adding(view, city, need, &[Stat::CityProduction]).or(miners),
         ),
         (sp.nightshade as f32 * 2.0, nightshade()),
@@ -353,7 +347,7 @@ pub fn next_item(
     // 3. The basics, before anything the plan wants: gold when the treasury runs short, then
     // production, food where the city is stuck, and gold again.
     if buildings_ok {
-        if need.net_gold < HalfInt::from_int(GOLD_FLOOR) {
+        if need.net_gold < HalfInt::from_int(view.levers().building.gold_floor) {
             if let Some(b) = best_adding(view, city, need, &[Stat::CityGold]) {
                 return ProductionItem::Building(b);
             }
@@ -367,7 +361,7 @@ pub fn next_item(
             (&[Stat::CityProduction], true),
             (
                 &[Stat::CityGold],
-                need.net_gold < HalfInt::from_int(RICH_ENOUGH),
+                need.net_gold < HalfInt::from_int(view.levers().building.rich_enough),
             ),
         ];
         for (stats, wanted) in basics {
@@ -753,7 +747,12 @@ mod tests {
     #[test]
     fn rivers_make_a_city_build_what_adds_food() -> TestResult {
         let (b, w) = specialty_after(|grid, x, y| {
-            for dx in 0..RIVERS_MIN {
+            for dx in 0..crate::testworld::shipped()
+                .rules
+                .ai_strategy
+                .building
+                .rivers_min
+            {
                 grid.set_river(x + dx - 1, y + 1, true);
             }
         })?;

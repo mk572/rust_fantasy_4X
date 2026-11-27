@@ -10,6 +10,9 @@
 //! The memory is fed by the events a human would be told of (`Controller::notice` in `f4x-master`,
 //! [`Memory::notice`]): the battles the wizard fought and the cities it won and lost.
 
+use f4x_def::rules::ai_strategy::DiplomacyBLevers;
+
+use crate::lever::Levered;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
@@ -84,7 +87,7 @@ impl Dealing {
 }
 
 /// What a wizard has seen another do that the others dislike (system B's fear): cities razed, wars
-/// declared, treaties broken. `points` fade by half every `Knobs::ruth_half` turns.
+/// declared, treaties broken. `points` fade by half every `ruth_half` turns.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct Acts {
     pub who: PlayerId,
@@ -162,8 +165,7 @@ impl Memory {
     }
 
     /// Write down what a wizard met did: it razed a city, declared a war or broke a treaty.
-    fn ruthless(&mut self, who: PlayerId, now: u32, kind: Ruth) {
-        let k = crate::diplo_b::Knobs::current();
+    fn ruthless(&mut self, k: &DiplomacyBLevers, who: PlayerId, now: u32, kind: Ruth) {
         let a = self.acts_of(who);
         a.points = (a.points >> (now.saturating_sub(a.stamp) / k.ruth_half.max(1)).min(30)).max(0);
         a.stamp = now;
@@ -221,10 +223,9 @@ impl Memory {
     /// another wizard or neutral race. What happened to others, and its fights with monsters, are not
     /// its business.
     pub(crate) fn notice(&mut self, me: PlayerId, world: &World, round: u32, events: &[Event]) {
-        use crate::diplo_b::Knobs;
         let known =
             |p: PlayerId| p != me && (world.is_wizard(p) || world.race_of_player(p).is_some());
-        let k = Knobs::current();
+        let k = world.levers().diplomacy_b;
         for event in events {
             self.feel(world, me, event, round);
             // What the others do that is ruthless, seen when they are known to it.
@@ -251,7 +252,7 @@ impl Memory {
             };
             if let Some((who, kind)) = act {
                 if known(who) && world.have_met(me, who) {
-                    self.ruthless(who, round, kind);
+                    self.ruthless(&k, who, round, kind);
                 }
                 continue;
             }
@@ -345,9 +346,6 @@ pub(crate) mod shared {
 #[derive(Debug, Clone, Default)]
 pub struct Diplomats(Rc<RefCell<BTreeMap<PlayerId, Rc<RefCell<Memory>>>>>);
 
-/// The feeling at or below which a wizard will not talk to the other (not at war).
-const AUDIENCE_REFUSED_BELOW: i32 = -90;
-
 impl Diplomats {
     pub fn new() -> Self {
         Self::default()
@@ -403,7 +401,7 @@ impl Diplomats {
     /// Whether `me` will not see `other` to talk (the human's "will not see you"): it hates the other
     /// beyond reason and is not at war with them (at war a wizard always hears an offer of peace).
     pub fn refuses_audience(&self, world: &World, me: PlayerId, other: PlayerId) -> bool {
-        self.friendship(world, me, other) <= AUDIENCE_REFUSED_BELOW
+        self.friendship(world, me, other) <= world.levers().diplomacy.audience_refused_below
             && world.treaty(me, other) != f4x_core::diplomacy::Treaty::War
     }
 

@@ -1,7 +1,7 @@
 # AI strike forces: gather first, attack separately
 
-Plan, 27 November 2026. **Nothing here is built.** *Needs:* task 831 (the strategic AI's settings file,
-`f4x-def/content/ai_strategy.ron`), which is done first.
+Plan, 27 November 2026. **Nothing here is built.** It builds on the strategic AI's settings file
+(`f4x-def/content/ai_strategy.ron`, task 831, done).
 
 ## 1. Why
 
@@ -53,9 +53,10 @@ when the stack is at least `attack_force` (1.2) times as strong as the defence.
 | Enemy units or city at war, roaming monsters | free, campaign muster, march, perimeter, reinforce, garrison | the visible defenders, with the city factor for a city |
 | Units of a player not at war that stand in the zone of an own city | perimeter units, only when the AI is open to war on that player; it declares war first | the visible defenders |
 
-- `attack_force: 1.2` is a new entry of `ai_strategy.ron`. It replaces `attack_ratio` (1.4),
-  `committed_ratio` (1.1), the campaign edge by phase (2.0, 1.5, 1.3 to 1.05), `sortie_ratio` (2.5),
-  `site::edge` (1.4) and `COMMITTED_LANDING` (1.2). There is no threshold by place, role or phase of
+- `attack_force: 1.2` is a new entry of `ai_strategy.ron`. It replaces these entries of its `attack`
+  group: `attack` (1.4, which is also the edge against a site), `committed` (1.1), the campaign edge by
+  phase (`edge_build` 2.0, `edge_secure` 1.5, `edge_win` 1.3 to `edge_lead` 1.05), `sortie` (2.5) and
+  `committed_landing` (1.2). There is no threshold by place, role or phase of
   the game any more.
 - The same number says how large a force the dispatcher gathers (`war_plan` and the force of section
   5.3) and what `economy` builds towards, so a gathered force is one that attacks.
@@ -178,7 +179,7 @@ from other enemy units.
 
 ## 8. Order of work and checks
 
-1. Task 831 (the settings file), then step 1 (attack module), then step 2 (rally point). Each can be
+1. Step 1 (attack module, task 836), then step 2 (rally point, task 837). Each can be
    reviewed and committed by itself.
 2. After each: `cargo nextest run --workspace --exclude f4x-learn`, `cargo fmt --all`,
    `cargo clippy --workspace --tests --exclude f4x-learn`, and the speed guard

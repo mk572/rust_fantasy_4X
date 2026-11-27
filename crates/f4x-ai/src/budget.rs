@@ -5,7 +5,7 @@
 //! three things, the way a player holds back:
 //!
 //! - **the reserve is thin**: a wizard whose income does not cover its upkeep keeps
-//!   [`HOLD_TURNS`] turns of the shortfall;
+//!   `hold_turns` turns of the shortfall;
 //! - **the fight is likely won anyway**: the more the attackers outweigh the defence, the less
 //!   mana they are worth;
 //! - **little is at stake**: a fight in the open away from home, with no hero in it, is worth
@@ -15,23 +15,13 @@
 //! or bigger is no limit at all. The human has the same choice in the attack prompt
 //! (`Command::AutoResolve::mana_budget`); the defender of a battle spends what it may.
 
+use f4x_def::rules::ai_strategy::BattleSpendLevers;
+
+use crate::lever::Levered;
 use crate::view::fighting_strength;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
-
-/// Turns of an upkeep shortfall the reserve keeps for itself.
-const HOLD_TURNS: i32 = 10;
-/// The share of the spare mana at which the limit falls away.
-const NO_LIMIT: f32 = 0.75;
-/// Attackers this many times the defence are certain winners: the least need.
-const SURE_RATIO: f32 = 3.0;
-/// Attackers this many times the defence or fewer need every spell they have.
-const EVEN_RATIO: f32 = 1.2;
-/// The least need there is: even a sure win may use a little mana to lose fewer units.
-const LEAST_NEED: f32 = 0.2;
-/// Squares from one of our cities that a fight is still on our own ground.
-const HOME_RANGE: u32 = 3;
 
 /// What a fight is worth, 0 to 1.
 pub(crate) fn stake(
@@ -40,10 +30,10 @@ pub(crate) fn stake(
     attackers: &[hecs::Entity],
     defenders: &[hecs::Entity],
 ) -> f32 {
-    let at_home = view
-        .my_cities()
-        .iter()
-        .any(|&(_, p)| view.distance(p, target).is_some_and(|d| d <= HOME_RANGE));
+    let at_home = view.my_cities().iter().any(|&(_, p)| {
+        view.distance(p, target)
+            .is_some_and(|d| d <= view.levers().battle_spend.home_range)
+    });
     let place: f32 = if view.city_at(target).is_some() {
         1.0
     } else if view.has_lair(target) {
@@ -66,23 +56,30 @@ pub(crate) fn stake(
     }
 }
 
-/// How much the battle needs its spells, 1 for an even fight to `LEAST_NEED` for a sure win.
-pub(crate) fn need(ratio: f32) -> f32 {
-    if !ratio.is_finite() || ratio >= SURE_RATIO {
-        return LEAST_NEED;
+/// How much the battle needs its spells, 1 for an even fight to `least_need` for a sure win.
+pub(crate) fn need(levers: &BattleSpendLevers, ratio: f32) -> f32 {
+    let least = levers.least_need;
+    if !ratio.is_finite() || ratio >= levers.sure_ratio {
+        return least;
     }
-    let span = SURE_RATIO - EVEN_RATIO;
-    (1.0 - (ratio - EVEN_RATIO).max(0.0) / span * (1.0 - LEAST_NEED)).clamp(LEAST_NEED, 1.0)
+    let span = (levers.sure_ratio - levers.even_ratio).max(f32::EPSILON);
+    (1.0 - (ratio - levers.even_ratio).max(0.0) / span * (1.0 - least)).clamp(least.min(1.0), 1.0)
 }
 
 /// The mana the battle may take, or `None` for no limit beyond the battle's own: `reserve` is
 /// the mana held, `income` the mana a turn leaves after the upkeep (below 0 when the upkeep is
 /// the bigger), `stake` and `ratio` as above.
-pub(crate) fn allowance(reserve: i32, net_income: i32, stake: f32, ratio: f32) -> Option<u32> {
-    let kept = (-net_income).max(0) * HOLD_TURNS;
+pub(crate) fn allowance(
+    levers: &BattleSpendLevers,
+    reserve: i32,
+    net_income: i32,
+    stake: f32,
+    ratio: f32,
+) -> Option<u32> {
+    let kept = (-net_income).max(0) * levers.hold_turns;
     let spare = (reserve - kept).max(0);
-    let share = stake.clamp(0.0, 1.0) * need(ratio);
-    if share >= NO_LIMIT && kept == 0 {
+    let share = stake.clamp(0.0, 1.0) * need(levers, ratio);
+    if share >= levers.no_limit && kept == 0 {
         return None;
     }
     Some((spare as f32 * share.min(1.0)).floor() as u32)
@@ -99,7 +96,7 @@ pub(crate) fn for_attack(
     let target = view.unit_position(*defenders.first()?)?;
     let theirs = fighting_strength(view, defenders)
         * if view.city_at(target).is_some() {
-            1.3
+            view.levers().shared.city_defence_factor
         } else {
             1.0
         };
@@ -111,6 +108,7 @@ pub(crate) fn for_attack(
     let income = view.income();
     let net = (income.split.mana - income.mana_upkeep).floor();
     let mana = allowance(
+        &view.levers().battle_spend,
         view.treasury().mana.floor(),
         net,
         stake(view, target, attackers, defenders),
@@ -122,37 +120,43 @@ pub(crate) fn for_attack(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn spend() -> BattleSpendLevers {
+        crate::testworld::levers().battle_spend
+    }
     use f4x_master::Game;
 
     #[test]
     fn an_even_fight_needs_everything_and_a_sure_win_little() {
-        assert_eq!(need(0.5), 1.0);
-        assert_eq!(need(EVEN_RATIO), 1.0);
-        assert_eq!(need(SURE_RATIO), LEAST_NEED);
-        assert_eq!(need(f32::INFINITY), LEAST_NEED);
-        assert!(need(2.0) < need(1.5) && need(2.0) > need(2.5));
+        assert_eq!(need(&spend(), 0.5), 1.0);
+        assert_eq!(need(&spend(), spend().even_ratio), 1.0);
+        assert_eq!(need(&spend(), spend().sure_ratio), spend().least_need);
+        assert_eq!(need(&spend(), f32::INFINITY), spend().least_need);
+        assert!(
+            need(&spend(), 2.0) < need(&spend(), 1.5) && need(&spend(), 2.0) > need(&spend(), 2.5)
+        );
     }
 
     #[test]
     fn a_fight_that_matters_and_is_not_won_has_no_limit() {
-        assert_eq!(allowance(500, 5, 1.0, 1.0), None);
+        assert_eq!(allowance(&spend(), 500, 5, 1.0, 1.0), None);
         // A city taken by a sure winner may use a fifth of what is spare.
-        assert_eq!(allowance(500, 5, 1.0, 4.0), Some(100));
+        assert_eq!(allowance(&spend(), 500, 5, 1.0, 4.0), Some(100));
     }
 
     #[test]
     fn little_at_stake_means_a_small_allowance() {
         // The open field away from home (0.3) in an even fight: three tenths of the reserve.
-        assert_eq!(allowance(500, 5, 0.3, 1.0), Some(150));
+        assert_eq!(allowance(&spend(), 500, 5, 0.3, 1.0), Some(150));
         // And a sure win there: a sixtieth part.
-        assert_eq!(allowance(500, 5, 0.3, 4.0), Some(30));
+        assert_eq!(allowance(&spend(), 500, 5, 0.3, 4.0), Some(30));
     }
 
     #[test]
     fn a_wizard_short_of_mana_keeps_the_shortfall_of_ten_turns() {
         // Upkeep 20 over income: 200 held back, and then a city fight is still limited to the rest.
-        assert_eq!(allowance(500, -20, 1.0, 1.0), Some(300));
-        assert_eq!(allowance(150, -20, 1.0, 1.0), Some(0));
+        assert_eq!(allowance(&spend(), 500, -20, 1.0, 1.0), Some(300));
+        assert_eq!(allowance(&spend(), 150, -20, 1.0, 1.0), Some(0));
     }
 
     use crate::testworld::{at, game, spawn, COAST_CITY, ENEMY_CITY, P0, P1};

@@ -1,9 +1,9 @@
 //! What the war jobs share (`war.rs`, `strike.rs`, `site.rs`, `monster.rs`): the ratios an attack
 //! is judged by, the stacks of a square, the battle and the strength a defence is expected to have.
 
-//! What the war jobs share (`war.rs`, `strike.rs`, `site.rs`, `monster.rs`): the ratios an attack
-//! is judged by, the stacks of a square, the battle and the strength a defence is expected to have.
+use f4x_def::rules::ai_strategy::AttackLevers;
 
+use crate::lever::Levered;
 use std::collections::HashMap;
 
 use f4x_core::map::Position;
@@ -14,10 +14,6 @@ use crate::view::{fighting_strength, is_fighter, unit_strength};
 use crate::Ai;
 use f4x_master::Game;
 
-/// The AI attacks when its force is this much stronger than what it expects to meet.
-pub(crate) fn attack_ratio() -> f32 {
-    crate::knob("ATTACK", 1.4)
-}
 /// The edge over what it expects to meet that an army wants before it marches or strikes, by the
 /// phase of the game and the lead of the wizard (task 697). The numbers come from the ratings, not
 /// from soaks: in `duel teams` the side with the larger sum of unit ratings wins 74% of the time at
@@ -25,12 +21,12 @@ pub(crate) fn attack_ratio() -> f32 {
 /// builds up the wizard marches only for a near-sure win; in the secure phase for a good one; in
 /// the win phase it takes the odds, and the more it leads the fewer it asks, down to a near-even
 /// fight at three times the best rival's power.
-pub(crate) fn edge(phase: crate::phase::Phase, lead: f32) -> f32 {
+pub(crate) fn edge(levers: &AttackLevers, phase: crate::phase::Phase, lead: f32) -> f32 {
     match phase {
-        crate::phase::Phase::Build => crate::knob("EDGE_BUILD", 2.0),
-        crate::phase::Phase::Secure => crate::knob("EDGE_SECURE", 1.5),
+        crate::phase::Phase::Build => levers.edge_build,
+        crate::phase::Phase::Secure => levers.edge_secure,
         crate::phase::Phase::Win => {
-            let (first, last) = (crate::knob("EDGE_WIN", 1.3), crate::knob("EDGE_LEAD", 1.05));
+            let (first, last) = (levers.edge_win, levers.edge_lead);
             let share = ((lead - 1.0) / 2.0).clamp(0.0, 1.0);
             first + (last - first) * share
         }
@@ -40,37 +36,15 @@ pub(crate) fn edge(phase: crate::phase::Phase, lead: f32) -> f32 {
 /// [`edge`] for this wizard now.
 pub(crate) fn campaign_ratio(world: &World, me: f4x_core::player::PlayerId, round: u32) -> f32 {
     let phase = crate::phase::phase(&PlayerView::new(world, me), round);
-    edge(phase, crate::statecraft::lead_of(world, me))
+    edge(
+        &world.levers().attack,
+        phase,
+        crate::statecraft::lead_of(world, me),
+    )
 }
 
-/// An attack out of a city's garrison needs a much bigger edge.
-pub(crate) fn sortie_ratio() -> f32 {
-    crate::knob("SORTIE", 2.5)
-}
-/// Strength assumed for a defence the AI cannot see.
-pub(crate) const GUESS_DEFENDERS: f32 = 3.0;
-/// How long a remembered garrison is trusted, in turns.
-pub(crate) const MEMORY_TURNS: u32 = 80;
-/// Squares of walking one average unit of garrison is worth when choosing a target.
-pub(crate) const HELD_WEIGHT: f32 = 1.5;
-/// A force that has marched and not fought for this many turns goes home to gather again.
-pub(crate) const MARCH_TURNS: u32 = 15;
-/// What a landing party wants over the expected defence before it marches on the city.
-pub(crate) const COMMITTED_LANDING: f32 = 1.2;
-/// Turns an enemy city that no march could reach is left alone.
-pub(crate) const UNREACHABLE_TURNS: u32 = 40;
-/// Once marched, a force attacks with this much of an edge.
-pub(crate) fn committed_ratio() -> f32 {
-    crate::knob("COMMITTED", 1.1)
-}
-
-/// How near an enemy stack must be to threaten a city.
-pub(crate) const THREAT_RADIUS: i32 = 3;
-
-/// The enemy has the better of the garrison when it is this share of its strength.
-pub(crate) const THREAT_RATIO: f32 = 0.8;
-
-const NEIGHBOURS: &[(i32, i32)] = &[
+/// The eight squares round a square, as steps.
+pub(crate) const NEIGHBOURS: [(i32, i32); 8] = [
     (-1, -1),
     (0, -1),
     (1, -1),
@@ -143,13 +117,15 @@ pub(crate) fn engage(
     );
 }
 
-/// The own cities an enemy stack within [`THREAT_RADIUS`] could take: the strength near is more
-/// than [`THREAT_RATIO`] of the strength at home. With the strength still wanted.
+/// The own cities an enemy stack within `near_city_radius` could take: the strength near is more
+/// than `threat_ratio` of the strength at home. With the strength still wanted.
 pub(crate) fn threats(view: &PlayerView) -> Vec<(Position, f32)> {
+    let radius = view.levers().shared.near_city_radius;
+    let ratio = view.levers().attack.threat_ratio;
     let mut found = Vec::new();
     for (_, pos) in view.my_cities() {
         let near: f32 = view
-            .enemies_near(pos, THREAT_RADIUS)
+            .enemies_near(pos, radius)
             .iter()
             .map(|(_, units)| fighting_strength(view, units))
             .sum();
@@ -162,8 +138,8 @@ pub(crate) fn threats(view: &PlayerView) -> Vec<(Position, f32)> {
             .filter(|&u| is_fighter(view, u))
             .collect();
         let held = fighting_strength(view, &home);
-        if near * THREAT_RATIO > held {
-            found.push((pos, near / THREAT_RATIO - held));
+        if near * ratio > held {
+            found.push((pos, near / ratio - held));
         }
     }
     found
@@ -195,17 +171,19 @@ pub(crate) fn expected_defence(
     turn: u32,
     at: Position,
 ) -> f32 {
+    let levers = view.levers();
+    let in_city = levers.shared.city_defence_factor;
     // What the enemy city screen shows a human of a city it has explored: the units in it.
     if let Some(report) = view.city_at(at).and_then(|c| view.city_report(c)) {
-        return fighting_strength(view, &report.garrison) * 1.3;
+        return fighting_strength(view, &report.garrison) * in_city;
     }
     if view.sees(at) {
-        return fighting_strength(view, &view.hostile_at(at).unwrap_or_default()) * 1.3;
+        return fighting_strength(view, &view.hostile_at(at).unwrap_or_default()) * in_city;
     }
     match memory.get(&at) {
-        Some(&(s, seen)) if turn.saturating_sub(seen) <= MEMORY_TURNS => s * 1.3,
+        Some(&(s, seen)) if turn.saturating_sub(seen) <= levers.attack.memory_turns => s * in_city,
         // A guess of a few average units: only now is the average worked out.
-        _ => crate::knob("GUESS", GUESS_DEFENDERS) * average_strength(view),
+        _ => levers.attack.guess * average_strength(view),
     }
 }
 
@@ -214,13 +192,17 @@ mod tests {
     use super::*;
     use crate::phase::Phase;
 
+    fn levers() -> AttackLevers {
+        crate::testworld::shipped().rules.ai_strategy.attack
+    }
+
     /// The edge asked grows with caution: most while building up, least in the win phase.
     #[test]
     fn the_edge_asked_falls_from_the_build_phase_to_the_win_phase() {
         let (build, secure, win) = (
-            edge(Phase::Build, 1.0),
-            edge(Phase::Secure, 1.0),
-            edge(Phase::Win, 1.0),
+            edge(&levers(), Phase::Build, 1.0),
+            edge(&levers(), Phase::Secure, 1.0),
+            edge(&levers(), Phase::Win, 1.0),
         );
         assert!(
             build > secure && secure > win && win > 1.0,
@@ -232,10 +214,10 @@ mod tests {
     #[test]
     fn a_lead_lowers_the_edge_in_the_win_phase_only() {
         let (level, ahead, far_ahead, beyond) = (
-            edge(Phase::Win, 1.0),
-            edge(Phase::Win, 2.0),
-            edge(Phase::Win, 3.0),
-            edge(Phase::Win, 30.0),
+            edge(&levers(), Phase::Win, 1.0),
+            edge(&levers(), Phase::Win, 2.0),
+            edge(&levers(), Phase::Win, 3.0),
+            edge(&levers(), Phase::Win, 30.0),
         );
         assert!(
             level > ahead && ahead > far_ahead,
@@ -243,8 +225,14 @@ mod tests {
         );
         assert_eq!(far_ahead, beyond, "the fall stops");
         assert!(far_ahead > 1.0);
-        assert_eq!(edge(Phase::Secure, 3.0), edge(Phase::Secure, 1.0));
-        assert_eq!(edge(Phase::Build, 3.0), edge(Phase::Build, 1.0));
+        assert_eq!(
+            edge(&levers(), Phase::Secure, 3.0),
+            edge(&levers(), Phase::Secure, 1.0)
+        );
+        assert_eq!(
+            edge(&levers(), Phase::Build, 3.0),
+            edge(&levers(), Phase::Build, 1.0)
+        );
     }
 
     /// The same game asks a bolder edge late than early.

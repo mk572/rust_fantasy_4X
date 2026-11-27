@@ -16,9 +16,9 @@ Status: decided by the owner on 22 November 2026 (R6 and the granularity); not b
 ## What is today (the survey)
 
 - `#[serde(default)]` and `impl Default` carry tuning numbers in `defs.rs` (113 places), `settings.rs` (66),
-  `effects.rs`, `feature.rs`, `lair.rs`, `damage_type.rs`, `help.rs`, `stats.rs`, `ai_site.rs`, `map.rs`.
-- Eight files are "optional" and silently fall back to a Rust copy of their numbers: `heroes`, `wizards`,
-  `unit_ratings`, `unit_efficiency`, `battle`, `lairs`, `ai_sites`, `rules_settings`. The Rust copy and the shipped
+  `effects.rs`, `feature.rs`, `lair.rs`, `damage_type.rs`, `help.rs`, `stats.rs`, `map.rs`.
+- Seven files are "optional" and silently fall back to a Rust copy of their numbers: `heroes`, `wizards`,
+  `unit_ratings`, `unit_efficiency`, `battle`, `lairs`, `rules_settings`. The Rust copy and the shipped
   file can drift apart; nothing notices.
 - `ContentError` is three strings (`Io`, `Parse`, `Invalid(Vec<String>)`) with no severity and no structure.
 - The client prints a load error to stderr and `exit(1)`s (`f4x-client/src/main.rs`); a window never shows it.
@@ -161,7 +161,7 @@ with the layer the file came from, so the player knows whether the mod or the sh
 1. `ContentIssue` and the report in `f4x-def`; the loader collects instead of stopping; the outcome of each kind.
 2. Row-level drop for the degradable elements, with the reference check of R6.
 3. Remove the Rust defaults file by file (the shipped file gets every field; a test checks it), `battle`, `lairs`,
-   `ai_sites`, `rules_settings` first, then `defs.rs`, `settings.rs`.
+   `rules_settings` first, then `defs.rs`, `settings.rs`.
 4. Save-load checks (R3.2) and the degraded mark.
 5. Client: the issue screen, the mod folder layers, text keys; the `exit(1)` paths go.
 6. The `f4x-def` tests move from messages to `kind`, `file`, `at`.

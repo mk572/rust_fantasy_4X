@@ -95,7 +95,11 @@ pub fn load_rules(dirs: &[&Path]) -> Result<Rules, ContentError> {
         optional::<crate::rules::UnitEfficiencies>(dir, "unit_efficiency.ron", &mut issues);
     let battle = parse_into::<crate::rules::BattleRules>(dir, "battle.ron", &mut issues);
     let lairs = parse_into::<crate::rules::lair::LairRules>(dir, "lairs.ron", &mut issues);
-    let ai_sites = parse_into::<crate::rules::ai_site::SiteRules>(dir, "ai_sites.ron", &mut issues);
+    let ai_strategy = parse_into::<crate::rules::ai_strategy::StrategyAiRules>(
+        dir,
+        "ai_strategy.ron",
+        &mut issues,
+    );
     let ai_battle =
         parse_into::<crate::rules::ai_battle::BattleAiRules>(dir, "ai_battle.ron", &mut issues);
     if let Some(range) = config.as_ref().map(|c| &c.casting_range) {
@@ -124,7 +128,7 @@ pub fn load_rules(dirs: &[&Path]) -> Result<Rules, ContentError> {
         Some(retorts),
         Some(battle),
         Some(lairs),
-        Some(ai_sites),
+        Some(ai_strategy),
         Some(ai_battle),
     ) = (
         config,
@@ -140,7 +144,7 @@ pub fn load_rules(dirs: &[&Path]) -> Result<Rules, ContentError> {
         retorts,
         battle,
         lairs,
-        ai_sites,
+        ai_strategy,
         ai_battle,
     )
     else {
@@ -167,7 +171,7 @@ pub fn load_rules(dirs: &[&Path]) -> Result<Rules, ContentError> {
         efficiency: efficiency.unwrap_or_default(),
         battle,
         lairs,
-        ai_sites,
+        ai_strategy,
         ai_battle,
     };
     assemble(parts)
@@ -192,7 +196,7 @@ struct Parts {
     efficiency: crate::rules::UnitEfficiencies,
     battle: crate::rules::BattleRules,
     lairs: crate::rules::lair::LairRules,
-    ai_sites: crate::rules::ai_site::SiteRules,
+    ai_strategy: crate::rules::ai_strategy::StrategyAiRules,
     ai_battle: crate::rules::ai_battle::BattleAiRules,
 }
 
@@ -386,7 +390,7 @@ fn build(p: &Parts, dropped: &BTreeSet<(Element, u16)>) -> Result<Rules, Content
         degraded: Vec::new(),
         battle: p.battle.clone(),
         lairs: p.lairs.clone(),
-        ai_sites: p.ai_sites.clone(),
+        ai_strategy: p.ai_strategy.clone(),
         ai_battle: p.ai_battle,
     })
 }
@@ -752,8 +756,11 @@ fn check_items(r: &Rules, p: &mut Issues) {
 pub fn validate_rules(r: &Rules) -> Vec<ContentIssue> {
     let mut p = Issues::new();
     check_lairs(r, &mut p);
-    for i in r.ai_sites.problems() {
+    for i in r.ai_strategy.problems() {
         p.push(i);
+    }
+    if r.config.offer.item_price_markup == 0 {
+        p.out_of_range("rules.ron", "offer", "item_price_markup", 0, "at least 1");
     }
     for i in r.battle.problems() {
         p.push(i);

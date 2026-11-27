@@ -8,8 +8,8 @@ steer the strategic AI in `crates/f4x-ai`. Part of the scripted AI ([`ai-design.
 Steps 1, 2 and 4 are built in `crates/f4x-ai/src/objective.rs` (the table, `Traits`), read by `economy::plan_for`
 (cities wanted, strike army, the focus of a city), `wizardry::split` and `research_score` (power split and
 research likes) and `diplomacy::quarrel` (war on a weaker neighbour). The personality moves the strike
-army (`army_bias`: Maniacal +2 to Peaceful -1; ours, the original keeps personality in diplomacy). Difficulty slides every temper towards Maniacal (task 148: Hard one step, Impossible two; `objective::slid`), read by `army_bias`, `quarrel`, the raze score and the diplomacy modifier; steps past Maniacal add fighters to the strike army. Step 3 is built (task 366): `Traits::cast_boost` moves the spell kinds an objective weights up the order of casting (`wizardry::cast_rank`) and `Traits::variety` gives every third settled city another focus pair; the original's building weights by category are the auto-builder's focus affinities here. The `AIS_CITIES`,
-`AIS_STRIKE` knobs still override the table. First soak numbers: `ai-design.md` section 12.
+army (`army_bias`: Maniacal +2 to Peaceful -1; ours, the original keeps personality in diplomacy). Difficulty slides every temper towards Maniacal (task 148: Hard one step, Impossible two; `objective::slid`), read by `army_bias`, `quarrel`, the raze score and the diplomacy modifier; steps past Maniacal add fighters to the strike army. Step 3 is built (task 366): `Traits::cast_boost` moves the spell kinds an objective weights up the order of casting (`wizardry::cast_rank`) and `Traits::variety` gives every third settled city another focus pair; the original's building weights by category are the auto-builder's focus affinities here. The numbers of the table are the
+`objectives` group of `ai_strategy.ron`; `AIS_CITIES` and `AIS_STRIKE` override them for every objective. First soak numbers: `ai-design.md` section 12.
 
 ## 1. State today (before the steps above)
 
@@ -19,9 +19,9 @@ few constants, so there are no weights to scale yet.
 
 | Place | What it is now | Hook for an objective |
 |---|---|---|
-| `economy.rs` `WANTED_CITIES` (7) | cities settled before the AI only builds up | the city target |
-| `economy.rs` `STRIKE_BASE` (4) | fighters beyond the home guard | the army target |
-| `wizardry.rs` `BASE_SPLIT`, `split_target` and `split` | power split: a balanced 30/40/30 base moved by phase, goal and reserve, then raised to cover the upkeep | the mana and research shares |
+| `economy.rs` `WANTED_CITIES` (7; now the lever `cities_wanted`) | cities settled before the AI only builds up | the city target |
+| `economy.rs` `STRIKE_BASE` (4; now the lever `strike_base`) | fighters beyond the home guard | the army target |
+| `wizardry.rs` `split_target` and `split` (the `split` levers) | power split: a balanced 30/40/30 base moved by phase, goal and reserve, then raised to cover the upkeep | the mana and research shares |
 | `wizardry.rs` `research_score` | a real score, the turns to learn times factors | a factor per spell kind |
 | `wizardry.rs` `priority` | fixed order of spell kinds | not changed here (step 3) |
 | `economy.rs` `plan_for` (was `BUILD_ORDER`) | the focus, mix and settlers of each city's auto-builder plan (`docs/auto-builder.md`) | the focus pair an objective gives a city |
@@ -33,9 +33,10 @@ by category (`AIBUILD.c`), the magic investment (`AIDUDES.c`) and war declaratio
 
 - Objectives change **emphasis, not capability**: no objective forbids anything, and the rules of the
   ladder stay (never leave a city empty, no army the treasury cannot feed).
-- One table of numbers per objective, in one place (`f4x-ai/src/objective.rs`), read through
-  `Ai::objective()`. No tuning numbers scattered through the rules.
-- The `knob` environment overrides keep working and win over the table, for experiments.
+- One table of numbers per objective, in one place (`objectives` in `ai_strategy.ron`; what an objective leans to,
+  the focuses and the liked spells, in `f4x-ai/src/objective.rs`). No tuning numbers scattered through the rules.
+- The environment overrides (`AIS_<OBJECTIVE>_<NAME>`, `AIS_CITIES`, `AIS_STRIKE`) win over the table, for
+  experiments.
 - Pragmatist is the neutral row: it keeps today's numbers, so a Pragmatist plays as the AI does now.
 - The human has no objective; the learned AI and tests that build an `Ai` by hand get Pragmatist.
 

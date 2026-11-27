@@ -4,7 +4,7 @@
 //!
 //! A bridge ship holds the role `Role::Bridge` with its square as `to`; it is free of every
 //! other job (no pickup or voyage takes it), sails to its square once and stays there, and is
-//! released when nobody has asked for the bridge for [`KEEP`] turns. The units that wait for
+//! released when nobody has asked for the bridge for `bridge_keep_turns` turns. The units that wait for
 //! it are tagged `Crossing::Bridge`: the pickup leaves them alone, and the tag is cleared the
 //! turn a walk leads to their target.
 //!
@@ -12,6 +12,7 @@
 //! than the one they stand on, with an explored sea square between the two (one that touches
 //! both) and a free ship to send there. The others keep waiting for a ferry (`pickup.rs`).
 
+use crate::lever::Levered;
 use crate::roles::{Crossing, Role};
 use crate::view::is_ship;
 use crate::Ai;
@@ -22,9 +23,6 @@ use f4x_core::world::serial::Serial;
 use f4x_core::world::{Command, Event};
 use f4x_master::Game;
 use std::collections::{HashMap, HashSet, VecDeque};
-
-/// How many turns a bridge stays without anyone asking for it.
-const KEEP: u32 = 40;
 
 /// The explored land squares joined to `from` by land (not the sea), on its plane.
 fn land_region(view: &PlayerView, from: Position) -> HashSet<Position> {
@@ -159,7 +157,7 @@ fn keep_posts(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             ai.roles.release_any(serial);
             continue;
         };
-        if turn.saturating_sub(asked) > KEEP {
+        if turn.saturating_sub(asked) > game.levers().engineers.bridge_keep_turns {
             ai.roles.release_any(serial);
             if parked {
                 ai.order(
@@ -260,7 +258,7 @@ fn posted_at(ai: &Ai, square: Position) -> bool {
         .any(|s| ai.roles.target_of(s, Role::Bridge) == Some(square))
 }
 
-/// Somebody asked for the bridge at `square` again: it is kept for another [`KEEP`] turns.
+/// Somebody asked for the bridge at `square` again: it is kept for another `bridge_keep_turns` turns.
 fn renew(ai: &mut Ai, square: Position, turn: u32) {
     for s in ai.roles.members(Role::Bridge) {
         if ai.roles.target_of(s, Role::Bridge) == Some(square) {
@@ -451,7 +449,7 @@ mod tests {
         assert!(w.economy().is_bridge(ship));
         // The unit is gone: nobody asks any more.
         w.command(Command::DismissUnit { unit: walker });
-        w.set_round(w.round() + KEEP + 2);
+        w.set_round(w.round() + w.levers().engineers.bridge_keep_turns + 2);
         run(&mut ai, &mut w, &mut events);
         assert!(!ai.roles.is(ship_serial, Role::Bridge));
         run(&mut ai, &mut w, &mut events);

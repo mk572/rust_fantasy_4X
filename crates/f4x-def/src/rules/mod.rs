@@ -4,7 +4,7 @@
 //! Tests: none, because it only declares modules.
 
 pub mod ai_battle;
-pub mod ai_site;
+pub mod ai_strategy;
 pub mod attack_nature;
 pub mod battle_number;
 pub mod combat_die;
@@ -19,6 +19,7 @@ pub mod hook_name;
 pub mod ids;
 pub mod immunity;
 pub mod lair;
+pub mod lever;
 pub mod realm;
 pub mod registry;
 pub mod retort_stat;

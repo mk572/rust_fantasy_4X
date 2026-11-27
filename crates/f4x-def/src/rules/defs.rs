@@ -1484,6 +1484,8 @@ pub struct OfferRules {
     /// bonus.
     pub max_chance: i32,
     pub ai_bonus: i32,
+    /// A merchant sells an item for this many times its cost.
+    pub item_price_markup: u32,
 }
 
 /// How thick the scenery of a battle field is, as a percent of what the original lays: the field
@@ -1789,8 +1791,8 @@ pub struct Rules {
     pub battle: BattleRules,
     /// The guard and treasure rules of the sites (`lairs.ron`).
     pub lairs: super::lair::LairRules,
-    /// How the AI weighs a place for a city (`ai_sites.ron`, optional).
-    pub ai_sites: super::ai_site::SiteRules,
+    /// The levers of the strategic AI (`ai_strategy.ron`).
+    pub ai_strategy: super::ai_strategy::StrategyAiRules,
     /// The levers of the battle AI (`ai_battle.ron`).
     pub ai_battle: super::ai_battle::BattleAiRules,
 }

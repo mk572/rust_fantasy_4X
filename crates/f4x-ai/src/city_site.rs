@@ -17,21 +17,12 @@
 //!
 //! Tests: in this file, on the small test world of `testworld.rs`.
 
+use crate::lever::Levered;
 use std::collections::{HashSet, VecDeque};
 
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::view::PlayerView;
-
-/// The list is rebuilt after this many turns, at once when the number of known cities changes, and
-/// when the wizard has explored this many squares more than at the last rebuild (a scout opens a
-/// new place for a city within a few turns early in the game).
-const REFRESH_TURNS: u32 = 5;
-const REFRESH_SQUARES: usize = 3;
-
-/// The most squares of sea and of one landmass a search goes through.
-const SEA_LIMIT: usize = 3000;
-const LAND_LIMIT: usize = 1500;
 
 /// How a settler of the wizard gets to a site.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -87,9 +78,9 @@ impl SiteBook {
         let stale = match self.built {
             None => true,
             Some(turn) => {
-                round.saturating_sub(turn) >= REFRESH_TURNS
+                round.saturating_sub(turn) >= view.levers().city_site.refresh_turns
                     || cities != self.cities
-                    || explored >= self.explored + REFRESH_SQUARES
+                    || explored >= self.explored + view.levers().city_site.refresh_squares
             }
         };
         if stale {
@@ -121,7 +112,7 @@ pub fn free_sites(list: &[Site], taken: &[Position], view: &PlayerView) -> usize
         .filter(free)
         .filter(|s| s.reach != Reach::Land)
         .count();
-    land + over.min(view.content().rules.ai_sites.crossing_sites_counted)
+    land + over.min(view.levers().city_site.crossing_sites_counted)
 }
 
 /// Is there a place for a city on the explored map?
@@ -130,13 +121,13 @@ pub fn has_sites(view: &PlayerView) -> bool {
     !scan(view).is_empty()
 }
 
-/// The explored land connected to the squares `starts` (eight directions), at most `LAND_LIMIT`
+/// The explored land connected to the squares `starts` (eight directions), at most `land_limit`
 /// squares.
 pub(crate) fn landmass(view: &PlayerView, starts: &[Position]) -> HashSet<Position> {
     let mut seen: HashSet<Position> = starts.iter().copied().collect();
     let mut queue: VecDeque<Position> = starts.iter().copied().collect();
     while let Some(p) = queue.pop_front() {
-        if seen.len() > LAND_LIMIT {
+        if seen.len() > view.levers().city_site.land_limit {
             break;
         }
         for dy in -1..=1 {
@@ -155,7 +146,7 @@ pub(crate) fn landmass(view: &PlayerView, starts: &[Position]) -> HashSet<Positi
 }
 
 /// The land squares beside the explored water that a ship from one of the wizard's coastal cities
-/// can sail over (enemies in sight stop it), at most `SEA_LIMIT` squares of water.
+/// can sail over (enemies in sight stop it), at most `sea_limit` squares of water.
 fn shores_by_sea(view: &PlayerView, own: &[Position]) -> HashSet<Position> {
     let mut sea: HashSet<Position> = HashSet::new();
     let mut queue: VecDeque<Position> = VecDeque::new();
@@ -172,7 +163,7 @@ fn shores_by_sea(view: &PlayerView, own: &[Position]) -> HashSet<Position> {
     }
     let mut shores: HashSet<Position> = HashSet::new();
     while let Some(water) = queue.pop_front() {
-        if sea.len() > SEA_LIMIT {
+        if sea.len() > view.levers().city_site.sea_limit {
             break;
         }
         for dy in -1..=1 {
@@ -334,7 +325,7 @@ fn score(
     rivals: &[(Position, bool)],
     cities: &[Position],
 ) -> f32 {
-    let w = &view.content().rules.ai_sites;
+    let w = &view.levers().city_site;
     // The land: the squares the city works, those another city works too at a reduced value.
     let mut land = 0.0;
     for dy in -2i32..=2 {
@@ -363,7 +354,7 @@ fn score(
         + w.gold * special.gold
         + w.food * special.food
         + w.unit_cost * special.unit_cost_percent
-        + w.river * special.rivers as f32;
+        + view.levers().shared.river_worth * special.rivers as f32;
     if let Some(d) = own.iter().filter_map(|&c| view.distance(c, at)).min() {
         score += (w.near_own - d as f32 * w.near_own_step).max(0.0);
     }
@@ -752,8 +743,8 @@ mod tests {
     }
 
     /// The weights the tests read: the shipped ones.
-    fn weights(w: &f4x_core::world::World) -> f4x_def::rules::ai_site::SiteRules {
-        w.content().rules.ai_sites.clone()
+    fn weights(w: &f4x_core::world::World) -> f4x_def::rules::ai_strategy::CitySiteLevers {
+        w.content().rules.ai_strategy.city_site.clone()
     }
 
     const SITE: (u32, u32) = (6, 6);
@@ -767,7 +758,10 @@ mod tests {
         let here = at(SITE.0, SITE.1);
         let gain = score(&b, here, Reach::Land, &[], &[], &[])
             - score(&a, here, Reach::Land, &[], &[], &[]);
-        assert!((gain - weights(&plain).river).abs() < 1e-4, "{gain}");
+        assert!(
+            (gain - plain.content().rules.ai_strategy.shared.river_worth).abs() < 1e-4,
+            "{gain}"
+        );
     }
 
     #[test]

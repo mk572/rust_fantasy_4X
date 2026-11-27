@@ -27,6 +27,11 @@ const ROWS: std::ops::RangeInclusive<u32> = 3..=10;
 /// The shipped content, parsed once for all the tests of the process.
 pub use f4x_def::testdir::shipped;
 
+/// The shipped levers of the strategic AI.
+pub fn levers() -> &'static f4x_def::rules::ai_strategy::StrategyAiRules {
+    &shipped().rules.ai_strategy
+}
+
 /// A copy of the shipped content, for a `World`, which owns its content.
 pub fn content() -> Content {
     shipped().clone()

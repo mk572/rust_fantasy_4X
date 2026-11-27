@@ -1,11 +1,12 @@
-//! Wounded units rest (task 502). A unit hurt below [`REST_PCT`] of its hit points is no use in a
+//! Wounded units rest (task 502). A unit hurt below `rest_percent` percent of its hit points is no use in a
 //! raid or a march: it heals 5% a turn in the field, 10% in a city, 17% in a city with an Animists'
 //! Guild and 20% more beside a Healer. So it goes to the nearest healer's stack within
-//! [`HEALER_RANGE`] squares, else to the nearest own city, and the plans that pick troops
+//! `healer_range` squares, else to the nearest own city, and the plans that pick troops
 //! (`military.rs`, `site.rs`, `garrison.rs`) leave it out until it has mended.
 //!
 //! Tests: below, on shipped units.
 
+use crate::lever::Levered;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::world::{Command, Event};
@@ -15,20 +16,13 @@ use crate::view::{distance, is_fighter};
 use crate::Ai;
 use f4x_master::Game;
 
-/// A unit below this share of its hit points rests.
-pub(crate) const REST_PCT: u32 = 60;
-/// How far a wounded unit walks to a stack with a Healer, in squares.
-const HEALER_RANGE: u32 = 4;
-/// How far a wounded unit walks to a city of its own, in squares. A city further away is no
-/// retreat: it heals in the field (5% a turn) and goes on with what it was doing.
-const CITY_RANGE: u32 = 8;
 /// The Healer ability of the unit table.
-const HEALER: Ability = Ability::new(27 /* healer */);
+pub(crate) const HEALER: Ability = Ability::new(27 /* healer */);
 
 /// Is the unit hurt enough to rest?
 pub(crate) fn needs_rest(view: &PlayerView, unit: hecs::Entity) -> bool {
     let (hits, max) = view.unit_hits(unit);
-    max > 0 && hits * 100 < max * REST_PCT
+    max > 0 && hits * 100 < max * view.levers().care.rest_percent
 }
 
 /// Send the wounded units that are out in the field to a healer or home, and let go of the tasks
@@ -79,8 +73,8 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             };
             // A city is a retreat only when the unit gets there by itself (`can_reach`: no ship,
             // no plane to cross), and is near. A square with a healer is the first choice.
-            let healer = nearest(&healers, HEALER_RANGE);
-            let to = healer.or_else(|| nearest(&cities, CITY_RANGE));
+            let healer = nearest(&healers, view.levers().care.healer_range);
+            let to = healer.or_else(|| nearest(&cities, view.levers().care.rest_city_range));
             if let Some(to) = to {
                 out.push((u, to));
             }
@@ -162,7 +156,8 @@ mod tests {
         run(&mut Ai::new(P0), &mut w, &mut Vec::new());
         assert!(
             !PlayerView::new(&w, P0).unit_has_order(u),
-            "no retreat that needs a ship or is further than {CITY_RANGE} squares"
+            "no retreat that needs a ship or is further than {} squares",
+            w.levers().care.rest_city_range
         );
         Ok(())
     }

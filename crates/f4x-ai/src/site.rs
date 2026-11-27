@@ -3,6 +3,7 @@
 //! guards only from a fight it fought or a spell that shows them (`PlayerView::lair_guards`),
 //! and guesses otherwise. A party goes in through `Command::EnterSite`, the battle AI fighting.
 
+use crate::lever::Levered;
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::view::PlayerView;
 
@@ -10,46 +11,36 @@ use crate::assault::guard_strength;
 use crate::military::average_strength;
 use crate::view::{distance, fighting_strength, unit_strength};
 
-/// Squares from a city (or from a party in the field) within which a site is looked for.
-pub(crate) const SITE_RANGE: i32 = 10;
-/// Squares within which a party looks for a tower: it is the way to the other plane.
-pub(crate) const TOWER_RANGE: u32 = 30;
-/// What an unknown site's guards are guessed to be worth, in average soldiers of this wizard.
-const GUESS_GUARDS: f32 = 2.5;
-
-/// A party attacks when it is this much stronger than the guards, known or guessed.
-pub(crate) fn edge() -> f32 {
-    crate::knob("SITE", 1.4)
-}
-
 /// What the AI expects the site's guards to be worth.
 pub(crate) fn expected(view: &PlayerView, site: Position) -> f32 {
-    guard_strength(view, site).unwrap_or_else(|| GUESS_GUARDS * average_strength(view))
+    guard_strength(view, site)
+        .unwrap_or_else(|| view.levers().sites.guess_guards * average_strength(view))
 }
 
-/// What a party that cannot hurt weapon-immune guards is worth against them, as a share of what it
-/// would be worth otherwise: their defence is at least 10 against a normal weapon.
-const IMMUNE_DISCOUNT: f32 = 0.2;
-
-/// How much stronger than the party that lost on a site a party must be to try it again.
-const RETRY_EDGE: f32 = 1.5;
-
-/// Did a party as strong as this one already lose its assault on the site? Then it is left alone:
+/// Did a party as strong as this one (not `retry_edge` times as strong) already lose its assault
+/// on the site? Then it is left alone:
 /// what the party is worth against the guards was misjudged, and the same fight would come out the
 /// same.
-pub(crate) fn lost_before(losses: &[(Position, f32)], site: Position, strength: f32) -> bool {
+pub(crate) fn lost_before(
+    losses: &[(Position, f32)],
+    site: Position,
+    strength: f32,
+    retry_edge: f32,
+) -> bool {
     losses
         .iter()
-        .any(|&(p, lost)| p == site && strength < lost * RETRY_EDGE)
+        .any(|&(p, lost)| p == site && strength < lost * retry_edge)
 }
 
 /// What the AI expects the guards to be worth to a party of which `unarmed` (0 to 1) is the share
 /// of its strength with normal weapons and no spell to arm it: the guards that weapons barely hurt
-/// count for more, up to `1 / IMMUNE_DISCOUNT` times, as that share of the party is worth less.
+/// count for more, up to `1 / immune_discount` times, as that share of the party is worth less.
 pub(crate) fn expected_vs(view: &PlayerView, site: Position, unarmed: f32) -> f32 {
     match crate::assault::guard_parts(view, site) {
-        Some((all, immune)) => all + immune * unarmed * (1.0 / IMMUNE_DISCOUNT - 1.0),
-        None => GUESS_GUARDS * average_strength(view),
+        Some((all, immune)) => {
+            all + immune * unarmed * (1.0 / view.levers().sites.immune_discount - 1.0)
+        }
+        None => view.levers().sites.guess_guards * average_strength(view),
     }
 }
 
@@ -95,12 +86,14 @@ pub(crate) fn defence_of(view: &PlayerView, p: Position) -> f32 {
 
 pub(crate) fn city_defence(view: &PlayerView, p: Position) -> f32 {
     match view.hostile_at(p) {
-        Some(defenders) => fighting_strength(view, &defenders) * 1.3,
-        None => 2.0 * GUESS_GUARDS * average_strength(view),
+        Some(defenders) => {
+            fighting_strength(view, &defenders) * view.levers().shared.city_defence_factor
+        }
+        None => 2.0 * view.levers().sites.guess_guards * average_strength(view),
     }
 }
 
-/// The explored, intact sites within [`SITE_RANGE`] of `from` (towers within [`TOWER_RANGE`]) that a party of `strength` should
+/// The explored, intact sites within `lair_range` of `from` (towers within `tower_range`) that a party of `strength` should
 /// take, nearest first.
 pub(crate) fn sites_near(
     view: &PlayerView,
@@ -110,11 +103,12 @@ pub(crate) fn sites_near(
     blocked: &[f4x_core::map::Plane],
 ) -> Vec<Position> {
     let mut found: Vec<Position> = Vec::new();
-    for dy in -SITE_RANGE..=SITE_RANGE {
-        for dx in -SITE_RANGE..=SITE_RANGE {
+    let (range, edge) = (view.levers().sites.lair_range, view.levers().attack.attack);
+    for dy in -range..=range {
+        for dx in -range..=range {
             if let Some(p) = view.shift(from, dx, dy) {
                 if view.has_lair(p)
-                    && strength >= expected_vs(view, p, unarmed) * edge()
+                    && strength >= expected_vs(view, p, unarmed) * edge
                     && !found.contains(&p)
                 {
                     found.push(p);
@@ -124,8 +118,8 @@ pub(crate) fn sites_near(
     }
     for (_, owner, p) in view.known_cities() {
         if !view.is_rival_wizard(owner)
-            && distance(view, from, p).is_some_and(|d| d <= SITE_RANGE as u32)
-            && strength >= city_defence(view, p) * edge()
+            && distance(view, from, p).is_some_and(|d| d <= range as u32)
+            && strength >= city_defence(view, p) * edge
             && !found.contains(&p)
         {
             found.push(p);
@@ -135,8 +129,8 @@ pub(crate) fn sites_near(
         if intact
             && !found.contains(&p)
             && !blocked.contains(&p.plane)
-            && distance(view, from, p).is_some_and(|d| d <= TOWER_RANGE)
-            && strength >= expected_vs(view, p, unarmed) * edge()
+            && distance(view, from, p).is_some_and(|d| d <= view.levers().sites.tower_range)
+            && strength >= expected_vs(view, p, unarmed) * edge
         {
             found.push(p);
         }

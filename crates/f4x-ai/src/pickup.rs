@@ -17,6 +17,7 @@
 //! its target, room for them), `TransportReady` when they fill it, and `Transporting` once it
 //! sails. [`voyages`] reads them back.
 
+use crate::lever::Levered;
 use crate::roles::{Crossing, Registry, Role};
 use crate::view::is_ship;
 use crate::Ai;
@@ -26,16 +27,6 @@ use f4x_core::player::view::PlayerView;
 use f4x_core::world::serial::Serial;
 use f4x_core::world::{Command, Event, World};
 use f4x_master::Game;
-
-/// Candidate boarding tiles that get a real path search, per group.
-const CANDIDATES: usize = 12;
-/// How many turns longer than the best a unit may walk and still be taken aboard.
-const STRAGGLER_TURNS: u32 = 5;
-/// How far apart (squares) two destinations on one landmass may be for their units to share a
-/// ship: the units of the later group walk on from the first group's drop.
-const MERGE_RANGE: u32 = 10;
-/// How far from a unit a boarding tile is looked for, in squares.
-const SHORE_RANGE: i32 = 12;
 
 /// A ship on its way to fetch units waiting at `tile`, as the registry gives it back.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -209,8 +200,9 @@ fn candidates(view: &PlayerView, units: &[hecs::Entity]) -> Vec<Position> {
         let Some(at) = view.unit_position(u) else {
             continue;
         };
-        for dy in -SHORE_RANGE..=SHORE_RANGE {
-            for dx in -SHORE_RANGE..=SHORE_RANGE {
+        let range = view.levers().transport.shore_range;
+        for dy in -range..=range {
+            for dx in -range..=range {
                 let Some(p) = view.shift(at, dx, dy) else {
                     continue;
                 };
@@ -229,7 +221,7 @@ fn candidates(view: &PlayerView, units: &[hecs::Entity]) -> Vec<Position> {
             .sum()
     };
     found.sort_by_key(|p| (spread(p), p.y, p.x));
-    found.truncate(CANDIDATES);
+    found.truncate(view.levers().transport.candidates);
     found
 }
 
@@ -271,7 +263,7 @@ fn plan_group(
             let chosen: Vec<(u32, hecs::Entity)> = walks
                 .iter()
                 .copied()
-                .filter(|&(t, _)| t <= fastest + STRAGGLER_TURNS)
+                .filter(|&(t, _)| t <= fastest + view.levers().transport.straggler_turns)
                 .take(room.max(1))
                 .collect();
             let last = chosen.iter().map(|&(t, _)| t).max().unwrap_or(0);
@@ -713,7 +705,7 @@ fn assign_ships(ai: &mut Ai, game: &mut Game) {
             let mut region = lead.clone();
             let mut rest = std::collections::VecDeque::new();
             while let Some((d, units)) = groups.pop_front() {
-                let together = rides_along(&view, dest, d, MERGE_RANGE)
+                let together = rides_along(&view, dest, d, view.levers().transport.merge_range)
                     && view.unit_position(units[0]).is_some_and(|p| {
                         view.unit_position(lead[0]) == Some(p) || view.can_reach(&[lead[0]], p)
                     });
@@ -909,6 +901,7 @@ fn advance(ai: &mut Ai, game: &mut Game, pickup: &Pickup, events: &mut Vec<Event
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testworld::levers;
     use crate::testworld::{at, game, spawn, spawn_site, COAST_CITY, ENEMY_CITY, P0};
     use f4x_core::map::terrain::TerrainClass;
     use f4x_def::rules::UnitId;
@@ -1204,7 +1197,7 @@ mod tests {
             let aboard = ai.roles.boarding_of(view.serial_of(u)).is_some();
             assert_eq!(
                 aboard,
-                t <= fastest + STRAGGLER_TURNS,
+                t <= fastest + levers().transport.straggler_turns,
                 "{t} turns vs {fastest}"
             );
         }
@@ -1319,7 +1312,7 @@ mod tests {
             .iter()
             .find(|&&p| {
                 view.distance(a, p)
-                    .is_some_and(|d| (3..=MERGE_RANGE).contains(&d))
+                    .is_some_and(|d| (3..=levers().transport.merge_range).contains(&d))
             })
             .ok_or("a second destination")?;
         drop(view);
@@ -1349,7 +1342,7 @@ mod tests {
             .iter()
             .find(|&&p| {
                 view.distance(a, p)
-                    .is_some_and(|d| (3..=MERGE_RANGE).contains(&d))
+                    .is_some_and(|d| (3..=levers().transport.merge_range).contains(&d))
             })
             .ok_or("a second destination")?;
         drop(view);

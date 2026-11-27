@@ -5,6 +5,7 @@
 //!
 //! Tests: at the end of this file, on the shipped rules.
 
+use crate::lever::Levered;
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use f4x_core::map::terrain::TerrainClass;
@@ -13,21 +14,8 @@ use f4x_core::player::view::PlayerView;
 use f4x_core::rules::exec::Target;
 use f4x_def::rules::SpellId;
 
-use crate::view::{is_coastal, BORDER_RANGE};
-
-/// Citizens from which a city is large.
-const LARGE_CITY: u32 = 8;
-
-const NEIGHBOURS: [(i32, i32); 8] = [
-    (-1, -1),
-    (0, -1),
-    (1, -1),
-    (-1, 0),
-    (1, 0),
-    (-1, 1),
-    (0, 1),
-    (1, 1),
-];
+use crate::military::NEIGHBOURS;
+use crate::view::is_coastal;
 
 /// What a place is, for the order of the joining.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -150,12 +138,12 @@ fn places(view: &PlayerView, fortress: Position) -> Vec<(Position, Position)> {
         }
         let rank = if inland && is_coastal(view, p) && home.contains(&p) {
             Rank::Harbour
-        } else if size(c) >= LARGE_CITY {
+        } else if size(c) >= view.levers().building.large_city {
             Rank::Large
-        } else if rivals
-            .iter()
-            .any(|&r| view.distance(p, r).is_some_and(|d| d <= BORDER_RANGE))
-        {
+        } else if rivals.iter().any(|&r| {
+            view.distance(p, r)
+                .is_some_and(|d| d <= view.levers().shared.rival_range)
+        }) {
             Rank::Border
         } else {
             continue;

@@ -121,6 +121,10 @@ Non-obvious findings, one rule up front in bold. General lessons (shell, tools) 
   that completed mid-turn) went unseen; equal saves on one bench game did not see it either. Check
   every hit, on late-game snapshots of 2 and 5 wizards and on new games, against a build that never
   caches. Refresh at the moments the old code recomputed, not where the new code thinks something changed.
+- **The pinned plays and regression games do not run the strategic AI** (`f4x-master` does not depend on
+  `f4x-ai`), so they stay equal through a change that breaks how the AI plays. For a change of the AI that must
+  not move play, play the same seeds with the build before and the build after (`soak --seeds 1..8 --turns 250
+  --players 5`) and compare the logs with the timings stripped (task 831: 4,677 equal lines).
 - **Profile** with `sample PID 15 -file OUT` on `f4x-tools soak --from ...` in the background (the release
   binary keeps symbols): self time at the top of the stack, shares in the call graph tree.
 - **Timing a soak: not through plain `cool_run.sh`.** It runs under `taskpolicy -b` (efficiency cores):

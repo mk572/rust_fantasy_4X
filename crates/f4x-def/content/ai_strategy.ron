@@ -1,0 +1,742 @@
+// The levers of the strategic AI (`f4x-ai`; `StrategyAiRules` in `f4x-def/src/rules/ai_strategy.rs`).
+// These are the AI's tuning, not rules of the game. A run may override one with the environment
+// variable `AIS_<NAME>`: the name in capitals (`AIS_ATTACK=1.6`), with the group's prefix where
+// the head of a group gives one (`AIS_DIPLO_B_OFFER=70`).
+//
+// Strengths are the AI's measure of what units are worth in battle; distances are in squares.
+(
+    // What several jobs read.
+    shared: (
+        // How near an own city, in squares, an enemy stack must be to threaten it, to be struck by a spell and to be worth a Stasis.
+        near_city_radius: 3,
+        // A defence that is seen or remembered in a city is worth this many times the strength of its units.
+        city_defence_factor: 1.3,
+        // Squares within which a city of a rival counts as near: for the garrison and the focus of a city, the roads to enchant and the razing of a captured city.
+        rival_range: 12,
+        // What a river square is worth, in points, to a place for a city and to the choice of a city's food buildings.
+        river_worth: 0.5,
+        // Mana the wizard keeps back from a craft, before it starts a global enchantment and before it sends an item to a hero away from the fortress.
+        mana_reserve: 200,
+    ),
+    // When the armies, parties and monsters attack.
+    attack: (
+        // A party or the soldiers round a city attack when this many times as strong as what they expect to meet: lairs, towers, neutral cities, the ground round a city.
+        attack: 1.4,
+        // The edge an army wants before it marches or strikes while the wizard builds up.
+        edge_build: 2.0,
+        // The same in the secure phase.
+        edge_secure: 1.5,
+        // The same in the win phase when the wizard is level with the best rival.
+        edge_win: 1.3,
+        // The same in the win phase for a wizard at three times the best rival's power; between the two it falls evenly.
+        edge_lead: 1.05,
+        // The edge an attack out of a city's garrison needs.
+        sortie: 2.5,
+        // The edge a force that has marched attacks with.
+        committed: 1.1,
+        // What a landing party wants over the expected defence before it marches on the city.
+        committed_landing: 1.2,
+        // The strength guessed for a defence the AI has not seen, in average soldiers of the wizard.
+        guess: 3.0,
+        // How long a remembered garrison is trusted, in turns.
+        memory_turns: 80,
+        // A force that has marched and not fought for this many turns (plus the walk) goes home to gather again.
+        march_turns: 15,
+        // Turns an enemy city that no march could reach is left alone.
+        unreachable_turns: 40,
+        // A city is threatened when the enemy near it is more than this share of the strength at home.
+        threat_ratio: 0.8,
+        // Monsters attack a city when this many times as strong as what they expect to meet.
+        monster_edge: 1.0,
+        // The share of a city's garrison an enemy stack must match to be worth a spell that strikes it.
+        strike_share: 0.5,
+        // The fewest units a march starts with.
+        min_march: 3,
+        // The fewest troops that cross a plane together.
+        min_crossing: 3,
+        // Squares beyond a city's own where a tower or a node still counts as in the city's zone.
+        perimeter_site_range: 4,
+        // Soldiers further than this from an enemy in a city's zone are not called.
+        perimeter_reach: 6,
+    ),
+    // Which town a campaign marches on (the war plan, and the choice of a landing or a crossing).
+    target: (
+        // A town lies on the way when the walk through it is at most this much longer than the direct one.
+        route_slack: 2,
+        // What a town on the way is worth, in squares of walking.
+        route_bonus: 6.0,
+        // Squares of walking an average unit of a town's defence counts as.
+        defence_squares: 1.5,
+        // Squares of walking a rival's fortress city is worth to a landing or a crossing.
+        fortress_bonus: 12.0,
+        // What the fortress adds to a town's worth in the war plan.
+        fortress_worth: 12.0,
+        // The worth of a citizen of a town.
+        size_worth: 1.0,
+        // The worth of a building of a town.
+        building_worth: 0.5,
+        // A town of a wizard at war is worth this much more.
+        war_worth: 3.0,
+        // A town that is no wizard's is worth this share of the same.
+        neutral_share: 0.6,
+        // The worth the goal of the war loses per square from the nearest own city.
+        goal_distance: 0.2,
+        // The worth the goal loses when the army cannot walk to the town.
+        goal_across: 15.0,
+        // The rating the next target loses per square from the nearest own city.
+        next_distance: 1.0,
+        // What the next target gains for being the foothold towards a goal across.
+        next_foothold: 5.0,
+        // The share of a town's worth that counts for the next target.
+        next_worth: 0.3,
+        // A new goal must beat the one in hand by this much to replace it.
+        goal_hold: 3.0,
+        // The same for the next target.
+        next_hold: 2.0,
+        // The ground round a town counts as not yet seen when a square this near is unexplored.
+        recon_radius: 4,
+        // The most towns the plan asks the scouts to look at.
+        recon_towns: 6,
+        // Added to the value of a scouting square near such a town (a square of new ground is worth one).
+        recon_bonus: 20.0,
+        // How near a scouting square must be to the town to get it.
+        recon_near: 3,
+        // The most fighters the war plan asks the cities to build for one campaign.
+        max_force: 20,
+    ),
+    // How many soldiers stand in a city.
+    garrison: (
+        // Fighters the fortress city keeps with no enemy at war near it.
+        garrison_fortress: 2,
+        // Fighters any other city keeps then.
+        garrison_city: 1,
+        // Fighters the fortress keeps with a city of an enemy at war within rival_range.
+        garrison_front_fortress: 6,
+        // The same for any other city.
+        garrison_front_city: 4,
+        // Fighters the fortress keeps at war with no enemy city near.
+        garrison_war_fortress: 3,
+        // The share of that defence a wizard keeps while it builds up, in a city with no enemy near.
+        build_garrison: 0.6,
+        // Fighters a city keeps in the late game beyond what it wants.
+        late_spare: 1,
+        // Moves from which a unit is fast: it serves the scouting and the war better than a city's defence.
+        fast_moves: 2,
+    ),
+    // Scouting.
+    scouting: (
+        // Scouts more than the AI would keep by itself, for a soak.
+        scouts: 0,
+        // How many squares of walking a square of new ground is worth.
+        walk_cost: 0.35,
+        // Turns a scout may stand still on an order before its target is given up.
+        stuck_turns: 3,
+        // Scouting targets this near another scout's are left to it.
+        keep_apart: 5,
+        // Fighters a sea scout carries to put ashore.
+        sea_party: 2,
+        // A plane explored less than this share is still blind to the wizard.
+        blind_share: 0.6,
+    ),
+    // Lairs, nodes and towers: the parties that take them.
+    sites: (
+        // Squares from a city, or from a party in the field, within which a site is looked for.
+        lair_range: 10,
+        // Squares within which a party looks for a tower, the way to the other plane.
+        tower_range: 30,
+        // What the guards of an unknown site are guessed to be worth, in average soldiers of the wizard.
+        guess_guards: 2.5,
+        // What a party that cannot hurt weapon-immune guards is worth against them, as a share of what it would be worth otherwise (above 0).
+        immune_discount: 0.2,
+        // How much stronger than the party that lost on a site a party must be to try it again.
+        retry_edge: 1.5,
+        // The fewest spare soldiers that make a raiding party.
+        site_party: 3,
+        // Turns a muster waits for its soldiers before it sets off with those that came.
+        muster_turns: 20,
+    ),
+    // What a place for a city is worth, in points. Overrides: AIS_CITY_SITE_<NAME>.
+    city_site: (
+        // What a square of each terrain is worth to the city that works it (food and growth). No
+        // override reaches this list.
+        land_values: [
+            (Grassland, 3.0), (SorceryNode, 3.0),
+            (Forest, 2.0), (NatureNode, 2.0), (Hills, 2.0),
+            (Swamp, 1.0), (Mountains, 1.0), (ChaosNode, 1.0),
+            (Desert, 0.5), (Tundra, 0.5),
+            (Ocean, 0.7),
+        ],
+        // A square that another city works too gives only this share of its value.
+        shared_share: 0.4,
+        // Per point of the production the land gives (percent over the area).
+        production: 0.1,
+        // Per point of mana a special square gives.
+        mana: 1.5,
+        // Per point of gold a special square gives.
+        gold: 1.0,
+        // Per point of food a special square gives.
+        food: 1.0,
+        // Per percent off the cost of soldiers (coal, iron).
+        unit_cost: 0.2,
+        // The most a site gains from standing next to the wizard's own cities.
+        near_own: 6.0,
+        // What each square of distance takes off that.
+        near_own_step: 0.8,
+        // A rival's city within this many squares lowers the site (at least 1).
+        enemy_range: 8,
+        // By this much for each square it is nearer than the range.
+        enemy_peace: 0.5,
+        // The same when the rival is at war with the wizard.
+        enemy_war: 1.5,
+        // What a site over the sea costs against one on the home landmass.
+        sea_cost: 10.0,
+        // Sites that need a crossing count this many at most in the number of settlers wanted.
+        crossing_sites_counted: 2,
+        // The list of sites is made again after this many turns,
+        refresh_turns: 5,
+        // and when the wizard has explored this many squares more than at the last time.
+        refresh_squares: 3,
+        // The most squares of sea a search goes through.
+        sea_limit: 3000,
+        // The most squares of one landmass a search goes through.
+        land_limit: 1500,
+    ),
+    // Taxes, gold, settlers and ships.
+    economy: (
+        // The highest tax rate the AI sets.
+        max_tax_rate: 3,
+        // The gold a turn the AI wants left over: it sets the lowest tax rate that gives it.
+        net: 3,
+        // The ships a wizard keeps by the sea before a landing asks for more.
+        ships: 1,
+        // The most ships a landing builds.
+        max_ships: 4,
+        // With this many idle fighters the wizard builds no more soldiers.
+        idle_surplus: 4,
+        // With this much gold the cities build units to spend it on.
+        rich_gold: 1500,
+        // Below this width (0 to 1) the wizard builds up its cities,
+        tall_below: 0.35,
+        // and above this one it spreads out.
+        wide_above: 0.65,
+        // The gold kept back when buying production or from another wizard: this,
+        gold_reserve_base: 40,
+        // plus this many turns of net income.
+        gold_reserve_income: 3,
+    ),
+    // What the cities build.
+    building: (
+        // Net gold a turn below which a city builds toward gold first.
+        gold_floor: 3,
+        // Below this net gold the gold buildings are the first of the basics.
+        rich_enough: 8,
+        // Land that gives production is a specialty only from this many percent.
+        land_production_min: 12.0,
+        // River squares are a specialty in food from this many.
+        rivers_min: 4,
+        // Citizens from which a city is large, for a road enchantment.
+        large_city: 8,
+    ),
+    // The forge cities and the dismissal of cheap units late in the game.
+    forge: (
+        // The turn from which the forge cities are chosen.
+        forge_turn: 150,
+        // One forge city for this many cities, at least two (above 0).
+        cities_per_forge: 5,
+        // At most this many forge cities,
+        most_forges: 4,
+        // but with this much gold a conqueror's grow to half its cities,
+        forge_rich_gold: 3000,
+        // at most this many.
+        most_forges_rich: 12,
+        // A unit is low-tier when it costs this percent of its race's top land unit or less.
+        low_tier_percent: 35,
+    ),
+    // Casting overland: which spell, when, and the mana it takes.
+    magic: (
+        // How much a spell of a realm the wizard has all its books in gains.
+        rate_affinity: 0.5,
+        // The weight of a spell's upkeep against its casting cost.
+        rate_upkeep: 12.0,
+        // Mana that does the work of one average soldier in a fight (above 0).
+        mana_per_soldier: 20.0,
+        // The most soldiers the spells of one battle are counted for.
+        most_soldiers: 6.0,
+        // The mana wanted before a spell is begun, in percent of its cost.
+        mana_wanted_percent: 150,
+        // A spell that takes longer than this to pay for is not begun (above 0).
+        most_paying_turns: 50,
+        // A spell that costs more than this is only begun when it is paid within max_casting_turns.
+        dear_spell: 300,
+        // The most turns spent paying for one dear spell.
+        max_casting_turns: 5,
+        // A summon that this many turns of net mana income pay for is saved for.
+        saving_turns: 15,
+        // The army up to which the AI summons: this many fighters,
+        army_cap_base: 12,
+        // and this many more per city.
+        army_cap_city: 2,
+        // Unexplored squares a block must hold to be worth Earth Lore.
+        explore_floor: 70,
+        // Share of a stack's hit points (percent) that must be gone to be worth Nature's Cures.
+        cure_percent: 35,
+        // Squares from the summoning circle a stack must be to be worth a recall.
+        recall_distance: 8,
+        // Share of a stranded stack's hit points that must be gone to be worth a recall.
+        recall_percent: 50,
+        // How many times as strong as a unit a werewolf must be for Lycanthropy.
+        lycanthropy_edge: 1.5,
+        // The fewest fighters beyond the garrisons that Plane Shift is cast for.
+        min_shift: 6,
+        // Cities at least this far from the rally city get an Earth Gate.
+        gate_far: 8,
+        // The most cities with an Earth Gate.
+        gates_max: 3,
+        // Gold above this is turned into mana once the cities have bought what they can.
+        gold_kept: 1000,
+        // The race for the Spell of Mastery is run when the AI would finish this many times sooner than the rival.
+        race_lead: 1.25,
+    ),
+    // How the power is split between mana, research and skill, in percent.
+    split: (
+        // The balanced split every wizard starts from: mana,
+        base_mana: 30,
+        // research,
+        base_research: 40,
+        // and skill. The goals, the phase and the state of the game move it.
+        base_skill: 30,
+        // The steps the shares move in (above 0).
+        split_step: 5,
+        // The least share of mana,
+        least_mana: 0,
+        // of research,
+        least_research: 0,
+        // and of skill.
+        least_skill: 20,
+        // Turns a mana reserve is meant to last when the income falls short of the upkeep.
+        mana_horizon: 40,
+        // A reserve this big is more than the wizard can spend soon.
+        rich_reserve: 1500,
+        // While the Spell of Mastery is cast: mana,
+        mastery_mana: 50,
+        // research,
+        mastery_research: 0,
+        // and skill.
+        mastery_skill: 50,
+        // With nothing left to research: mana,
+        done_mana: 60,
+        // research,
+        done_research: 0,
+        // and skill.
+        done_skill: 40,
+        // In a race to research the Spell of Mastery: mana,
+        racing_mana: 15,
+        // research,
+        racing_research: 65,
+        // and skill.
+        racing_skill: 20,
+    ),
+    // Items: crafting, buying and handing them out.
+    items: (
+        // The most an item the wizard crafts is worth, whatever the mana.
+        craft_max_value: 800,
+        // Powers on one crafted item.
+        craft_powers: 3,
+        // The percent of its value an item counts for a hero it suits,
+        use_suits_percent: 150,
+        // and for a hero it does not suit.
+        use_misfit_percent: 50,
+        // An item that replaces one a hero carries must be worth this percent of it.
+        better_percent: 130,
+        // The unusable items the vault may hold before the cheapest is scrapped.
+        keep_unusable: 2,
+        // What an item must be worth to be bought, in percent of its price without the markup.
+        worth_percent: 100,
+    ),
+    // The mana spent in a battle.
+    battle_spend: (
+        // Turns of an upkeep shortfall the reserve keeps for itself.
+        hold_turns: 10,
+        // The share of the spare mana from which the limit falls away.
+        no_limit: 0.75,
+        // Attackers this many times the defence are certain winners: the least need.
+        sure_ratio: 3.0,
+        // Attackers this many times the defence or fewer need every spell they have.
+        even_ratio: 1.2,
+        // The least need there is.
+        least_need: 0.2,
+        // Squares from an own city within which a fight is on home ground.
+        home_range: 3,
+    ),
+    // Engineers, roads and bridges.
+    engineers: (
+        // The nearest cities an engineer links a city to.
+        linked_cities: 3,
+        // The cities of a link are at most this many squares apart.
+        link_range: 12,
+        // Cities for each engineer wanted while there is road to build (above 0).
+        cities_per_engineer: 3,
+        // Squares of a road toward the campaign target built at a time.
+        road_stretch: 8,
+        // Within this many squares of a rival's city an engineer works with an escort.
+        engineer_escort_range: 8,
+        // Turns a bridge of ships stays without anyone asking for it.
+        bridge_keep_turns: 40,
+    ),
+    // Ships and boarding.
+    transport: (
+        // Fighters that must stand in the port before a ship sails.
+        min_load: 3,
+        // Boarding squares that get a path search, per group.
+        candidates: 12,
+        // How many turns longer than the best a unit may walk and still be taken aboard.
+        straggler_turns: 5,
+        // Two destinations on one landmass this near may share a ship.
+        merge_range: 10,
+        // How far from a unit a boarding square is looked for.
+        shore_range: 12,
+    ),
+    // Wounded units, escorts and spirits.
+    care: (
+        // A unit below this share of its hit points rests.
+        rest_percent: 60,
+        // How far a wounded unit walks to a stack with a Healer.
+        healer_range: 4,
+        // How far a wounded unit walks to a city of its own.
+        rest_city_range: 8,
+        // An enemy unit this near is a danger to a charge walking alone.
+        escort_enemy_near: 4,
+        // A hero this much of the average fighter's strength needs a guard in the field.
+        weak_hero: 0.5,
+        // Turns a spirit may stand still on its way before the node is given up.
+        meld_patience: 4,
+    ),
+    // The phases of a game and how long a plan stands.
+    planning: (
+        // Before this turn a wizard with fewer cities than it wants is still building up.
+        early_turn: 200,
+        // From this turn a game is in its late phase.
+        late_turn: 300,
+        // Turns a plan may stand before it is dropped.
+        plan_timeout_turns: 100,
+        // Turns a scout may walk to one target before it is given up.
+        scout_timeout_turns: 50,
+        // A dropped target stays on the list of failures for this many times plan_timeout_turns.
+        forgive_plans: 3,
+    ),
+    // What the two groups below share: power, the leader, factors and self-interest (statecraft.rs). Overrides: AIS_DIPLO_<NAME>.
+    diplomacy: (
+        // Whether the factors and the self-interest count in the willingness.
+        on_factors: true,
+        // Whether the AI refuses what arms an enemy.
+        on_arms: true,
+        // Whether the AI trades.
+        on_trade: true,
+        // A city's worth in army points.
+        city_power: 100,
+        // A neighbour that the AI's army is this percent of,
+        dominant_army: 160,
+        // and its cities this percent,
+        dominant_cities: 150,
+        // and that has this many cities of its own, is one the AI means to attack.
+        dominant_min_cities: 3,
+        // The leader holds this percent of the next best's power.
+        leader_margin: 130,
+        // Two wizards that fear the same leader get on better by this.
+        coalition_bonus: 30,
+        // Fame for each point of willingness (above 0),
+        fame_per_point: 25,
+        // at most this many points.
+        fame_cap: 8,
+        // Added for a Charismatic wizard.
+        charismatic: 6,
+        // Added for the same race.
+        same_race: 8,
+        // Added for each realm both have books in,
+        shared_realm: 3,
+        // at most this.
+        shared_cap: 6,
+        // Taken off for Life against Death.
+        opposed_realm: 4,
+        // Taken off for a broken treaty.
+        broken_memory: 15,
+        // Taken off toward a neighbour it means to attack,
+        interest_target: 25,
+        // and toward the leader.
+        interest_leader: 15,
+        // At this feeling or below a wizard will not talk to another it is not at war with.
+        audience_refused_below: -90,
+        // The gold of a gift.
+        gift_gold: 50,
+        // The treasury needed for a gift to another wizard,
+        gift_least_gold: 100,
+        // and for one that answers the human.
+        human_gift_least_gold: 200,
+    ),
+    // Trades. Overrides: AIS_DIPLO_TRADE_<NAME>.
+    trade: (
+        // What a trade must bring, in percent of what it costs, between strangers,
+        margin_none: 98,
+        // with a pact,
+        margin_pact: 95,
+        // and with an ally.
+        margin_alliance: 90,
+        // Percent of margin less for every ten points of relation above zero (more below),
+        margin_per_relation: 1,
+        // and for every ten points of goodwill.
+        margin_per_goodwill: 1,
+        // The least the margin can be,
+        margin_least: 85,
+        // and the most.
+        margin_most: 140,
+        // The least gold it sells a spell or an item for.
+        least_price: 40,
+    ),
+    // Feelings, peace, friends and enemies (diplo_b*.rs, docs/ai-diplomacy-b.md). Overrides: AIS_DIPLO_B_<NAME>.
+    diplomacy_b: (
+        // The peace wish at which it offers a peace,
+        offer: 80,
+        // and the one at which it accepts one.
+        accept: 60,
+        // Turns between two offers to the same wizard.
+        cool: 15,
+        // Weariness up for a battle lost,
+        battle_lost: 5,
+        // down for one won,
+        battle_won: 4,
+        // up for a city lost,
+        city_lost: 25,
+        // down for one taken.
+        city_taken: 25,
+        // Weariness gained for every ten turns without a clash.
+        drift_per_ten: 7,
+        // The most the strength gap moves the wish, either way.
+        gap: 50,
+        // Percent of the fear that moves the wish; the stronger side hears half.
+        fear_pct: 40,
+        // Percent of the friendship that counts.
+        friend_pct: 10,
+        // A neighbour this percent weaker,
+        prey_pct: 150,
+        // and nearer than this, is prey,
+        prey_distance: 30,
+        // which lowers the wish by this.
+        prey: 30,
+        // The more dangerous of two fronts is worth this much more.
+        two_fronts: 25,
+        // A war younger than this is not ended,
+        young_age: 10,
+        // and by how much.
+        young: 40,
+        // The personality's mood divided by this is added (above 0).
+        mood_div: 3,
+        // Nearness is 100 minus this for each square between the nearest cities.
+        near_per_square: 5,
+        // What a city razed adds to a wizard's ruthlessness,
+        ruth_raze: 15,
+        // a war declared,
+        ruth_war: 6,
+        // a treaty broken,
+        ruth_broken: 10,
+        // a fortress taken,
+        ruth_fortress: 10,
+        // and a wizard destroyed.
+        ruth_destroyed: 20,
+        // Turns in which it fades by half.
+        ruth_half: 150,
+        // The most of it that counts, in fear points.
+        ruth_cap: 60,
+        // Taken off the peace wish toward the caster of the Spell of Mastery.
+        mastery: 60,
+        // With a leader in the game: added toward the others, taken off toward the leader.
+        leader: 15,
+        // Turns between two looks at the others.
+        review: 5,
+        // Turns an enemy is kept at least,
+        hold: 40,
+        // and the value below which it is then let go.
+        keep: 20,
+        // The enemy value a wizard needs to be chosen,
+        enemy_min: 25,
+        // and to be declared war on.
+        declare: 30,
+        // At war, another war is declared only with this many times that enemy's army.
+        busy_army_x: 2,
+        // What each war already fought takes off the willingness to declare another.
+        war_damp: 15,
+        // The most a weak neighbour in reach is worth as prey.
+        prey_value: 60,
+        // Added to the enemy value of one already fought,
+        at_war: 30,
+        // of the leader,
+        leader_enemy: 25,
+        // and of the caster of the Spell of Mastery.
+        mastery_enemy: 60,
+        // Percent of the hostility (negative friendship) that counts.
+        hostile_pct: 30,
+        // The fear at which an equal or weaker wizard strikes first.
+        strike_fear: 50,
+        // No war before this turn,
+        from_turn: 5,
+        // and none on a wizard this much stronger (percent).
+        too_strong_pct: 130,
+        // Percent of the friendship in the friend value.
+        stance_friend_pct: 30,
+        // What a shared enemy adds to it.
+        common_enemy: 30,
+        // Percent of the fear of a stronger neighbour that it adds.
+        grovel_pct: 40,
+        // What the league against the leader adds.
+        league: 20,
+        // The friend value at which it asks for a pact,
+        pact_min: 30,
+        // for an alliance,
+        ally_min: 55,
+        // and gives a gift.
+        gift_min: 25,
+        // Turns between two advances to the same wizard.
+        court_cool: 20,
+        // The friend value at which a pact is accepted,
+        pact_accept: 20,
+        // an alliance,
+        ally_accept: 45,
+        // and a war on a third wizard.
+        war_accept: 60,
+        // The lead in friendship over a third at which it breaks an alliance for the asker.
+        break_accept: 40,
+        // The friendship at which it warns a treaty partner,
+        warn_below: -30,
+        // breaks the treaty,
+        break_below: -50,
+        // and declares war on one it has no treaty with.
+        war_below: -75,
+        // Turns between two warnings to the same player,
+        warn_cool: 10,
+        // two demands,
+        demand_cool: 20,
+        // two gifts,
+        gift_cool: 30,
+        // and two trade offers.
+        trade_cool: 15,
+        // The friendship from which a treaty partner is given gifts.
+        gift_friend: 60,
+        // The fear from which a wizard yields to a threat or a demand.
+        yield_fear: 50,
+        // What an ally at war with a wizard adds to its enemy value.
+        ally_war: 30,
+    ),
+    // Whether a captured city is razed, in points that speak for razing (raze.rs). Overrides: AIS_RAZE_<NAME>.
+    raze: (
+        // A maniacal wizard,
+        maniacal: 30,
+        // a ruthless one,
+        ruthless: 15,
+        // a chaotic one,
+        chaotic: 10,
+        // an aggressive one.
+        aggressive: 5,
+        // Per step of unrest between the wizard's people and the city's.
+        race_step: 10,
+        // The land worth that speaks neither way,
+        land_fair: 30,
+        // the percent of the difference that counts,
+        land_pct: 100,
+        // and the most the land can say.
+        land_cap: 25,
+        // What each citizen takes off,
+        citizen: 2,
+        // the production cost of buildings that takes off one point (above 0),
+        built_per_point: 50,
+        // and the most a city's size can say.
+        size_cap: 40,
+        // No other own city near.
+        alone: 20,
+        // Per enemy city near beyond the own ones,
+        exposed: 8,
+        // and the most that says.
+        exposed_cap: 24,
+        // What city walls take off.
+        walls: 10,
+        // No soldier to hold the city.
+        unheld: 25,
+        // The city is razed above this.
+        threshold: 50,
+        // How near a soldier must stand to count as there to hold the city.
+        reach: 3,
+    ),
+    // What each objective of a wizard changes (`objective.rs`; the pragmatist's is also that of a
+    // wizard without one). Overrides: AIS_<OBJECTIVE>_<NAME> (AIS_MILITARIST_STRIKE_BASE), and
+    // AIS_CITIES and AIS_STRIKE set cities_wanted and strike_base of all of them.
+    objectives: (
+        pragmatist: (
+            // The most cities settled before the AI only builds up.
+            cities_wanted: 7,
+            // Fighters beyond the home guard, before a half per city more.
+            strike_base: 4,
+            // Rows skipped in the choice of the power split: more mana, less research.
+            split_shift: 0,
+            // What the research cost of a liked spell is multiplied by.
+            like_share: 1.0,
+            // Every n-th city of a settled wizard follows the other focus; 0 for none.
+            variety_every: 0,
+            // How far summons move up the order of casting (four is one step).
+            boost_summon: 0,
+            // The same for spells on units,
+            boost_unit_buff: 0,
+            // on cities,
+            boost_city_buff: 0,
+            // global enchantments,
+            boost_global_buff: 0,
+            // and curses.
+            boost_curse: 0,
+        ),
+        militarist: (
+            cities_wanted: 6,
+            strike_base: 6,
+            split_shift: 1,
+            like_share: 0.67,
+            variety_every: 3,
+            boost_summon: 8,
+            boost_unit_buff: 8,
+            boost_city_buff: 0,
+            boost_global_buff: 0,
+            boost_curse: 12,
+        ),
+        theurgist: (
+            cities_wanted: 6,
+            strike_base: 3,
+            split_shift: 0,
+            like_share: 0.67,
+            variety_every: 3,
+            boost_summon: 0,
+            boost_unit_buff: 0,
+            boost_city_buff: 4,
+            boost_global_buff: 12,
+            boost_curse: 0,
+        ),
+        perfectionist: (
+            cities_wanted: 5,
+            strike_base: 3,
+            split_shift: 0,
+            like_share: 0.67,
+            variety_every: 3,
+            boost_summon: 0,
+            boost_unit_buff: 0,
+            boost_city_buff: 12,
+            boost_global_buff: 12,
+            boost_curse: 0,
+        ),
+        expansionist: (
+            cities_wanted: 10,
+            strike_base: 4,
+            split_shift: 0,
+            like_share: 0.67,
+            variety_every: 3,
+            boost_summon: 4,
+            boost_unit_buff: 0,
+            boost_city_buff: 4,
+            boost_global_buff: 0,
+            boost_curse: 0,
+        ),
+    ),
+)

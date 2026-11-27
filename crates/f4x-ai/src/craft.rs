@@ -4,6 +4,7 @@
 //! worth), and starts casting it. The finished item goes to the armory, and `offer::equip` puts it
 //! on the hero.
 
+use crate::lever::Levered;
 use f4x_core::item::crafting::{self, Craft, ItemDesign};
 use f4x_core::player::view::PlayerView;
 use f4x_core::world::{Command, Event, World};
@@ -11,14 +12,6 @@ use f4x_def::rules::{ItemKind, PowerBonus, SlotKind};
 
 use crate::Ai;
 use f4x_master::Game;
-
-/// Mana the wizard keeps back from a craft, for its other spells.
-const RESERVE: i32 = 200;
-/// The most an item is worth, whatever the mana: a craft is paid over turns and blocks the
-/// casting of other spells.
-const MAX_VALUE: i32 = 800;
-/// Powers on one item (the game allows four; the charges are not used).
-const POWERS: usize = 3;
 
 /// The kind of item the slot takes that suits the hero's trade.
 fn kind_for(slot: SlotKind) -> ItemKind {
@@ -61,7 +54,7 @@ fn design(
     };
     let mut groups = Vec::new();
     for p in powers {
-        if design.powers.len() == POWERS {
+        if design.powers.len() == world.levers().items.craft_powers {
             break;
         }
         // The free group (the special powers) combines; the others take one power each.
@@ -101,7 +94,8 @@ pub fn run(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             return;
         };
         let mana = view.treasury().mana.floor();
-        let budget = (mana - RESERVE).min(MAX_VALUE);
+        let levers = game.levers();
+        let budget = (mana - levers.shared.mana_reserve).min(levers.items.craft_max_value);
         if budget <= 0 {
             return;
         }

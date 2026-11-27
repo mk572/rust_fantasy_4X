@@ -13,9 +13,6 @@ use crate::view::{is_coastal, is_fighter, is_ship};
 use crate::Ai;
 use f4x_master::Game;
 
-/// Fighters that must stand in the port before a ship sails.
-pub(crate) const MIN_LOAD: usize = 3;
-
 /// Where a landing goes, and where it starts from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Plan {
