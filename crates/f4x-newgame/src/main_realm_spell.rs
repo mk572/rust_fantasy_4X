@@ -5,12 +5,13 @@
 use f4x_core::player::PlayerId;
 use f4x_core::rules::RealmId;
 use f4x_core::wizard::sheet::KnownSpells;
+use f4x_core::world::rng::GameRng;
 use f4x_core::world::World;
 
 /// A computer wizard also knows one spell of its main realm, the realm with most books (the
 /// first in the realms' order on a tie), from `spell_library.ai_main_realm_known`. The
 /// human wizard and the independent players get none.
-pub fn give_main_realm_spell(world: &mut World, player: PlayerId) {
+pub fn give_main_realm_spell(world: &mut World, player: PlayerId, rng: &mut GameRng) {
     if world.human() == Some(player) {
         return;
     }
@@ -54,9 +55,9 @@ pub fn give_main_realm_spell(world: &mut World, player: PlayerId) {
             if let Some(mut w) = world.wizard_mut(player) {
                 w.learn(spell);
             }
-            world.refill_research(player);
+            world.refill_research(player, rng);
         }
-        None => world.refill_research(player),
+        None => world.refill_research(player, rng),
     }
 }
 
@@ -66,13 +67,15 @@ mod tests {
     use f4x_core::map::{Grid, Map};
     use f4x_core::wizard::magic::Retort;
     use f4x_core::wizard::WizardBuild;
+    use f4x_core::world::rng::GameRng;
     use f4x_core::world::setting::GameSettings;
+    use f4x_core::world::testutil::Table;
     use f4x_def::testdir::{shipped, TestResult};
 
     const P0: PlayerId = PlayerId(0);
 
     /// A game on the shipped content with one player, the settings edited by `edit`.
-    fn game(edit: impl FnOnce(&mut GameSettings)) -> World {
+    fn game(edit: impl FnOnce(&mut GameSettings)) -> Table {
         let c = shipped();
         let grass = c
             .terrains
@@ -81,7 +84,8 @@ mod tests {
         let mut settings = GameSettings::default();
         edit(&mut settings);
         let map = Map::new(Grid::new(14, 8, grass), Grid::new(14, 8, grass));
-        let mut w = World::begin_world(5, settings, c, Default::default(), map, Vec::new());
+        let world = World::begin_world(settings, c, Default::default(), map, Vec::new());
+        let mut w = Table::new(world, GameRng::new(5));
         w.add_player(P0, "W");
         w
     }
@@ -147,7 +151,7 @@ mod tests {
             let mut w = game(|s| s.ai.wizards.guaranteed_summoning_spell = true);
             w.create_wizard(P0, &preset(&books, &[]))
                 .map_err(|e| format!("{e:?}"))?;
-            give_main_realm_spell(&mut w, P0);
+            give_main_realm_spell(&mut w.world, P0, &mut w.rng);
             assert!(
                 w.wizard(P0)
                     .ok_or("wizard is missing")?
@@ -160,7 +164,7 @@ mod tests {
         w.create_wizard(P0, &preset(&[(RealmId::new(0 /* nature */), 1)], &[]))
             .map_err(|e| format!("{e:?}"))?;
         w.set_human(Some(P0));
-        give_main_realm_spell(&mut w, P0);
+        give_main_realm_spell(&mut w.world, P0, &mut w.rng);
         assert!(!w
             .wizard(P0)
             .ok_or("wizard is missing")?
@@ -175,7 +179,7 @@ mod tests {
             let mut w = game(|s| s.basic.difficulty = difficulty);
             w.create_wizard(P0, &preset(&[(RealmId::new(0 /* nature */), 1)], &[]))
                 .map_err(|e| format!("{e:?}"))?;
-            give_main_realm_spell(&mut w, P0);
+            give_main_realm_spell(&mut w.world, P0, &mut w.rng);
             let m = w.wizard(P0).ok_or("wizard is missing")?;
             let basilisk = spell_id(&w, 20 /* basilisk */);
             assert_eq!(m.can_research(basilisk), open, "difficulty {difficulty}");

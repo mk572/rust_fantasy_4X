@@ -21,6 +21,7 @@ __pycache__/
 !/crates/*/tests/saves/.gitkeep
 # The fresh games core's tests load (`f4x-newgame/tests/it/fixtures.rs` keeps them current).
 !/crates/f4x-core/tests/saves/fresh_*.save
+!/crates/f4x-core/tests/saves/fresh_*.rng
 
 # Local soak baselines and the archived docs
 /docs/soak-baseline.md

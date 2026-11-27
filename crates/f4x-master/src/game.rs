@@ -2,7 +2,9 @@
 //!
 //! A [`Game`] reads like its [`World`] (it dereferences to it), but whoever holds one changes the
 //! world only by sending a command ([`Game::apply`]). Setting up a world, cheats and tests have a
-//! way of their own, [`Game::world_mut`].
+//! way of their own, [`Game::world_mut`] and, for what draws, [`Game::world_and_rng`].
+//!
+//! The random numbers are the game's: it hands its generator to each world operation that draws.
 //!
 //! The turn order (`game/step.rs`), the end of the game (`game/end.rs`), the saved game
 //! (`game/save.rs`), undo (`game/undo.rs`) and replays (`game/replay.rs`) are the game's: they see
@@ -17,6 +19,7 @@ pub mod step;
 pub mod undo;
 
 use f4x_battle::battle::BattleCommand;
+use f4x_core::world::rng::GameRng;
 use f4x_core::world::{Command, Event, Rejection, World};
 
 /// A game being played.
@@ -28,12 +31,10 @@ pub struct Game {
 }
 
 impl Game {
-    /// A game of this world in its first round, with undo off and nothing recorded.
-    pub fn new(world: World) -> Self {
-        let state = save::GameState {
-            players: step::turn_players(&world),
-            ..Default::default()
-        };
+    /// A game of this world in its first round, with undo off and nothing recorded. `rng` is the
+    /// generator all its random numbers come from; one that made the world goes on from there.
+    pub fn new(world: World, rng: GameRng) -> Self {
+        let state = save::GameState::first_round(rng, step::turn_players(&world));
         Self {
             world,
             state,
@@ -51,6 +52,21 @@ impl Game {
     /// commands ([`Game::apply`]) instead.
     pub fn world_mut(&mut self) -> &mut World {
         &mut self.world
+    }
+
+    /// The world and the generator, to change the world by hand in a way that draws.
+    pub fn world_and_rng(&mut self) -> (&mut World, &mut GameRng) {
+        (&mut self.world, &mut self.state.rng)
+    }
+
+    /// The seed this game started from.
+    pub fn seed(&self) -> u64 {
+        self.state.rng.seed()
+    }
+
+    /// How many random numbers have been drawn.
+    pub fn draws(&self) -> u64 {
+        self.state.rng.draws()
     }
 
     /// The world, when the game around it is no longer needed.
@@ -98,6 +114,23 @@ impl Game {
         let skipped = i64::from(round) - i64::from(self.state.round);
         self.world.scenario_age_wars(skipped);
         self.state.round = round;
+    }
+}
+
+// Tests call the world operations that draw through the game, which hands them its generator.
+#[cfg(feature = "testutil")]
+f4x_core::drawing_ops!(Game);
+
+#[cfg(feature = "testutil")]
+impl From<f4x_core::world::testutil::Table> for Game {
+    fn from(table: f4x_core::world::testutil::Table) -> Self {
+        Self::new(table.world, table.rng)
+    }
+}
+
+impl From<(World, GameRng)> for Game {
+    fn from((world, rng): (World, GameRng)) -> Self {
+        Self::new(world, rng)
     }
 }
 

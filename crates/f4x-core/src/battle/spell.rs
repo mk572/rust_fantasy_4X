@@ -22,6 +22,8 @@
 //!
 //! Tests: in battle/tests.rs, on whole battles.
 
+use crate::world::rng::GameRng;
+use rand::RngCore as _;
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
 
@@ -332,6 +334,7 @@ impl World {
         spell: SpellId,
         aim: SpellAim,
         mana: u32,
+        rng: &mut GameRng,
     ) -> Result<Vec<Event>, BattleError> {
         let (def, kind, skill, pool) = self.check_cast(spell, aim, mana)?;
         let battle = &self.battle.as_ref().ok_or(BattleError::Over)?.battle;
@@ -357,7 +360,7 @@ impl World {
         if stopped {
             events.push(BattleEvent::SpellCountered { side, spell });
         } else {
-            events.extend(self.apply_battle_spell(spell, &def, kind, side, player, aim, pool));
+            events.extend(self.apply_battle_spell(spell, &def, kind, side, player, aim, pool, rng));
         }
         if let Some(active) = self.battle.as_mut() {
             active.battle.note_invisibility();
@@ -369,7 +372,7 @@ impl World {
             .map(|a| a.battle.check_winner())
             .unwrap_or_default();
         out.extend(ended.into_iter().map(Event::Battle));
-        self.finish_if_over(&mut out);
+        self.finish_if_over(&mut out, rng);
         Ok(out)
     }
 
@@ -513,11 +516,12 @@ impl World {
         player: PlayerId,
         aim: SpellAim,
         pool: i32,
+        rng: &mut GameRng,
     ) -> Vec<BattleEvent> {
         match (&kind, aim) {
-            (SpellType::CallChaos, _) => return self.call_chaos(side, player),
+            (SpellType::CallChaos, _) => return self.call_chaos(side, player, rng),
             (SpellType::Channel, SpellAim::Unit(target)) => {
-                return if self.channel_battle_unit(target) {
+                return if self.channel_battle_unit(target, rng) {
                     vec![BattleEvent::SpellEnchanted {
                         unit: target,
                         spell,
@@ -530,8 +534,8 @@ impl World {
             (SpellType::Raise, SpellAim::Unit(target)) => return self.raise_dead(side, target),
             (SpellType::Dispel(per_mana), SpellAim::Unit(target)) => {
                 let strength = pool as u32 * per_mana * self.dispel_power(player);
-                let mut events = self.dispel_battle_unit(target, strength, player);
-                events.extend(self.dispel_battle_fields(strength, player));
+                let mut events = self.dispel_battle_unit(target, strength, player, rng);
+                events.extend(self.dispel_battle_fields(strength, player, rng));
                 return events;
             }
             _ => {}
@@ -578,7 +582,7 @@ impl World {
     /// points of healing (not the dead), Chaos Channels, Warp Creature, a Fire Bolt of strength
     /// 15, Warp Lightning, a Doom Bolt, or Disintegrate. Chaos Channels and Warp Creature work
     /// as the spells do, on a normal unit that has not got the change already.
-    fn call_chaos(&mut self, side: Side, player: PlayerId) -> Vec<BattleEvent> {
+    fn call_chaos(&mut self, side: Side, player: PlayerId, rng: &mut GameRng) -> Vec<BattleEvent> {
         let mut events = Vec::new();
         for t in self.enemies_of(side) {
             let Some(active) = self.battle.as_mut() else {
@@ -594,7 +598,7 @@ impl World {
                 let channelable = self
                     .battle_source_of(t)
                     .is_some_and(|e| self.check_mutate(e).is_ok());
-                if channelable && self.channel_battle_unit(t) {
+                if channelable && self.channel_battle_unit(t, rng) {
                     events.push(BattleEvent::SpellEnchanted {
                         unit: t,
                         spell: UnitEffect::ChaosChannels
@@ -707,7 +711,12 @@ impl World {
     /// A dispel of `strength` by `by` on the battlefield enchantments the other side has up
     /// (`Combat_Cast_Dispel`): each is tried at its spell's difficulty, with the retorts of the
     /// wizard that cast it, and a success takes it down.
-    fn dispel_battle_fields(&mut self, strength: u32, by: PlayerId) -> Vec<BattleEvent> {
+    fn dispel_battle_fields(
+        &mut self,
+        strength: u32,
+        by: PlayerId,
+        rng: &mut GameRng,
+    ) -> Vec<BattleEvent> {
         let Some(active) = self.battle.as_ref() else {
             return Vec::new();
         };
@@ -717,7 +726,7 @@ impl World {
         let theirs = mine.other();
         let victim = active.battle.player_of(theirs);
         let up: Vec<(Field, SpellId)> = active.battle.fields[theirs.index()].clone();
-        let mut rng = Pcg64Mcg::seed_from_u64(self.next_u64());
+        let mut rng = Pcg64Mcg::seed_from_u64(rng.next_u64());
         let mut events = Vec::new();
         for (field, spell) in up {
             let difficulty = self.dispel_difficulty(spell, Some(victim));
@@ -782,13 +791,14 @@ impl World {
         target: usize,
         strength: u32,
         by: PlayerId,
+        rng: &mut GameRng,
     ) -> Vec<BattleEvent> {
         let Some(active) = self.battle.as_ref() else {
             return Vec::new();
         };
         let unit = active.battle.units[target].clone();
         let entity = unit.source.and_then(|i| active.sources.get(i).copied());
-        let mut rng = Pcg64Mcg::seed_from_u64(self.next_u64());
+        let mut rng = Pcg64Mcg::seed_from_u64(rng.next_u64());
 
         let (kept, gone) = self.dispel_list(unit.combat_spells(), strength, by, true, &mut rng);
         let mut removed = gone.len() as u32;
@@ -899,7 +909,7 @@ impl World {
 
     /// Chaos Channels on a unit of the battle: its overland unit is mutated for good, and the
     /// battle unit is rebuilt from it with the spells it keeps. Whether it was mutated.
-    pub(super) fn channel_battle_unit(&mut self, target: usize) -> bool {
+    pub(super) fn channel_battle_unit(&mut self, target: usize, rng: &mut GameRng) -> bool {
         let Some(active) = self.battle.as_ref() else {
             return false;
         };
@@ -910,9 +920,7 @@ impl World {
         let Some(entity) = active.sources.get(index).copied() else {
             return false;
         };
-        let mut rng = std::mem::replace(&mut self.rng, crate::world::rng::GameRng::lent());
-        let done = self.mutate(entity, &mut rng).is_some();
-        self.rng = rng;
+        let done = self.mutate(entity, rng).is_some();
         if !done {
             return false;
         }

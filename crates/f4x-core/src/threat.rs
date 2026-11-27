@@ -13,6 +13,7 @@ mod monster;
 mod raider;
 mod sea_raid;
 
+use crate::world::rng::GameRng;
 use serde::{Deserialize, Serialize};
 
 use crate::map::terrain::TerrainClass;
@@ -30,13 +31,13 @@ pub struct Threat {
 
 impl World {
     /// Once a turn, at the turn change.
-    pub(crate) fn process_threats(&mut self, round: u32) -> Vec<Event> {
+    pub(crate) fn process_threats(&mut self, round: u32, rng: &mut GameRng) -> Vec<Event> {
         let mut events = Vec::new();
         if self.settings.world.raiders_enabled {
-            events.extend(self.make_raiders(round));
+            events.extend(self.make_raiders(round, rng));
         }
         if self.settings.world.monsters_enabled {
-            events.extend(self.make_monsters(round));
+            events.extend(self.make_monsters(round, rng));
         }
         events
     }

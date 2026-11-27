@@ -10,6 +10,7 @@
 //!
 //! Tests: in player/offer/tests.rs.
 
+use crate::world::rng::GameRng;
 use f4x_def::half_int::HalfInt;
 use serde::{Deserialize, Serialize};
 
@@ -249,7 +250,12 @@ impl World {
 
     /// Roll the offers of a wizard for the turn that begins (`Determine_Offer`). Offers not
     /// answered last turn lapse first.
-    pub(crate) fn determine_offers(&mut self, id: PlayerId, round: u32) -> Vec<Event> {
+    pub(crate) fn determine_offers(
+        &mut self,
+        id: PlayerId,
+        round: u32,
+        rng: &mut GameRng,
+    ) -> Vec<Event> {
         let mut events = Vec::new();
         let old = self
             .player_component_mut::<Offers>(id)
@@ -265,7 +271,7 @@ impl World {
         for offer in &old {
             self.release_offer(id, offer);
         }
-        for offer in self.offers_for(id, round) {
+        for offer in self.offers_for(id, round, rng) {
             if let Some(o) = self.player_component_mut::<Offers>(id) {
                 o.0.push(offer.clone());
             }
@@ -312,7 +318,7 @@ impl World {
     }
 
     /// One wizard's offers this turn: item, mercenaries, hero.
-    fn offers_for(&mut self, player: PlayerId, round: u32) -> Vec<Offer> {
+    fn offers_for(&mut self, player: PlayerId, round: u32, rng: &mut GameRng) -> Vec<Offer> {
         let mut offers = Vec::new();
         if !self.can_be_offered(player) {
             return offers;
@@ -323,17 +329,16 @@ impl World {
         let fame = self.fame(player);
         let computer = self.human() != Some(player);
 
-        if self.rng.roll(100) as i32 <= item_chance(&self.content.rules.config.offer, fame, percent)
-        {
-            offers.extend(self.item_offer(player));
+        if rng.roll(100) as i32 <= item_chance(&self.content.rules.config.offer, fame, percent) {
+            offers.extend(self.item_offer(player, rng));
         }
-        if self.rng.roll(100) as i32
+        if rng.roll(100) as i32
             <= mercenary_chance(&self.content.rules.config.offer, fame, percent, computer)
         {
-            offers.extend(self.mercenary_offer(player, round));
+            offers.extend(self.mercenary_offer(player, round, rng));
         }
         let heroes = self.units().hero_units(player).len();
-        if self.rng.roll(100) as i32
+        if rng.roll(100) as i32
             <= hero_chance(
                 &self.content.rules.config.offer,
                 fame,
@@ -342,7 +347,7 @@ impl World {
                 heroes,
             )
         {
-            offers.extend(self.hero_offer(player));
+            offers.extend(self.hero_offer(player, rng));
         }
         offers
     }
@@ -367,9 +372,9 @@ impl World {
     }
 
     /// The merchant's item, if the wizard can pay for it (`Make_Item`). An item the wizard cannot pay for is not offered and a prefab one is given back.
-    fn item_offer(&mut self, player: PlayerId) -> Option<Offer> {
+    fn item_offer(&mut self, player: PlayerId, rng: &mut GameRng) -> Option<Offer> {
         let item = make_item(
-            &mut self.rng,
+            rng,
             &self.content.rules,
             Grade::Any,
             0,
@@ -390,15 +395,20 @@ impl World {
     }
 
     /// A hero for hire, if there is somebody to offer.
-    fn hero_offer(&mut self, player: PlayerId) -> Option<Offer> {
-        let kind = self.pick_hero(player, false, Class::Any)?;
+    fn hero_offer(&mut self, player: PlayerId, rng: &mut GameRng) -> Option<Offer> {
+        let kind = self.pick_hero(player, false, Class::Any, rng)?;
         let price = self.units().hero_hire_price(player, kind)?;
         Some(Offer::Hero { kind, price })
     }
 
     /// `Generate_Mercenaries`: a company, if the turn is late enough, there is something to
     /// offer, it fits the summoning circle's square and the wizard can pay.
-    fn mercenary_offer(&mut self, player: PlayerId, round: u32) -> Option<Offer> {
+    fn mercenary_offer(
+        &mut self,
+        player: PlayerId,
+        round: u32,
+        rng: &mut GameRng,
+    ) -> Option<Offer> {
         let fame = self.fame(player);
         let percent = self.hire_percent(player);
         let gold = self
@@ -412,10 +422,10 @@ impl World {
         if pool.is_empty() {
             return None;
         }
-        let def = pool[self.rng.roll(pool.len() as u32) as usize - 1];
+        let def = pool[rng.roll(pool.len() as u32) as usize - 1];
         let (id, cost) = (UnitId::new(def.num), def.cost);
-        let level = mercenary_level(self.rng.roll(100) as i32, fame);
-        let count = mercenary_count(self.rng.roll(100) as i32, fame);
+        let level = mercenary_level(rng.roll(100) as i32, fame);
+        let count = mercenary_count(rng.roll(100) as i32, fame);
         let price = mercenary_price(cost, level, count, percent);
         self.summon_point(player)?;
         (HalfInt::from_int(price) <= gold).then_some(Offer::Mercenaries {
@@ -429,14 +439,20 @@ impl World {
     /// Make the wizard an offer of this kind now, whatever the chance (the console's `offer`):
     /// the same offer the turn change would make, put on the list. `None` when there is nothing
     /// to offer (no free slot, too early for mercenaries, not enough gold).
-    pub fn cheat_offer(&mut self, player: PlayerId, what: OfferKind, round: u32) -> Option<Offer> {
+    pub fn cheat_offer(
+        &mut self,
+        player: PlayerId,
+        what: OfferKind,
+        round: u32,
+        rng: &mut GameRng,
+    ) -> Option<Offer> {
         if !self.can_be_offered(player) {
             return None;
         }
         let offer = match what {
-            OfferKind::Hero => self.hero_offer(player),
-            OfferKind::Mercenaries => self.mercenary_offer(player, round),
-            OfferKind::Item => self.item_offer(player),
+            OfferKind::Hero => self.hero_offer(player, rng),
+            OfferKind::Mercenaries => self.mercenary_offer(player, round, rng),
+            OfferKind::Item => self.item_offer(player, rng),
         }?;
         self.player_component_mut::<Offers>(player)?
             .0

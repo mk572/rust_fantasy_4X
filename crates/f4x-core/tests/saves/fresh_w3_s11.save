@@ -1,9 +1,7 @@
-// f4x save, version 5, game 0.0.8, checksum 0862b86fc5640a01
+// f4x save, version 5, game 0.0.8, checksum fb50b34279e24c27
 (
     version: 5,
     game_version: "0.0.8",
-    seed: 11,
-    draws: 215,
     next_serial: 170,
     settings: (
         basic: (difficulty: 2, opponents: 2, land_percent: 30, magic_strength: 1, map_width: 60, map_height: 40, towers: None, neutral_cities: None, diagonal_extra_cost: false, original_map_generator: false),

@@ -9,6 +9,7 @@ use f4x_core::map::Position;
 use f4x_core::rules::unit_flag::UnitFlag;
 use f4x_core::rules::UnitId;
 use f4x_core::unit::movement::MoveError;
+use f4x_core::world::testutil::Table;
 use f4x_core::world::{Command, Event, Rejection, World};
 use f4x_def::half_int::HalfInt;
 use f4x_def::rules::MovementType;
@@ -96,7 +97,7 @@ fn cost(
 
 /// A new plain unit of the movement type at `at`, the first the content has.
 fn make_plain(
-    w: &mut World,
+    w: &mut Table,
     owner: f4x_core::player::PlayerId,
     at: Position,
     movement: MovementType,
@@ -291,7 +292,7 @@ fn a_stack_moves_together_and_each_unit_pays_its_own_cost() {
 
 /// The moves a new walking unit spends on a move from `from` to `to`; `None` when it does not get there.
 fn spent(
-    w: &mut World,
+    w: &mut Table,
     owner: f4x_core::player::PlayerId,
     from: Position,
     to: Position,

@@ -189,7 +189,7 @@ impl Options {
                 std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
             let saved = f4x_master::SaveFile::from_text(&text)
                 .map_err(|e| format!("{}: {e}", path.display()))?;
-            (o.first, o.last) = (saved.world.seed, saved.world.seed);
+            (o.first, o.last) = (saved.game.rng.seed(), saved.game.rng.seed());
         }
         Ok(o)
     }
@@ -478,7 +478,10 @@ pub fn game(
             if let Some(magic) = opts.magic {
                 basic.magic_strength = magic;
             }
-            (Game::new(new_game(content, &spec)?), Vec::new())
+            {
+                let (world, rng) = new_game(content, &spec)?;
+                (Game::new(world, rng), Vec::new())
+            }
         }
     };
     // A game that was loaded has its own seed: the one asked for here is only the default range.
@@ -1709,7 +1712,7 @@ mod tests {
     #[test]
     fn the_profile_and_neutral_lines_name_each_wizard_and_the_neutral_races() -> TestResult {
         let content = crate::testutil::shipped();
-        let world = new_game(
+        let (world, _) = new_game(
             content,
             &NewGame {
                 seed: 3,

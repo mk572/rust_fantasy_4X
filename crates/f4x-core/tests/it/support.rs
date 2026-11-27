@@ -2,7 +2,7 @@
 
 use f4x_core::item::armory::{ItemSpot, Spot};
 use f4x_core::item::crafting::{Craft, ItemDesign};
-use f4x_core::world::testutil::fresh;
+use f4x_core::world::testutil::{fresh, Table};
 use f4x_core::world::World;
 use f4x_def::rules::ItemKind;
 
@@ -10,7 +10,7 @@ use f4x_def::rules::ItemKind;
 pub use f4x_core::world::testutil::FRESH_WORLDS as WORLDS;
 
 /// Every fresh game of the matrix, with its name for a failure message.
-pub fn worlds() -> Vec<(String, World)> {
+pub fn worlds() -> Vec<(String, Table)> {
     WORLDS
         .iter()
         .map(|&(w, s)| {
@@ -24,7 +24,7 @@ pub fn worlds() -> Vec<(String, World)> {
 pub fn games() -> Vec<(String, Game)> {
     worlds()
         .into_iter()
-        .map(|(name, world)| (name, Game::new(world)))
+        .map(|(name, world)| (name, Game::from(world)))
         .collect()
 }
 
@@ -40,6 +40,39 @@ pub fn content() -> f4x_def::content::Content {
 /// The text of a game: what a save would write (the checksum line aside, which only follows from it).
 pub fn text(w: &World) -> String {
     w.snapshot().to_text().expect("a game writes as text")
+}
+
+/// A world with a generator: a [`Table`] or a [`Game`].
+pub trait Dice: std::ops::Deref<Target = World> {
+    fn drawn(&self) -> u64;
+
+    fn command(&mut self, command: Command) -> Vec<Event>;
+}
+
+impl Dice for Table {
+    fn drawn(&self) -> u64 {
+        self.draws()
+    }
+
+    fn command(&mut self, command: Command) -> Vec<Event> {
+        self.apply(command)
+    }
+}
+
+impl Dice for Game {
+    fn drawn(&self) -> u64 {
+        self.draws()
+    }
+
+    fn command(&mut self, command: Command) -> Vec<Event> {
+        self.apply(command)
+    }
+}
+
+/// [`text`] and the numbers drawn so far: all that playing changes, for a test that says two games
+/// are the same or that nothing happened to one.
+pub fn state(w: &impl Dice) -> String {
+    format!("{}draws {}\n", text(w), w.drawn())
 }
 
 /// The eight squares round `at`, east and west wrapping, those off the top or bottom left out.
@@ -565,7 +598,7 @@ pub fn commands(w: &World) -> Vec<Command> {
 
 /// A city of `owner` on the first square near their first city that the game lets one be founded on.
 pub fn another_city(
-    w: &mut World,
+    w: &mut impl Dice,
     owner: f4x_core::player::PlayerId,
     population: u32,
 ) -> Option<hecs::Entity> {
@@ -582,7 +615,7 @@ pub fn another_city(
                 y: y as u32,
                 plane: at.plane,
             };
-            let events = w.apply(Command::FoundCity {
+            let events = w.command(Command::FoundCity {
                 owner,
                 pos,
                 name: "Another".to_owned(),

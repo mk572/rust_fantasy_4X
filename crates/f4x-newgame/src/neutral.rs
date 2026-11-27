@@ -14,6 +14,7 @@
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::{Plane, Position};
 use f4x_core::rules::RaceId;
+use f4x_core::world::rng::GameRng;
 use f4x_core::world::World;
 
 pub use f4x_def::settings::NEUTRAL_CITIES_PER_PLANE;
@@ -250,7 +251,7 @@ fn assign_races<T: Copy>(
 
 /// Step 1: the squares of the plane's neutral cities, `target` of them at most (fewer when the
 /// land runs out).
-fn choose_sites(world: &mut World, plane: Plane, target: u32) -> Vec<Position> {
+fn choose_sites(world: &mut World, plane: Plane, target: u32, rng: &mut GameRng) -> Vec<Position> {
     let Some(map) = world.map() else {
         return Vec::new();
     };
@@ -272,8 +273,8 @@ fn choose_sites(world: &mut World, plane: Plane, target: u32) -> Vec<Position> {
                 }
                 let pos = Position {
                     plane,
-                    x: 2 + world.roll(w - 6),
-                    y: 2 + world.roll(h - 6),
+                    x: 2 + rng.roll(w - 6),
+                    y: 2 + rng.roll(h - 6),
                 };
                 if neutral_site_ok(world, pos, false, &chosen) {
                     break pos;
@@ -303,7 +304,7 @@ fn choose_sites(world: &mut World, plane: Plane, target: u32) -> Vec<Position> {
 }
 
 /// Place a plane's neutral cities. Returns how many were made.
-pub fn generate_neutral_cities(world: &mut World, plane: Plane) -> u32 {
+pub fn generate_neutral_cities(world: &mut World, plane: Plane, rng: &mut GameRng) -> u32 {
     let Some(map) = world.map() else {
         return 0;
     };
@@ -322,11 +323,11 @@ pub fn generate_neutral_cities(world: &mut World, plane: Plane) -> u32 {
     };
     // Step 1: the squares. Step 2: a race rolled for each. Step 3: the races to the squares by
     // their favoured terrain. Step 4: the cities.
-    let sites = choose_sites(world, plane, target);
+    let sites = choose_sites(world, plane, target, rng);
     // With the setting a city on a speck of land gets its island built out, as a start town does.
     if world.settings().rules.extend_tiny_islands {
         for &site in &sites {
-            crate::island::build_out(world, site);
+            crate::island::build_out(world, site, rng);
         }
     }
     let weights = weighted_races(world, plane);
@@ -334,8 +335,8 @@ pub fn generate_neutral_cities(world: &mut World, plane: Plane) -> u32 {
         .iter()
         .map(|_| {
             let race = match &weights {
-                Some(w) => pick_weighted(w, world.roll(w.iter().map(|&(_, n)| n).sum())),
-                None => races[world.roll(races.len() as u32) as usize - 1],
+                Some(w) => pick_weighted(w, rng.roll(w.iter().map(|&(_, n)| n).sum())),
+                None => races[rng.roll(races.len() as u32) as usize - 1],
             };
             let home = world.content().rules.races.get(race).home_terrain.clone();
             (race, home)
@@ -345,7 +346,7 @@ pub fn generate_neutral_cities(world: &mut World, plane: Plane) -> u32 {
         terrain_round(world, sites[site], class)
     });
     for (&pos, &race) in sites.iter().zip(&assigned) {
-        world.found_neutral_city(pos, race);
+        world.found_neutral_city(pos, race, rng);
     }
     sites.len() as u32
 }
@@ -393,6 +394,7 @@ mod tests {
                 ..Default::default()
             },
         )
+        .map(|(world, _)| world)
     }
 
     #[test]
@@ -513,6 +515,7 @@ mod tests {
                     ..Default::default()
                 },
             )
+            .map(|(world, _)| world)
         };
         let off = make(7, false)?;
         for plane in Plane::all() {
@@ -615,7 +618,7 @@ mod tests {
                 ..Default::default()
             };
             spec.settings.basic.difficulty = 5;
-            let w = new_game(shipped(), &spec)?;
+            let w = new_game(shipped(), &spec)?.0;
             for (e, info, pos) in w.economy().cities() {
                 if w.is_neutral_player(info.owner) {
                     let people = w.city_population(e).figures;
@@ -702,7 +705,7 @@ mod tests {
                 ..Default::default()
             };
             spec.settings.rules.mix_neutral_races = mix;
-            new_game(shipped(), &spec)
+            new_game(shipped(), &spec).map(|(world, _)| world)
         };
         let (off, w) = (game(false)?, game(true)?);
         for plane in [Plane::Arcanus, Plane::Myrror] {
@@ -736,7 +739,7 @@ mod tests {
                     ..Default::default()
                 };
                 spec.settings.rules.mix_neutral_races = mix;
-                let w = new_game(shipped(), &spec)?;
+                let w = new_game(shipped(), &spec)?.0;
                 for (e, info, pos) in w.economy().cities() {
                     let Some(race) = w.city_race(e).filter(|_| w.is_neutral_player(info.owner))
                     else {

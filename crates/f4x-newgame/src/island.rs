@@ -9,6 +9,7 @@
 //!
 //! Tests: in `tests` below.
 
+use f4x_core::world::rng::GameRng;
 use std::collections::HashSet;
 
 use f4x_core::map::terrain::TerrainClass;
@@ -173,12 +174,12 @@ pub fn grow_site_islands(
 
 /// Build out the island of a town of a game being set up (a start town or a neutral city) to
 /// [`MIN_LAND`] squares, where it is smaller. A square that holds a tower or a node stays as it is.
-pub fn build_out(world: &mut f4x_core::world::World, at: Position) {
+pub fn build_out(world: &mut f4x_core::world::World, at: Position, rng: &mut GameRng) {
     let Some(map) = world.map() else {
         return;
     };
     let sites = world.economy().site_squares();
-    let squares = growth(map, world.content(), world.seed(), at, &|x, y| {
+    let squares = growth(map, world.content(), rng.seed(), at, &|x, y| {
         sites
             .iter()
             .any(|s| s.plane == at.plane && s.x as i32 == x && s.y as i32 == y)

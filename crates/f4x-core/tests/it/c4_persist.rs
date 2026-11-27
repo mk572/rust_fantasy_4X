@@ -1,7 +1,9 @@
 //! Class 4: the ways a game is rebuilt from text (a save, a replay, an undo) lose nothing.
 
 use crate::support::games;
-use crate::support::{busy_round, content, shape, text, worlds};
+use crate::support::{busy_round, content, shape, state, text, worlds};
+use f4x_core::map::terrain::TerrainClass;
+use f4x_core::map::{Plane, Position};
 use f4x_core::world::save::{ContentCheck, Integrity, LoadError, Snapshot};
 use f4x_core::world::World;
 use f4x_master::SaveFile;
@@ -40,7 +42,7 @@ fn a_loaded_game_goes_on_as_the_saved_one_would_have() {
             let a = shape(&busy_round(&mut live, 6));
             let b = shape(&busy_round(&mut loaded, 6));
             assert_eq!(a, b, "{name}, round {round}: the events differ");
-            assert_eq!(text(&live), text(&loaded), "{name}, round {round}");
+            assert_eq!(state(&live), state(&loaded), "{name}, round {round}");
         }
     }
 }
@@ -289,6 +291,21 @@ fn a_save_that_contradicts_itself_is_refused() {
     let city_pos = value("cities: [(", 0, "pos: (plane");
     let unit_pos = value("units: [(", 0, "pos: (plane");
     let farmers = value("cities: [(", 0, "farmers: ");
+    let sea = {
+        let (_, w) = worlds().remove(0);
+        let map = w.map().expect("a map");
+        let mut squares = (0..map.height()).flat_map(|y| {
+            (0..map.width()).map(move |x| Position {
+                plane: Plane::Arcanus,
+                x,
+                y,
+            })
+        });
+        let sea = squares
+            .find(|&at| w.economy().terrain_class_at(at) == Some(TerrainClass::Ocean))
+            .expect("a map has sea");
+        format!("pos: (plane: Arcanus, x: {}, y: {}),", sea.x, sea.y)
+    };
     let off = |pos: &str| {
         pos.replacen(
             pos.split("x: ").nth(1).unwrap().split(',').next().unwrap(),
@@ -317,6 +334,7 @@ fn a_save_that_contradicts_itself_is_refused() {
             "a city off the map",
             in_list("cities: [(", &city_pos, &off(&city_pos)),
         ),
+        ("a city in the sea", in_list("cities: [(", &city_pos, &sea)),
         (
             "more farmers than citizens",
             in_list("cities: [(", &farmers, "farmers: 99,"),

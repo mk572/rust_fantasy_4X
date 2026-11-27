@@ -46,7 +46,6 @@ World                                  (world/mod.rs; the owner and the orchestr
 ├── battle: Option<ActiveBattle>       the fight in progress: a `Battle` plus the overland units it
 │                                      was copied from (battle/); saved with the
 │                                      world (`Snapshot.battle`, battle/save.rs)
-├── rng: GameRng                       the one source of randomness, with its draw count (world/rng.rs)
 ├── settings                           the game's settings (`world/setting.rs`)
 ├── human: Option<PlayerId>            the human wizard
 ├── mastery: Option<PlayerId>          the wizard who completed the Spell of Mastery
@@ -71,7 +70,7 @@ use the same entry point.
 2. **Definitions**: static content loaded once into registries (`Registry<UnitDef>` and so
    on). Never mutated at runtime. An entity points at its definition with a typed id.
 3. **Resources owned by `World`**: things that are numerous, dense or global (the map
-   grids, fog, the RNG). They are plain fields, not entities.
+   grids, fog). They are plain fields, not entities.
 
 The rule of thumb: if it has an identity that other things refer to and a varied set of
 attributes, it is an entity; if it is addressed by coordinates or is one per player, it is
@@ -112,17 +111,18 @@ state: diplomacy, a wizard's magic, the battle engine, the map and fog, the modi
 5. **What a domain wants changed outside itself comes back as outcomes**, not as writes:
    diplomacy leaves `Outcome::Gold` and `Outcome::Spell` in its context, and `World` applies
    them. Events are returned the same way.
-6. **Random numbers come from a `GameRng`** that the caller passes in (`world/rng.rs`). It is a field
-   of `World`, so a domain can take `&mut GameRng` next to other borrows.
+6. **Random numbers come from a `GameRng`** that the caller passes in (`world/rng.rs`). It is the
+   `Game`'s (`f4x-master`), not a field of `World`: each operation that draws takes `&mut GameRng` as
+   its last argument and hands it on to the domain.
 
 Three ways to give a domain what it needs, all in use:
 
 - **Borrowing the fields apart**, where the domain's state is a field of something `World` can
-  borrow beside the content and the generator (the wizard handles: `World::wizard`, `World::wizard_mut`).
+  borrow beside the content (the wizard handles: `World::wizard`, `World::wizard_mut`).
 - **Lending the domain out for a call**, where its rules need the whole game as a read-only
-  view (`Diplomacy`: `World::with_diplomacy` takes the state and the generator out of the game,
-  runs the rules over `&World`, puts them back and applies the outcomes).
-  The spell executor lends the generator to its host the same way (`WorldHost`).
+  view (`Diplomacy`: `World::with_diplomacy` takes the state out of the world, runs the rules
+  over `&World`, puts it back and applies the outcomes; a rule that draws is also handed the
+  generator). The spell executor's host (`WorldHost`) holds the borrowed generator for one cast.
 - **A read handle over a few fields** where the domain's state lives in the ECS (units:
   `UnitView<'a>` holds `&hecs::World` and `&Content`, made by `World::units()`; the city's yields likewise in `Economy<'a>` over the `hecs::World`, the map and the content, made by `World::economy()`; what changes
   units is a function over `&mut hecs::World`, such as `unit::spawn`, `experience::gain_xp` and
@@ -362,17 +362,15 @@ log refer to them, and a race that returns finds what it had.
 ### 3.10 What stays outside the world
 
 The map layers and the fog (dense grids), the content registries, `Diplomacy` (pairs of players, keyed
-by `PlayerId`), the world events table, the RNG, and the battle in progress (a
+by `PlayerId`), the world events table, and the battle in progress (a
 `Battle` with its own world for its spell instances). Battle units are not entities in `World::ecs`.
-The round counter, the place in the round, the end of the game, the undo history and the replay log
-are not the world's: they belong to the game (`f4x-master`).
+The round counter, the place in the round, the end of the game, the random numbers, the undo history
+and the replay log are not the world's: they belong to the game (`f4x-master`).
 
 ### 3.11 How the code reads and writes the new entities
 
 The pattern is the one of section 2: a **read handle** over the parts it needs
 (`UnitView<'a>`, `Economy<'a>`, and for the new kinds `PlayerView`-style handles from
 `World::player(id)`, `World::wizard(id)`), and functions over `&mut hecs::World` for changes. Domain state
-is private to its module; a domain returns outcomes for what it cannot change itself. A wizard
-handle borrows the world and the content, so the borrow of the RNG beside it stays possible.
-Queries over a `hecs` world have no fixed order: wherever the order is visible (events, the AI's
+is private to its module; a domain returns outcomes for what it cannot change itself. Queries over a `hecs` world have no fixed order: wherever the order is visible (events, the AI's
 choices), sort by `Serial`.

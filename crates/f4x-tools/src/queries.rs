@@ -157,7 +157,7 @@ mod tests {
 
     #[test]
     fn every_frame_query_is_timed_on_a_small_game() -> Result<(), String> {
-        let world = new_game(crate::testutil::shipped(), &NewGame::with_wizards(2))?;
+        let (world, _) = new_game(crate::testutil::shipped(), &NewGame::with_wizards(2))?;
         let times = measure(&world, PlayerId(0), 1);
         assert!(times.len() >= 8, "{times:?}");
         assert!(times.iter().all(|(_, t)| t.is_finite() && *t >= 0.0));

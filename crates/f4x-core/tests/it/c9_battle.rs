@@ -4,7 +4,7 @@
 //! on neighbouring squares. No battle AI is set in this crate (`set_battle_ai` belongs to `f4x-ai`), so
 //! what plays a side is the test.
 
-use crate::support::{around, text, worlds};
+use crate::support::{around, state, worlds};
 use f4x_battle::battle::{BattleCommand, BattleError, BattleEvent, Side};
 use f4x_battle::battlemagic::caster::SpellAim;
 use f4x_battle::battlemagic::error::SpellError;
@@ -12,6 +12,7 @@ use f4x_core::battle::world::BattleStartError;
 use f4x_core::diplomacy::{DiplomacyCommand as D, Treaty};
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::player::PlayerId;
+use f4x_core::world::testutil::Table;
 use f4x_core::world::{Command, Event, Rejection, World};
 use f4x_def::half_int::HalfInt;
 use f4x_def::rules::{CastContext, Stat};
@@ -19,7 +20,7 @@ use f4x_def::rules::{CastContext, Stat};
 /// A world with two stacks face to face: one unit of `a` and one unit of `b` on neighbouring squares.
 struct Faceoff {
     name: String,
-    w: World,
+    w: Table,
     a: PlayerId,
     b: PlayerId,
     attacker: hecs::Entity,
@@ -136,7 +137,7 @@ fn a_battle_is_refused_for_bad_sides_a_battle_in_progress_and_a_treaty() {
             (vec![f.attacker], vec![f.attacker]),
             (vec![f.attacker, f.defender], vec![f.defender]),
         ] {
-            let before = text(&f.w);
+            let before = state(&f.w);
             let events = f.w.apply(Command::BeginBattle {
                 attackers,
                 defenders,
@@ -147,7 +148,7 @@ fn a_battle_is_refused_for_bad_sides_a_battle_in_progress_and_a_treaty() {
                 "{name}: {events:?}"
             );
             assert_eq!(
-                text(&f.w),
+                state(&f.w),
                 before,
                 "{name}: a refused battle changed the game"
             );
@@ -155,7 +156,7 @@ fn a_battle_is_refused_for_bad_sides_a_battle_in_progress_and_a_treaty() {
         for treaty in [Treaty::Pact, Treaty::Alliance] {
             f.w.make_contact(f.a, f.b);
             f.w.start_treaty(f.a, f.b, treaty);
-            let before = text(&f.w);
+            let before = state(&f.w);
             let events = start(&mut f);
             assert_eq!(
                 refusal(&events),
@@ -163,7 +164,7 @@ fn a_battle_is_refused_for_bad_sides_a_battle_in_progress_and_a_treaty() {
                 "{name}: {treaty:?}: {events:?}"
             );
             assert_eq!(
-                text(&f.w),
+                state(&f.w),
                 before,
                 "{name}: a refused battle changed the game"
             );
@@ -210,7 +211,7 @@ fn an_auto_resolved_attack_must_come_from_a_neighbouring_square() {
             continue;
         }
         let distant = f.w.units().units_at(far)[0];
-        let before = text(&f.w);
+        let before = state(&f.w);
         let events = f.w.apply(Command::AutoResolve {
             attackers: vec![f.attacker],
             defenders: vec![distant],
@@ -222,17 +223,17 @@ fn an_auto_resolved_attack_must_come_from_a_neighbouring_square() {
             "{}: {events:?}",
             f.name
         );
-        assert_eq!(text(&f.w), before, "{}", f.name);
+        assert_eq!(state(&f.w), before, "{}", f.name);
     }
 }
 
 #[test]
 fn a_battle_command_without_a_battle_is_over() {
     for mut f in faceoffs() {
-        let before = text(&f.w);
+        let before = state(&f.w);
         let events = f.w.apply(Command::Battle(BattleCommand::EndTurn));
         assert_eq!(battle_error(&events), Some(BattleError::Over), "{}", f.name);
-        assert_eq!(text(&f.w), before, "{}", f.name);
+        assert_eq!(state(&f.w), before, "{}", f.name);
     }
 }
 
@@ -468,7 +469,7 @@ fn ships_fight_on_the_sea() {
 }
 
 /// Every unit of `side` in the battle on the table falls, and the next command lets the battle see it.
-fn wipe_out(w: &mut World, side: Side) -> Vec<Event> {
+fn wipe_out(w: &mut Table, side: Side) -> Vec<Event> {
     w.scenario_edit_battle(|b| {
         for u in b.units.iter_mut().filter(|u| u.side == side) {
             u.kill();
@@ -864,7 +865,7 @@ fn spell(w: &World, number: u16) -> f4x_core::rules::SpellId {
         .expect("a spell")
 }
 
-fn cast(w: &mut World, number: u16, aim: SpellAim, mana: u32) -> Vec<Event> {
+fn cast(w: &mut Table, number: u16, aim: SpellAim, mana: u32) -> Vec<Event> {
     let spell = spell(w, number);
     w.apply(Command::Battle(BattleCommand::Cast { spell, aim, mana }))
 }
@@ -902,7 +903,7 @@ fn a_battle_spell_is_paid_from_the_reserve_and_once_a_turn() {
 fn a_battle_spell_on_the_wrong_target_or_not_known_is_refused_and_costs_nothing() {
     for mut f in casters() {
         let (mine, foe) = (ids(&f.w, Side::Attacker)[0], ids(&f.w, Side::Defender)[0]);
-        let before = (mana(&f.w, f.a), text(&f.w));
+        let before = (mana(&f.w, f.a), state(&f.w));
         // Fire Bolt names an enemy unit, Heroism an own one.
         for (number, aim) in [
             (83, SpellAim::Unit(mine)),
@@ -939,7 +940,7 @@ fn a_battle_spell_on_the_wrong_target_or_not_known_is_refused_and_costs_nothing(
             f.name
         );
         assert_eq!(
-            (mana(&f.w, f.a), text(&f.w)),
+            (mana(&f.w, f.a), state(&f.w)),
             before,
             "{}: a refused cast changed the game",
             f.name

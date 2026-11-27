@@ -8,6 +8,7 @@
 use f4x_core::rules::RealmId;
 use f4x_core::wizard::magic::Retort;
 use f4x_core::wizard::objective::{Objective, Personality};
+use f4x_core::world::rng::GameRng;
 use f4x_core::world::World;
 
 /// The original's realm order, which its weight table is indexed by (`sbr_Nature` to `sbr_Death`).
@@ -146,7 +147,7 @@ pub fn pick_objective(weights: &[i32; 5], roll: i32) -> Objective {
 
 /// Draw a personality, then an objective, for every wizard but the human, in turn order. Called
 /// when a game starts.
-pub fn assign_temperaments(world: &mut World) {
+pub fn assign_temperaments(world: &mut World, rng: &mut GameRng) {
     for id in world.player_ids() {
         if world.human() == Some(id) {
             continue;
@@ -157,7 +158,7 @@ pub fn assign_temperaments(world: &mut World) {
         let personality = personality_weights(|r| sheet.books_in(r), |r| sheet.has(r));
         let objective = objective_weights(|r| sheet.books_in(r), |r| sheet.has(r));
         let mut draw = |weights: &[i32]| match weights.iter().sum::<i32>() {
-            total if total > 0 => world.roll(total as u32) as i32,
+            total if total > 0 => rng.roll(total as u32) as i32,
             _ => 0,
         };
         let personality = pick_personality(&personality, draw(&personality));

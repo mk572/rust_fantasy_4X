@@ -12,7 +12,7 @@ use crate::{commands, Access, Console, ConsoleError, Kind, Mode};
 
 /// A new game as `setup::new_game` makes its world.
 fn new_game(content: &Content, spec: &NewGame) -> Result<Game, f4x_newgame::error::NewGameError> {
-    let mut game = Game::new(crate::setup::new_game(content, spec)?);
+    let mut game = Game::from(crate::setup::new_game(content, spec)?);
     game.set_undo(!spec.all_ai);
     Ok(game)
 }
@@ -1559,7 +1559,8 @@ fn a_taken_city_can_be_razed_until_the_turn_ends() -> TestResult {
     let (mut w, city) = neutral_world(12, &[]);
     w.conquer_city(city, HUMAN, 0);
     let snap = w.snapshot();
-    let mut back = Game::new(snap.restore(w.content().clone())?);
+    let dice = f4x_core::world::rng::GameRng::resume(w.seed(), w.draws());
+    let mut back = Game::new(snap.restore(w.content().clone())?, dice);
     let again = conquered_city(&back);
     assert!(
         back.component::<f4x_core::city::conquest::Conquered>(again)

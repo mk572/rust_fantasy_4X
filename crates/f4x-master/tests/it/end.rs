@@ -14,7 +14,7 @@ fn three(human: bool) -> (Game, Vec<PlayerId>) {
         all_ai: !human,
         ..NewGame::with_wizards(3)
     };
-    let game = Game::new(new_game(&content(), &spec).expect("a new game"));
+    let game = Game::from(new_game(&content(), &spec).expect("a new game"));
     let wizards: Vec<PlayerId> = game
         .player_ids()
         .into_iter()

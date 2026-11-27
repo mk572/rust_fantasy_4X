@@ -204,14 +204,13 @@ impl World {
     /// A new game on a made map, with the game's own copy of the content and the name lists, the
     /// settings applied to the content, and the map's features spawned. No players yet.
     pub fn begin_world(
-        seed: u64,
         settings: crate::world::setting::GameSettings,
         content: &Content,
         names: f4x_def::names::NameBundle,
         map: Map,
         placements: Vec<crate::feature::entity::Placement>,
     ) -> World {
-        let mut world = World::new(seed);
+        let mut world = World::new();
         world.set_content(std::sync::Arc::new(content.clone()));
         world.settings = settings;
         world.apply_content_settings();

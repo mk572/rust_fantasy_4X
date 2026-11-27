@@ -15,7 +15,7 @@ use f4x_master::Game;
 fn worlds() -> Vec<(String, Game)> {
     crate::support::worlds()
         .into_iter()
-        .map(|(name, w)| (name, Game::new(w)))
+        .map(|(name, w)| (name, Game::from(w)))
         .collect()
 }
 

@@ -4,10 +4,11 @@
 //! saves and loads as itself. The values are not named here: a bool is flipped, a number is tried
 //! over a spread and kept where the game accepts it, a choice takes the variants of its type.
 
-use crate::support::{busy_round, commands, content, text, worlds};
+use crate::support::{busy_round, commands, content, state, text, worlds};
 use f4x_core::check::world_problems;
 use f4x_core::world::save::Snapshot;
-use f4x_core::world::{Event, World};
+use f4x_core::world::testutil::Table;
+use f4x_core::world::Event;
 use f4x_def::testdir::{deep, sample};
 use f4x_master::Game;
 
@@ -133,8 +134,8 @@ fn refused(events: &[Event]) -> bool {
 
 /// Play the game under its settings: rounds with the world checked after each, the commands of the
 /// sweep with each refusal changing nothing, a save and load that returns the same game.
-fn play(w: World, at: &str) {
-    let mut w = Game::new(w);
+fn play(w: Table, at: &str) {
+    let mut w = Game::from(w);
     // A game made under the setting has no city above the cap; this one was made under another.
     let cap = w.economy().max_city_size();
     for (city, _, _) in w.economy().cities() {
@@ -153,11 +154,11 @@ fn play(w: World, at: &str) {
         .step_by(if deep() { 2 } else { 25 })
     {
         let label: String = format!("{command:?}").chars().take(100).collect();
-        let before = text(&w);
+        let before = state(&w);
         let events = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| w.apply(command)))
             .unwrap_or_else(|_| panic!("{at}: {label} panicked"));
         if refused(&events) {
-            let after = text(&w);
+            let after = state(&w);
             if after != before {
                 for (x, y) in before
                     .lines()
@@ -214,7 +215,7 @@ fn the_game_holds_under_every_value_of_every_rule_setting() {
             if deep() || i == 0 || i == last {
                 played += 1;
                 play(
-                    world,
+                    Table::new(world, w.rng.clone()),
                     &format!(
                         "{name}: {other} (F4X_DEEP=1 tries every value, to find where it breaks)"
                     ),

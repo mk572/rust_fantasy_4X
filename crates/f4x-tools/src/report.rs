@@ -363,7 +363,7 @@ mod tests {
 
     /// The result of a game that was only set up (no turn played), with these fingerprints.
     fn result(fingerprints: Vec<(u32, u64)>) -> GameResult {
-        let world = f4x_newgame::setup::new_game(
+        let (world, _) = f4x_newgame::setup::new_game(
             crate::testutil::shipped(),
             &f4x_newgame::setup::NewGame {
                 seed: 3,

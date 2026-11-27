@@ -280,7 +280,7 @@ fn start_stats(args: &[String]) -> Result<(), String> {
             let mut spec = NewGame::with_wizards(3);
             spec.seed = seed;
             spec.settings.basic.original_map_generator = original;
-            let w = new_game(&c, &spec)?;
+            let (w, _) = new_game(&c, &spec)?;
             let cities = w.economy().cities();
             let mut per_plane = [0.0; 2];
             let mut forts = Vec::new();

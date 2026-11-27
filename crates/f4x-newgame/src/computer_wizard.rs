@@ -7,6 +7,7 @@
 use f4x_core::rules::{RealmId, Rules};
 use f4x_core::wizard::magic::Retort;
 use f4x_core::wizard::{all_retorts, preset_build_of, retort_available, retort_cost, WizardBuild};
+use f4x_core::world::rng::GameRng;
 use f4x_core::world::setting::GameSettings;
 use f4x_core::world::World;
 
@@ -52,6 +53,7 @@ pub(crate) fn balance_planes(
     total: usize,
     picks: u8,
     ban: bool,
+    rng: &mut GameRng,
 ) {
     let myrran = |b: &WizardBuild| b.retorts.contains(&Retort::new(9) /* myrran */);
     let (least, most) = myrran_range(total);
@@ -63,14 +65,14 @@ pub(crate) fn balance_planes(
         if ordinary.is_empty() {
             break;
         }
-        let k = ordinary[world.roll(ordinary.len() as u32) as usize - 1];
+        let k = ordinary[rng.roll(ordinary.len() as u32) as usize - 1];
         for _ in 0..3 {
             // A book from a realm picked by its share of the books, keeping at least one.
             let total = u32::from(book_total(&builds[k]));
             if total <= 1 {
                 break;
             }
-            let mut r = world.roll(total);
+            let mut r = rng.roll(total);
             for &realm in REALMS {
                 let n = u32::from(builds[k].books_in(realm));
                 if r <= n {
@@ -91,9 +93,9 @@ pub(crate) fn balance_planes(
         if myrrans.is_empty() {
             break;
         }
-        let k = myrrans[world.roll(myrrans.len() as u32) as usize - 1];
+        let k = myrrans[rng.roll(myrrans.len() as u32) as usize - 1];
         builds[k].retorts.remove(&Retort::new(9) /* myrran */);
-        refill(world, &mut builds[k], picks, ban);
+        refill(world, &mut builds[k], picks, ban, rng);
     }
 }
 
@@ -101,6 +103,7 @@ pub(crate) fn balance_planes(
 /// used). When the ready-made wizards run out (or are not installed: they are local-only
 /// content), `fallback(i)` gives the i-th computer wizard's plain build, which goes through the
 /// same changes.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn make(
     world: &mut World,
     presets: &[f4x_core::rules::WizardDef],
@@ -109,6 +112,7 @@ pub(crate) fn make(
     count: usize,
     human_myrran: bool,
     fallback: &dyn Fn(usize) -> WizardBuild,
+    rng: &mut GameRng,
 ) -> Vec<WizardBuild> {
     let rules = settings.ai.wizards;
     let picks = settings.wizards.picks.ai;
@@ -134,7 +138,7 @@ pub(crate) fn make(
             builds.push(fallback(i));
             continue;
         }
-        let id = *free[world.roll(free.len() as u32) as usize - 1];
+        let id = *free[rng.roll(free.len() as u32) as usize - 1];
         let Some(build) = preset_build_of(presets, id) else {
             builds.push(fallback(i));
             continue;
@@ -163,7 +167,7 @@ pub(crate) fn make(
                 .collect()
         };
         for b in &mut builds {
-            if world.roll(100) > u32::from(rules.consolidate_percent) {
+            if rng.roll(100) > u32::from(rules.consolidate_percent) {
                 continue;
             }
             for &(first, second) in &pairs {
@@ -171,7 +175,7 @@ pub(crate) fn make(
                 if x == 0 || y == 0 {
                     continue;
                 }
-                let (to, from) = if world.roll(2) == 1 {
+                let (to, from) = if rng.roll(2) == 1 {
                     (first, second)
                 } else {
                     (second, first)
@@ -188,9 +192,9 @@ pub(crate) fn make(
     let (dice, sides) = rules.erasure_dice;
     if dice > 0 && sides > 0 {
         for b in &mut builds {
-            let pips: u32 = (0..dice).map(|_| world.roll(u32::from(sides))).sum();
+            let pips: u32 = (0..dice).map(|_| rng.roll(u32::from(sides))).sum();
             for _ in 0..pips {
-                let t = world.roll(6) as usize;
+                let t = rng.roll(6) as usize;
                 if t <= 5 {
                     let realm = REALMS[t - 1];
                     if b.books_in(realm) > 1 {
@@ -207,11 +211,11 @@ pub(crate) fn make(
     }
 
     // Myrran: the wizards are shared between the planes (`balance_planes`).
-    balance_planes(world, &mut builds, human_myrran, wizards, picks, ban);
+    balance_planes(world, &mut builds, human_myrran, wizards, picks, ban, rng);
 
     // Fill the picks up with random books and retorts.
     for b in &mut builds {
-        refill(world, b, picks, ban);
+        refill(world, b, picks, ban, rng);
         b.preset = true;
     }
     builds
@@ -229,7 +233,7 @@ pub(crate) fn fit_books(world: &World, b: &mut WizardBuild) {
 
 /// [`fit_books`] and then spend the freed picks, for a computer wizard taken as it is (the
 /// setting that draws no random ready-made wizards).
-pub(crate) fn fit_books_and_refill(world: &mut World, b: &mut WizardBuild) {
+pub(crate) fn fit_books_and_refill(world: &mut World, b: &mut WizardBuild, rng: &mut GameRng) {
     let before = b.books.clone();
     fit_books(world, b);
     if b.books != before {
@@ -237,11 +241,11 @@ pub(crate) fn fit_books_and_refill(world: &mut World, b: &mut WizardBuild) {
             world.settings().wizards.picks.ai,
             world.settings().rules.ban_life_and_death,
         );
-        refill(world, b, picks, ban);
+        refill(world, b, picks, ban, rng);
     }
 }
 
-fn refill(world: &mut World, b: &mut WizardBuild, picks: u8, ban: bool) {
+fn refill(world: &mut World, b: &mut WizardBuild, picks: u8, ban: bool, rng: &mut GameRng) {
     let cap = book_cap(world);
     for _ in 0..500 {
         let used = b.picks_spent(&world.content().rules);
@@ -249,8 +253,8 @@ fn refill(world: &mut World, b: &mut WizardBuild, picks: u8, ban: bool) {
             return;
         }
         let book_count = book_total(b);
-        let mut kind = world.roll(8);
-        let mut value = 1 + world.roll(4) as u8;
+        let mut kind = rng.roll(8);
+        let mut value = 1 + rng.roll(4) as u8;
         if value + used > picks {
             value = picks - used;
         }
@@ -270,7 +274,7 @@ fn refill(world: &mut World, b: &mut WizardBuild, picks: u8, ban: bool) {
             3 => add_books(b, NATURE, value, None, cap),
             4 => add_books(b, SORCERY, value, None, cap),
             5 => add_books(b, CHAOS, value, None, cap),
-            _ => add_retort(world, b, picks),
+            _ => add_retort(world, b, picks, rng),
         }
     }
 }
@@ -284,10 +288,10 @@ fn add_books(b: &mut WizardBuild, realm: RealmId, value: u8, opposed: Option<Rea
     b.books.insert(realm, n);
 }
 
-fn add_retort(world: &mut World, b: &mut WizardBuild, picks: u8) {
+fn add_retort(world: &mut World, b: &mut WizardBuild, picks: u8, rng: &mut GameRng) {
     let used = b.picks_spent(&world.content().rules);
     let all: Vec<Retort> = all_retorts(&world.content().rules).collect();
-    let r = all[world.roll(all.len() as u32) as usize - 1];
+    let r = all[rng.roll(all.len() as u32) as usize - 1];
     if b.retorts.len() >= world.content().rules.config.wizard.max_retorts || r == Retort::new(9)
     /* myrran */
     {
@@ -349,7 +353,7 @@ fn add_retort(world: &mut World, b: &mut WizardBuild, picks: u8) {
             if total == 0 {
                 return;
             }
-            let mut roll = world.roll(total);
+            let mut roll = rng.roll(total);
             let mut chosen = shelf[0].1;
             for (w, s) in weights.iter().zip(shelf) {
                 if roll <= *w {

@@ -4,6 +4,8 @@ use crate::support::games;
 use crate::support::{content, worlds};
 use f4x_core::player::PlayerId;
 use f4x_core::wizard::magic::MagicError;
+use f4x_core::world::rng::GameRng;
+use f4x_core::world::testutil::Table;
 use f4x_core::world::{Command, Event, Rejection, World};
 use f4x_master::Game;
 
@@ -30,7 +32,7 @@ fn split(w: &World, p: PlayerId) -> (u8, u8, u8) {
 fn the_power_split_must_add_up_to_a_hundred_and_a_refusal_keeps_the_old_split() {
     for (name, mut w) in worlds().into_iter().step_by(2) {
         for p in wizards(&w) {
-            let set = |w: &mut World, m, r, s| {
+            let set = |w: &mut Table, m, r, s| {
                 magic_refusal(&w.apply(Command::SetPowerSplit {
                     player: p,
                     mana: m,
@@ -146,7 +148,8 @@ fn research_with_the_cost_nearly_paid_learns_the_spell_in_the_turn_and_frees_the
             .find(|s| s.player == p.0)
             .expect("a save");
         save.research_remaining = 1;
-        w = Game::new(snap.restore(content()).expect("restores"));
+        let dice = GameRng::resume(w.seed(), w.draws());
+        w = Game::new(snap.restore(content()).expect("restores"), dice);
         assert!(!w.wizard(p).expect("a wizard").knows(pick));
         w.play_round();
         let wizard = w.wizard(p).expect("a wizard");
@@ -206,7 +209,8 @@ fn a_banished_wizard_whose_return_was_ended_begins_it_again_at_the_turns_end() {
         save.fortress = None;
         save.summon_at = None;
         save.more_circles.clear();
-        w = Game::new(snap.restore(content()).expect("restores"));
+        let dice = GameRng::resume(w.seed(), w.draws());
+        w = Game::new(snap.restore(content()).expect("restores"), dice);
         assert!(w.wizard(p).expect("a wizard").is_banished(), "{name}");
         assert!(w.wizard(p).expect("a wizard").casting().is_none(), "{name}");
         // Every wizard's turn ends once in a round; the banished one's does too.

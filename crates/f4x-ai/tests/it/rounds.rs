@@ -8,7 +8,7 @@ use f4x_newgame::setup::{new_game, NewGame};
 
 #[test]
 fn rounds_with_two_ais_advance_the_round_counter_once_each() {
-    let mut w = Game::new(
+    let mut w = Game::from(
         new_game(
             f4x_def::testdir::shipped(),
             &NewGame {
@@ -40,7 +40,7 @@ fn rounds_with_two_ais_advance_the_round_counter_once_each() {
 fn the_second_ai_plays_on_the_board_the_first_left() {
     // Same seed, same AIs: playing in sequence is deterministic.
     let play = || {
-        let mut w = Game::new(
+        let mut w = Game::from(
             new_game(
                 f4x_def::testdir::shipped(),
                 &NewGame {
@@ -64,7 +64,7 @@ fn the_second_ai_plays_on_the_board_the_first_left() {
 fn a_game_loaded_with_the_ais_plans_plays_on_as_the_saved_one_would_have() {
     use f4x_core::world::save::ContentCheck;
     use f4x_master::SaveFile;
-    let mut w = Game::new(
+    let mut w = Game::from(
         new_game(
             f4x_def::testdir::shipped(),
             &NewGame {
@@ -105,7 +105,7 @@ fn a_game_loaded_with_the_ais_plans_plays_on_as_the_saved_one_would_have() {
 fn the_master_collects_the_ais_plans_to_be_saved() {
     use f4x_ai::AiSeat;
     use f4x_master::{Master, Seat, Stopped, Until};
-    let mut w = Game::new(
+    let mut w = Game::from(
         new_game(
             f4x_def::testdir::shipped(),
             &NewGame {

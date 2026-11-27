@@ -14,17 +14,21 @@ fn a_whole_round_is_the_steps_for_every_player() {
         let round = b.round();
         for &p in &players {
             if !b.is_dormant(p) {
-                b.world_mut().advance(|w| w.end_player_turn(p));
+                let (world, rng) = b.world_and_rng();
+                world.advance(|w| w.end_player_turn(p, rng));
             }
         }
-        b.world_mut().advance(|w| w.end_round());
-        b.world_mut().advance(|w| w.start_round(round + 1));
+        let (world, rng) = b.world_and_rng();
+        world.advance(|w| w.end_round(rng));
+        world.advance(|w| w.start_round(round + 1, rng));
         for &p in &players {
             if !b.is_dormant(p) {
-                b.world_mut().advance(|w| w.start_player_turn(p, round + 1));
+                let (world, rng) = b.world_and_rng();
+                world.advance(|w| w.start_player_turn(p, round + 1, rng));
             }
         }
         assert_eq!(text(a.world()), text(b.world()), "{name}");
+        assert_eq!(a.draws(), b.draws(), "{name}");
     }
 }
 

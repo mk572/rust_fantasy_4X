@@ -521,8 +521,9 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         spec.settings.events.frequency = f;
     }
     let content = ctx.game.content().clone();
-    let world = new_game(&content, &spec).map_err(|e| ConsoleError::Failed(e.to_string()))?;
-    *ctx.game = Game::new(world);
+    let (world, rng) =
+        new_game(&content, &spec).map_err(|e| ConsoleError::Failed(e.to_string()))?;
+    *ctx.game = Game::new(world, rng);
     ctx.session.plans.clear();
     // Undo takes a snapshot of the whole game for every command: only a person needs it.
     ctx.game.set_undo(!spec.all_ai);

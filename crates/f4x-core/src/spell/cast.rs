@@ -40,9 +40,8 @@ pub(crate) struct UpkeepItem {
 /// The real world, as the effect executor sees it.
 struct WorldHost<'a> {
     world: &'a mut World,
-    /// The game's generator, lent to the host for the resolution (`World::resolve_cast`), so the
-    /// executor and the hooks draw from one stream.
-    rng: GameRng,
+    /// The game's generator, for the executor and the hooks, which draw from one stream.
+    rng: &'a mut GameRng,
     /// What hooks and other changes report back to the event log.
     events: Vec<Event>,
     /// Units destroyed by the spell's strikes (`strike`), reported once the spell is done.
@@ -65,7 +64,7 @@ impl WorldHost<'_> {
     ) {
         use crate::spell::terraform::TerrainEffect as T;
         let events = match effect {
-            T::RaiseVolcano => self.world.raise_volcano(owner, at, &mut self.rng),
+            T::RaiseVolcano => self.world.raise_volcano(owner, at, &mut *self.rng),
             T::ChangeTerrain => self.world.change_terrain_spell(at),
             T::EnchantRoad => self.world.enchant_roads(at),
             T::Corruption => self.world.corrupt(at),
@@ -216,7 +215,7 @@ impl EffectHost for WorldHost<'_> {
         let before = self.world.units().unit_hits(u).0 as i32;
         if self
             .world
-            .spell_hit_overland_unit(u, strength, traits, nature, &mut self.rng)
+            .spell_hit_overland_unit(u, strength, traits, nature, &mut *self.rng)
         {
             self.slain += 1;
             return before;
@@ -248,7 +247,7 @@ impl EffectHost for WorldHost<'_> {
     }
 
     fn rng(&mut self) -> &mut dyn RngCore {
-        &mut self.rng
+        &mut *self.rng
     }
 
     fn custom(&mut self, hook: &str, args: &[String], who: Target, ctx: &Context) {
@@ -312,7 +311,7 @@ impl EffectHost for WorldHost<'_> {
         }
         if hook == crate::spell::hero::SUMMON_HERO {
             if let Source::Spell(spell) = ctx.source {
-                if let Some(events) = self.world.hero_hook(spell, ctx.owner, who, &mut self.rng) {
+                if let Some(events) = self.world.hero_hook(spell, ctx.owner, who, &mut *self.rng) {
                     self.events.extend(events);
                 }
             }
@@ -360,7 +359,7 @@ impl WorldHost<'_> {
         let mut gone = Vec::new();
         let removed = self
             .world
-            .dispel_target(who, strength, by, &mut self.rng, &mut gone);
+            .dispel_target(who, strength, by, &mut *self.rng, &mut gone);
         self.events.extend(gone);
         removed
     }
@@ -384,13 +383,13 @@ impl WorldHost<'_> {
                 Some(CityStrike::Earthquake) => {
                     // `who` was checked to be a city when the spell was chosen.
                     self.world
-                        .earthquake(city, &mut self.rng)
+                        .earthquake(city, &mut *self.rng)
                         .into_iter()
                         .collect()
                 }
                 Some(CityStrike::CallTheVoid) => {
                     let (units_lost, buildings_lost, population_lost) =
-                        self.world.call_the_void(city, &mut self.rng);
+                        self.world.call_the_void(city, &mut *self.rng);
                     vec![Event::WorldSpellStruck {
                         spell,
                         victim: self.world.economy().city_owner(city),
@@ -403,8 +402,8 @@ impl WorldHost<'_> {
             }
         } else {
             let count = match WorldKill::named(name) {
-                Some(WorldKill::GreatUnsummoning) => self.world.great_unsummoning(&mut self.rng),
-                Some(WorldKill::DeathWish) => self.world.death_wish(player, &mut self.rng),
+                Some(WorldKill::GreatUnsummoning) => self.world.great_unsummoning(&mut *self.rng),
+                Some(WorldKill::DeathWish) => self.world.death_wish(player, &mut *self.rng),
                 None => return,
             };
             vec![Event::UnitsSlain {
@@ -455,7 +454,7 @@ impl WorldHost<'_> {
                     instance,
                     cost * number.max(1) * power,
                     steal,
-                    &mut self.rng,
+                    &mut *self.rng,
                 );
                 self.events
                     .extend(global_attack_events(by, victim, attacked, result, steal));
@@ -479,7 +478,7 @@ impl WorldHost<'_> {
         match effect {
             U::NaturesCures => self.world.natures_cures(unit),
             U::BlackWind => {
-                if self.world.black_wind_unit(unit, &mut self.rng) {
+                if self.world.black_wind_unit(unit, &mut *self.rng) {
                     self.slain += 1;
                 }
             }
@@ -489,7 +488,7 @@ impl WorldHost<'_> {
                 }
             }
             U::ChaosChannels => {
-                if let Some(mutation) = self.world.mutate(unit, &mut self.rng) {
+                if let Some(mutation) = self.world.mutate(unit, &mut *self.rng) {
                     self.events.push(Event::UnitMutated { unit, mutation });
                 }
             }
@@ -511,7 +510,7 @@ impl WorldHost<'_> {
         use crate::spell::wizard::WizardEffect as W;
         let events = match effect {
             W::DrainPower => {
-                let amount = self.world.drain_power(victim, &mut self.rng);
+                let amount = self.world.drain_power(victim, &mut *self.rng);
                 vec![Event::PowerDrained {
                     player,
                     victim,
@@ -519,7 +518,7 @@ impl WorldHost<'_> {
                 }]
             }
             W::CruelUnminding => {
-                let amount = self.world.cruel_unminding(victim, &mut self.rng);
+                let amount = self.world.cruel_unminding(victim, &mut *self.rng);
                 vec![Event::SkillDestroyed {
                     player,
                     victim,
@@ -933,9 +932,10 @@ impl World {
         player: PlayerId,
         spell: SpellId,
         target: Option<Target>,
+        rng: &mut GameRng,
     ) -> Vec<Event> {
         let extra = self.cast_extra(player);
-        self.resolve_cast_with(player, spell, target, extra)
+        self.resolve_cast_with(player, spell, target, extra, rng)
     }
 
     /// `resolve_cast` for a spell with `extra` mana put into it.
@@ -945,8 +945,9 @@ impl World {
         spell: SpellId,
         target: Option<Target>,
         extra: i32,
+        rng: &mut GameRng,
     ) -> Vec<Event> {
-        let events = self.run_cast(player, spell, target, extra);
+        let events = self.run_cast(player, spell, target, extra, rng);
         if let Some(mut w) = self.wizard_mut(player) {
             w.clear_casting();
         }
@@ -959,6 +960,7 @@ impl World {
         spell: SpellId,
         target: Option<Target>,
         extra: i32,
+        rng: &mut GameRng,
     ) -> Vec<Event> {
         // A crafting spell is resisted at the mana its item costs (patch 1.50, note 270).
         let crafted = crate::item::entity::crafting_of(&self.ecs, player)
@@ -969,7 +971,7 @@ impl World {
         let crafted = crafted.or_else(|| {
             (extra > 0).then(|| self.content.rules.spells.get(spell).cost + extra as u32)
         });
-        if let Some((by, counter)) = self.suppressed_at_cost(player, spell, crafted) {
+        if let Some((by, counter)) = self.suppressed_at_cost(player, spell, crafted, rng) {
             return vec![Event::SpellSuppressed {
                 player,
                 spell,
@@ -1019,7 +1021,7 @@ impl World {
             }];
         }
         if let Some(Target::City(city)) = target {
-            if self.nightshade_fizzles(player, spell, city) {
+            if self.nightshade_fizzles(player, spell, city, rng) {
                 return vec![Event::SpellFizzled {
                     player,
                     spell,
@@ -1057,9 +1059,6 @@ impl World {
             chosen: target.or(Some(this)),
             source: Source::Spell(spell),
         };
-        // The host needs the game and the generator at once, so the generator is lent to it for
-        // the resolution (`GameRng::lent` stands in the game meanwhile) and taken back after.
-        let rng = std::mem::replace(&mut self.rng, GameRng::lent());
         let mut host = WorldHost {
             world: self,
             rng,
@@ -1071,12 +1070,10 @@ impl World {
         };
         let outcomes = run_rules(&def.effects, Trigger::OnCast, &ctx, &mut host);
         let WorldHost {
-            rng,
             events: hook_events,
             slain,
             ..
         } = host;
-        self.rng = rng;
 
         let mut events = vec![Event::SpellCast { player, spell }];
         if let Some(at) = aimed_at {
@@ -1114,7 +1111,7 @@ impl World {
         if def.duration != Duration::Instant {
             self.attach_enchantment(this, spell, player);
         }
-        events.extend(self.natures_wrath_strikes(player, spell));
+        events.extend(self.natures_wrath_strikes(player, spell, rng));
         if outcomes
             .iter()
             .any(|o| matches!(o, Outcome::Custom { hook } if hook == "unimplemented"))

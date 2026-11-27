@@ -49,37 +49,37 @@ struct Armed {
 
 impl World {
     /// The turn's events: a draw, if random events are on, and the playing out.
-    pub(crate) fn process_events(&mut self, round: u32) -> Vec<Event> {
+    pub(crate) fn process_events(&mut self, round: u32, rng: &mut GameRng) -> Vec<Event> {
         let mut out = Vec::new();
-        let mut rng = std::mem::replace(&mut self.rng, GameRng::lent());
         let armed = if self.settings.events.random_events {
-            self.determine_event(round, &mut rng)
+            self.determine_event(round, rng)
         } else {
             None
         };
-        self.twiddle_events(armed, &mut rng, &mut out);
-        self.rng = rng;
+        self.twiddle_events(armed, rng, &mut out);
         out
     }
 
     /// Make an event happen to a wizard now (an override, for tests and the console). The vetoes
     /// apply, except the wait for `big_events_from_turn`. Returns what the player is told, or why the event
     /// cannot happen.
-    pub fn cheat_event(&mut self, kind: EventKind, victim: PlayerId) -> Result<Vec<Event>, String> {
+    pub fn cheat_event(
+        &mut self,
+        kind: EventKind,
+        victim: PlayerId,
+        rng: &mut GameRng,
+    ) -> Result<Vec<Event>, String> {
         // As late as the big events wait for, so that the wait vetoes nothing.
         let late = self.content.rules.config.threat.big_events_from_turn;
-        let mut rng = std::mem::replace(&mut self.rng, GameRng::lent());
-        let armed = self.try_event(kind, victim, late, &mut rng);
+        let armed = self.try_event(kind, victim, late, rng);
         let Some(armed) = armed else {
-            self.rng = rng;
             return Err(format!(
                 "{} cannot happen to that wizard now",
                 kind.id().replace('_', " ")
             ));
         };
         let mut out = Vec::new();
-        self.play_event(armed, &mut rng, &mut out);
-        self.rng = rng;
+        self.play_event(armed, rng, &mut out);
         self.override_log.push(format!("event {}", kind.id()));
         Ok(out)
     }

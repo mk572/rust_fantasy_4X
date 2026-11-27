@@ -129,6 +129,7 @@ impl World {
         &mut self,
         unit: hecs::Entity,
         owner: crate::player::PlayerId,
+        rng: &mut GameRng,
     ) {
         if !self.has_global_effect(
             owner,
@@ -137,8 +138,6 @@ impl World {
         {
             return;
         }
-        let mut rng = std::mem::replace(&mut self.rng, GameRng::lent());
-        self.mutate(unit, &mut rng);
-        self.rng = rng;
+        self.mutate(unit, rng);
     }
 }

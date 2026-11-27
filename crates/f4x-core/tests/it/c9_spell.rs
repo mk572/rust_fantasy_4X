@@ -5,7 +5,7 @@
 //! is never cast on a kind of target its definition (`target`) does not name, and a spell that names it is
 //! not refused for the kind.
 
-use crate::support::{content, text, worlds};
+use crate::support::{content, state, text, worlds};
 use f4x_core::map::Position;
 use f4x_core::player::PlayerId;
 use f4x_core::rules::exec::Target;
@@ -13,6 +13,7 @@ use f4x_core::rules::SpellId;
 use f4x_core::spell::target_error::TargetError;
 use f4x_core::wizard::magic::MagicError;
 use f4x_core::world::save::Snapshot;
+use f4x_core::world::testutil::Table;
 use f4x_core::world::{Command, Event, Rejection, World};
 use f4x_def::half_int::HalfInt;
 use f4x_def::rules::{CastContext, SpellTarget};
@@ -100,6 +101,12 @@ fn about_the_kind(why: MagicError) -> bool {
     )
 }
 
+/// The game of `snapshot`, with the dice of the game it was taken from.
+fn restored(snapshot: &Snapshot, base: &Table) -> Table {
+    let world = snapshot.clone().restore(content()).expect("restores");
+    Table::new(world, base.rng.clone())
+}
+
 #[test]
 fn a_spell_is_cast_only_on_the_kinds_of_target_its_definition_names() {
     let (_, base) = worlds().remove(0);
@@ -137,7 +144,7 @@ fn a_spell_is_cast_only_on_the_kinds_of_target_its_definition_names() {
             continue;
         }
         for kind in KINDS {
-            let mut w = snapshot.clone().restore(content()).expect("restores");
+            let mut w = restored(&snapshot, &base);
             let Some(target) = target_of(&w, p, other, kind) else {
                 continue;
             };
@@ -149,7 +156,7 @@ fn a_spell_is_cast_only_on_the_kinds_of_target_its_definition_names() {
             w.treasury_mut(p).expect("a treasury").mana = HalfInt::from_int(100_000);
             // Paid for, so that the target is chosen now.
             w.scenario_casting(p, spell, 0);
-            let before = text(&w);
+            let before = state(&w);
             let events = w.apply(Command::ResolveCast { player: p, target });
             tried += 1;
             let refusal = events.iter().find_map(|e| match e {
@@ -164,7 +171,7 @@ fn a_spell_is_cast_only_on_the_kinds_of_target_its_definition_names() {
                 (false, Some(why)) => {
                     assert!(about_the_kind(why), "{}: on {kind:?}: {why:?}", def.id);
                     assert_eq!(
-                        text(&w),
+                        state(&w),
                         before,
                         "{}: a refused cast changed the game",
                         def.id
@@ -196,7 +203,7 @@ fn refusal(events: &[Event]) -> Option<Rejection> {
 }
 
 /// A wizard with two cities, the circle in the first, and a summoning spell they know.
-pub(crate) fn two_cities(w: &mut World) -> (PlayerId, hecs::Entity, hecs::Entity, SpellId) {
+pub(crate) fn two_cities(w: &mut Table) -> (PlayerId, hecs::Entity, hecs::Entity, SpellId) {
     let p = w
         .player_ids()
         .into_iter()
@@ -293,7 +300,7 @@ fn with_several_circles_a_summoning_asks_for_the_city_and_the_creature_appears_t
     let (p, first, second, spell) = two_cities(&mut w);
     let (a, b) = (pos_of(&w, p, first), pos_of(&w, p, second));
     // The spell is paid for, so that its target is chosen now.
-    let cast = |w: &mut World, target: Option<Target>| match target {
+    let cast = |w: &mut Table, target: Option<Target>| match target {
         Some(target) => w.apply(Command::ResolveCast { player: p, target }),
         None => vec![Event::Rejected(Rejection::Magic(
             w.check_target(p, spell, None)
@@ -313,7 +320,7 @@ fn with_several_circles_a_summoning_asks_for_the_city_and_the_creature_appears_t
         .map(|c| c.0)
         .find(|&c| c != first && c != second);
     w.scenario_casting(p, spell, 0);
-    let before = text(&w);
+    let before = state(&w);
     assert_eq!(
         refusal(&cast(&mut w, None)),
         Some(Rejection::Magic(MagicError::NeedsTarget))
@@ -329,7 +336,7 @@ fn with_several_circles_a_summoning_asks_for_the_city_and_the_creature_appears_t
         .map(|c| c.0)
         .expect("a rival city");
     assert!(refusal(&cast(&mut w, Some(Target::City(rival)))).is_some());
-    assert_eq!(text(&w), before, "a refused cast changed the game");
+    assert_eq!(state(&w), before, "a refused cast changed the game");
     for (city, at) in [(second, b), (first, a)] {
         w.scenario_casting(p, spell, 0);
         let here = w.units().units_at(at).len();
@@ -385,7 +392,7 @@ fn with_several_circles_word_of_recall_asks_for_the_circle_and_sends_the_unit_th
 
 /// A wizard who knows Time Stop (spell 80, `time_stop`, the dearest spell with no target) and has the
 /// mana for it: a cast that takes many turns to pay.
-fn slow_caster() -> Vec<(String, World, PlayerId, SpellId)> {
+fn slow_caster() -> Vec<(String, Table, PlayerId, SpellId)> {
     worlds()
         .into_iter()
         .map(|(name, mut w)| {
@@ -456,11 +463,11 @@ fn a_spell_dearer_than_the_skill_is_paid_over_turns_and_takes_effect_when_paid()
 #[test]
 fn cancelling_a_cast_stops_it_and_cancelling_nothing_changes_nothing() {
     for (name, mut w, p, spell) in slow_caster() {
-        let before = crate::support::text(&w);
+        let before = state(&w);
         let events = w.apply(Command::CancelCast { player: p });
         assert_eq!(refusal(&events), None, "{name}: {events:?}");
         assert_eq!(
-            crate::support::text(&w),
+            state(&w),
             before,
             "{name}: cancelling nothing changed the game"
         );
@@ -593,7 +600,7 @@ fn a_lasting_spell_takes_hold_on_its_target_once_and_turning_it_off_ends_it() {
             SpellTarget::EnemyCity => Kind::EnemyCity,
             _ => continue,
         };
-        let mut w = snapshot.clone().restore(content()).expect("restores");
+        let mut w = restored(&snapshot, &base);
         let Some(target) = target_of(&w, p, other, kind) else {
             continue;
         };
@@ -685,7 +692,7 @@ fn city_spells(w: &World, n: usize) -> Vec<SpellId> {
 }
 
 /// Two wizards who have met, the first with plenty of mana.
-fn rivals() -> Vec<(String, World, PlayerId, PlayerId)> {
+fn rivals() -> Vec<(String, Table, PlayerId, PlayerId)> {
     worlds()
         .into_iter()
         .map(|(name, mut w)| {
@@ -703,7 +710,7 @@ fn rivals() -> Vec<(String, World, PlayerId, PlayerId)> {
 }
 
 /// `player` casts spell `number` on `target` with `extra` mana in it, paid at once.
-fn cast_at(w: &mut World, player: PlayerId, number: u16, target: Target, extra: i32) -> Vec<Event> {
+fn cast_at(w: &mut Table, player: PlayerId, number: u16, target: Target, extra: i32) -> Vec<Event> {
     let spell = SpellId::new(number);
     w.cheat_learn_spell(player, spell);
     w.scenario_casting_with(player, spell, 0, extra);
@@ -885,7 +892,7 @@ fn a_spell_gives_way_to_the_stronger_ones_it_is_not_cumulative_with_and_not_the_
         } else {
             Kind::OwnUnit
         };
-        let mut w = snapshot.clone().restore(content()).expect("restores");
+        let mut w = restored(&snapshot, &base);
         let Some(target) = target_of(&w, p, other, kind) else {
             continue;
         };
@@ -913,7 +920,7 @@ fn a_spell_gives_way_to_the_stronger_ones_it_is_not_cumulative_with_and_not_the_
         }
         // The other way round: the stronger spell goes on over the weaker one, unless it too names it.
         if unit_target(held_def.target) && !held_def.not_with.contains(&newer) {
-            let mut w = snapshot.clone().restore(content()).expect("restores");
+            let mut w = restored(&snapshot, &base);
             let Some(Target::Unit(unit)) = target_of(&w, p, other, kind) else {
                 continue;
             };

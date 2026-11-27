@@ -3,6 +3,7 @@
 //! definition, not taken from the crate under test).
 
 use f4x_core::world::setting::GameSettings;
+use f4x_core::world::testutil::Table;
 use f4x_core::world::World;
 use f4x_def::content::Content;
 use f4x_def::half_int::HalfInt;
@@ -299,15 +300,16 @@ pub fn game(case: WorldCase) -> std::rc::Rc<World> {
     if let Some(found) = CACHE.with(|c| c.borrow().get(&case).cloned()) {
         return found;
     }
-    let made = std::rc::Rc::new(fresh_game(case));
+    let made = std::rc::Rc::new(fresh_game(case).world);
     CACHE.with(|c| c.borrow_mut().insert(case, made.clone()));
     made
 }
 
 /// A game of the world, made again, for a test that changes it.
-pub fn fresh_game(case: WorldCase) -> World {
+pub fn fresh_game(case: WorldCase) -> Table {
     new_game(shipped(), &case.spec())
         .unwrap_or_else(|e| panic!("{case:?}: the game is refused: {e}"))
+        .into()
 }
 
 pub fn content() -> &'static Content {

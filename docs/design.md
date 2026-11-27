@@ -228,7 +228,7 @@ Every attack is made of a set of damage types (`f4x-def/src/rules/damage_type.rs
 - Before any public release, all placeholders must be replaced with original art or art under a free licence. Treat anything in `assets-local/` and `content-local/` as temporary. The rules data in `crates/f4x-def/content/` stays: it is ours to change.
 
 ## 10. Cross-cutting
-- **Determinism:** seeded RNG (`rand_pcg`) behind `World::roll`; entity iteration in logic is sorted by creation number (`Serial`), never by `hecs` id; no floats in rules; integer maths with a fixed order in the stats engine.
+- **Determinism:** seeded RNG (`rand_pcg`), held by the `Game` and passed to each world operation that draws (`&mut GameRng`); entity iteration in logic is sorted by creation number (`Serial`), never by `hecs` id; no floats in rules; integer maths with a fixed order in the stats engine.
 - **Save/load:** a save is a text snapshot (RON) of the whole game with content referenced by name, a version number and load-time checks; autosave runs each turn. Details in [`game-flow.md`](game-flow.md) section 8.
 - **Replays:** commands name entities, and entity ids change on a load, so a command written down carries creation numbers (`Serial`) in their place (`f4x-core`, `world/stable_ref.rs`); the log and its playback are the game's (`f4x-master`, `game/replay.rs`).
 - **Testing and where tests live:** [`rust_coding_rules.md`](rust_coding_rules.md) (tests run on the shipped rules and real spells; unit tests sit in the file they test; integration tests in a crate's `tests/it/`).

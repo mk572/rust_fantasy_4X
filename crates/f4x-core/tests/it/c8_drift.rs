@@ -35,14 +35,19 @@ const PLAYS: [(&str, &[usize], Round); 2] = [
     ("turns", &[10, 20, 40], ending_turns),
 ];
 
-/// The line of a game at a checkpoint: its round and its end, then `field=hash` for each field of
-/// the digest of its world.
+/// The line of a game at a checkpoint: its round, its end and its generator, then `field=hash` for
+/// each field of the digest of its world.
 fn line(game: &Game) -> String {
     let over = game.game_over().map_or_else(
         || "none".to_string(),
         |o| format!("{}:{:?}:{}", o.winner.0, o.kind, o.turn),
     );
-    let mut parts = vec![format!("round={}", game.round()), format!("over={over}")];
+    let mut parts = vec![
+        format!("round={}", game.round()),
+        format!("over={over}"),
+        format!("seed={}", game.seed()),
+        format!("draws={}", game.draws()),
+    ];
     parts.extend(digest(game).into_iter().map(|(k, v)| format!("{k}={v}")));
     parts.join(" ")
 }
@@ -67,7 +72,7 @@ fn today() -> BTreeMap<String, String> {
             }
         }
         // Every command of the sweep, then three turns: what the commands changed, and what the turns made of it.
-        let mut w = Game::new(fresh);
+        let mut w = Game::from(fresh);
         for command in commands(&w) {
             w.apply(command);
         }
@@ -151,15 +156,17 @@ fn the_digest_is_the_same_for_the_same_game_and_names_what_differs() {
         .expect("restores");
     assert_eq!(digest(&w), digest(&copy));
     let names: Vec<String> = digest(&w).into_iter().map(|(k, _)| k).collect();
-    for wanted in ["seed", "draws", "units", "cities", "players", "map"] {
+    for wanted in ["units", "cities", "players", "map"] {
         assert!(
             names.iter().any(|n| n == wanted),
             "no field {wanted}: {names:?}"
         );
     }
     // One round moves the random generator and the units, not the settings or the seed.
-    let mut later = Game::new(copy);
+    let mut later = Game::new(copy, w.rng.clone());
     later.play_round();
+    assert!(later.draws() > w.draws());
+    assert_eq!(later.seed(), w.seed());
     let (a, b) = (digest(&w), digest(&later));
     let moved: Vec<&str> = a
         .iter()
@@ -167,12 +174,6 @@ fn the_digest_is_the_same_for_the_same_game_and_names_what_differs() {
         .filter(|(x, y)| x != y)
         .map(|(x, _)| x.0.as_str())
         .collect();
-    assert!(
-        moved.contains(&"draws") && moved.contains(&"units"),
-        "{moved:?}"
-    );
-    assert!(
-        !moved.contains(&"seed") && !moved.contains(&"settings"),
-        "{moved:?}"
-    );
+    assert!(moved.contains(&"units"), "{moved:?}");
+    assert!(!moved.contains(&"settings"), "{moved:?}");
 }

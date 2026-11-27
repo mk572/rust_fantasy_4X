@@ -11,6 +11,7 @@
 //!
 //! Tests: in feature/lair/tests.rs.
 
+use crate::world::rng::GameRng;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
@@ -280,6 +281,7 @@ impl World {
         &mut self,
         units: &[hecs::Entity],
         to: Position,
+        rng: &mut GameRng,
     ) -> Result<Vec<Event>, SiteError> {
         if self.battle.is_some() {
             return Err(SiteError::Busy);
@@ -315,7 +317,7 @@ impl World {
                 index += 1;
             }
         }
-        match self.start_battle(units, &defenders) {
+        match self.start_battle(units, &defenders, rng) {
             Ok(events) => {
                 // Whoever fights for a site, win or lose, knows what guards it from then on.
                 if let Some(player) = units.first().and_then(|&u| self.units().unit_owner(u)) {
@@ -340,7 +342,12 @@ impl World {
     }
 
     /// A stack that has just arrived on a square with an unguarded site takes the treasure.
-    pub(crate) fn collect_site(&mut self, units: &[hecs::Entity], to: Position) -> Vec<Event> {
+    pub(crate) fn collect_site(
+        &mut self,
+        units: &[hecs::Entity],
+        to: Position,
+        rng: &mut GameRng,
+    ) -> Vec<Event> {
         let Some(owner) = units.first().and_then(|&u| self.units().unit_owner(u)) else {
             return Vec::new();
         };
@@ -348,7 +355,7 @@ impl World {
             return self.occupy_zone(units, to);
         }
         match self.economy().lair_at(to) {
-            Some(l) if l.guards.is_empty() => self.claim_lair(l.entity, owner),
+            Some(l) if l.guards.is_empty() => self.claim_lair(l.entity, owner, rng),
             _ => Vec::new(),
         }
     }
@@ -378,7 +385,12 @@ impl World {
 
     /// Clear a lair and give `player` its treasure. What the winner cannot use is rerolled from
     /// its value (`reroll_hoard`).
-    pub(crate) fn claim_lair(&mut self, site: hecs::Entity, player: PlayerId) -> Vec<Event> {
+    pub(crate) fn claim_lair(
+        &mut self,
+        site: hecs::Entity,
+        player: PlayerId,
+        rng: &mut GameRng,
+    ) -> Vec<Event> {
         let Some(mut lair) = self.clear_site(site) else {
             return Vec::new();
         };
@@ -403,7 +415,7 @@ impl World {
         // A wizard's spell comes first: a hoard with no spell the wizard can use pays its value.
         let mut spell = None;
         if wizard && matches!(lair.special, 1..=4) {
-            spell = self.award_lair_spell(player, lair.special);
+            spell = self.award_lair_spell(player, lair.special, rng);
             if spell.is_none() {
                 unused += i32::from(lair.special) * i32::from(lair.special) * 50;
             }
@@ -420,7 +432,7 @@ impl World {
             } else {
                 0
             };
-            let (gold, mana, items) = reroll_hoard(&mut self.rng, unused, room);
+            let (gold, mana, items) = reroll_hoard(rng, unused, room);
             lair.gold += gold;
             lair.mana += mana;
             lair.items.extend(items);
@@ -434,7 +446,7 @@ impl World {
         let mut items: Vec<crate::item::Item> = Vec::new();
         for &value in &lair.items {
             items.push(make_item(
-                &mut self.rng,
+                rng,
                 &self.content.rules,
                 Grade::Any,
                 value,
@@ -457,7 +469,7 @@ impl World {
                     award_special(
                         &self.content.rules,
                         &mut w,
-                        &mut self.rng,
+                        rng,
                         &lair,
                         picks,
                         i32::from(self.settings.wizards.max_books_total),
@@ -465,7 +477,7 @@ impl World {
                     );
                     // A book found opens more of its realm's spells to research.
                     for &realm in &loot.books {
-                        w.open_book_spells(&self.content, &mut self.rng, realm);
+                        w.open_book_spells(&self.content, rng, realm);
                     }
                     // A retort found may bring fame with it (Famous: ten points).
                     let fame = crate::wizard::retort::stat(
@@ -487,7 +499,7 @@ impl World {
             .flat_map(|r| self.grant_retort_spells(player, r))
             .collect();
         if !loot.books.is_empty() || !gifted.is_empty() {
-            self.refill_research(player);
+            self.refill_research(player, rng);
         }
         // A hoard of a book or a retort that gave nothing (nothing left to give) pays an item
         // worth 1200 instead, or 1000 mana when the hoard already has three items (the original
@@ -495,7 +507,7 @@ impl World {
         if matches!(lair.special, 5 | 6) && loot.books.is_empty() && loot.retorts.is_empty() {
             if items.len() < 3 {
                 items.push(make_item(
-                    &mut self.rng,
+                    rng,
                     &self.content.rules,
                     Grade::Any,
                     1200,
@@ -515,7 +527,7 @@ impl World {
         // A prisoner is a hero for nothing: freed on the square of the lair, in the service of the
         // winner, as in the original. The square may hold more than a stack walks in with.
         if prisoner {
-            if let Some(kind) = self.pick_hero(player, true, crate::hero::kind::Class::Any) {
+            if let Some(kind) = self.pick_hero(player, true, crate::hero::kind::Class::Any, rng) {
                 loot.prisoner = self.spawn_hero(player, pos, kind).is_ok();
             }
         }
@@ -535,11 +547,16 @@ impl World {
     }
 
     /// A spell for the wizard `player` from a hoard of `rarity` (`award_spell`).
-    fn award_lair_spell(&mut self, player: PlayerId, rarity: u8) -> Option<SpellId> {
+    fn award_lair_spell(
+        &mut self,
+        player: PlayerId,
+        rarity: u8,
+        rng: &mut GameRng,
+    ) -> Option<SpellId> {
         let entity = self.player_index.get(&player).copied()?;
         let wizard = crate::wizard::entity::of_player(&self.ecs, entity)?;
         let mut w = crate::wizard::sheet::WizardMut::new(&mut self.ecs, wizard);
-        award_spell(&mut w, &self.content, &mut self.rng, i32::from(rarity))
+        award_spell(&mut w, &self.content, rng, i32::from(rarity))
     }
 
     /// After an assault that did not clear the site, with `lair_full_heal` off: the guards that
@@ -631,6 +648,7 @@ impl World {
         winner: Option<PlayerId>,
         attackers: &[hecs::Entity],
         guards: &[hecs::Entity],
+        rng: &mut GameRng,
     ) -> Vec<Event> {
         let Some(lair) = self.economy().lair_of(site) else {
             return Vec::new();
@@ -655,7 +673,7 @@ impl World {
             .copied()
             .filter(|&u| self.ecs.contains(u))
             .collect();
-        let mut events = self.claim_lair(site, winner);
+        let mut events = self.claim_lair(site, winner, rng);
         if !survivors.is_empty() {
             let from = self.units().unit_position(survivors[0]);
             if self.move_stack(&survivors, pos).is_ok() {

@@ -1,17 +1,19 @@
 //! Class 9, diplomacy: meeting, proposals and their answers, treaties, war and peace, gifts.
 
+use crate::support::state;
 use crate::support::worlds;
 use f4x_core::diplomacy::{
     DiplomacyCommand as D, DiplomacyError, DiplomacyEvent, ProposalKind, Treaty,
 };
 use f4x_core::player::PlayerId;
 use f4x_core::rules::UnitId;
+use f4x_core::world::testutil::Table;
 use f4x_core::world::{Command, Event, Rejection, World};
 use f4x_def::half_int::HalfInt;
 use f4x_master::Game;
 
 /// The result of a diplomacy command: the reason it was refused, if it was.
-fn run(w: &mut World, command: D) -> Option<DiplomacyError> {
+fn run(w: &mut Table, command: D) -> Option<DiplomacyError> {
     w.apply(Command::Diplomacy(command))
         .iter()
         .find_map(|e| match e {
@@ -21,7 +23,7 @@ fn run(w: &mut World, command: D) -> Option<DiplomacyError> {
 }
 
 /// Every world with its wizards, that have all met.
-fn met() -> Vec<(String, World, Vec<PlayerId>)> {
+fn met() -> Vec<(String, Table, Vec<PlayerId>)> {
     worlds()
         .into_iter()
         .map(|(name, mut w)| {
@@ -474,7 +476,7 @@ fn a_banished_wizard_starts_nothing_but_still_answers() {
         save.fortress = None;
         save.summon_at = None;
         save.more_circles.clear();
-        w = snap.restore(crate::support::content()).expect("restores");
+        w.world = snap.restore(crate::support::content()).expect("restores");
         assert!(
             w.wizard(a).is_some_and(|wizard| wizard.is_banished()),
             "{name}"
@@ -518,7 +520,7 @@ fn a_banished_wizard_starts_nothing_but_still_answers() {
 fn the_game_never_changes_a_treaty_by_itself() {
     // Taking a city costs the winner standing but starts no war (`docs/diplomacy.md` 9.2).
     for (name, w, ids) in met() {
-        let mut w = Game::new(w);
+        let mut w = Game::from(w);
         let (a, b) = (ids[0], ids[1]);
         let city = w
             .economy()
@@ -732,7 +734,7 @@ fn a_race_without_a_city_that_loses_its_last_unit_has_no_relations_left() {
 #[test]
 fn an_alliance_stands_though_one_ally_is_at_war_with_the_others_ally() {
     for (name, w, ids) in met().into_iter().filter(|m| m.2.len() >= 3) {
-        let mut w = Game::new(w);
+        let mut w = Game::from(w);
         let (a, b, c) = (ids[0], ids[1], ids[2]);
         w.start_treaty(a, b, Treaty::Alliance);
         w.start_treaty(b, c, Treaty::Alliance);
@@ -755,7 +757,7 @@ fn an_alliance_stands_though_one_ally_is_at_war_with_the_others_ally() {
 
 #[test]
 fn an_attack_on_a_treaty_partner_is_refused_until_a_player_breaks_the_treaty() {
-    use crate::support::{around, text};
+    use crate::support::around;
     use f4x_core::unit::movement::MoveError;
     let mut tried = 0;
     for (name, mut w, ids) in met() {
@@ -796,7 +798,7 @@ fn an_attack_on_a_treaty_partner_is_refused_until_a_player_breaks_the_treaty() {
         tried += 1;
         for treaty in [Treaty::Pact, Treaty::Alliance] {
             w.start_treaty(a, b, treaty);
-            let before = text(&w);
+            let before = state(&w);
             let events = w.apply(Command::MoveStack {
                 units: vec![mover],
                 to,
@@ -808,7 +810,7 @@ fn an_attack_on_a_treaty_partner_is_refused_until_a_player_breaks_the_treaty() {
                 "{name}: {treaty:?}: {events:?}"
             );
             assert_eq!(
-                text(&w),
+                state(&w),
                 before,
                 "{name}: a refused attack changed the game"
             );

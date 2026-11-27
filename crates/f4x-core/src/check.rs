@@ -173,7 +173,7 @@ mod tests {
     use crate::world::testutil::fresh;
 
     fn world() -> World {
-        fresh(3, 7).expect("the fresh game")
+        fresh(3, 7).expect("the fresh game").world
     }
 
     /// Did the checker find the rule, and only it?

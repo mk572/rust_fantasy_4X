@@ -19,6 +19,7 @@ pub mod objective;
 pub mod retort;
 pub mod sheet;
 
+use crate::world::rng::GameRng;
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::player::PlayerId;
@@ -194,6 +195,7 @@ impl World {
         &mut self,
         player: PlayerId,
         build: &WizardBuild,
+        rng: &mut GameRng,
     ) -> Result<(), BuildError> {
         self.check_wizard_build(build)?;
         // Chosen spells must be of a realm the wizard has books in, and of a rarity and number
@@ -214,7 +216,7 @@ impl World {
         }
         let books: Vec<(RealmId, u8)> = build.books.iter().map(|(&r, &n)| (r, n)).collect();
         let retorts: Vec<Retort> = build.retorts.iter().copied().collect();
-        self.init_wizard(player, &books, &retorts, Some(&build.spells))
+        self.init_wizard(player, &books, &retorts, Some(&build.spells), rng)
             .map_err(BuildError::Magic)?;
         if !build.name.is_empty() {
             self.wizard_set(player, entity::Name(build.name.clone()));

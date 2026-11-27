@@ -153,10 +153,8 @@ impl App {
         let round = self.game.round().max(40);
         // A hero is drawn at random from those fame allows: try until one comes.
         let made = (0..200).any(|_| {
-            self.game
-                .world_mut()
-                .cheat_offer(HUMAN, what, round)
-                .is_some()
+            let (world, rng) = self.game.world_and_rng();
+            world.cheat_offer(HUMAN, what, round, rng).is_some()
         });
         if !made {
             eprintln!("nothing to offer");

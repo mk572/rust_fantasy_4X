@@ -20,7 +20,9 @@ use crate::rules::damage_type::DamageType;
 use crate::rules::RealmId;
 use crate::rules::SpellId;
 use crate::spell::target_error::TargetError;
+use crate::world::rng::GameRng;
 use crate::world::{Event, World};
+use rand::RngCore as _;
 
 /// The hook of the city enchantments the engine reads by effect: casting only enchants the city.
 /// Its arguments are the [`CityEffect`]s the spell gives; a spell with rules of its own (stat
@@ -86,7 +88,11 @@ impl World {
     /// Chaos Rift: every turn each unit inside the city sustains five Lightning Bolts of strength 8
     /// (armour piercing, stopped by magic immunity), and there is a 5 percent chance that a
     /// building falls (one that no other building needs). This is the help text's rule.
-    pub(crate) fn process_chaos_rifts(&mut self, player: crate::player::PlayerId) -> Vec<Event> {
+    pub(crate) fn process_chaos_rifts(
+        &mut self,
+        player: crate::player::PlayerId,
+        rng: &mut GameRng,
+    ) -> Vec<Event> {
         use crate::rules::effects::DamageTraits;
         use f4x_def::rules::attack_nature::AttackNature;
         use f4x_def::rules::realm::Realm;
@@ -111,7 +117,7 @@ impl World {
                 ..Default::default()
             };
             let nature = AttackNature::magical(Realm::Chaos, &[DamageType::Lightning]);
-            let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(self.next_u64() ^ 0xC4A0);
+            let mut local = rand_pcg::Pcg64Mcg::seed_from_u64(rng.next_u64() ^ 0xC4A0);
             let mut units_lost = 0;
             for unit in self.units().units_at(at) {
                 for _ in 0..self.content.rules.config.spell_effects.chaos_rift_bolts {
@@ -120,7 +126,7 @@ impl World {
                         self.content.rules.config.spell_effects.chaos_rift_strength,
                         &traits,
                         nature,
-                        &mut rng,
+                        &mut local,
                     ) {
                         units_lost += 1;
                         break;
@@ -128,7 +134,7 @@ impl World {
                 }
             }
             let mut building = None;
-            if self.roll(100)
+            if rng.roll(100)
                 <= self
                     .content
                     .rules
@@ -145,7 +151,7 @@ impl World {
                     .filter(|&b| self.economy().first_dependant(city, b).is_none())
                     .collect();
                 if !candidates.is_empty() {
-                    let pick = candidates[self.roll(candidates.len() as u32) as usize - 1];
+                    let pick = candidates[rng.roll(candidates.len() as u32) as usize - 1];
                     // The candidates were chosen as destroyable just above.
                     let gone = self.destroy_building(city, pick);
                     debug_assert!(gone.is_ok(), "a chosen building could not fall: {gone:?}");

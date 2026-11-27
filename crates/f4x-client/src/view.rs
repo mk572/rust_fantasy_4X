@@ -8,6 +8,7 @@ use std::path::Path;
 use crate::text::Args;
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::PlayerId;
+use f4x_core::world::rng::GameRng;
 use f4x_def::content::Content;
 use f4x_newgame::mapgen::GenParams;
 use f4x_newgame::setup::{self, NewGame};
@@ -441,8 +442,8 @@ impl App {
     }
 
     /// A game of `world` with a person at it, who may take orders back.
-    fn played(world: World) -> Game {
-        let mut game = Game::new(world);
+    fn played((world, rng): (World, GameRng)) -> Game {
+        let mut game = Game::new(world, rng);
         game.set_undo(true);
         game
     }
@@ -456,7 +457,7 @@ impl App {
         human: Option<(&WizardBuild, Option<usize>)>,
         race: usize,
         random_events: bool,
-    ) -> Result<World, f4x_newgame::error::NewGameError> {
+    ) -> Result<(World, GameRng), f4x_newgame::error::NewGameError> {
         let (human, preset) = human.map_or((None, None), |(b, p)| (Some(b), p));
         let preset = human
             .filter(|b| b.preset)

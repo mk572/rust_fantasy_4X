@@ -481,9 +481,9 @@ mod tests {
     #[test]
     fn a_city_there_is_every_reason_against_is_razed_without_a_roll() -> TestResult {
         let mut t = Taken::new(Personality::Maniacal, hated_race()?, FAR)?;
-        let draws = t.w.snapshot().draws;
+        let draws = t.w.draws();
         assert!(t.decide(), "kept: {:?}", t.case());
-        assert_eq!(t.w.snapshot().draws, draws);
+        assert_eq!(t.w.draws(), draws);
         Ok(())
     }
 

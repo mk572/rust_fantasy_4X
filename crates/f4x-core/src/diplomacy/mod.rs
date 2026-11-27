@@ -448,11 +448,10 @@ pub fn army_strength(view: &World, player: PlayerId) -> i32 {
 }
 
 /// What the rules of diplomacy need from the rest of the game, for one call: the read-only
-/// view of the world, the random numbers, and the difficulty. What they must change outside
+/// view of the world and the difficulty. What they must change outside
 /// diplomacy (gold, a spell learned) they leave in `out` for the game to apply.
 pub struct DiplomacyCtx<'a> {
     pub view: &'a World,
-    pub rng: &'a mut GameRng,
     pub out: Vec<Outcome>,
 }
 
@@ -691,10 +690,16 @@ impl Diplomacy {
     /// The end of a war (`Declare_Peace`): no treaty, a better relation, and `peace_duration`
     /// turns in which each of the two is left alone by the other (the original does this for the
     /// human only).
-    pub fn declare_peace(&mut self, ctx: &mut DiplomacyCtx<'_>, a: PlayerId, b: PlayerId) {
+    pub fn declare_peace(
+        &mut self,
+        ctx: &mut DiplomacyCtx<'_>,
+        a: PlayerId,
+        b: PlayerId,
+        rng: &mut GameRng,
+    ) {
         self.start_treaty(ctx, a, b, Treaty::None);
         for (kept, other) in [(a, b), (b, a)] {
-            let turns = 7 + ctx.rng.roll(6);
+            let turns = 7 + rng.roll(6);
             self.stance_mut(other, kept).peace_duration = turns;
         }
         ctx.out.push(Outcome::DropCityCurses { a, b });
@@ -833,6 +838,7 @@ impl Diplomacy {
         player: PlayerId,
         from: PlayerId,
         accept: bool,
+        rng: &mut GameRng,
     ) -> Result<(), DiplomacyError> {
         let at = self
             .proposals
@@ -860,7 +866,7 @@ impl Diplomacy {
                 .check_proposal(ctx.view, from, player, proposal.kind)
                 .is_ok();
         if accepted {
-            self.carry_out(ctx, proposal);
+            self.carry_out(ctx, proposal, rng);
         }
         self.queue.push(DiplomacyEvent::ProposalAnswered {
             proposal,
@@ -870,16 +876,16 @@ impl Diplomacy {
         Ok(())
     }
 
-    fn carry_out(&mut self, ctx: &mut DiplomacyCtx<'_>, p: Proposal) {
+    fn carry_out(&mut self, ctx: &mut DiplomacyCtx<'_>, p: Proposal, rng: &mut GameRng) {
         match p.kind {
             ProposalKind::Pact => self.start_treaty(ctx, p.from, p.to, Treaty::Pact),
             ProposalKind::Alliance => self.start_treaty(ctx, p.from, p.to, Treaty::Alliance),
             ProposalKind::Peace => {
-                self.declare_peace(ctx, p.from, p.to);
+                self.declare_peace(ctx, p.from, p.to, rng);
             }
             ProposalKind::Threat => {
                 // The yielding wizard leaves the threatener alone for a while.
-                let turns = ctx.rng.roll(15);
+                let turns = rng.roll(15);
                 self.stance_mut(p.to, p.from).peace_duration = turns;
             }
             ProposalKind::Demand { gold } => ctx.out.push(Outcome::Gold {
@@ -980,6 +986,7 @@ impl Diplomacy {
         &mut self,
         ctx: &mut DiplomacyCtx<'_>,
         command: DiplomacyCommand,
+        rng: &mut GameRng,
     ) -> Vec<Event> {
         // Nobody deals with a dormant player.
         if command.parties().iter().any(|&p| ctx.view.is_dormant(p)) {
@@ -1022,7 +1029,7 @@ impl Diplomacy {
                 player,
                 from,
                 accept,
-            } => self.answer(ctx, player, from, accept),
+            } => self.answer(ctx, player, from, accept, rng),
             DiplomacyCommand::Counter { player, from, kind } => {
                 self.counter(ctx, player, from, kind)
             }
@@ -1287,45 +1294,57 @@ impl Diplomacy {
 }
 
 impl World {
-    /// Lend diplomacy out for one call: its state and the random numbers are taken out of the
-    /// game, so the rules can run over a read-only view of what is left (`design.md` section 3),
-    /// and what they ask of the rest of the game is applied afterwards.
+    /// [`World::run_diplomacy`] for rules that give no spell, with what they ask applied.
     fn with_diplomacy<R>(
         &mut self,
         f: impl FnOnce(&mut Diplomacy, &mut DiplomacyCtx<'_>) -> R,
     ) -> R {
+        let (result, out) = self.run_diplomacy(f);
+        for outcome in out {
+            self.apply_outcome(outcome);
+        }
+        result
+    }
+
+    /// A change diplomacy asked for that draws no random number.
+    fn apply_outcome(&mut self, outcome: Outcome) {
+        match outcome {
+            Outcome::Gold { from, to, amount } => {
+                if let Some(t) = self.treasury_mut(from) {
+                    t.gold -= amount;
+                }
+                if let Some(t) = self.treasury_mut(to) {
+                    t.gold += amount;
+                }
+            }
+            // Only a command gives a spell, and it learns it itself, with the generator.
+            Outcome::Spell { .. } => debug_assert!(false, "a spell outside a command"),
+            Outcome::Item { from, to, item } => self.pass_item(from, to, item),
+            Outcome::Unit { to, unit } => self.pass_unit(to, unit),
+            // A hero goes like a unit: it keeps its experience and the items it carries.
+            Outcome::Hero { to, hero } => self.pass_unit(to, hero),
+            Outcome::DropCityCurses { a, b } => self.drop_city_curses(a, b),
+        }
+    }
+
+    /// Lend diplomacy out for one call: its state is taken out of the world, so the rules can
+    /// run over a read-only view of what is left (`design.md` section 3). What they ask of the
+    /// rest of the world comes back with their result.
+    fn run_diplomacy<R>(
+        &mut self,
+        f: impl FnOnce(&mut Diplomacy, &mut DiplomacyCtx<'_>) -> R,
+    ) -> (R, Vec<Outcome>) {
         let mut diplomacy = std::mem::take(&mut self.diplomacy);
-        let mut rng = std::mem::replace(&mut self.rng, GameRng::lent());
         let (result, out) = {
             let mut ctx = DiplomacyCtx {
                 view: &*self,
-                rng: &mut rng,
                 out: Vec::new(),
             };
             let result = f(&mut diplomacy, &mut ctx);
             (result, ctx.out)
         };
-        self.rng = rng;
         self.diplomacy = diplomacy;
-        for outcome in out {
-            match outcome {
-                Outcome::Gold { from, to, amount } => {
-                    if let Some(t) = self.treasury_mut(from) {
-                        t.gold -= amount;
-                    }
-                    if let Some(t) = self.treasury_mut(to) {
-                        t.gold += amount;
-                    }
-                }
-                Outcome::Spell { player, spell } => self.learn_spell(player, spell),
-                Outcome::Item { from, to, item } => self.pass_item(from, to, item),
-                Outcome::Unit { to, unit } => self.pass_unit(to, unit),
-                // A hero goes like a unit: it keeps its experience and the items it carries.
-                Outcome::Hero { to, hero } => self.pass_unit(to, hero),
-                Outcome::DropCityCurses { a, b } => self.drop_city_curses(a, b),
-            }
-        }
-        result
+        (result, out)
     }
 
     /// An item of `from` goes to `to` (a trade): out of the armory, into the other's.
@@ -1452,8 +1471,8 @@ impl World {
     }
 
     /// The end of a war (`Declare_Peace`).
-    pub fn declare_peace(&mut self, a: PlayerId, b: PlayerId) {
-        self.with_diplomacy(|d, ctx| d.declare_peace(ctx, a, b));
+    pub fn declare_peace(&mut self, a: PlayerId, b: PlayerId, rng: &mut GameRng) {
+        self.with_diplomacy(|d, ctx| d.declare_peace(ctx, a, b, rng));
     }
 
     /// The land size of the game (0 small, 1 medium, 2 large) and the cities a wizard may hold before
@@ -1482,8 +1501,19 @@ impl World {
     }
 
     /// Carry out a diplomacy command.
-    pub(crate) fn diplomacy_command(&mut self, command: DiplomacyCommand) -> Vec<Event> {
-        self.with_diplomacy(|d, ctx| d.command(ctx, command))
+    pub(crate) fn diplomacy_command(
+        &mut self,
+        command: DiplomacyCommand,
+        rng: &mut GameRng,
+    ) -> Vec<Event> {
+        let (events, out) = self.run_diplomacy(|d, ctx| d.command(ctx, command, rng));
+        for outcome in out {
+            match outcome {
+                Outcome::Spell { player, spell } => self.learn_spell(player, spell, rng),
+                other => self.apply_outcome(other),
+            }
+        }
+        events
     }
 
     /// A spell was cast: the wizards it offends take note. `target_owner` is whose city it fell on.

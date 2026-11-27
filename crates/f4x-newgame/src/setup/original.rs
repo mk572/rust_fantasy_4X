@@ -13,6 +13,7 @@
 
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::{Plane, Position};
+use f4x_core::world::rng::GameRng;
 use f4x_core::world::World;
 
 /// The most passes with smaller distances before giving up.
@@ -20,7 +21,11 @@ const MAX_PASSES: u32 = 60;
 
 /// One site for each wizard, in order, `planes[k]` being wizard `k`'s plane. `None` if no pass
 /// found them all.
-pub(super) fn fortress_sites(world: &mut World, planes: &[Plane]) -> Option<Vec<Position>> {
+pub(super) fn fortress_sites(
+    world: &mut World,
+    planes: &[Plane],
+    rng: &mut GameRng,
+) -> Option<Vec<Position>> {
     let (w, h) = world.map().map(|m| (m.width(), m.height()))?;
     let sites = world.economy().site_squares();
     let (mut apart, mut clear) = (16u32, 8u32);
@@ -35,8 +40,8 @@ pub(super) fn fortress_sites(world: &mut World, planes: &[Plane]) -> Option<Vec<
                 tries += 1;
                 let pos = Position {
                     plane,
-                    x: 2 + world.roll(w - 6),
-                    y: 2 + world.roll(h - 6),
+                    x: 2 + rng.roll(w - 6),
+                    y: 2 + rng.roll(h - 6),
                 };
                 let grid = world.map()?.plane(plane);
                 let wrap = |a: u32, b: u32| {
@@ -90,7 +95,7 @@ mod tests {
         spec.seed = seed;
         spec.all_ai = true;
         spec.settings.basic.original_map_generator = true;
-        new_game(shipped(), &spec)
+        new_game(shipped(), &spec).map(|(world, _)| world)
     }
 
     fn fortress(w: &World, p: PlayerId) -> Option<Position> {
@@ -152,7 +157,10 @@ mod tests {
 
     #[test]
     fn a_game_with_no_map_has_no_sites() {
-        let mut w = World::new(1);
-        assert_eq!(fortress_sites(&mut w, &[Plane::Arcanus]), None);
+        let mut rng = GameRng::new(1);
+        assert_eq!(
+            fortress_sites(&mut World::new(), &[Plane::Arcanus], &mut rng),
+            None
+        );
     }
 }

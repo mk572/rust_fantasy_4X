@@ -140,7 +140,8 @@ impl App {
             );
             return;
         };
-        match self.game.world_mut().cheat_event(kind, HUMAN) {
+        let (world, rng) = self.game.world_and_rng();
+        match world.cheat_event(kind, HUMAN, rng) {
             Ok(events) => {
                 self.note(events);
             }

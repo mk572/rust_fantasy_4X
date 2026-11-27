@@ -12,6 +12,7 @@ use crate::map::terrain::TerrainClass;
 use crate::map::{Plane, Position};
 use crate::rules::{RaceId, Stat, UnitId, UnitKind};
 use crate::unit::{Experience, Unpaid};
+use crate::world::rng::GameRng;
 use crate::world::{Event, World};
 
 /// The eight neighbours of a square.
@@ -36,22 +37,22 @@ pub struct Landing {
 impl World {
     /// Whether this raid is a sea raid: the setting is on and the chance comes up. No roll is
     /// made with the setting off, so a game without it plays as it did.
-    pub(super) fn sea_raid_comes(&mut self) -> bool {
+    pub(super) fn sea_raid_comes(&mut self, rng: &mut GameRng) -> bool {
         self.settings.world.sea_raids
-            && self.roll(100) <= self.content.rules.config.threat.sea_raid.chance_percent
+            && rng.roll(100) <= self.content.rules.config.threat.sea_raid.chance_percent
     }
 
     /// Raise the party. Nothing happens (and false is returned) when no race has a weight on the
     /// plane or no coast is free; the caller then raids as usual.
-    pub(super) fn make_sea_raid(&mut self, round: u32) -> Option<Vec<Event>> {
-        let plane = if self.roll(2) == 1 {
+    pub(super) fn make_sea_raid(&mut self, round: u32, rng: &mut GameRng) -> Option<Vec<Event>> {
+        let plane = if rng.roll(2) == 1 {
             Plane::Arcanus
         } else {
             Plane::Myrror
         };
-        let race = self.sea_raid_race(plane)?;
-        let landing = self.sea_raid_landing(plane)?;
-        let (fighters, settler) = self.sea_raid_troops(race, round)?;
+        let race = self.sea_raid_race(plane, rng)?;
+        let landing = self.sea_raid_landing(plane, rng)?;
+        let (fighters, settler) = self.sea_raid_troops(race, round, rng)?;
         let ship = self.sea_raid_ship(round)?;
         let owner = self.race_player(race);
         let ship = self.spawn_unit(owner, landing.sea, ship);
@@ -81,7 +82,7 @@ impl World {
     }
 
     /// A race rolled for the plane, by the weights the races have for a neutral city there.
-    fn sea_raid_race(&mut self, plane: Plane) -> Option<RaceId> {
+    fn sea_raid_race(&mut self, plane: Plane, rng: &mut GameRng) -> Option<RaceId> {
         let rules = &self.content.rules;
         let weights: Vec<(RaceId, u32)> = rules
             .races
@@ -99,7 +100,7 @@ impl World {
         if total == 0 {
             return None;
         }
-        let mut left = self.roll(total);
+        let mut left = rng.roll(total);
         for (race, w) in weights {
             if left <= w {
                 return Some(race);
@@ -125,7 +126,12 @@ impl World {
     /// The fighters of the party and its settler. The race's fighters are sorted by cost; the step
     /// the turn has reached (`threat.sea_raid.parties`) gives how many there are and how many of
     /// the cheapest each is rolled from. Settlers and engineers are no fighters.
-    fn sea_raid_troops(&mut self, race: RaceId, round: u32) -> Option<(Vec<UnitId>, UnitId)> {
+    fn sea_raid_troops(
+        &mut self,
+        race: RaceId,
+        round: u32,
+        rng: &mut GameRng,
+    ) -> Option<(Vec<UnitId>, UnitId)> {
         let rules = &self.content.rules;
         let mut fighters: Vec<(u32, UnitId)> = Vec::new();
         let mut settler = None;
@@ -160,15 +166,15 @@ impl World {
         } else {
             pool.min(fighters.len())
         };
-        let count = base + self.roll(dice);
+        let count = base + rng.roll(dice);
         let party = (0..count)
-            .map(|_| fighters[self.roll(pool as u32) as usize - 1].1)
+            .map(|_| fighters[rng.roll(pool as u32) as usize - 1].1)
             .collect();
         Some((party, settler))
     }
 
     /// Roll coast squares of the plane and take the one furthest from every town.
-    pub(super) fn sea_raid_landing(&mut self, plane: Plane) -> Option<Landing> {
+    pub(super) fn sea_raid_landing(&mut self, plane: Plane, rng: &mut GameRng) -> Option<Landing> {
         let coast = self.free_coast(plane);
         if coast.is_empty() {
             return None;
@@ -182,7 +188,7 @@ impl World {
             .collect();
         let rolls = self.content.rules.config.threat.sea_raid.coast_rolls.max(1);
         let picks: Vec<Landing> = (0..rolls)
-            .map(|_| coast[self.roll(coast.len() as u32) as usize - 1])
+            .map(|_| coast[rng.roll(coast.len() as u32) as usize - 1])
             .collect();
         let grid = self.map.as_ref()?.plane(plane);
         let far = |l: &Landing| {

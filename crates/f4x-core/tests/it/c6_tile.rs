@@ -171,10 +171,11 @@ fn a_crowded_save_is_put_right_by_the_next_command() {
         w.spawn_unit(wizard, at, unit);
     }
     let text = crate::support::text(&w);
-    let mut loaded = f4x_core::world::save::Snapshot::from_text(&text)
+    let world = f4x_core::world::save::Snapshot::from_text(&text)
         .expect("reads")
         .restore(crate::support::content())
         .expect("loads");
+    let mut loaded = f4x_core::world::testutil::Table::new(world, w.rng.clone());
     assert!(!loaded.crowded_anywhere().is_empty());
     loaded.apply(Command::SetTaxRate {
         player: wizard,

@@ -117,8 +117,8 @@ pub fn give_level(
 
 /// A small game on open ground for a duel: two islands, a city of each of two players (the
 /// attacker P0 in the west, the defender P1 in the east), the 1.3 rules (`settings`). The dice
-/// come from `seed`.
-pub fn base_game(content: &Arc<Content>, seed: u64) -> Result<World, String> {
+/// come from `seed`: the generator comes back with the world, for what the duel draws.
+pub fn base_game(content: &Arc<Content>, seed: u64) -> Result<(World, GameRng), String> {
     let ocean = content.terrains.id_numbered(8).ok_or("no ocean")?;
     let grass = content.terrains.id_numbered(4).ok_or("no grassland")?;
     let race = content.rules.races.id_numbered(7).ok_or("no race 7")?;
@@ -131,26 +131,30 @@ pub fn base_game(content: &Arc<Content>, seed: u64) -> Result<World, String> {
         }
         g
     };
-    let mut world = World::new(seed);
+    let mut rng = GameRng::new(seed);
+    let mut world = World::new();
     world.set_content(Arc::clone(content));
     settings(&mut world);
     world.set_map(Map::new(grid(), grid()));
     world.add_player(P0, "West");
     world.add_player(P1, "East");
     for (owner, x, name) in [(P0, 10, "Westport"), (P1, 28, "Eastport")] {
-        world.apply(Command::FoundCity {
-            owner,
-            pos: Position {
-                plane: Plane::Arcanus,
-                x,
-                y: 6,
+        world.apply(
+            Command::FoundCity {
+                owner,
+                pos: Position {
+                    plane: Plane::Arcanus,
+                    x,
+                    y: 6,
+                },
+                name: name.into(),
+                race: Some(race),
+                population: 8,
             },
-            name: name.into(),
-            race: Some(race),
-            population: 8,
-        });
+            &mut rng,
+        );
     }
-    Ok(world)
+    Ok((world, rng))
 }
 
 /// One fight: `na` units of A against `nb` units of B on open ground. `a_attacks` says who is the
@@ -163,7 +167,7 @@ pub fn fight(
     a_attacks: bool,
     seed: u64,
 ) -> Result<Outcome, String> {
-    let mut world = base_game(content, seed)?;
+    let (mut world, mut rng) = base_game(content, seed)?;
     // The attacker is P0, the defender P1.
     let (west, east) = if a_attacks {
         ((a, na, levels.0), (b, nb, levels.1))
@@ -198,11 +202,14 @@ pub fn fight(
         }
     }
     let [attackers, defenders] = sides;
-    world.apply(Command::BeginBattle {
-        attackers,
-        defenders,
-    });
-    play_out(&mut world).map(|winner| match winner {
+    world.apply(
+        Command::BeginBattle {
+            attackers,
+            defenders,
+        },
+        &mut rng,
+    );
+    play_out(&mut world, &mut rng).map(|winner| match winner {
         None => Outcome::Draw,
         Some(w) if w == (if a_attacks { P0 } else { P1 }) => Outcome::A,
         Some(_) => Outcome::B,
@@ -230,7 +237,7 @@ fn rolled_hero(content: &Content, num: u16, seed: u64) -> Option<f4x_core::hero:
 /// Play the battle that has just begun in `game` to its end on open ground, the battle AI with
 /// the units' own spells (no wizard casts). The winner, or `None` when the turn limit ran out
 /// with both sides standing.
-pub fn play_out(world: &mut World) -> Result<Option<PlayerId>, String> {
+pub fn play_out(world: &mut World, rng: &mut GameRng) -> Result<Option<PlayerId>, String> {
     if world.battle().is_none() {
         return Err("no battle began".into());
     }
@@ -240,7 +247,7 @@ pub fn play_out(world: &mut World) -> Result<Option<PlayerId>, String> {
         let Some(command) = next_command(world) else {
             break;
         };
-        let events = world.apply(Command::Battle(command.clone()));
+        let events = world.apply(Command::Battle(command.clone()), rng);
         for event in &events {
             match event {
                 Event::Rejected(why) => return Err(format!("{command:?} refused: {why:?}")),

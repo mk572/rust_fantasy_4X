@@ -94,10 +94,10 @@ pub(crate) fn healing(
 
 impl World {
     /// Wounded units mend (see [`healing`]).
-    pub(crate) fn heal_units(&mut self, player: crate::player::PlayerId) {
+    pub(crate) fn heal_units(&mut self, player: crate::player::PlayerId, rng: &mut GameRng) {
         let units = UnitView::new(&self.ecs, &self.content);
         let economy = Economy::new(&self.ecs, self.map.as_ref(), &self.content);
-        let mut plan = healing(&units, &economy, &mut self.rng);
+        let mut plan = healing(&units, &economy, rng);
         // Only `player`'s units heal; while Time Stop lasts, only its wizard's.
         if self.time_stopper().is_some_and(|keeper| keeper != player) {
             return;

@@ -7,6 +7,7 @@
 //! Tests: in tests/it.
 
 use f4x_core::player::{PlayerId, MONSTERS};
+use f4x_core::world::rng::GameRng;
 use f4x_core::world::{Event, Rejection, World};
 use serde::{Deserialize, Serialize};
 
@@ -126,13 +127,13 @@ impl Game {
             Step::StartRound | Step::PlayRound => round + 1,
             _ => round,
         };
-        let over = &mut self.state.game_over;
+        let (rng, over) = (&mut self.state.rng, &mut self.state.game_over);
         let mut events = self.world.advance(|world| match step {
-            Step::StartRound => world.start_round(next),
-            Step::StartTurn(player) => world.start_player_turn(player, round),
-            Step::EndTurn(player) => world.end_player_turn(player),
-            Step::EndRound => world.end_round(),
-            Step::PlayRound => whole_round(world, &players, round, over),
+            Step::StartRound => world.start_round(next, rng),
+            Step::StartTurn(player) => world.start_player_turn(player, round, rng),
+            Step::EndTurn(player) => world.end_player_turn(player, rng),
+            Step::EndRound => world.end_round(rng),
+            Step::PlayRound => whole_round(world, rng, &players, round, over),
         });
         self.state.round = next;
         events.extend(self.check_end());
@@ -144,6 +145,7 @@ impl Game {
 /// by the end of the round ended in it.
 fn whole_round(
     world: &mut World,
+    rng: &mut GameRng,
     players: &[PlayerId],
     round: u32,
     over: &mut Option<GameOver>,
@@ -151,15 +153,15 @@ fn whole_round(
     let mut events = Vec::new();
     for &p in players {
         if !world.is_dormant(p) {
-            events.extend(world.end_player_turn(p));
+            events.extend(world.end_player_turn(p, rng));
         }
     }
-    events.extend(world.end_round());
+    events.extend(world.end_round(rng));
     events.extend(judge(world, round, over));
-    events.extend(world.start_round(round + 1));
+    events.extend(world.start_round(round + 1, rng));
     for &p in players {
         if !world.is_dormant(p) {
-            events.extend(world.start_player_turn(p, round + 1));
+            events.extend(world.start_player_turn(p, round + 1, rng));
         }
     }
     events

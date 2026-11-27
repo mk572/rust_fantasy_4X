@@ -5,7 +5,7 @@
 //! buildings) in every pairing that makes sense and some that do not, so most of them are refused, and
 //! each refusal is checked against the text of the game from before.
 
-use crate::support::{commands, games, text, worlds};
+use crate::support::{commands, games, state, worlds};
 use f4x_core::world::Event;
 
 /// Try every command of the sweep on each world, warmed up with `warm` rounds of play first, and check
@@ -45,7 +45,7 @@ fn sweep(every: usize, warm: usize) -> (usize, usize) {
         // later commands name things that are gone: a stale handle is one more kind of bad input.
         for command in commands(&w) {
             let label = format!("{command:?}");
-            let before = text(&w);
+            let before = state(&w);
             let history = (
                 w.replay_so_far().ok().map(|r| r.entries.len()),
                 w.can_undo(),
@@ -69,7 +69,7 @@ fn sweep(every: usize, warm: usize) -> (usize, usize) {
             if rejected {
                 refused += 1;
                 assert_eq!(
-                    text(&w),
+                    state(&w),
                     before,
                     "{name}: {label} was refused, and changed the game"
                 );
@@ -215,11 +215,11 @@ fn a_refused_move_leaves_the_standby_of_the_unit() {
                     units: vec![u],
                     standby: Some(Standby::Done),
                 });
-                let before = text(&w);
+                let before = state(&w);
                 let events = w.apply(f4x_core::world::Command::MoveStack { units: vec![u], to });
                 if events.iter().any(|e| matches!(e, Event::Rejected(_))) {
                     refused += 1;
-                    assert_eq!(text(&w), before, "{name}: a refused move to {to:?}");
+                    assert_eq!(state(&w), before, "{name}: a refused move to {to:?}");
                 }
             }
         }

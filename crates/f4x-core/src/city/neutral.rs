@@ -12,6 +12,7 @@
 //!
 //! Tests: in `f4x_newgame::neutral`, which places the cities of a new world.
 
+use crate::world::rng::GameRng;
 use f4x_def::half_int::HalfInt;
 use std::collections::VecDeque;
 
@@ -106,12 +107,17 @@ impl World {
     }
 
     /// One neutral city with its population, buildings and garrison, for the race's player.
-    pub fn found_neutral_city(&mut self, pos: Position, race: RaceId) -> hecs::Entity {
+    pub fn found_neutral_city(
+        &mut self,
+        pos: Position,
+        race: RaceId,
+        rng: &mut GameRng,
+    ) -> hecs::Entity {
         let d = u32::from(self.difficulty());
         let bonus = u32::from(self.settings.world.neutral_city_size_bonus);
-        let mut population = 1 + bonus + self.roll(4);
-        if d > 2 && self.roll(5) == 1 {
-            population = bonus + self.roll(10);
+        let mut population = 1 + bonus + rng.roll(4);
+        if d > 2 && rng.roll(5) == 1 {
+            population = bonus + rng.roll(10);
         }
         // No more people than the land holds (1.60: neutral cities respect the terrain's
         // maximum population).
@@ -179,7 +185,7 @@ impl World {
         self.balance_taxes(owner);
         let farmers = self.economy().city_min_farmers(city);
         self.put(city, Farmers(farmers));
-        let item = self.autobuild_choice(city, owner);
+        let item = self.autobuild_choice(city, owner, rng);
         self.put(
             city,
             Production {

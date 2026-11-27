@@ -13,6 +13,7 @@ use crate::map::Position;
 use crate::player::PlayerId;
 use crate::wizard::entity::{CapitalRace, Wizard};
 use crate::wizard::sheet::WizardMut;
+use crate::world::rng::GameRng;
 use f4x_def::half_int::HalfInt;
 
 use crate::rules::RaceId;
@@ -365,7 +366,12 @@ impl World {
 
     /// A city changes hands (the combat layer calls this when a city is taken). Taking a
     /// wizard's fortress city banishes them; taking their last city defeats them.
-    pub fn capture_city(&mut self, city: hecs::Entity, winner: PlayerId) -> Vec<Event> {
+    pub fn capture_city(
+        &mut self,
+        city: hecs::Entity,
+        winner: PlayerId,
+        rng: &mut GameRng,
+    ) -> Vec<Event> {
         let Some(loser) = self.economy().city_owner(city) else {
             return Vec::new();
         };
@@ -395,11 +401,11 @@ impl World {
         }
         self.city_lost_relations(loser);
         if was_fortress {
-            events.extend(self.banish(loser, winner));
+            events.extend(self.banish(loser, winner, rng));
         } else if self.is_wizard(loser) && self.economy().city_count(loser) == 0 {
             // The last city fell, and it was not the fortress: the prize is the same
             // (`Resolve_Wizard_Conquest`).
-            events.extend(self.defeat(loser, winner, Fall::Defeated));
+            events.extend(self.defeat(loser, winner, Fall::Defeated, rng));
         }
         events
     }
@@ -409,7 +415,13 @@ impl World {
     /// banishment, which paid it), half the loser's mana, half their gold when they are
     /// defeated, and up to two of their spells ([`World::conquest_spells`]). The mana and the gold
     /// are only taken when the setting `defeat_loot` is on; off, they are lost with the wizard.
-    fn take_spoils(&mut self, loser: PlayerId, winner: PlayerId, fall: Fall) -> Vec<Event> {
+    fn take_spoils(
+        &mut self,
+        loser: PlayerId,
+        winner: PlayerId,
+        fall: Fall,
+        rng: &mut GameRng,
+    ) -> Vec<Event> {
         if fall != Fall::Resigned {
             self.add_fame(winner, self.content.rules.config.renown.fortress_prize_fame);
         }
@@ -428,13 +440,18 @@ impl World {
                 t.mana += mana;
             }
         }
-        self.conquest_spells(winner, loser)
+        self.conquest_spells(winner, loser, rng)
     }
 
     /// `Conquest_Spells`: the winner takes up to two spells chosen at random from those the loser
     /// knows and it does not, that its books allow. Nothing happens unless both are wizards. The event is made even when
     /// nothing is found, for the human winner's box.
-    fn conquest_spells(&mut self, winner: PlayerId, loser: PlayerId) -> Vec<Event> {
+    fn conquest_spells(
+        &mut self,
+        winner: PlayerId,
+        loser: PlayerId,
+        rng: &mut GameRng,
+    ) -> Vec<Event> {
         if winner == loser || self.wizard(winner).is_none() || self.wizard(loser).is_none() {
             return Vec::new();
         }
@@ -452,9 +469,9 @@ impl World {
             .collect();
         let mut found = Vec::new();
         while found.len() < 2 && !pool.is_empty() {
-            let pick = self.rng.roll(pool.len() as u32) as usize - 1;
+            let pick = rng.roll(pool.len() as u32) as usize - 1;
             let spell = pool.remove(pick);
-            self.learn_spell(winner, spell);
+            self.learn_spell(winner, spell, rng);
             found.push(spell);
         }
         vec![Event::ConquestSpells {
@@ -468,7 +485,7 @@ impl World {
     /// winner gains 5 fame and half the loser's mana. With no cities left, they are defeated.
     /// A wizard who could not pay for the spell (casting skill under 40, or no mana) is
     /// defeated on the spot, the human too (`Banish_Wizard`).
-    fn banish(&mut self, loser: PlayerId, winner: PlayerId) -> Vec<Event> {
+    fn banish(&mut self, loser: PlayerId, winner: PlayerId, rng: &mut GameRng) -> Vec<Event> {
         let skill = self
             .wizard(loser)
             .map_or(0, |m| m.casting_skill(&self.content.rules))
@@ -485,7 +502,7 @@ impl World {
             || mana < 1
             || !self.return_open_to(loser)
         {
-            return self.defeat(loser, winner, Fall::Defeated);
+            return self.defeat(loser, winner, Fall::Defeated, rng);
         }
         self.conquest_relations(winner, loser, false);
         let spell = self.content.rules.spells.id_numbered(214) /* spell_of_return */;
@@ -505,7 +522,7 @@ impl World {
         // The spoils of a banishment go to the winner whoever it is and whoever loses: the game
         // does not tell the human from a computer wizard (1.50 note 502; the original took them
         // from the banished wizard unless it was the one whose turn it was).
-        events.extend(self.take_spoils(loser, winner, Fall::Banished));
+        events.extend(self.take_spoils(loser, winner, Fall::Banished, rng));
         events
     }
 
@@ -532,7 +549,11 @@ impl World {
     /// A banished wizard gives up (the original asks the human at the moment of banishment,
     /// "Do you wish to resign?"): they are defeated by whoever took their fortress, their
     /// cities turn neutral and everything else of theirs goes (`Resolve_Wizard_Conquest`).
-    pub fn resign(&mut self, player: PlayerId) -> Result<Vec<Event>, FortressError> {
+    pub fn resign(
+        &mut self,
+        player: PlayerId,
+        rng: &mut GameRng,
+    ) -> Result<Vec<Event>, FortressError> {
         let w = self.wizard(player).ok_or(FortressError::UnknownPlayer)?;
         if !w.is_banished() || self.player(player).is_some_and(|p| p.is_defeated()) {
             return Err(FortressError::WrongState);
@@ -542,7 +563,7 @@ impl World {
             .filter(|w| self.has_player(*w))
             .or_else(|| self.living_wizards().into_iter().find(|w| *w != player))
             .unwrap_or(player);
-        Ok(self.defeat(player, winner, Fall::Resigned))
+        Ok(self.defeat(player, winner, Fall::Resigned, rng))
     }
 
     /// A defeated wizard's cities that are left (a wizard who resigned with cities) turn
@@ -592,7 +613,13 @@ impl World {
         self.set_owner(city, neutral);
     }
 
-    pub(crate) fn defeat(&mut self, loser: PlayerId, winner: PlayerId, fall: Fall) -> Vec<Event> {
+    pub(crate) fn defeat(
+        &mut self,
+        loser: PlayerId,
+        winner: PlayerId,
+        fall: Fall,
+        rng: &mut GameRng,
+    ) -> Vec<Event> {
         if let Some(mut w) = self.wizard_mut(loser) {
             defeat_player(&mut w);
             w.clear_casting();
@@ -604,7 +631,7 @@ impl World {
         self.aftermath(loser);
         self.conquest_relations(winner, loser, true);
         let mut events = vec![Event::WizardDefeated { player: loser }];
-        events.extend(self.take_spoils(loser, winner, fall));
+        events.extend(self.take_spoils(loser, winner, fall, rng));
         events
     }
 
@@ -613,8 +640,8 @@ impl World {
     /// no. A wizard's fortress city survives with a citizen, so no event. A city that has no owner
     /// or no square cannot be destroyed by the book and is removed all the same, so that none is
     /// left standing as a ghost; the event is there when it had a square to name.
-    pub(crate) fn remove_city(&mut self, city: hecs::Entity) -> Vec<Event> {
-        match self.destroy_city(city) {
+    pub(crate) fn remove_city(&mut self, city: hecs::Entity, rng: &mut GameRng) -> Vec<Event> {
+        match self.destroy_city(city, rng) {
             Ok(events) => events,
             Err(FortressError::CannotDestroyFortress) => Vec::new(),
             Err(_) => {
@@ -628,7 +655,11 @@ impl World {
     }
 
     /// Raze a city. A fortress city cannot be destroyed: it survives with at least one citizen.
-    pub fn destroy_city(&mut self, city: hecs::Entity) -> Result<Vec<Event>, FortressError> {
+    pub fn destroy_city(
+        &mut self,
+        city: hecs::Entity,
+        rng: &mut GameRng,
+    ) -> Result<Vec<Event>, FortressError> {
         let owner = self
             .economy()
             .city_owner(city)
@@ -663,7 +694,7 @@ impl World {
         // A wizard with no city is out of the game; an independent race is not, and keeps its
         // units (`city_lost_relations`).
         if self.is_wizard(owner) && self.economy().city_count(owner) == 0 {
-            events.extend(self.defeat(owner, owner, Fall::Defeated));
+            events.extend(self.defeat(owner, owner, Fall::Defeated, rng));
         }
         Ok(events)
     }

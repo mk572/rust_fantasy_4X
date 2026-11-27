@@ -18,6 +18,7 @@ use crate::hero::{Fate, HeroState};
 use crate::map::Position;
 use crate::player::{Owner, PlayerId};
 use crate::unit::{Experience, Hurt, MovesLeft, Unit, UnitView};
+use crate::world::rng::GameRng;
 use crate::world::serial::Serial;
 
 use crate::rules::RealmId;
@@ -185,15 +186,9 @@ impl World {
     /// template. A new game makes one of each (`f4x_newgame::setup`), after everything else is
     /// placed, so the map and the starting cities of a seed stay as they were; a test makes the
     /// ones it needs.
-    pub fn add_hero(&mut self, kind: usize) -> Option<hecs::Entity> {
+    pub fn add_hero(&mut self, kind: usize, rng: &mut GameRng) -> Option<hecs::Entity> {
         let template = self.content.rules.hero_templates.get(kind)?;
-        let hero = kind::roll_one(
-            &mut self.rng,
-            &self.content.rules,
-            &self.names,
-            kind,
-            template,
-        );
+        let hero = kind::roll_one(rng, &self.content.rules, &self.names, kind, template);
         Some(self.make_hero(hero, HeroState::Free, 0))
     }
 
@@ -219,11 +214,17 @@ impl World {
     /// wizard's fame and with the books the hero needs. That is a chance outcome of the original's
     /// rule, not a fault: the callers offer nothing (`player/offer.rs`) or leave the prisoner out
     /// (`feature/lair.rs`, where `SiteCleared` says `prisoner: false`).
-    pub fn pick_hero(&mut self, player: PlayerId, zero_cost: bool, class: Class) -> Option<usize> {
+    pub fn pick_hero(
+        &mut self,
+        player: PlayerId,
+        zero_cost: bool,
+        class: Class,
+        rng: &mut GameRng,
+    ) -> Option<usize> {
         let standing = self.units().hero_standing(player);
         let states = self.units().hero_states();
         kind::pick(
-            &mut self.rng,
+            rng,
             &self.content.rules,
             &states,
             &standing,

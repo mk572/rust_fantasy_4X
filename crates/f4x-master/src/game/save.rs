@@ -8,6 +8,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use f4x_core::player::PlayerId;
+use f4x_core::world::rng::GameRng;
 use f4x_core::world::save::file::{read_text, with_content_fallback, write_text};
 use f4x_core::world::save::{
     check_versions, signed, with_setting_fallback, ContentCheck, Integrity, LoadError, SaveError,
@@ -28,6 +29,8 @@ pub type Plans = Vec<(PlayerId, String)>;
 /// The part of a game that is not in its world.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GameState {
+    /// The generator the random numbers come from, saved as its seed and the number drawn.
+    pub rng: GameRng,
     /// The round the game is in, the first being 1.
     pub round: u32,
     /// Where the master was in the round, as it last wrote it: `None` for a game that no master
@@ -43,13 +46,15 @@ pub struct GameState {
     pub players: Vec<PlayerId>,
 }
 
-impl Default for GameState {
-    fn default() -> Self {
+impl GameState {
+    /// The state of a game that begins.
+    pub fn first_round(rng: GameRng, players: Vec<PlayerId>) -> Self {
         Self {
+            rng,
             round: 1,
             phase: None,
             game_over: None,
-            players: Vec::new(),
+            players,
         }
     }
 }
@@ -137,7 +142,7 @@ impl SaveFile {
             world.add_race_players();
             state.players = turn_players(&world);
         }
-        let mut game = Game::new(world);
+        let mut game = Game::new(world, state.rng.clone());
         game.state = state;
         Ok(Restored {
             game,

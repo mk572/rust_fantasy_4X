@@ -15,6 +15,7 @@ use crate::map::Position;
 use crate::player::MONSTERS;
 use crate::rules::{RealmId, UnitId};
 use crate::unit::Unit;
+use crate::world::rng::GameRng;
 use crate::world::{Event, World};
 use f4x_def::half_int::HalfInt;
 use f4x_def::settings::MONSTER_START_TURN;
@@ -39,7 +40,7 @@ impl World {
     }
 
     /// Run the monsters' clock and, when it runs out, let a stack take over a random lair.
-    pub(super) fn make_monsters(&mut self, round: u32) -> Vec<Event> {
+    pub(super) fn make_monsters(&mut self, round: u32, rng: &mut GameRng) -> Vec<Event> {
         let d = u32::from(self.difficulty());
         let spared = self.content.rules.config.threat.spared_realms.clone();
         let zones: Vec<_> = self
@@ -55,7 +56,7 @@ impl World {
         if zones.is_empty() {
             return Vec::new();
         }
-        self.threat.monster_clock += self.roll(d + 1);
+        self.threat.monster_clock += rng.roll(d + 1);
         if self.threat.monster_clock < 50u32.saturating_sub(5 * d) {
             return Vec::new();
         }
@@ -85,14 +86,14 @@ impl World {
         if near_players.is_empty() {
             return Vec::new();
         }
-        let zone = near_players[self.roll(near_players.len() as u32) as usize - 1].clone();
+        let zone = near_players[rng.roll(near_players.len() as u32) as usize - 1].clone();
         let Some(realm) = self.guard_realm_of(&zone.guards) else {
             return Vec::new();
         };
         let Some(exile_square) = self.adjacent_free_square(zone.pos) else {
             return Vec::new();
         };
-        let mut budget = ((self.roll(d + 1) + self.roll(d + 1)) * round / 5) as i32;
+        let mut budget = ((rng.roll(d + 1) + rng.roll(d + 1)) * round / 5) as i32;
         // On a landmass that holds a computer wizard's cities and none of the human's the budget is
         // halved.
         let land = self.landmass_at(&lands, zone.pos);
@@ -103,7 +104,7 @@ impl World {
         if ai_here && !human_here {
             budget /= 2;
         }
-        let list = self.monster_list(budget, realm);
+        let list = self.monster_list(budget, realm, rng);
         if list.is_empty() {
             return Vec::new();
         }
@@ -123,7 +124,7 @@ impl World {
 
     /// The monsters a budget buys (`Make_Monster_List`): random creatures of the realm that cost
     /// no more than what is left, as long as 25 is left, nine at most.
-    fn monster_list(&mut self, budget: i32, realm: RealmId) -> Vec<UnitId> {
+    fn monster_list(&mut self, budget: i32, realm: RealmId, rng: &mut GameRng) -> Vec<UnitId> {
         let pool = candidates(&self.content, realm);
         let mut left = budget.max(0);
         let mut list = Vec::new();
@@ -136,7 +137,7 @@ impl World {
             {
                 break;
             }
-            let (id, cost) = &pool[self.roll(pool.len() as u32) as usize - 1];
+            let (id, cost) = &pool[rng.roll(pool.len() as u32) as usize - 1];
             if *cost <= left {
                 left -= cost;
                 list.push(*id);
@@ -240,6 +241,7 @@ impl World {
         city: hecs::Entity,
         city_damage: u32,
         monsters: &[hecs::Entity],
+        rng: &mut GameRng,
     ) -> Vec<Event> {
         let Some(owner) = self.economy().city_owner(city) else {
             return Vec::new();
@@ -263,7 +265,7 @@ impl World {
             citizens,
             city_damage + self.content.rules.config.threat.rampage_damage,
             &built,
-            &mut self.rng,
+            rng,
             |b| {
                 crate::city::conquest::destroy_building(
                     &mut self.ecs,
@@ -279,7 +281,7 @@ impl World {
             pop.figures -= toll.citizens_lost;
         }
         let ruins = self.content.features.id_numbered(18) /* ruins */;
-        let ruined = self.roll(2) == 2 && !self.economy().is_fortress_city(city);
+        let ruined = rng.roll(2) == 2 && !self.economy().is_fortress_city(city);
         let (Some(feature), true) = (ruins, ruined) else {
             for &m in monsters {
                 self.despawn_with_spells(m);
@@ -311,7 +313,7 @@ impl World {
         for &m in monsters {
             self.despawn_with_spells(m);
         }
-        let mut events = self.remove_city(city);
+        let mut events = self.remove_city(city, rng);
         self.spawn_feature(Placement {
             at: pos,
             feature,

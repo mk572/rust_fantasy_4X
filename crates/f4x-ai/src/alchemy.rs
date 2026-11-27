@@ -42,7 +42,7 @@ mod tests {
 
     #[test]
     fn a_player_without_a_wizard_turns_its_mana_into_gold_and_a_wizard_keeps_it() -> TestResult {
-        let mut w = Game::new(new_game(
+        let mut w = Game::from(new_game(
             f4x_def::testdir::shipped(),
             &NewGame {
                 seed: 7,

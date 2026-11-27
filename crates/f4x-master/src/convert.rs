@@ -14,6 +14,7 @@ mod race_player;
 use f4x_core::diplomacy::{DiplomacySave, Pair, ProposalSave, Stance, Treaty};
 use f4x_core::wizard::objective::{Objective, Personality};
 use f4x_core::world::endgame::EndKind;
+use f4x_core::world::rng::GameRng;
 use f4x_core::world::save::{
     CitySave, FeatureSave, FogSave, HeroSave, LoadError, MagicItemSave, MapSave, PlayerSave,
     Snapshot, SpellSave, UnitSave, WizardSave, GAME_VERSION, SAVE_VERSION,
@@ -142,8 +143,6 @@ pub(crate) fn from_old(text: &str, game_version: &str) -> Result<SaveFile, LoadE
         version: SAVE_VERSION,
         // What comes out is a save of this version, which can be written and read again.
         game_version: GAME_VERSION.to_string(),
-        seed: old.seed,
-        draws: old.draws,
         next_serial: old.next_serial,
         settings: old.settings,
         content: old.content,
@@ -176,6 +175,7 @@ pub(crate) fn from_old(text: &str, game_version: &str) -> Result<SaveFile, LoadE
         race_player::upgrade(&mut world, &mut plans);
     }
     let game = GameState {
+        rng: GameRng::resume(old.seed, old.draws),
         round,
         // A place in the round that cannot be read is no place: the first wizard plays.
         phase: flow

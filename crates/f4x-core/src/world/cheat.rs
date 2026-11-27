@@ -6,6 +6,7 @@
 
 use crate::map::{Plane, Position, TerrainId};
 use crate::player::PlayerId;
+use crate::world::rng::GameRng;
 
 use crate::city::economy::Buildings;
 use crate::rules::{BuildingId, RealmId, SpellId};
@@ -263,8 +264,13 @@ impl World {
     }
 
     /// Defeat a wizard now, as if `winner` had beaten them (for tests and the console).
-    pub fn cheat_defeat_player(&mut self, loser: PlayerId, winner: PlayerId) -> Vec<Event> {
-        self.defeat(loser, winner, crate::wizard::fortress::Fall::Resigned)
+    pub fn cheat_defeat_player(
+        &mut self,
+        loser: PlayerId,
+        winner: PlayerId,
+        rng: &mut GameRng,
+    ) -> Vec<Event> {
+        self.defeat(loser, winner, crate::wizard::fortress::Fall::Resigned, rng)
     }
 
     /// Reveal both planes to a player.
@@ -285,7 +291,12 @@ impl World {
 
     /// Defeat a wizard on the spot: their cities turn neutral and the usual aftermath
     /// follows, ending the game if that leaves one wizard (or the human is the one).
-    pub fn cheat_eliminate(&mut self, player: PlayerId, by: PlayerId) -> Vec<Event> {
+    pub fn cheat_eliminate(
+        &mut self,
+        player: PlayerId,
+        by: PlayerId,
+        rng: &mut GameRng,
+    ) -> Vec<Event> {
         if !self.has_player(player) || self.player(player).is_none_or(|p| p.is_defeated()) {
             return Vec::new();
         }
@@ -294,7 +305,7 @@ impl World {
                 self.set_owner(city, MONSTERS);
             }
         }
-        self.defeat(player, by, crate::wizard::fortress::Fall::Resigned)
+        self.defeat(player, by, crate::wizard::fortress::Fall::Resigned, rng)
     }
 
     /// Put an encounter site or a tower on a square with guards and treasure made as a new world
@@ -306,6 +317,7 @@ impl World {
         pos: Position,
         feature: crate::map::FeatureId,
         strong: bool,
+        rng: &mut GameRng,
     ) -> Result<(), String> {
         use crate::feature::def::FeatureKind;
         use crate::feature::lair::create;
@@ -341,7 +353,7 @@ impl World {
             i32::from(self.settings.world.lair_guard_percent.min(300))
         };
         let treasure = i32::from(self.settings.world.lair_treasure_percent.min(500));
-        let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(self.rng.next_u64());
+        let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(rng.next_u64());
         let (plane, budget) = if kind == FeatureKind::Tower {
             let budget = create::tower_budget(&mut rng, &self.content, style);
             (Plane::Arcanus, budget)
@@ -417,7 +429,7 @@ impl World {
 
     /// Roll a hero type's abilities and spells anew (`hero::kind::roll_one`); its name, level and
     /// items stay. Works for a hero in service and for a free one.
-    pub fn cheat_reroll_hero(&mut self, kind: usize) -> Result<(), String> {
+    pub fn cheat_reroll_hero(&mut self, kind: usize, rng: &mut GameRng) -> Result<(), String> {
         let hero = self.units().hero_entity(kind).ok_or("no such hero")?;
         let name = self
             .ecs
@@ -431,13 +443,8 @@ impl World {
             .hero_templates
             .get(kind)
             .ok_or("no such hero")?;
-        let mut rolled = crate::hero::kind::roll_one(
-            &mut self.rng,
-            &self.content.rules,
-            &self.names,
-            kind,
-            template,
-        );
+        let mut rolled =
+            crate::hero::kind::roll_one(rng, &self.content.rules, &self.names, kind, template);
         rolled.name = name;
         self.put(hero, rolled);
         Ok(())

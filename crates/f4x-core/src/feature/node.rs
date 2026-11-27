@@ -6,6 +6,7 @@
 //! `strength` is the game's node setting: 0 weak, 1 normal, 2 powerful.
 
 use crate::rules::{Ability, RealmId};
+use crate::world::rng::GameRng;
 use serde::{Deserialize, Serialize};
 
 use crate::feature::entity::NodeInfo;
@@ -103,7 +104,11 @@ impl World {
     /// Meld a spirit into the node the stack stands on. The spirit is used up; a Guardian
     /// Spirit is preferred and leaves the node guarded. Against a rival's guarded node the
     /// meld succeeds one time in four, and the spirit dies either way.
-    pub fn meld(&mut self, units: &[hecs::Entity]) -> Result<Vec<Event>, MeldError> {
+    pub fn meld(
+        &mut self,
+        units: &[hecs::Entity],
+        rng: &mut GameRng,
+    ) -> Result<Vec<Event>, MeldError> {
         let first = *units.first().ok_or(MeldError::BadSelection)?;
         let at = self
             .units()
@@ -145,7 +150,7 @@ impl World {
             None => true,
             Some(o) if o == owner => true,
             Some(_) if !node.guardian => true,
-            Some(_) => self.roll(100) <= 25,
+            Some(_) => rng.roll(100) <= 25,
         };
         self.despawn_with_spells(melder);
         let mut events = Vec::new();

@@ -20,7 +20,7 @@ use f4x_core::hero::kind::roll_one;
 use f4x_core::hero::Hero;
 use f4x_core::map::{Plane, Position};
 use f4x_core::world::rng::GameRng;
-use f4x_core::world::{Command, World};
+use f4x_core::world::Command;
 use f4x_def::content::Content;
 use f4x_def::names::NameBundle;
 
@@ -54,7 +54,7 @@ pub fn hero_fight(
     a_attacks: bool,
     seed: u64,
 ) -> Result<Option<bool>, String> {
-    let mut world: World = base_game(content, seed)?;
+    let (mut world, mut dice) = base_game(content, seed)?;
     let (west, east) = if a_attacks { (a, b) } else { (b, a) };
     let mut sides = Vec::new();
     for (owner, x, hero) in [(P0, 4u32, west), (P1, 5, east)] {
@@ -87,11 +87,14 @@ pub fn hero_fight(
     }
     let defenders = sides.pop().ok_or("no defender")?;
     let attackers = sides.pop().ok_or("no attacker")?;
-    world.apply(Command::BeginBattle {
-        attackers,
-        defenders,
-    });
-    Ok(play_out(&mut world)?.map(|w| (w == P0) == a_attacks))
+    world.apply(
+        Command::BeginBattle {
+            attackers,
+            defenders,
+        },
+        &mut dice,
+    );
+    Ok(play_out(&mut world, &mut dice)?.map(|w| (w == P0) == a_attacks))
 }
 
 /// The seeds of one pair.

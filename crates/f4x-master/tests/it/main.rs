@@ -64,7 +64,7 @@ impl Controller for Recorder {
 }
 
 fn game(wizards: u8) -> Game {
-    Game::new(
+    Game::from(
         new_game(
             f4x_def::testdir::shipped(),
             &NewGame {

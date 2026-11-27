@@ -10,6 +10,7 @@ use f4x_core::player::PlayerId;
 use f4x_def::content::Content;
 use f4x_master::Game;
 
+use f4x_core::world::testutil::Table;
 use f4x_core::world::{Command, World};
 
 pub const P0: PlayerId = PlayerId(0);
@@ -33,7 +34,7 @@ pub fn content() -> Content {
 
 /// A new game as the game itself sets it up (wizards, cities, heroes), on the shipped content.
 pub fn fresh_game() -> Result<Game, Box<dyn std::error::Error>> {
-    Ok(Game::new(f4x_newgame::setup::new_game(
+    Ok(Game::from(f4x_newgame::setup::new_game(
         shipped(),
         &f4x_newgame::setup::NewGame {
             seed: 7,
@@ -128,7 +129,7 @@ fn build_game_in(
         .races
         .id_numbered(race)
         .expect("the race exists");
-    let mut world = World::new(seed);
+    let mut world = Table::empty(seed);
     world.set_content(content);
     // The tests of the AI play with the default stack limit, which is higher than a battle side;
     // the v1.31 rule set of the content takes the original's nine, with no reserve to test.
@@ -160,7 +161,7 @@ fn build_game_in(
             "city {name} not founded: {events:?}"
         );
     }
-    Game::new(world)
+    Game::from(world)
 }
 
 /// Spawn `count` units of `unit` at `pos` for `owner`.
@@ -333,7 +334,7 @@ pub fn set_mana(w: &mut World, mana: i32) -> Result<(), Box<dyn std::error::Erro
 }
 
 /// The west island filled with cities of player 0, as close as the rules let them stand.
-pub fn fill_west(w: &mut World) {
+pub fn fill_west(w: &mut Game) {
     let race = w.content().rules.races.id_numbered(8);
     for x in 3..=10 {
         for y in 3..=10 {

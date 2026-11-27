@@ -44,7 +44,11 @@ impl World {
 
     /// At a turn change: a lingering unit rolls to be freed, and a fresh one starts lingering.
     /// Call before the moves are refilled.
-    pub(crate) fn process_stasis(&mut self, player: crate::player::PlayerId) -> Vec<Event> {
+    pub(crate) fn process_stasis(
+        &mut self,
+        player: crate::player::PlayerId,
+        rng: &mut GameRng,
+    ) -> Vec<Event> {
         let mut held: Vec<(hecs::Entity, Stasis)> = self
             .ecs
             .query::<&Stasis>()
@@ -53,7 +57,6 @@ impl World {
             .filter(|&(e, _)| self.units().unit_owner(e) == Some(player))
             .collect();
         held.sort_by_key(|&(e, _)| (self.units().serial_of(e), e.id()));
-        let mut rng = std::mem::replace(&mut self.rng, GameRng::lent());
         let mut events = Vec::new();
         for (unit, state) in held {
             match state {
@@ -67,7 +70,7 @@ impl World {
                     if resistance_failure(
                         resistance,
                         self.content.rules.battle.freeing_modifier,
-                        &mut rng,
+                        rng,
                     ) == 0
                     {
                         self.strip::<Stasis>(unit);
@@ -76,7 +79,6 @@ impl World {
                 }
             }
         }
-        self.rng = rng;
         events
     }
 }

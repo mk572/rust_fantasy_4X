@@ -454,7 +454,8 @@ fn contact(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 fn eliminate(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let id = parse_player(a.need(0, "player")?)?;
     let by = ctx.session.player;
-    let events = ctx.game.world_mut().cheat_eliminate(id, by);
+    let (world, rng) = ctx.game.world_and_rng();
+    let events = world.cheat_eliminate(id, by, rng);
     if events.is_empty() {
         return Err(ConsoleError::Refused("no such active wizard".into()));
     }
@@ -533,9 +534,9 @@ fn event(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         ))
     })?;
     let id = player_arg(ctx, a, 1)?;
-    ctx.game
-        .world_mut()
-        .cheat_event(kind, id)
+    let (world, rng) = ctx.game.world_and_rng();
+    world
+        .cheat_event(kind, id, rng)
         .map_err(ConsoleError::Failed)?;
     ctx.say(format!(
         "{} happens to {}",
@@ -559,7 +560,8 @@ fn offer(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     };
     let id = player_arg(ctx, a, 1)?;
     let round = ctx.game.round();
-    match ctx.game.world_mut().cheat_offer(id, what, round) {
+    let (world, rng) = ctx.game.world_and_rng();
+    match world.cheat_offer(id, what, round, rng) {
         Some(o) => {
             let line = describe::offer(ctx.game, &o);
             ctx.say(format!(
@@ -630,9 +632,9 @@ fn lair(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             )))
         }
     };
-    ctx.game
-        .world_mut()
-        .cheat_add_lair(pos, id, strong)
+    let (world, rng) = ctx.game.world_and_rng();
+    world
+        .cheat_add_lair(pos, id, strong, rng)
         .map_err(ConsoleError::Failed)?;
     ctx.say(format!("a lair stands at {}", describe::pos(pos)));
     Ok(())
@@ -717,9 +719,9 @@ fn dismiss(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 
 fn reroll(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let kind = hero_kind(ctx, a.need(0, "hero")?)?;
-    ctx.game
-        .world_mut()
-        .cheat_reroll_hero(kind)
+    let (world, rng) = ctx.game.world_and_rng();
+    world
+        .cheat_reroll_hero(kind, rng)
         .map_err(ConsoleError::Failed)?;
     let hero = ctx.game.units().hero_entity(kind);
     let line = hero.map_or_else(String::new, |h| describe::unit(ctx.game, h));

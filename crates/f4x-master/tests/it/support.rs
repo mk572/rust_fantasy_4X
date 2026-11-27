@@ -11,7 +11,7 @@ pub fn games() -> Vec<(String, Game)> {
         .iter()
         .map(|&(w, s)| {
             let world = fresh(w, s).unwrap_or_else(|e| panic!("{e}"));
-            (format!("{w} wizards, seed {s}"), Game::new(world))
+            (format!("{w} wizards, seed {s}"), Game::from(world))
         })
         .collect()
 }

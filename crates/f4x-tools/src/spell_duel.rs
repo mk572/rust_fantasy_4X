@@ -109,7 +109,7 @@ fn fight(
     } = pairing;
     let def = content.rules.spells.get(spell);
     let own = for_own(def);
-    let mut world = base_game(content, seed)?;
+    let (mut world, mut rng) = base_game(content, seed)?;
     let (ref_owner, other_owner) = if reference_attacks {
         (P0, P1)
     } else {
@@ -192,10 +192,13 @@ fn fight(
     } else {
         (o_units, r_units)
     };
-    world.apply(Command::BeginBattle {
-        attackers,
-        defenders,
-    });
+    world.apply(
+        Command::BeginBattle {
+            attackers,
+            defenders,
+        },
+        &mut rng,
+    );
     if world.battle().is_none() {
         return Err("no battle began".into());
     }
@@ -228,11 +231,14 @@ fn fight(
                     .ok_or("no target in the battle")?;
                 let _ = target;
                 world.scenario_battle_caster(side, 1000);
-                let events = world.apply(Command::Battle(BattleCommand::Cast {
-                    spell,
-                    aim: SpellAim::Unit(index),
-                    mana: 0,
-                }));
+                let events = world.apply(
+                    Command::Battle(BattleCommand::Cast {
+                        spell,
+                        aim: SpellAim::Unit(index),
+                        mana: 0,
+                    }),
+                    &mut rng,
+                );
                 if events.iter().any(|e| matches!(e, Event::Rejected(_))) {
                     missed = true;
                 }
@@ -242,7 +248,7 @@ fn fight(
         let Some(command) = next_command(&world) else {
             break;
         };
-        let events = world.apply(Command::Battle(command.clone()));
+        let events = world.apply(Command::Battle(command.clone()), &mut rng);
         if TRACE.load(Ordering::Relaxed) == usize::from(other) {
             println!("{command:?} -> {events:?}");
         }

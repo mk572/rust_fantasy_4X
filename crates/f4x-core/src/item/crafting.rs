@@ -8,6 +8,7 @@
 
 use crate::rules::ItemPowerId;
 use crate::rules::SpellId;
+use crate::world::rng::GameRng;
 use f4x_def::half_int::HalfInt;
 use serde::{Deserialize, Serialize};
 
@@ -482,6 +483,7 @@ impl crate::world::World {
         player: crate::player::PlayerId,
         craft: Craft,
         design: &ItemDesign,
+        rng: &mut GameRng,
     ) -> Result<Vec<crate::world::Event>, CraftingError> {
         let spell = craft.spell();
         if self.content.rules.spells.try_get(spell).is_none() {
@@ -521,7 +523,7 @@ impl crate::world::World {
             // Another wizard's Suppress Magic resists the spell at the mana it cost, not at the
             // spell's own small cost (patch 1.50, note 270); the mana is spent.
             if let Some((by, counter)) =
-                self.suppressed_at_cost(player, spell, Some(price.max(0) as u32))
+                self.suppressed_at_cost(player, spell, Some(price.max(0) as u32), rng)
             {
                 return Ok(vec![crate::world::Event::SpellSuppressed {
                     player,

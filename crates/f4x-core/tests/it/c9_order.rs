@@ -27,7 +27,7 @@ fn a_stack_that_finds_its_way_full_goes_in_once_the_stack_on_it_has_gone_on() {
         .2;
     let moved = |events: &[Event]| events.iter().any(|e| matches!(e, Event::UnitsMoved { .. }));
     // A unit that walks, a square `b` next to the city and a square `c` beyond it, found by trying.
-    let step = |w: &mut f4x_core::world::World, unit: UnitId, from, to| {
+    let step = |w: &mut f4x_core::world::testutil::Table, unit: UnitId, from, to| {
         w.apply(Command::CreateUnit {
             owner: wizard,
             pos: from,
@@ -55,11 +55,11 @@ fn a_stack_that_finds_its_way_full_goes_in_once_the_stack_on_it_has_gone_on() {
     }
     let (unit, b, c) = found.expect("a unit walks from the city over a square to another");
 
-    let mut w = Game::new(fresh(wizards, seed).expect("a fresh game"));
+    let mut w = Game::from(fresh(wizards, seed).expect("a fresh game"));
     let limit = w.settings().rules.max_battle_side;
     w.scenario_change_settings(|s| s.rules.max_tile = limit);
     let before = w.units().units_at(b).len();
-    let make = |w: &mut f4x_core::world::World, at, n: usize| -> Vec<_> {
+    let make = |w: &mut Game, at, n: usize| -> Vec<_> {
         (0..n)
             .map(|_| {
                 w.apply(Command::CreateUnit {
@@ -104,7 +104,7 @@ fn a_stack_that_finds_its_way_full_goes_in_once_the_stack_on_it_has_gone_on() {
 #[test]
 fn a_stack_that_stays_blocked_is_told_why() {
     let (wizards, seed) = WORLDS[0];
-    let mut w = Game::new(fresh(wizards, seed).expect("a fresh game"));
+    let mut w = Game::from(fresh(wizards, seed).expect("a fresh game"));
     let wizard = w
         .player_ids()
         .into_iter()

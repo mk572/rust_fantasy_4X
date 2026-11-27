@@ -15,6 +15,7 @@
 //!
 //! Tests: in spell/dispel/tests.rs.
 
+use crate::world::rng::GameRng;
 use rand::RngCore;
 
 use crate::map::Position;
@@ -73,12 +74,13 @@ impl World {
         player: PlayerId,
         unit: hecs::Entity,
         spell: SpellId,
+        rng: &mut GameRng,
     ) -> Result<Vec<Event>, crate::wizard::magic::MagicError> {
         if !self.turn_off_enchantment(SpellTarget::Unit(unit), player, spell) {
             return Err(MagicError::Target(TargetError::SpellNotThere));
         }
         let mut events = vec![Event::EnchantmentLapsed { player, spell }];
-        events.extend(self.drown_stranded(None));
+        events.extend(self.drown_stranded(None, rng));
         Ok(events)
     }
 
@@ -390,6 +392,7 @@ impl World {
         caster: PlayerId,
         spell: SpellId,
         cost: Option<u32>,
+        rng: &mut GameRng,
     ) -> Option<(PlayerId, SpellId)> {
         if self.settings.rules.suppress_spares_return && spell == SpellId::new(214) {
             return None; // spell_of_return (patch IW114)
@@ -444,7 +447,7 @@ impl World {
                         .suppress_magic_strength
                         + difficulty,
                 );
-            if u64::from(self.roll(250)) <= chance {
+            if u64::from(rng.roll(250)) <= chance {
                 return Some((holder, guard));
             }
         }

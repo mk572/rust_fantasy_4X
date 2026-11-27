@@ -6,6 +6,7 @@
 //! content and the players. `World` makes the changes that need more (the owner's gold, the new
 //! unit, the treasury for the Vizier).
 
+use crate::world::rng::GameRng;
 use f4x_def::half_int::HalfInt;
 
 use crate::city::economy::{Buildings, CityRace, Economy};
@@ -571,6 +572,7 @@ impl World {
         &mut self,
         city: hecs::Entity,
         production: HalfInt,
+        rng: &mut GameRng,
     ) -> Option<ProductionItem> {
         let (item, mut p, at, owner) = match self.economy().advance_production(city, production)? {
             Advance::Waiting(p) => {
@@ -596,7 +598,7 @@ impl World {
                 // Surplus production is lost. The city has nothing in hand until its owner
                 // chooses again, unless the auto-builder (a human's helper) picks the next item.
                 p = Production {
-                    item: self.autobuild_choice(city, owner),
+                    item: self.autobuild_choice(city, owner, rng),
                     progress: HalfInt::ZERO,
                 };
             }
@@ -615,7 +617,7 @@ impl World {
                     );
                 }
                 let unit = self.spawn_unit(owner, at, u);
-                self.doom_mastery_mutates(unit, owner);
+                self.doom_mastery_mutates(unit, owner, rng);
                 self.put(unit, Experience(xp));
                 if weapons > 0 {
                     self.put(unit, crate::unit::WeaponQuality(weapons));
@@ -626,7 +628,7 @@ impl World {
                 // below reads.
                 self.note_production_change(city);
                 // Likewise: nothing in hand, unless the auto-builder picks the next item.
-                p.item = self.autobuild_choice(city, owner);
+                p.item = self.autobuild_choice(city, owner, rng);
             }
             ProductionItem::TradeGoods | ProductionItem::Housing => {}
         }
@@ -635,7 +637,7 @@ impl World {
     }
 
     /// Turning the Vizier on: cities with nothing to build (or housing) get a building now.
-    pub(crate) fn vizier_fills_idle_cities(&mut self, player: PlayerId) {
+    pub(crate) fn vizier_fills_idle_cities(&mut self, player: PlayerId, rng: &mut GameRng) {
         for (city, c, _) in self.economy().cities() {
             if c.owner != player {
                 continue;
@@ -647,7 +649,7 @@ impl World {
             if !idle {
                 continue;
             }
-            if let Some(item) = self.autobuild_choice(city, player) {
+            if let Some(item) = self.autobuild_choice(city, player, rng) {
                 self.put(
                     city,
                     Production {

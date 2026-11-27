@@ -23,7 +23,7 @@ fn the_fresh_games_core_loads_are_what_new_game_makes() -> TestResult {
     let refresh = std::env::var_os("F4X_REFRESH_FIXTURES").is_some();
     let mut stale = Vec::new();
     for &(wizards, seed) in FIXTURES {
-        let world = new_game(
+        let (world, rng) = new_game(
             shipped(),
             &NewGame {
                 seed,
@@ -31,13 +31,18 @@ fn the_fresh_games_core_loads_are_what_new_game_makes() -> TestResult {
                 ..NewGame::with_wizards(wizards)
             },
         )?;
-        let text = world.snapshot().to_text()?;
+        // The generator as the setup left it goes beside the world.
         let path = fresh_file(wizards, seed);
-        if refresh {
-            std::fs::create_dir_all(path.parent().ok_or("no folder")?)?;
-            std::fs::write(&path, &text)?;
-        } else if std::fs::read_to_string(&path).ok().as_deref() != Some(text.as_str()) {
-            stale.push(path.display().to_string());
+        for (path, text) in [
+            (path.with_extension("rng"), ron::to_string(&rng)? + "\n"),
+            (path, world.snapshot().to_text()?),
+        ] {
+            if refresh {
+                std::fs::create_dir_all(path.parent().ok_or("no folder")?)?;
+                std::fs::write(&path, &text)?;
+            } else if std::fs::read_to_string(&path).ok().as_deref() != Some(text.as_str()) {
+                stale.push(path.display().to_string());
+            }
         }
     }
     assert!(

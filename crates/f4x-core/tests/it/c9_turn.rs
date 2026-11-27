@@ -1,7 +1,7 @@
 //! Class 9, the turn: the four phases and what each one touches (the round's start and end, one player's
 //! start and end), Time Stop, standing orders, standby, and a treasury that cannot pay.
 
-use crate::support::{around, text};
+use crate::support::{around, state};
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::player::{PlayerId, MONSTERS};
 use f4x_core::unit::movement::MoveError;
@@ -14,7 +14,7 @@ use f4x_master::Game;
 fn worlds() -> Vec<(String, Game)> {
     crate::support::worlds()
         .into_iter()
-        .map(|(name, w)| (name, Game::new(w)))
+        .map(|(name, w)| (name, Game::from(w)))
         .collect()
 }
 
@@ -195,10 +195,10 @@ fn standby_done_lasts_the_turn_and_patrol_stays() {
 #[test]
 fn the_player_of_the_monsters_has_no_turn_end() {
     for (name, mut w) in worlds() {
-        let before = text(&w);
+        let before = state(&w);
         w.end_player_turn(MONSTERS);
         assert_eq!(
-            text(&w),
+            state(&w),
             before,
             "{name}: the monsters' turn end changed the game"
         );
@@ -313,7 +313,7 @@ fn a_standing_order_does_not_move_a_unit_while_another_wizard_keeps_time_stop() 
 }
 
 /// Units are added for `p` on the square of their first city until the treasury cannot pay.
-fn overloaded(w: &mut World, p: PlayerId) -> Option<()> {
+fn overloaded(w: &mut Game, p: PlayerId) -> Option<()> {
     let (_, at) = w.economy().cities_of(p).first().copied()?;
     let kind = w.units().unit_kind_id(w.units().player_units(p)[0])?;
     w.treasury_mut(p)?.gold = HalfInt::ZERO;
@@ -397,7 +397,7 @@ fn a_player_may_choose_who_goes_and_only_among_their_own_units() {
         }
         tried += 1;
         let theirs = w.units().player_units(o)[0];
-        let before = text(&w);
+        let before = state(&w);
         let events = w.apply(Command::ReleaseTroops {
             player: p,
             units: vec![theirs],
@@ -410,7 +410,7 @@ fn a_player_may_choose_who_goes_and_only_among_their_own_units() {
             "{name}: {events:?}"
         );
         assert_eq!(
-            text(&w),
+            state(&w),
             before,
             "{name}: a refused release changed the game"
         );

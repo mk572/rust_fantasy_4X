@@ -5,6 +5,7 @@
 //! Tests: in battle/tests.rs (`a_hero_casts_an_innate_spell_...`, `the_legal_unit_casts_...` and the demon tests).
 
 use super::*;
+use crate::world::rng::GameRng;
 pub use f4x_battle::battlemagic::unit_cast::{SpellSource, UnitSpell};
 
 impl World {
@@ -47,6 +48,7 @@ impl World {
         spell: SpellId,
         aim: SpellAim,
         mana: u32,
+        rng: &mut GameRng,
     ) -> Result<Vec<Event>, BattleError> {
         let battle = &self.battle.as_ref().ok_or(BattleError::Over)?.battle;
         let (def, kind, source, paid, pool) =
@@ -76,7 +78,7 @@ impl World {
                 a.battle.save_penalty = spell_save;
                 a.battle.spell_caster = Some(unit);
             }
-            events.extend(self.apply_battle_spell(spell, &def, kind, side, player, aim, pool));
+            events.extend(self.apply_battle_spell(spell, &def, kind, side, player, aim, pool, rng));
             if let Some(a) = self.battle.as_mut() {
                 a.battle.save_penalty = 0;
                 a.battle.spell_caster = None;
@@ -92,7 +94,7 @@ impl World {
             .map(|a| a.battle.check_winner())
             .unwrap_or_default();
         out.extend(ended.into_iter().map(Event::Battle));
-        self.finish_if_over(&mut out);
+        self.finish_if_over(&mut out, rng);
         Ok(out)
     }
 }

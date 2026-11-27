@@ -8,6 +8,7 @@
 //!
 //! Tests: in city/autobuild/tests.rs.
 
+use crate::world::rng::GameRng;
 use f4x_def::half_int::HalfInt;
 use serde::{Deserialize, Serialize};
 
@@ -919,10 +920,11 @@ impl World {
         &mut self,
         city: hecs::Entity,
         owner: PlayerId,
+        rng: &mut GameRng,
     ) -> Option<ProductionItem> {
         let auto = self.autobuild_of(city)?;
         let facts = self.autobuild_facts(city, owner)?;
-        let mut rolls = |n: u32| self.rng.roll(n);
+        let mut rolls = |n: u32| rng.roll(n);
         Some(choose(&self.content, &auto, &facts, &mut rolls))
     }
 
@@ -932,6 +934,7 @@ impl World {
         &mut self,
         city: hecs::Entity,
         plan: Option<BuildPlan>,
+        rng: &mut GameRng,
     ) -> Result<(), crate::city::production::ProductionError> {
         if self.ecs.get::<&crate::city::City>(city).is_err() {
             return Err(crate::city::production::ProductionError::NotACity);
@@ -945,7 +948,7 @@ impl World {
                     auto.spent_buildings = old.spent_buildings;
                 }
                 self.put(city, auto);
-                self.autobuild_refresh(city);
+                self.autobuild_refresh(city, rng);
             }
             None => {
                 self.strip::<AutoBuild>(city);
@@ -956,7 +959,7 @@ impl World {
 
     /// A city whose auto-builder has nothing in hand (nothing, housing or trade goods, which
     /// never finish) looks again: something may have become worth building.
-    pub(crate) fn autobuild_refresh(&mut self, city: hecs::Entity) {
+    pub(crate) fn autobuild_refresh(&mut self, city: hecs::Entity, rng: &mut GameRng) {
         let idle = matches!(
             self.economy().city_production(city).item,
             None | Some(ProductionItem::Housing) | Some(ProductionItem::TradeGoods)
@@ -967,7 +970,7 @@ impl World {
         if !idle {
             return;
         }
-        if let Some(item) = self.autobuild_choice(city, owner) {
+        if let Some(item) = self.autobuild_choice(city, owner, rng) {
             let mut p = self.economy().city_production(city);
             if p.item != Some(item) {
                 p.item = Some(item);

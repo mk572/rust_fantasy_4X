@@ -173,7 +173,7 @@ fn a_race_plays_in_its_place_once_it_has_a_city() {
         first,
         Box::new(Doer(move |game: &mut Game, player| {
             if game.is_dormant(late) {
-                game.world_mut().found_neutral_city(site, race);
+                game.found_neutral_city(site, race);
             }
             heard.borrow_mut().push(player);
             Status::Done

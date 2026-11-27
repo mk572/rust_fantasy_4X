@@ -196,7 +196,8 @@ wrong reason.
   Do not hand-build units, spells, buildings or terrains in either.
 - A unit test in `f4x-core/src/` that needs a whole new game (a real map, wizards, cities) cannot call
   `new_game` (the crate that has it sits above core): it loads one with `world::testutil::fresh(wizards, seed)`,
-  a saved game in `crates/f4x-core/tests/saves/fresh_w<wizards>_s<seed>.save`. The test `fixtures` of
+  a saved game in `crates/f4x-core/tests/saves/fresh_w<wizards>_s<seed>.save` (its generator beside it,
+  `.rng`). The test `fixtures` of
   `f4x-newgame` keeps the files equal to what `new_game` makes; when it fails, refresh them with
   `F4X_REFRESH_FIXTURES=1 cargo test -p f4x-newgame --test it fixtures` and run the tests of core again
   (a test that depends on a seed's map may need a look). A test of the generators or of `new_game` itself

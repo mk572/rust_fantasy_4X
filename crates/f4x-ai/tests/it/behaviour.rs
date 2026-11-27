@@ -19,7 +19,7 @@ fn content() -> Result<Content, Box<dyn std::error::Error>> {
 }
 
 fn game(seed: u64) -> Result<Game, Box<dyn std::error::Error>> {
-    Ok(Game::new(new_game(
+    Ok(Game::from(new_game(
         &content()?,
         &NewGame {
             seed,

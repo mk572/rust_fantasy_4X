@@ -19,10 +19,10 @@ pub mod stable_ref;
 pub mod testutil;
 pub mod view;
 
+use crate::world::rng::GameRng;
 use crate::{battle, city, diplomacy, map, player, threat, unit, wizard, world, world_event};
 use f4x_def::content;
 use f4x_def::half_int::HalfInt;
-use rand::RngCore;
 
 pub use command::Command;
 pub use event::{DispelSite, Event, LossCause, Rejection, Shortage};
@@ -77,8 +77,6 @@ pub struct World {
     /// completed item instead of worked out afresh (`World::kept_budget`).
     pub(crate) budget_parts: std::cell::RefCell<Option<player::finance::BudgetParts>>,
     pub(crate) next_serial: u64,
-    /// The seeded generator all randomness comes from; it counts its draws (see `world/rng.rs`).
-    pub(crate) rng: world::rng::GameRng,
     /// What the game is played with (difficulty, node strength, ...). Chosen when the game is
     /// made and fixed after that; read through [`World::settings`].
     pub(crate) settings: world::setting::GameSettings,
@@ -146,6 +144,12 @@ pub(crate) fn put_bundle_in(
     debug_assert!(put.is_ok(), "no such entity to give components to: {put:?}");
 }
 
+impl Default for World {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl World {
     /// Give `entity` a component (or replace it); see [`put_in`].
     #[track_caller]
@@ -169,7 +173,7 @@ impl World {
         put_bundle_in(&mut self.ecs, entity, bundle);
     }
 
-    pub fn new(seed: u64) -> Self {
+    pub fn new() -> Self {
         let mut ecs = hecs::World::new();
         let monsters = ecs.spawn((player::MONSTERS, player::Neutral));
         Self {
@@ -185,7 +189,6 @@ impl World {
             tile_watch: Vec::new(),
             budget_parts: Default::default(),
             next_serial: 1,
-            rng: world::rng::GameRng::new(seed),
             // The Average level of the shipped rules; a game made for play gets its level from
             // `f4x_newgame::setup::new_game`.
             settings: world::setting::GameSettings::default(),
@@ -263,11 +266,6 @@ impl World {
         self.fog
             .explore(player, at, sight, self.settings.basic.diagonal_extra_cost);
         self.contact_near(player, at, map::fog::squares_seen(sight));
-    }
-
-    /// The seed this game started from.
-    pub fn seed(&self) -> u64 {
-        self.rng.seed()
     }
 
     /// Whether `id` is the monsters' owner or an independent city's player: not a wizard.
@@ -487,13 +485,8 @@ impl World {
     }
 
     /// Run a command. Whether the game still takes commands is the game's to say (`f4x-master`).
-    pub fn apply(&mut self, command: Command) -> Vec<Event> {
-        self.execute(command)
-    }
-
-    /// How many random numbers have been drawn: a command that drew one cannot be taken back.
-    pub fn draws(&self) -> u64 {
-        self.rng.draws()
+    pub fn apply(&mut self, command: Command, rng: &mut GameRng) -> Vec<Event> {
+        self.execute(command, rng)
     }
 
     /// Everything the players have explored, summed: it only ever grows.
@@ -508,7 +501,7 @@ impl World {
             .sum()
     }
 
-    fn execute(&mut self, cmd: Command) -> Vec<Event> {
+    fn execute(&mut self, cmd: Command, rng: &mut GameRng) -> Vec<Event> {
         // A command for a player the game does not have is refused before anything runs.
         if self
             .command_actor(&cmd)
@@ -534,7 +527,7 @@ impl World {
             ))];
         }
         let vision = map::vision::VisionEffect::of(&cmd);
-        let mut events = self.execute_command(cmd);
+        let mut events = self.execute_command(cmd, rng);
         self.settle(vision, &mut events);
         events
     }
@@ -560,7 +553,7 @@ impl World {
         self.vision_after(vision, events);
     }
 
-    fn execute_command(&mut self, cmd: Command) -> Vec<Event> {
+    fn execute_command(&mut self, cmd: Command, rng: &mut GameRng) -> Vec<Event> {
         match cmd {
             Command::CreateUnit { owner, pos, unit } => {
                 let unit = self.spawn_unit(owner, pos, unit);
@@ -576,7 +569,7 @@ impl World {
                     let _ = self.ecs.remove_one::<unit::Standby>(u);
                 }
                 self.start_from_tower_on(&units, to);
-                let events = self.do_move(&units, to);
+                let events = self.do_move(&units, to, rng);
                 if events.iter().any(|e| matches!(e, Event::Rejected(_))) {
                     for (u, standby) in standing {
                         let _ = self.ecs.insert_one(u, standby);
@@ -602,7 +595,7 @@ impl World {
                     for &u in &units {
                         let _ = self.ecs.insert_one(u, unit::Order::GoTo(path.clone()));
                     }
-                    self.follow_orders(&units)
+                    self.follow_orders(&units, rng)
                 }
                 None => vec![Event::Rejected(Rejection::NoPath(
                     self.why_no_path(&units, to),
@@ -619,24 +612,24 @@ impl World {
                 attackers,
                 defenders,
             } => self
-                .start_battle(&attackers, &defenders)
+                .start_battle(&attackers, &defenders, rng)
                 .unwrap_or_else(|e| vec![Event::Rejected(Rejection::BattleStart(e))]),
             Command::AutoResolve {
                 attackers,
                 defenders,
                 mana_budget,
-            } => self.auto_resolve_with(&attackers, &defenders, mana_budget),
+            } => self.auto_resolve_with(&attackers, &defenders, mana_budget, rng),
             Command::EnterSite { units, to } => self
-                .enter_site(&units, to)
+                .enter_site(&units, to, rng)
                 .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Site(e))]),
             Command::Anyway(inner) => {
                 self.confirmed = true;
-                let events = self.execute_command(*inner);
+                let events = self.execute_command(*inner, rng);
                 self.confirmed = false;
                 events
             }
             Command::Battle(command) => self
-                .battle_command(command)
+                .battle_command(command, rng)
                 .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Battle(e))]),
             Command::Purify { units } => self
                 .purify(&units)
@@ -645,7 +638,7 @@ impl World {
                 .build_road(&units, path)
                 .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Road(e))]),
             Command::Meld { units } => self
-                .meld(&units)
+                .meld(&units, rng)
                 .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Meld(e))]),
             Command::ShiftPlane { units } => {
                 let from = units.first().and_then(|&u| self.units().unit_position(u));
@@ -681,7 +674,7 @@ impl World {
                 .place_fortress(player, pos, name, race, population)
                 .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Fortress(e))]),
             Command::Resign { player } => self
-                .resign(player)
+                .resign(player, rng)
                 .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Fortress(e))]),
             Command::DismissUnit { unit } => self.dismiss_unit(unit),
             Command::SetBridge { unit, on } => match self.set_bridge(unit, on) {
@@ -701,7 +694,7 @@ impl World {
                 player,
                 craft,
                 design,
-            } => match self.craft_item(player, craft, &design) {
+            } => match self.craft_item(player, craft, &design, rng) {
                 Ok(events) => events,
                 Err(e) => vec![Event::Rejected(Rejection::Craft(e))],
             },
@@ -729,7 +722,7 @@ impl World {
                 Ok(()) => Vec::new(),
                 Err(e) => vec![Event::Rejected(Rejection::Production(e))],
             },
-            Command::SetAutoBuild { city, plan } => match self.set_autobuild(city, plan) {
+            Command::SetAutoBuild { city, plan } => match self.set_autobuild(city, plan, rng) {
                 Ok(()) => Vec::new(),
                 Err(e) => vec![Event::Rejected(Rejection::Production(e))],
             },
@@ -744,7 +737,7 @@ impl World {
                 },
                 Err(e) => vec![Event::Rejected(Rejection::Production(e))],
             },
-            Command::RazeCity { player, city } => self.raze_city(player, city),
+            Command::RazeCity { player, city } => self.raze_city(player, city, rng),
             Command::RenameCity { city, name } => {
                 let name: String = name.trim().chars().take(city::NAME_LEN).collect();
                 if !name.is_empty() {
@@ -789,7 +782,7 @@ impl World {
             Command::SetGrandVizier { player, on } => {
                 self.set_grand_vizier(player, on);
                 if on {
-                    self.vizier_fills_idle_cities(player);
+                    self.vizier_fills_idle_cities(player, rng);
                 }
                 Vec::new()
             }
@@ -833,7 +826,7 @@ impl World {
                 player,
                 unit,
                 spell,
-            } => events_or_reject(self.turn_off_unit_spell(player, unit, spell)),
+            } => events_or_reject(self.turn_off_unit_spell(player, unit, spell, rng)),
             Command::Alchemy {
                 player,
                 amount,
@@ -852,11 +845,11 @@ impl World {
                 spell,
                 target,
                 extra,
-            } => events_or_reject(self.start_cast_with(player, spell, target, extra)),
+            } => events_or_reject(self.start_cast_with(player, spell, target, extra, rng)),
             Command::ResolveCast { player, target } => {
-                events_or_reject(self.finish_cast_with_target(player, target))
+                events_or_reject(self.finish_cast_with_target(player, target, rng))
             }
-            Command::Diplomacy(command) => self.diplomacy_command(command),
+            Command::Diplomacy(command) => self.diplomacy_command(command, rng),
         }
     }
 
@@ -892,7 +885,12 @@ impl World {
         vec![Event::CityFounded { city, pos }]
     }
 
-    fn do_move(&mut self, units: &[hecs::Entity], to: map::Position) -> Vec<Event> {
+    fn do_move(
+        &mut self,
+        units: &[hecs::Entity],
+        to: map::Position,
+        rng: &mut GameRng,
+    ) -> Vec<Event> {
         let from = units.first().and_then(|&u| self.units().unit_position(u));
         match (self.move_stack(units, to), from) {
             (Ok(unit::movement::Entry::Free), Some(from)) => {
@@ -901,7 +899,7 @@ impl World {
                     from,
                     to,
                 }];
-                events.extend(self.collect_site(units, to));
+                events.extend(self.collect_site(units, to, rng));
                 events
             }
             (Ok(unit::movement::Entry::Site(lair)), Some(from)) => vec![Event::SiteEncounter {
@@ -911,7 +909,7 @@ impl World {
                 lair,
             }],
             (Ok(unit::movement::Entry::Hostile(defenders)), Some(from)) => {
-                self.hostile_entry(units, from, to, defenders)
+                self.hostile_entry(units, from, to, defenders, rng)
             }
             (Err(e), _) => vec![Event::Rejected(Rejection::Move(e))],
             (Ok(_), None) => Vec::new(),
@@ -919,7 +917,11 @@ impl World {
     }
 
     /// Advance each listed unit along its standing order as far as its moves allow.
-    pub(crate) fn follow_orders(&mut self, units: &[hecs::Entity]) -> Vec<Event> {
+    pub(crate) fn follow_orders(
+        &mut self,
+        units: &[hecs::Entity],
+        rng: &mut GameRng,
+    ) -> Vec<Event> {
         let mut events = Vec::new();
         // Units sharing a tile and an order walk together.
         let mut groups: Vec<Vec<hecs::Entity>> = Vec::new();
@@ -948,7 +950,7 @@ impl World {
             let mut blocked = Vec::new();
             let mut moved = false;
             for group in waiting {
-                let (went, stuck) = self.follow_group(&group, false, &mut events);
+                let (went, stuck) = self.follow_group(&group, false, &mut events, rng);
                 moved |= went;
                 if stuck {
                     blocked.push(group);
@@ -956,7 +958,7 @@ impl World {
             }
             if blocked.is_empty() || !moved {
                 for group in blocked {
-                    self.follow_group(&group, true, &mut events);
+                    self.follow_group(&group, true, &mut events, rng);
                 }
                 break;
             }
@@ -974,6 +976,7 @@ impl World {
         group: &[hecs::Entity],
         last: bool,
         events: &mut Vec<Event>,
+        rng: &mut GameRng,
     ) -> (bool, bool) {
         let (mut went, mut stuck) = (false, false);
         // The lead unit of a group may have been lost to a battle that an earlier group's
@@ -997,7 +1000,7 @@ impl World {
                         from,
                         to: next,
                     });
-                    events.extend(self.collect_site(group, next));
+                    events.extend(self.collect_site(group, next, rng));
                 }
                 Ok(unit::movement::Entry::Site(lair)) => {
                     went = true;
@@ -1011,7 +1014,7 @@ impl World {
                 }
                 Ok(unit::movement::Entry::Hostile(defenders)) => {
                     went = true;
-                    events.extend(self.hostile_entry(group, from, next, defenders));
+                    events.extend(self.hostile_entry(group, from, next, defenders, rng));
                     path.clear();
                 }
                 Err(unit::movement::MoveError::NoMovesLeft) => break,
@@ -1065,6 +1068,7 @@ impl World {
         from: map::Position,
         to: map::Position,
         defenders: Vec<hecs::Entity>,
+        rng: &mut GameRng,
     ) -> Vec<Event> {
         if !defenders.is_empty() {
             return vec![Event::AttackRequested {
@@ -1083,7 +1087,7 @@ impl World {
                 for &u in units {
                     let _ = self.ecs.insert_one(u, unit::MovesLeft(HalfInt::ZERO));
                 }
-                return self.rampage_city(city, 0, units);
+                return self.rampage_city(city, 0, units, rng);
             }
         }
         for &u in units {
@@ -1098,18 +1102,8 @@ impl World {
             to,
         }];
         if let Some(city) = self.economy().city_at(to) {
-            events.extend(self.conquer_city(city, owner, 0));
+            events.extend(self.conquer_city(city, owner, 0, rng));
         }
         events
-    }
-
-    /// Uniform random integer in `1..=n`.
-    pub fn roll(&mut self, n: u32) -> u32 {
-        self.rng.roll(n)
-    }
-
-    /// Next value from the game's seeded RNG (all randomness must come from here).
-    pub fn next_u64(&mut self) -> u64 {
-        self.rng.next_u64()
     }
 }

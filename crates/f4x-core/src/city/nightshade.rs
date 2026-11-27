@@ -11,6 +11,7 @@ use crate::city::economy::Population;
 use crate::player::PlayerId;
 use crate::rules::BuildingId;
 use crate::rules::{SpellId, SpellTarget};
+use crate::world::rng::GameRng;
 use crate::world::World;
 
 impl World {
@@ -53,6 +54,7 @@ impl World {
         player: PlayerId,
         spell: SpellId,
         city: hecs::Entity,
+        rng: &mut GameRng,
     ) -> bool {
         let def = self.content.rules.spells.get(spell);
         if def.target != SpellTarget::EnemyCity || self.economy().city_owner(city) == Some(player) {
@@ -65,6 +67,6 @@ impl World {
         }
         // The caster's masteries make the spell harder to turn away, as for any dispel.
         let difficulty = self.dispel_difficulty(spell, Some(player));
-        self.roll(100) as u64 <= u64::from(strength) * 100 / u64::from(strength + difficulty)
+        rng.roll(100) as u64 <= u64::from(strength) * 100 / u64::from(strength + difficulty)
     }
 }

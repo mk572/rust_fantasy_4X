@@ -17,6 +17,7 @@ use crate::mapgen::{generate, GenParams, PlaneParams};
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::PlayerId;
 use f4x_core::rules::RealmId;
+use f4x_core::world::rng::GameRng;
 use f4x_core::world::setting::GameSettings;
 use f4x_def::content::Content;
 
@@ -119,7 +120,9 @@ pub fn gen_params(settings: &GameSettings) -> GenParams {
     }
 }
 
-pub fn new_game(content: &Content, spec: &NewGame) -> Result<World, NewGameError> {
+/// A new game's world and the generator that made it, which the game goes on drawing from
+/// (`f4x_master::Game::new`).
+pub fn new_game(content: &Content, spec: &NewGame) -> Result<(World, GameRng), NewGameError> {
     let problems = spec.settings.validate();
     if !problems.is_empty() {
         return Err(NewGameError::Settings(problems));
@@ -157,8 +160,8 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<World, NewGameError
     let wizards = settings.basic.opponents + 1;
     let params = gen_params(&settings);
     let map = generate(spec.seed, &params, content)?;
+    let mut rng = GameRng::new(spec.seed);
     let mut world = World::begin_world(
-        spec.seed,
         settings,
         content,
         spec.names.clone(),
@@ -248,6 +251,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<World, NewGameError
                         computers,
                         human_myrran,
                         &|i| plain[i].clone(),
+                        &mut rng,
                     )
                     .into()
                 })
@@ -265,7 +269,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<World, NewGameError
             match pick {
                 Some((id, mut b)) => {
                     taken.push(id);
-                    crate::computer_wizard::fit_books_and_refill(&mut world, &mut b);
+                    crate::computer_wizard::fit_books_and_refill(&mut world, &mut b, &mut rng);
                     b
                 }
                 None => plain_computer_build(&spec.names, spec.seed, k),
@@ -285,10 +289,11 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<World, NewGameError
             usize::from(wizards),
             settings.wizards.picks.ai,
             settings.rules.ban_life_and_death,
+            &mut rng,
         );
     }
     for (k, build) in builds.iter().enumerate() {
-        world.create_wizard(PlayerId(k as u8), build)?;
+        world.create_wizard(PlayerId(k as u8), build, &mut rng)?;
     }
     // Every wizard has a banner of their own.
     let mut used = BTreeSet::new();
@@ -320,7 +325,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<World, NewGameError
     world.set_human((!spec.all_ai).then_some(HUMAN));
     world.apply_wizard_settings();
     for k in 0..wizards {
-        crate::main_realm_spell::give_main_realm_spell(&mut world, PlayerId(k));
+        crate::main_realm_spell::give_main_realm_spell(&mut world, PlayerId(k), &mut rng);
     }
     for k in 0..wizards {
         let id = PlayerId(k);
@@ -386,19 +391,26 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<World, NewGameError
                 }
             })
             .collect();
-        original::fortress_sites(&mut world, &planes)
+        original::fortress_sites(&mut world, &planes, &mut rng)
     });
     for k in 0..wizards {
         let site = rolled.clone().flatten().map(|v| v[k as usize]);
-        start_player(&mut world, PlayerId(k), wizards, races[k as usize], site)?;
+        start_player(
+            &mut world,
+            PlayerId(k),
+            wizards,
+            races[k as usize],
+            site,
+            &mut rng,
+        )?;
         if settings.rules.extend_tiny_islands {
-            build_out_start_island(&mut world, PlayerId(k));
+            build_out_start_island(&mut world, PlayerId(k), &mut rng);
         }
         reveal_start(&mut world, PlayerId(k), settings.world.start_reveal_radius);
     }
     // Independent cities on both planes, once the wizards' fortresses are down.
     for plane in [Plane::Arcanus, Plane::Myrror] {
-        crate::neutral::generate_neutral_cities(&mut world, plane);
+        crate::neutral::generate_neutral_cities(&mut world, plane, &mut rng);
     }
     // The roads between them come after every city of the start is down.
     if settings.rules.roads_at_start {
@@ -406,10 +418,10 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<World, NewGameError
             world.lay_start_roads(plane);
         }
     }
-    crate::temperament::assign_temperaments(&mut world);
+    crate::temperament::assign_temperaments(&mut world, &mut rng);
     // The heroes' abilities are rolled last, so the map and the wizards' start stay as they were.
-    init_heroes(&mut world);
-    Ok(world)
+    init_heroes(&mut world, &mut rng);
+    Ok((world, rng))
 }
 
 /// The seed moved on by `k`, as an index to be taken modulo a count. A seed is any `u64`: the sum
@@ -422,9 +434,9 @@ fn seed_offset(seed: u64, k: usize) -> usize {
 /// wizard or a life and nature one, with a name from the lists.
 /// Make the game's heroes (`Init_Heroes`): one of each hero type, in the template order, which is
 /// the order the original draws their abilities in.
-fn init_heroes(world: &mut World) {
+fn init_heroes(world: &mut World, rng: &mut GameRng) {
     for kind in 0..world.content().rules.hero_templates.len() {
-        world.add_hero(kind);
+        world.add_hero(kind, rng);
     }
 }
 
@@ -539,11 +551,11 @@ fn reveal_start(world: &mut World, player: PlayerId, radius: HalfInt) {
 /// fortresses and of nodes, towers and lairs; those distances relax if nothing fits.
 /// A start town on a speck of land gets the island built out (`island::MIN_LAND`), so its wizard
 /// has ground to build on.
-fn build_out_start_island(world: &mut World, player: PlayerId) {
+fn build_out_start_island(world: &mut World, player: PlayerId, rng: &mut GameRng) {
     let Some(at) = world.wizard(player).and_then(|w| w.fortress()) else {
         return;
     };
-    crate::island::build_out(world, at);
+    crate::island::build_out(world, at, rng);
 }
 
 fn start_player(
@@ -552,6 +564,7 @@ fn start_player(
     count: u8,
     race: u16,
     site: Option<Position>,
+    rng: &mut GameRng,
 ) -> Result<(), NewGameError> {
     let rules = &world.content().rules;
     let race_def = rules
@@ -630,13 +643,16 @@ fn start_player(
             {
                 continue;
             }
-            let events = world.apply(Command::PlaceFortress {
-                player,
-                pos,
-                name: name.clone(),
-                race: race_id,
-                population: world.content().rules.config.wizard.capital_figures,
-            });
+            let events = world.apply(
+                Command::PlaceFortress {
+                    player,
+                    pos,
+                    name: name.clone(),
+                    race: race_id,
+                    population: world.content().rules.config.wizard.capital_figures,
+                },
+                rng,
+            );
             let Some(city) = events.iter().find_map(|e| match e {
                 f4x_core::world::Event::FortressPlaced { .. } => None,
                 f4x_core::world::Event::CityFounded { city, .. } => Some(*city),
@@ -644,19 +660,25 @@ fn start_player(
             }) else {
                 continue;
             };
-            world.apply(Command::SetFarmers {
-                city,
-                farmers: world.content().rules.config.wizard.capital_farmers,
-            });
+            world.apply(
+                Command::SetFarmers {
+                    city,
+                    farmers: world.content().rules.config.wizard.capital_farmers,
+                },
+                rng,
+            );
             for building in buildings {
                 world.scenario_set_building(city, building, true);
             }
             for &unit in &army {
-                world.apply(Command::CreateUnit {
-                    owner: player,
-                    pos,
-                    unit,
-                });
+                world.apply(
+                    Command::CreateUnit {
+                        owner: player,
+                        pos,
+                        unit,
+                    },
+                    rng,
+                );
             }
             return Ok(());
         }
@@ -687,7 +709,7 @@ mod tests {
                 .find(|(_, c, _)| c.owner == PlayerId(0))
                 .map(|(_, c, _)| c.name.clone())
         };
-        let bare = new_game(content, &spec(3, 2))?;
+        let bare = new_game(content, &spec(3, 2))?.0;
         let race_id = |w: &World| {
             w.wizard(PlayerId(0))
                 .and_then(|wizard| wizard.capital_race())
@@ -705,7 +727,7 @@ mod tests {
                 .insert(race.num, vec![format!("Town of {}", race.id)]);
         }
         named.names.heroes.insert(0, vec!["Brax".into()]);
-        let w = new_game(content, &named)?;
+        let w = new_game(content, &named)?.0;
         assert_eq!(capital_race(&w), Some(format!("Town of {id}")));
         assert_eq!(w.units().hero_type_name(0).as_deref(), Some("Brax"));
         assert_eq!(w.names().heroes[&0], ["Brax"]);
@@ -722,7 +744,7 @@ mod tests {
                 let mut sp = spec(seed, 5);
                 sp.settings.basic.difficulty = difficulty;
                 sp.settings.rules.limit_ai_races = limit;
-                let w = new_game(content, &sp)?;
+                let w = new_game(content, &sp)?.0;
                 for k in 0..5 {
                     let race = w
                         .wizard(PlayerId(k))
@@ -933,7 +955,7 @@ mod tests {
         for seed in 0..40 {
             let mut spec = spec(seed, 4);
             spec.settings.rules.extend_tiny_islands = true;
-            let w = new_game(shipped(), &spec)?;
+            let w = new_game(shipped(), &spec)?.0;
             let map = w.map().ok_or("no map")?;
             for k in 0..4 {
                 let at = w
@@ -959,7 +981,7 @@ mod tests {
         for seed in 0..30 {
             let mut spec = spec(seed, 3);
             spec.settings.rules.extend_tiny_islands = true;
-            let w = new_game(shipped(), &spec)?;
+            let w = new_game(shipped(), &spec)?.0;
             let map = w.map().ok_or("no map")?;
             let cities: Vec<Position> = w
                 .economy()
@@ -1007,7 +1029,7 @@ mod tests {
             for seed in 0..10 {
                 let mut spec = spec(seed, 4);
                 spec.settings.rules.extend_tiny_islands = on;
-                let w = new_game(content, &spec)?;
+                let w = new_game(content, &spec)?.0;
                 let map = w.map().ok_or("no map")?;
                 for plane in [Plane::Arcanus, Plane::Myrror] {
                     for y in 0..map.height() {
@@ -1032,7 +1054,7 @@ mod tests {
 
     #[test]
     fn every_wizard_starts_with_a_capital_an_army_and_a_small_view() -> TestResult {
-        let w = new_game(shipped(), &spec(2, 3))?;
+        let w = new_game(shipped(), &spec(2, 3))?.0;
         for k in 0..3 {
             let p = PlayerId(k);
             let fortress = w
@@ -1070,7 +1092,7 @@ mod tests {
         s.all_ai = false;
         s.books.insert(RealmId::new(0 /* nature */), 8);
         s.settings.ai.wizards.randomise = false;
-        let w = new_game(shipped(), &s)?;
+        let w = new_game(shipped(), &s)?.0;
         let plane = |k| {
             w.wizard(PlayerId(k))
                 .and_then(|wizard| wizard.fortress())
@@ -1084,11 +1106,12 @@ mod tests {
 
     #[test]
     fn the_same_seed_makes_the_same_world_and_another_seed_another() -> TestResult {
-        let text = |seed| -> Result<String, Box<dyn std::error::Error>> {
-            Ok(new_game(shipped(), &spec(seed, 3))?.snapshot().to_text()?)
+        let game = |seed| -> Result<(String, u64), Box<dyn std::error::Error>> {
+            let (world, rng) = new_game(shipped(), &spec(seed, 3))?;
+            Ok((world.snapshot().to_text()?, rng.draws()))
         };
-        assert_eq!(text(4)?, text(4)?);
-        assert_ne!(text(4)?, text(5)?);
+        assert_eq!(game(4)?, game(4)?);
+        assert_ne!(game(4)?.0, game(5)?.0);
         Ok(())
     }
 }

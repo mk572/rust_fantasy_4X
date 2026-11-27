@@ -5,6 +5,7 @@
 //! Tests: in spell/wizard/tests.rs.
 
 use crate::rules::damage_type::DamageType;
+use rand::RngCore as _;
 use rand::SeedableRng;
 
 use crate::map::{Plane, Position};
@@ -19,7 +20,7 @@ use crate::world::{Event, World};
 
 impl World {
     /// One turn of the world-scale enchantments every wizard keeps going.
-    pub(crate) fn process_world_enchantments(&mut self) -> Vec<Event> {
+    pub(crate) fn process_world_enchantments(&mut self, rng: &mut GameRng) -> Vec<Event> {
         let mut events = Vec::new();
         let players: Vec<PlayerId> = crate::player::ids(&self.ecs);
         for player in players {
@@ -27,19 +28,19 @@ impl World {
                 player,
                 crate::spell::global_enchantment::GlobalEffect::GreatWasting,
             ) {
-                events.extend(self.great_wasting(player));
+                events.extend(self.great_wasting(player, rng));
             }
             if self.has_global_effect(
                 player,
                 crate::spell::global_enchantment::GlobalEffect::Armageddon,
             ) {
-                events.extend(self.armageddon(player));
+                events.extend(self.armageddon(player, rng));
             }
             if self.has_global_effect(
                 player,
                 crate::spell::global_enchantment::GlobalEffect::MeteorStorm,
             ) {
-                events.extend(self.meteor_storm(player));
+                events.extend(self.meteor_storm(player, rng));
             }
         }
         events
@@ -71,24 +72,25 @@ impl World {
         spare_cities: bool,
         sea_percent: u32,
         fit: impl Fn(&World, Position) -> bool,
+        rng: &mut GameRng,
     ) -> Vec<Position> {
         let Some((w, h)) = self.map.as_ref().map(|m| (m.width(), m.height())) else {
             return Vec::new();
         };
         let wanted = self.content.rules.config.spell_effects.min_squares
-            + self.roll(self.content.rules.config.spell_effects.square_spread)
+            + rng.roll(self.content.rules.config.spell_effects.square_spread)
             - 1;
         let mut found: Vec<Position> = Vec::new();
         for _ in 0..wanted {
             for _ in 0..self.content.rules.config.spell_effects.scatter_tries {
                 let at = Position {
-                    plane: if self.roll(2) == 1 {
+                    plane: if rng.roll(2) == 1 {
                         Plane::Arcanus
                     } else {
                         Plane::Myrror
                     },
-                    x: self.roll(w) - 1,
-                    y: self.roll(h) - 1,
+                    x: rng.roll(w) - 1,
+                    y: rng.roll(h) - 1,
                 };
                 if !found.contains(&at)
                     && (!spare_cities || !self.near_city_of(player, at))
@@ -96,7 +98,7 @@ impl World {
                 {
                     let sea = self.economy().terrain_class_at(at)
                         == Some(crate::map::terrain::TerrainClass::Ocean);
-                    if sea && self.roll(100) > sea_percent {
+                    if sea && rng.roll(100) > sea_percent {
                         continue;
                     }
                     found.push(at);
@@ -109,8 +111,9 @@ impl World {
 
     /// Great Wasting: any land squares, the caster's own cities' too, are corrupted (the caster
     /// is proof against it, see `city/economy.rs`).
-    fn great_wasting(&mut self, player: PlayerId) -> Vec<Event> {
-        let squares = self.pick_squares(player, false, 100, |w, at| w.check_corrupt(at).is_ok());
+    fn great_wasting(&mut self, player: PlayerId, rng: &mut GameRng) -> Vec<Event> {
+        let squares =
+            self.pick_squares(player, false, 100, |w, at| w.check_corrupt(at).is_ok(), rng);
         squares
             .into_iter()
             .flat_map(|at| self.corrupt(at))
@@ -119,14 +122,15 @@ impl World {
 
     /// Armageddon: volcanoes rise on any square, the caster's cities included and the sea too
     /// (seldom), owned by the caster, who gains a point of power from each.
-    fn armageddon(&mut self, player: PlayerId) -> Vec<Event> {
+    fn armageddon(&mut self, player: PlayerId, rng: &mut GameRng) -> Vec<Event> {
         let squares = self.pick_squares(
             player,
             false,
             self.content.rules.config.spell_effects.sea_percent,
             |w, at| w.can_armageddon_volcano(at),
+            rng,
         );
-        let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(self.next_u64() ^ 0xA2E6);
+        let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(rng.next_u64() ^ 0xA2E6);
         squares
             .into_iter()
             .flat_map(|at| self.armageddon_volcano(player, at, &mut rng))
@@ -135,13 +139,13 @@ impl World {
 
     /// Meteor Storm: every unit outside a city is struck, the caster's too, and buildings of
     /// other wizards' cities may fall. The caster's cities are safe.
-    fn meteor_storm(&mut self, player: PlayerId) -> Vec<Event> {
+    fn meteor_storm(&mut self, player: PlayerId, rng: &mut GameRng) -> Vec<Event> {
         let Some(spell) = self.content.rules.spells.id_numbered(113)
         /* meteor_storm */
         else {
             return Vec::new();
         };
-        let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(self.next_u64() ^ 0x3E7E);
+        let mut local = rand_pcg::Pcg64Mcg::seed_from_u64(rng.next_u64() ^ 0x3E7E);
         let nature = AttackNature::magical(Realm::Chaos, &[DamageType::Fire]);
         let traits = DamageTraits::default();
         let mut units_lost = 0;
@@ -157,7 +161,7 @@ impl World {
                 self.content.rules.config.spell_effects.meteor_strength,
                 &traits,
                 nature,
-                &mut rng,
+                &mut local,
             ) {
                 units_lost += 1;
             }
@@ -169,7 +173,7 @@ impl World {
             }
             let built = self.buildings_of(city);
             for b in built {
-                if self.roll(100)
+                if rng.roll(100)
                     <= self
                         .content
                         .rules
@@ -283,6 +287,7 @@ impl World {
         &mut self,
         caster: PlayerId,
         spell: crate::rules::SpellId,
+        rng: &mut GameRng,
     ) -> Vec<Event> {
         let realm = self.content.rules.spells.get(spell).realm.num();
         if realm != 4 /* death */ && realm != 2
@@ -311,7 +316,6 @@ impl World {
             .filter(|(_, c, _)| c.owner == caster)
             .map(|(e, ..)| e)
             .collect();
-        let mut rng = std::mem::replace(&mut self.rng, GameRng::lent());
         let (mut units_lost, mut buildings_lost) = (0, 0);
         for city in cities {
             // The cities come from the economy: one that cannot be shaken is skipped.
@@ -323,13 +327,12 @@ impl World {
                     .config
                     .spell_effects
                     .wrath_building_percent,
-                &mut rng,
+                rng,
             ) {
                 units_lost += u;
                 buildings_lost += b;
             }
         }
-        self.rng = rng;
         vec![Event::WorldSpellStruck {
             spell: wrath,
             victim: Some(caster),

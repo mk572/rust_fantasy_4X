@@ -24,6 +24,7 @@ use f4x_battle::Side;
 use f4x_core::map::{Grid, Map, Plane, Position};
 use f4x_core::player::PlayerId;
 use f4x_core::rules::damage_type::{DamageType, DamageTypes};
+use f4x_core::world::rng::GameRng;
 use f4x_core::world::{Command, World};
 use f4x_def::content::Content;
 use f4x_def::rules::immunity::Immunities;
@@ -195,23 +196,27 @@ pub fn make_battle(
         }
         g
     };
-    let mut world = World::new(seed);
+    let mut rng = GameRng::new(seed);
+    let mut world = World::new();
     world.set_content(Arc::clone(content));
     world.set_map(Map::new(grid(), grid()));
     world.add_player(P0, "West");
     world.add_player(P1, "East");
     for (owner, x, name) in [(P0, 10, "Westport"), (P1, 28, "Eastport")] {
-        world.apply(Command::FoundCity {
-            owner,
-            pos: Position {
-                plane: Plane::Arcanus,
-                x,
-                y: 6,
+        world.apply(
+            Command::FoundCity {
+                owner,
+                pos: Position {
+                    plane: Plane::Arcanus,
+                    x,
+                    y: 6,
+                },
+                name: name.into(),
+                race: Some(race),
+                population: 8,
             },
-            name: name.into(),
-            race: Some(race),
-            population: 8,
-        });
+            &mut rng,
+        );
     }
     let mut spawn = |owner: PlayerId, x: u32, list: &[(u16, Pos)]| -> Result<Vec<_>, String> {
         list.iter()
@@ -235,10 +240,13 @@ pub fn make_battle(
     };
     let attackers = spawn(P0, 4, ours)?;
     let defenders = spawn(P1, 5, theirs)?;
-    world.apply(Command::BeginBattle {
-        attackers,
-        defenders,
-    });
+    world.apply(
+        Command::BeginBattle {
+            attackers,
+            defenders,
+        },
+        &mut rng,
+    );
     let mut b = world.battle().ok_or("no battle began")?.clone();
     b.map = BattleMap::open();
     let mut placed = vec![false; b.units.len()];

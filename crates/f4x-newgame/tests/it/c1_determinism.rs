@@ -3,12 +3,20 @@
 
 use crate::support::*;
 
-/// The whole game as text: a save. Equal text is an equal game.
+/// The whole new game as text: how many numbers the setup drew, then the world as a save writes
+/// it. Equal text is an equal game.
 fn text(case: WorldCase) -> String {
-    fresh_game(case)
-        .snapshot()
-        .to_text()
-        .expect("the game saves")
+    let game = fresh_game(case);
+    format!("draws {}\n{}", game.draws(), save(&game.world))
+}
+
+/// The world alone, which does not name the seed.
+fn world_text(case: WorldCase) -> String {
+    save(&fresh_game(case).world)
+}
+
+fn save(world: &f4x_core::world::World) -> String {
+    world.snapshot().to_text().expect("the game saves")
 }
 
 /// A cut of the worlds: the standard one, each variant, the corner sizes, both kinds of game.
@@ -56,9 +64,9 @@ fn the_same_call_makes_the_same_game_every_time() {
 fn other_seeds_make_other_worlds() {
     // Without this the test above could pass on a generator that ignores its seed.
     let std = standard();
-    let a = text(WorldCase { seed: 1, ..std });
+    let a = world_text(WorldCase { seed: 1, ..std });
     for seed in [2, 3, u64::MAX] {
-        assert_ne!(a, text(WorldCase { seed, ..std }), "seed {seed}");
+        assert_ne!(a, world_text(WorldCase { seed, ..std }), "seed {seed}");
     }
 }
 
@@ -103,7 +111,7 @@ fn names_do_not_move_the_map_or_the_sites() {
     let mut spec = std.spec();
     spec.names.rivals = vec![vec![("Ana".into(), Default::default())]; usize::from(most_wizards())];
     spec.names.cities.insert(0, vec!["A".into(), "B".into()]);
-    let named = f4x_newgame::setup::new_game(content(), &spec).expect("a game");
+    let (named, _) = f4x_newgame::setup::new_game(content(), &spec).expect("a game");
     let (pm, nm) = (plain.map().expect("a map"), named.map().expect("a map"));
     for plane in f4x_core::map::Plane::all() {
         assert_eq!(

@@ -228,7 +228,7 @@ This document defines the lifecycle and design constraints, not a demand to rewr
 
 ## 10. Splitting the game from the world (task 822)
 
-**Built so far:** `f4x_master::Game` owns the world; the master drives it, and the AI, the console, the client and the tools hold it. It reads like a world, and a command goes through `Game::apply`; setup and cheats use `Game::world_mut`. Undo and the replay log are the game's (`game/undo.rs`, `game/replay.rs`). So is the turn order (`game/step.rs`): the lifecycle commands and `EndTurn` are gone, the game makes the steps (`Game::start_round` and the others, `Game::play_round`) through `World::advance`, `turn_players` is master's, and the replay log holds commands and steps. A command in the log still has no sender (10.4). The round counter, the phase and the end of the game are the game's (`GameState`, `game/end.rs`); the plans are the controllers'; the save file has the parts of 10.8, without the seed, the draws, the seats and the reactions, and older saves are converted (`convert.rs`, game version 0.0.8). Every player has a turn of its own (10.11). The world operations that need the round take it as an argument (`start_round`, `start_player_turn`, `score`, `cheat_offer`), and everyone outside the world asks `Game::round`. Not yet built: the random numbers (10.10), and commands with a sender and reactions (10.4).
+**Built so far:** `f4x_master::Game` owns the world; the master drives it, and the AI, the console, the client and the tools hold it. It reads like a world, and a command goes through `Game::apply`; setup and cheats use `Game::world_mut`. Undo and the replay log are the game's (`game/undo.rs`, `game/replay.rs`). So is the turn order (`game/step.rs`): the lifecycle commands and `EndTurn` are gone, the game makes the steps (`Game::start_round` and the others, `Game::play_round`) through `World::advance`, `turn_players` is master's, and the replay log holds commands and steps. A command in the log still has no sender (10.4). The round counter, the phase and the end of the game are the game's (`GameState`, `game/end.rs`); the plans are the controllers'; the save file has the parts of 10.8, without the seats and the reactions, and older saves are converted (`convert.rs`, game version 0.0.8). Every player has a turn of its own (10.11). The world operations that need the round take it as an argument (`start_round`, `start_player_turn`, `score`, `cheat_offer`), and everyone outside the world asks `Game::round`. The random numbers are the game's too (10.10). Not yet built: commands with a sender and reactions (10.4).
 
 The **world** (`f4x-core`'s `World`, named `Game` until 26 November 2026) says what is in the world and what can be done in it. The **game** (`Game` in `f4x-master`) owns a `World` and advances time.
 
@@ -360,10 +360,13 @@ No command takes a round.
 - **Core tests that only need time to pass** call `Game::play_round`, with `f4x-master` as a dev-dependency of `f4x-core`, while the move is under way. Only the tests under `tests/` can use it, and `docs/design.md` section 2 records the exception. No test helper in core repeats the turn order.
 - **The dev-dependency is temporary** (27 November 2026). Once the move is done, a test that needs the core alone sits in core and a test that needs the game sits in master, and core no longer depends on master, for tests either (the "Sort the tests" step of task 822).
 
-### 10.10 Random numbers (decided 26 November 2026)
+### 10.10 Random numbers (decided 26 November 2026, built 27 November 2026)
 
 - The seed and the number of draws belong to the `Game` and are saved in its part of the file.
-- The `Game` passes `&mut GameRng` to each world operation that draws; the world keeps none. The places where the world takes its generator out and leaves a placeholder (`GameRng::lent`) go. The order of draws does not change. It is a step of its own: many signatures change.
+- The `Game` passes `&mut GameRng` to each world operation that draws, as its last argument; the world keeps none. Whoever changes the world by hand in a way that draws takes both from `Game::world_and_rng`. The order of draws is the same as when the world kept the generator: the saves of the same seeds were compared (10.8).
+- `f4x_newgame::setup::new_game` returns the world with the generator that made it, and the game goes on drawing from it.
+- A test of core has no game to hold the generator: `world::testutil::Table` is a world with one, and the fresh games it loads have theirs beside the save (`fresh_w*_s*.rng`).
+- A save written by a 0.0.8 build from before this step (seed and draws in the world) is not read: the converter takes older versions only.
 - The AI draws no random numbers from the game (its one draw, whether to raze a captured city, is gone: task 824, 26 November 2026).
 
 ### 10.11 Players and seats (26 November 2026, built 27 November 2026)

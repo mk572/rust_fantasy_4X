@@ -110,7 +110,7 @@ impl World {
     }
 
     /// Outposts grow a few tens of people at a time, by chance. One left with none is lost.
-    pub(crate) fn grow_outpost(&mut self, city: hecs::Entity) -> OutpostTurn {
+    pub(crate) fn grow_outpost(&mut self, city: hecs::Entity, rng: &mut GameRng) -> OutpostTurn {
         if self.ecs.get::<&Position>(city).is_err() {
             return OutpostTurn::Stays;
         }
@@ -121,13 +121,7 @@ impl World {
             .get::<&Population>(city)
             .map(|p| *p)
             .unwrap_or_default();
-        let pop = outpost_step(
-            &self.content.rules.config.outpost,
-            pop,
-            grow,
-            shrink,
-            &mut self.rng,
-        );
+        let pop = outpost_step(&self.content.rules.config.outpost, pop, grow, shrink, rng);
         self.put(city, pop);
         if pop.figures > 0 {
             OutpostTurn::BecameCity

@@ -32,7 +32,7 @@ fn game_with_counts(
     };
     spec.settings.basic.towers = towers;
     spec.settings.basic.neutral_cities = neutral_cities;
-    new_game(shipped(), &spec)
+    new_game(shipped(), &spec).map(|(world, _)| world)
 }
 
 fn towers_in(w: &World) -> usize {
@@ -118,7 +118,7 @@ fn a_myrran_wizard_that_fits_only_at_the_option_s_cost_needs_the_option_to_be_ma
             ..Default::default()
         };
         spec.settings.rules.two_pick_myrran = true;
-        f4x_core::wizard::retort_cost(&new_game(shipped(), &spec)?.content().rules, myrran)
+        f4x_core::wizard::retort_cost(&new_game(shipped(), &spec)?.0.content().rules, myrran)
     };
     let normal = f4x_core::wizard::retort_cost(&shipped().rules, myrran);
     assert!(optional < normal, "the option makes Myrran cheaper");
@@ -175,7 +175,7 @@ fn no_wizard_starts_with_more_books_in_a_realm_than_the_setting_allows() -> Test
                 spec.settings.wizards.max_books_total = *BOOKS_TOTAL_RANGE.end();
                 spec.settings.wizards.picks.ai = picks;
                 spec.settings.ai.wizards.randomise = randomise;
-                let w = new_game(shipped(), &spec)?;
+                let w = new_game(shipped(), &spec)?.0;
                 let wizards: Vec<_> = w
                     .player_ids()
                     .into_iter()
@@ -262,7 +262,7 @@ fn wizards_with_more_books_in_a_realm_than_the_default_allows_play_on() -> TestR
         spec.settings.wizards.max_books_per_realm = *BOOKS_PER_REALM_RANGE.end();
         spec.settings.wizards.max_books_total = *BOOKS_TOTAL_RANGE.end();
         spec.settings.wizards.picks.ai = most_picks();
-        let mut w = Game::new(new_game(shipped(), &spec)?);
+        let mut w = Game::from(new_game(shipped(), &spec)?);
         for p in w.player_ids() {
             if let Some(wizard) = w.wizard(p) {
                 most_seen = most_seen.max(wizard.books().values().copied().max().unwrap_or(0));

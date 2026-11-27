@@ -10,8 +10,8 @@
 //! Entities are saved in creation order with their creation numbers (`Serial`), not their
 //! `hecs` ids, so a loaded game orders everything exactly as the original did and continues
 //! identically: the same commands from a loaded game and from the game that was saved give
-//! the same snapshots. The random stream is resumed from the seed and the number of values
-//! drawn so far.
+//! the same snapshots. The random numbers are no part of the world: the game saves its
+//! generator beside the snapshot (`docs/turn-structure.md` 10.10).
 //!
 //! The files themselves (crash-safe write, checksum check on read) are in `file`. A saved game
 //! is a world together with the game's own state: `f4x-master` writes and reads it.
@@ -85,9 +85,6 @@ pub struct Snapshot {
     pub version: u32,
     /// The game version that wrote the save.
     pub game_version: String,
-    pub seed: u64,
-    /// Values drawn from the random generator so far.
-    pub draws: u64,
     pub next_serial: u64,
     /// The settings the game is played with.
     pub settings: crate::world::setting::GameSettings,
@@ -847,7 +844,6 @@ impl World {
             map: _,
             fog: _,
             next_serial: _,
-            rng: _,
             settings: _,
             battle: _,
             mastery: _,
@@ -1086,8 +1082,6 @@ impl World {
         Snapshot {
             version: SAVE_VERSION,
             game_version: GAME_VERSION.to_string(),
-            seed: self.rng.seed(),
-            draws: self.rng.draws(),
             next_serial: self.next_serial,
             settings: self.settings,
             content: self.content.fingerprint.clone(),
@@ -1343,7 +1337,7 @@ impl Snapshot {
                 supported: SAVE_VERSION,
             });
         }
-        let mut world = World::new(self.seed);
+        let mut world = World::new();
         world.set_content(content);
         world.settings = self.settings.normalised();
         world.apply_content_settings();
@@ -1353,8 +1347,6 @@ impl Snapshot {
         world.threat = self.threat;
         world.locations = self.locations;
         world.next_serial = self.next_serial;
-        // Resume the random stream where it stopped.
-        world.rng = crate::world::rng::GameRng::resume(self.seed, self.draws);
 
         world.map = self
             .map
@@ -1719,6 +1711,14 @@ impl Snapshot {
             if !in_map(&world, c.pos) {
                 return Err(LoadError::Inconsistent(format!(
                     "city {} is off the map",
+                    c.name
+                )));
+            }
+            if world.economy().terrain_class_at(c.pos)
+                == Some(crate::map::terrain::TerrainClass::Ocean)
+            {
+                return Err(LoadError::Inconsistent(format!(
+                    "city {} stands in the sea",
                     c.name
                 )));
             }

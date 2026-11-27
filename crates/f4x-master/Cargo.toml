@@ -6,7 +6,7 @@ license.workspace = true
 
 [features]
 # Lets a test set a world up and change it through the game (`DerefMut`); for tests only.
-testutil = []
+testutil = ["f4x-core/testutil"]
 
 [dependencies]
 f4x-battle.workspace = true

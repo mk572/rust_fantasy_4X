@@ -1,11 +1,12 @@
 //! Class 9, the player: the treasury (alchemy, taxes) and the offers a wizard is made.
 
-use crate::support::{content, text, worlds};
+use crate::support::{content, state, text, worlds};
 use f4x_core::map::Position;
 use f4x_core::player::offer::{Offer, OfferError};
 use f4x_core::player::PlayerId;
 use f4x_core::wizard::magic::{MagicError, Retort};
 use f4x_core::world::save::Snapshot;
+use f4x_core::world::testutil::Table;
 use f4x_core::world::{Command, Event, Rejection, World};
 use f4x_def::half_int::HalfInt;
 use f4x_master::Game;
@@ -134,7 +135,7 @@ fn a_higher_tax_brings_more_gold_until_the_rebels_stop_paying_and_the_rate_is_he
 }
 
 /// A game in which `p` has been made the offers.
-fn with_offers(w: &World, p: PlayerId, offers: Vec<Offer>) -> World {
+fn with_offers(w: &Table, p: PlayerId, offers: Vec<Offer>) -> Table {
     let mut s: Snapshot = Snapshot::from_text(&text(w)).expect("reads");
     let slot = s
         .players
@@ -142,7 +143,7 @@ fn with_offers(w: &World, p: PlayerId, offers: Vec<Offer>) -> World {
         .find(|x| x.id == p.0)
         .expect("the player");
     slot.offers = offers;
-    s.restore(content()).expect("restores")
+    Table::new(s.restore(content()).expect("restores"), w.rng.clone())
 }
 
 #[test]
@@ -169,7 +170,7 @@ fn mercenaries_offered_are_hired_for_their_price_or_turned_down_for_nothing() {
     let units_before = w.units().player_units(p).len();
     // With too little gold the offer stands, the game as it was.
     w.treasury_mut(p).expect("a treasury").gold = HalfInt::from_int(89);
-    let was = text(&w);
+    let was = state(&w);
     assert_eq!(
         refusal(&w.apply(Command::AcceptOffer {
             player: p,
@@ -179,7 +180,7 @@ fn mercenaries_offered_are_hired_for_their_price_or_turned_down_for_nothing() {
         })),
         Some(Rejection::Offer(OfferError::NoGold))
     );
-    assert_eq!(text(&w), was);
+    assert_eq!(state(&w), was);
     // With enough, two units of the kind join and the price is paid.
     w.treasury_mut(p).expect("a treasury").gold = HalfInt::from_int(100);
     let events = w.apply(Command::AcceptOffer {
@@ -256,7 +257,7 @@ fn an_offer_that_is_not_answered_lapses_at_the_turn_change() {
             price: 1,
         }],
     );
-    let mut w = Game::new(w);
+    let mut w = Game::from(w);
     w.play_round();
     // What is waiting now was rolled at this turn change, not kept from before.
     let kept = w
@@ -316,7 +317,7 @@ fn with_several_circles_a_hired_hero_and_mercenaries_come_to_the_circle_asked_fo
     ] {
         let mut w = with_offers(&w, p, vec![offer.clone()]);
         w.treasury_mut(p).expect("a treasury").gold = HalfInt::from_int(100_000);
-        let accept = |w: &mut World, at| {
+        let accept = |w: &mut Table, at| {
             w.apply(Command::AcceptOffer {
                 player: p,
                 index: 0,
@@ -324,7 +325,7 @@ fn with_several_circles_a_hired_hero_and_mercenaries_come_to_the_circle_asked_fo
                 at,
             })
         };
-        let was = text(&w);
+        let was = state(&w);
         // No circle named, or one that is none of the wizard's: refused, nothing changes.
         let elsewhere = Position {
             x: a.x.wrapping_add(1),
@@ -336,7 +337,7 @@ fn with_several_circles_a_hired_hero_and_mercenaries_come_to_the_circle_asked_fo
                 Some(Rejection::Offer(OfferError::Circle)),
                 "{offer:?} at {at:?}"
             );
-            assert_eq!(text(&w), was);
+            assert_eq!(state(&w), was);
         }
         // The second circle: whoever joins appears there, and not at the first.
         let (here_a, here_b) = (w.units().units_at(a).len(), w.units().units_at(b).len());

@@ -43,7 +43,7 @@ fn the_pinned_games_have_the_seeds_and_numbers_of_wizards_core_asks_for() {
     files.sort();
     let mut wanted: Vec<String> = fixtures::FIXTURES
         .iter()
-        .map(|&(w, s)| format!("fresh_w{w}_s{s}.save"))
+        .flat_map(|&(w, s)| ["rng", "save"].map(|kind| format!("fresh_w{w}_s{s}.{kind}")))
         .collect();
     wanted.sort();
     assert_eq!(files, wanted);

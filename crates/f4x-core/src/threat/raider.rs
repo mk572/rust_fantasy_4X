@@ -10,6 +10,7 @@ use crate::map::Position;
 use crate::player::{PlayerId, MONSTERS};
 use crate::rules::{Stat, UnitId, UnitKind};
 use crate::unit::{Experience, Unit, Unpaid};
+use crate::world::rng::GameRng;
 use crate::world::{Event, World};
 
 /// A neutral city that can raise a party: where it stands, who owns it and the kinds of troops
@@ -24,7 +25,7 @@ struct Source {
 
 impl World {
     /// Run the raider clock and, when it runs out, raise a party in a random neutral city.
-    pub(super) fn make_raiders(&mut self, round: u32) -> Vec<Event> {
+    pub(super) fn make_raiders(&mut self, round: u32, rng: &mut GameRng) -> Vec<Event> {
         let d = u32::from(self.difficulty());
         // A sea raid needs no city of its own, so with the setting on the clock always runs.
         if !self.settings.world.sea_raids
@@ -36,13 +37,13 @@ impl World {
         {
             return Vec::new();
         }
-        self.threat.raider_clock += self.roll(d + 1);
+        self.threat.raider_clock += rng.roll(d + 1);
         if self.threat.raider_clock < self.content.rules.config.threat.raider_limit {
             return Vec::new();
         }
         self.threat.raider_clock = 0;
-        if self.sea_raid_comes() {
-            if let Some(events) = self.make_sea_raid(round) {
+        if self.sea_raid_comes(rng) {
+            if let Some(events) = self.make_sea_raid(round, rng) {
                 return events;
             }
         }
@@ -51,7 +52,7 @@ impl World {
             self.threat.monster_clock += 15;
             return Vec::new();
         }
-        let source = &sources[self.roll(sources.len() as u32) as usize - 1];
+        let source = &sources[rng.roll(sources.len() as u32) as usize - 1];
         let (city, owner, pos) = (source.city, source.owner, source.pos);
         let mut count =
             source.troops.len() as u32 * u32::from(self.settings.world.raider_percent) / 100;
@@ -71,7 +72,7 @@ impl World {
         };
         let mut made = 0;
         for _ in 0..count {
-            let kind = troops[self.roll(troops.len() as u32) as usize - 1];
+            let kind = troops[rng.roll(troops.len() as u32) as usize - 1];
             let unit = self.spawn_unit(owner, pos, kind);
             self.put(unit, Unpaid);
             if let Some(xp) = self.level_xp(unit, xp_level) {

@@ -1,11 +1,12 @@
 //! Class 9, items: the armory (the vault and the award list), the item screen's moves, the slots of a hero,
 //! the price of carrying an item to a hero far away, the anvil and the sale.
 
-use crate::support::{around, worlds};
+use crate::support::{around, state, worlds};
 use f4x_core::item::armory::{ItemError, ItemSpot, Placed, Spot};
 use f4x_core::item::Item;
 use f4x_core::map::Position;
 use f4x_core::player::PlayerId;
+use f4x_core::world::testutil::Table;
 use f4x_core::world::{Command, Event, Rejection, World};
 use f4x_def::half_int::HalfInt;
 
@@ -39,7 +40,7 @@ fn item_error(events: &[Event]) -> Option<ItemError> {
     })
 }
 
-fn move_item(w: &mut World, p: PlayerId, from: ItemSpot, to: ItemSpot, pay: bool) -> Vec<Event> {
+fn move_item(w: &mut Table, p: PlayerId, from: ItemSpot, to: ItemSpot, pay: bool) -> Vec<Event> {
     w.apply(Command::MoveItem {
         player: p,
         from,
@@ -94,7 +95,7 @@ fn an_item_moves_between_the_vault_slots_and_a_refusal_changes_nothing() {
         let all = items(&w);
         w.give_item(p, all[0].clone());
         w.give_item(p, all[1].clone());
-        let before = crate::support::text(&w);
+        let before = state(&w);
         // From and to the same slot, nothing changes; from an empty slot, a slot that is not there, into the award list.
         assert_eq!(
             item_error(&move_item(
@@ -140,11 +141,7 @@ fn an_item_moves_between_the_vault_slots_and_a_refusal_changes_nothing() {
             Some(ItemError::NoSuchPlace),
             "{name}"
         );
-        assert_eq!(
-            crate::support::text(&w),
-            before,
-            "{name}: a refusal changed the game"
-        );
+        assert_eq!(state(&w), before, "{name}: a refusal changed the game");
         // Two items in two slots swap.
         let (a, b) = (
             w.items().armory(p).vault[0].clone(),
@@ -171,7 +168,7 @@ fn an_item_moves_between_the_vault_slots_and_a_refusal_changes_nothing() {
 }
 
 /// A free hero in the army of `p` at `pos`, and the kind's slots.
-fn hero_at(w: &mut World, p: PlayerId, pos: Position) -> Option<hecs::Entity> {
+fn hero_at(w: &mut Table, p: PlayerId, pos: Position) -> Option<hecs::Entity> {
     let kinds = w.content().rules.hero_templates.len();
     (0..kinds).find_map(|k| w.spawn_hero(p, pos, k).ok())
 }
@@ -236,7 +233,7 @@ fn a_heros_slot_takes_the_items_its_kind_fits_and_refuses_the_others() {
 }
 
 /// A hero of `p` on a square next to their fortress, with a sword-slot item in the vault to give it.
-fn far_hero(w: &mut World, p: PlayerId) -> Option<(hecs::Entity, usize)> {
+fn far_hero(w: &mut Table, p: PlayerId) -> Option<(hecs::Entity, usize)> {
     let fortress = w.wizard(p)?.fortress()?;
     let pos = around(w, fortress).into_iter().find(|&q| q != fortress)?;
     let hero = hero_at(w, p, pos)?;
@@ -414,7 +411,7 @@ fn open_powers<'a>(
 }
 
 /// A wizard that knows both spells, with books to spare is not made: `p` as the world gave them.
-fn maker(w: &mut World) -> PlayerId {
+fn maker(w: &mut Table) -> PlayerId {
     let p = w.wizards()[0];
     for c in [Craft::EnchantItem, Craft::CreateArtifact] {
         w.cheat_learn_spell(p, c.spell());
@@ -666,7 +663,7 @@ fn crafting_without_the_spell_is_refused_and_changes_nothing() {
             ItemKind::Sword,
             vec![rules.item_powers.iter().next().expect("a power").0],
         );
-        let before = crate::support::text(&w);
+        let before = state(&w);
         let events = w.apply(Command::CraftItem {
             player: p,
             craft: Craft::EnchantItem,
@@ -686,7 +683,7 @@ fn crafting_without_the_spell_is_refused_and_changes_nothing() {
             )),
             "{name}: {events:?}"
         );
-        assert_eq!(crate::support::text(&w), before, "{name}");
+        assert_eq!(state(&w), before, "{name}");
     }
 }
 
@@ -765,17 +762,13 @@ fn an_item_that_keeps_a_hero_afloat_cannot_be_taken_away_over_the_sea() {
             "{name}"
         );
         tried += 1;
-        let before = crate::support::text(&w);
+        let before = state(&w);
         assert_eq!(
             item_error(&move_item(&mut w, p, to, ItemSpot::Vault(at), true)),
             Some(ItemError::WouldDrown),
             "{name}: the hero would drown"
         );
-        assert_eq!(
-            crate::support::text(&w),
-            before,
-            "{name}: a refusal changed the game"
-        );
+        assert_eq!(state(&w), before, "{name}: a refusal changed the game");
     }
     assert!(
         tried > 0,

@@ -1,14 +1,15 @@
 //! Class 5: `apply` takes whatever a client, a script or an AI sends. Bad input is refused with a
 //! reason, never a panic, and a refusal changes nothing (class 1 holds for all of it).
 
-use crate::support::{commands, content, text, worlds};
+use crate::support::{commands, content, state, text, worlds};
 use f4x_core::map::{Plane, Position};
 use f4x_core::world::save::Snapshot;
-use f4x_core::world::{Command, Event, World};
+use f4x_core::world::testutil::Table;
+use f4x_core::world::{Command, Event};
 use f4x_master::Game;
 
 /// Apply `command`; a panic names the command.
-fn apply(w: &mut World, command: Command, what: &str) -> Vec<Event> {
+fn apply(w: &mut Table, command: Command, what: &str) -> Vec<Event> {
     let label = format!("{command:?}");
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| w.apply(command)))
         .unwrap_or_else(|_| panic!("{what}: {label} panicked"))
@@ -31,12 +32,12 @@ fn commands_naming_units_that_are_gone_are_refused() {
         let mut seen = 0;
         for command in list {
             let label = format!("{command:?}");
-            let before = text(&w);
+            let before = state(&w);
             let events = apply(&mut w, command, &name);
             if refused(&events) {
                 seen += 1;
                 assert_eq!(
-                    text(&w),
+                    state(&w),
                     before,
                     "{name}: {label} was refused, and changed the game"
                 );
@@ -167,12 +168,12 @@ fn numbers_at_the_ends_of_their_range_are_refused_or_handled() {
         ];
         for command in extremes {
             let label = format!("{command:?}");
-            let before = text(&w);
+            let before = state(&w);
             let events = apply(&mut w, command, &name);
             let label: String = label.chars().take(120).collect();
             if refused(&events) {
                 assert_eq!(
-                    text(&w),
+                    state(&w),
                     before,
                     "{name}: {label} was refused, and changed the game"
                 );
@@ -188,12 +189,12 @@ fn numbers_at_the_ends_of_their_range_are_refused_or_handled() {
 fn a_game_with_no_map_and_no_players_takes_every_command_without_a_panic() {
     let (_, full) = worlds().remove(0);
     let list = commands(&full);
-    let mut empty = World::new(1);
+    let mut empty = Table::empty(1);
     empty.set_content(content());
     for command in list {
         apply(&mut empty, command, "an empty game");
     }
-    let mut empty = Game::new(empty);
+    let mut empty = Game::from(empty);
     for _ in 0..3 {
         empty.play_round();
     }

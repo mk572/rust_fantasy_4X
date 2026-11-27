@@ -8,6 +8,7 @@
 use crate::player::PlayerId;
 use crate::rules::{CastContext, RealmId, SpellId};
 use crate::wizard::magic::{upkeep_plan, CastStart, MagicError, PowerShares, Retort};
+use crate::world::rng::GameRng;
 use crate::world::{Event, World};
 use f4x_def::half_int::HalfInt;
 
@@ -24,8 +25,9 @@ impl World {
         books: &[(RealmId, u8)],
         retorts: &[Retort],
         start_spells: Option<&[SpellId]>,
+        rng: &mut GameRng,
     ) -> Result<(), MagicError> {
-        let (content, rng) = (&self.content, &mut self.rng);
+        let content = &self.content;
         // No realm holds more books than the game's setting allows.
         let most = self.settings.wizards.max_books_per_realm;
         let books: Vec<(RealmId, u8)> = books.iter().map(|&(r, n)| (r, n.min(most))).collect();
@@ -37,7 +39,7 @@ impl World {
         let mut w = crate::wizard::sheet::WizardMut::new(&mut self.ecs, entity);
         w.found(&content.rules, &books, retorts);
         w.init_library(content, rng, start_spells);
-        self.refill_research(player);
+        self.refill_research(player, rng);
         Ok(())
     }
 
@@ -110,20 +112,20 @@ impl World {
 
     /// The spell becomes known to `player`, as if researched (a gift or an exchange between
     /// wizards, `diplomacy.rs`).
-    pub(crate) fn learn_spell(&mut self, player: PlayerId, spell: SpellId) {
+    pub(crate) fn learn_spell(&mut self, player: PlayerId, spell: SpellId, rng: &mut GameRng) {
         let Some(mut w) = self.wizard_mut(player) else {
             return;
         };
         w.learn(spell);
-        self.refill_research(player);
+        self.refill_research(player, rng);
     }
 
     /// Top the offer for research up (`refill_research`), at the income the wizard's
     /// research has now. Called each turn, when a wizard is made and when books are added.
-    pub fn refill_research(&mut self, player: PlayerId) {
+    pub fn refill_research(&mut self, player: PlayerId, rng: &mut GameRng) {
         let income = self.income(player).research;
         let mastery_open = self.mastery_open_to(player);
-        let (content, rng) = (&self.content, &mut self.rng);
+        let content = &self.content;
         if let Some(mut w) = self
             .player_index
             .get(&player)
@@ -138,7 +140,7 @@ impl World {
 
     /// The research that finished at the last turn end is learned and the next spell is chosen,
     /// at the start of the wizard's turn (`collect_power` added the points at the end).
-    pub(crate) fn process_research(&mut self, player: PlayerId) -> Vec<Event> {
+    pub(crate) fn process_research(&mut self, player: PlayerId, rng: &mut GameRng) -> Vec<Event> {
         let mut events = Vec::new();
         if let Some(spell) = self
             .wizard_mut(player)
@@ -146,7 +148,7 @@ impl World {
         {
             events.push(Event::SpellLearned { player, spell });
         }
-        self.refill_research(player);
+        self.refill_research(player, rng);
         events
     }
 
@@ -154,7 +156,7 @@ impl World {
     /// upkeep, casting. The research is learned at the next turn's start
     /// ([`World::process_research`]); the temporary effects, global spells and experience that used
     /// to start here are the round's (`turn.rs`).
-    pub(crate) fn process_magic(&mut self, player: PlayerId) -> Vec<Event> {
+    pub(crate) fn process_magic(&mut self, player: PlayerId, rng: &mut GameRng) -> Vec<Event> {
         let mut events = Vec::new();
         self.resume_return(player);
         // While Time Stop lasts, its wizard has no income and only the others' time is stopped
@@ -175,7 +177,7 @@ impl World {
                 // Heroes at the fortress add to the skill that pays for a spell over turns.
                 let heroes = self.hero_casting_skill(player);
                 self.pay_for_casting(player, heroes);
-                events.extend(self.finish_casting(player));
+                events.extend(self.finish_casting(player, rng));
             }
         }
         events
@@ -243,7 +245,7 @@ impl World {
 
     /// A spell that has been paid for takes effect: at once if it needs no target, else
     /// the wizard is asked for one.
-    fn finish_casting(&mut self, player: PlayerId) -> Vec<Event> {
+    fn finish_casting(&mut self, player: PlayerId, rng: &mut GameRng) -> Vec<Event> {
         let Some(spell) = self.wizard(player).and_then(|w| w.casting_paid()) else {
             return Vec::new();
         };
@@ -254,7 +256,7 @@ impl World {
                 Event::NoTargetForCast { player, spell }
             }];
         }
-        self.resolve_cast(player, spell, None)
+        self.resolve_cast(player, spell, None, rng)
     }
 
     /// The spell the wizard is casting if it needs a target and there is none to aim it at, and
@@ -316,8 +318,9 @@ impl World {
         player: PlayerId,
         spell: SpellId,
         target: Option<crate::rules::exec::Target>,
+        rng: &mut GameRng,
     ) -> Result<Vec<Event>, MagicError> {
-        self.start_cast_with(player, spell, target, 0)
+        self.start_cast_with(player, spell, target, 0, rng)
     }
 
     /// `start_cast` with `extra` mana put into a spell that takes it.
@@ -327,6 +330,7 @@ impl World {
         spell: SpellId,
         target: Option<crate::rules::exec::Target>,
         extra: i32,
+        rng: &mut GameRng,
     ) -> Result<Vec<Event>, MagicError> {
         if extra < 0 || (extra > 0 && !self.spell_takes_extra_mana(spell)) {
             return Err(MagicError::NotAvailable);
@@ -389,7 +393,7 @@ impl World {
                 }
                 self.begin_cast_relations(player, spell);
                 let mut events = self.mastery_announcement(player, spell);
-                events.extend(self.resolve_cast_with(player, spell, target, extra));
+                events.extend(self.resolve_cast_with(player, spell, target, extra, rng));
                 Ok(events)
             }
             CastStart::Paid => {
@@ -405,12 +409,13 @@ impl World {
         &mut self,
         player: PlayerId,
         target: crate::rules::exec::Target,
+        rng: &mut GameRng,
     ) -> Result<Vec<Event>, MagicError> {
         let spell = self
             .wizard(player)
             .and_then(|w| w.casting_paid())
             .ok_or(MagicError::NothingToResolve)?;
         self.check_target(player, spell, Some(target))?;
-        Ok(self.resolve_cast(player, spell, Some(target)))
+        Ok(self.resolve_cast(player, spell, Some(target), rng))
     }
 }

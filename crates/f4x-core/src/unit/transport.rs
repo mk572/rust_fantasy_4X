@@ -13,6 +13,7 @@ use crate::player::{PlayerId, MONSTERS};
 use crate::rules::unit_flag::UnitFlag;
 use crate::rules::{MovementType, Stat};
 use crate::unit::movement::MoveError;
+use crate::world::rng::GameRng;
 use crate::world::serial::Serial;
 use f4x_def::half_int::HalfInt;
 
@@ -520,7 +521,11 @@ impl World {
     /// when they flee: where free land lies beside them they scramble ashore, half of the troops
     /// and three in four of the heroes making it (`overland_aftermath`'s odds); anywhere else
     /// they drown. Fliers and swimmers never need a ship, so they never come here.
-    pub(crate) fn drown_stranded(&mut self, only: Option<crate::player::PlayerId>) -> Vec<Event> {
+    pub(crate) fn drown_stranded(
+        &mut self,
+        only: Option<crate::player::PlayerId>,
+        rng: &mut GameRng,
+    ) -> Vec<Event> {
         let mut events = Vec::new();
         // A ship on land that can no longer be there is destroyed, and the units it carried
         // stand on the square.
@@ -560,7 +565,7 @@ impl World {
                 .unit_def(unit)
                 .is_some_and(|d| d.kind == crate::rules::UnitKind::Hero);
             let percent = if hero { 75 } else { 50 };
-            if let Some(land) = landing.filter(|_| self.roll(100) <= percent) {
+            if let Some(land) = landing.filter(|_| rng.roll(100) <= percent) {
                 self.strip::<Aboard>(unit);
                 self.put(unit, land);
                 continue;

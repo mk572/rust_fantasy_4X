@@ -36,6 +36,11 @@ value in a test, a test performs an action and checks what the player sees.
 - **No `new_game`.** The crate that makes worlds sits above core. Core tests load the four saved fresh games
   `testutil::fresh(wizards, seed)` (`tests/saves/fresh_w{2,3}_s*.save`), which `f4x-newgame`'s `fixtures` test keeps
   equal to what it makes. They carry a content fingerprint: any change of a `.ron` file means a refresh.
+- **No game to hold the dice.** What draws takes `&mut GameRng`. `fresh` returns a `testutil::Table`: the
+  world with the generator where the setup left it (`fresh_w*_s*.rng`), reading and changing like a `World`
+  and with the drawing operations as methods; `Table::empty(seed)` is an empty one, and the macro
+  `drawing_ops!` gives `f4x-master`'s `Game` the same methods for tests. A test that says two games are the
+  same, or that nothing happened, compares the draws too (`support::state`).
 - **No AI.** The battle player of core's tests is `testutil::battle_policy`.
 - **Long plays are not core's tests.** A game played for many turns with `new_game` and the AI uses several
   crates, so it is an integration test of a crate that sees them all: `f4x-ai/tests/it` (which already depends on
@@ -236,7 +241,8 @@ sweeps a range does not run every value there: two sizes of the same test.
 
 ## Class 8 in use: the pinned digests
 
-`check::digest(&game)` cuts the saved text at the fields of the snapshot and hashes each (the versions left out).
+`check::digest(&world)` cuts the saved text at the fields of the snapshot and hashes each (the versions left out);
+the pins add the round, the end, the seed and the number of draws as they are.
 `tests/it/c8_drift.rs` plays short scripts on the four fresh saves (rounds of the scripted walk, bare turns, every
 command of the sweep then three turns), digests the game at the checkpoints and compares with
 `crates/f4x-core/tests/pins/core_drift.txt`. A failure names each checkpoint and the fields that moved. Regenerate

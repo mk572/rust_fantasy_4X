@@ -517,7 +517,8 @@ mod tests {
         let mut snapshot = app.game.snapshot();
         snapshot.settings.rules.combat_forecast = true;
         let restored = snapshot.restore(app.game.content().clone())?;
-        app.game = crate::revised::Revised::new(f4x_master::Game::new(restored));
+        let dice = f4x_core::world::rng::GameRng::resume(app.game.seed(), app.game.draws());
+        app.game = crate::revised::Revised::new(f4x_master::Game::new(restored, dice));
         // The units of the restored game are new entities.
         let pending = attack(&app, rival, false)?;
         let line = app

@@ -37,7 +37,7 @@ fn fresh(seed: u64) -> Result<Game, f4x_newgame::error::NewGameError> {
             ..Default::default()
         },
     )
-    .map(Game::new)
+    .map(Game::from)
 }
 
 /// A game a few turns old: the first ten turns of the AI's opening.
@@ -134,7 +134,7 @@ fn digest(w: &Game) -> Result<String, Box<dyn std::error::Error>> {
     let mut out = format!(
         "turn {}\ndraws {}\ncities {}\nunits {}\nspells {}\nitems {}\n",
         w.round(),
-        snap.draws,
+        w.draws(),
         snap.cities.len(),
         snap.units.len(),
         snap.spells.len(),

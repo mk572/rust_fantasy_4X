@@ -55,7 +55,10 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 seed,
                 ..NewGame::default()
             };
-            (Game::new(new_game(&content, &spec)?), Vec::new())
+            {
+                let (world, rng) = new_game(&content, &spec)?;
+                (Game::new(world, rng), Vec::new())
+            }
         }
     };
     // A new game has a person at the console, who may take orders back.

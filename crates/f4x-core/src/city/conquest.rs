@@ -177,6 +177,7 @@ impl World {
         city: hecs::Entity,
         winner: PlayerId,
         city_damage: u32,
+        rng: &mut GameRng,
     ) -> Vec<Event> {
         let Some(loser) = self.economy().city_owner(city) else {
             return Vec::new();
@@ -185,16 +186,16 @@ impl World {
             return Vec::new();
         }
         if winner == crate::player::MONSTERS {
-            return self.rampage_city(city, city_damage, &[]);
+            return self.rampage_city(city, city_damage, &[], rng);
         }
         let citizens = self.economy().citizens(city);
         if citizens == 0 {
             // An outpost is destroyed, not held.
-            let mut events = self.capture_city(city, winner);
+            let mut events = self.capture_city(city, winner, rng);
             if let Some(taker) = self.player_entity(winner) {
                 self.put(city, Conquered(taker));
             }
-            events.extend(self.remove_city(city));
+            events.extend(self.remove_city(city, rng));
             return events;
         }
         self.city_taken_relations(winner, loser);
@@ -220,7 +221,7 @@ impl World {
             .map(|b| b.0.clone())
             .unwrap_or_default();
         let mut lost = Vec::new();
-        let toll = fighting_toll(citizens, city_damage, &built, &mut self.rng, |b| {
+        let toll = fighting_toll(citizens, city_damage, &built, rng, |b| {
             // The fight spares a building that holds up another, and skips one that is gone.
             let gone =
                 destroy_building(&mut self.ecs, self.map.as_ref(), &self.content, city, b).is_ok();
@@ -241,7 +242,7 @@ impl World {
             fame_lost: if loser_is_wizard { fame_lost } else { 0 },
             fame_gained,
         }];
-        events.extend(self.capture_city(city, winner));
+        events.extend(self.capture_city(city, winner, rng));
         // The new owner starts afresh (the old owner's spells ended in `capture_city`).
         self.put(
             city,
@@ -275,7 +276,12 @@ impl World {
 
     /// The winner razes the city they have just taken: more fame lost, a tenth of the
     /// buildings' cost looted, and the city is gone.
-    pub fn raze_city(&mut self, player: PlayerId, city: hecs::Entity) -> Vec<Event> {
+    pub fn raze_city(
+        &mut self,
+        player: PlayerId,
+        city: hecs::Entity,
+        rng: &mut GameRng,
+    ) -> Vec<Event> {
         let Some(Conquered(by)) = self.ecs.get::<&Conquered>(city).ok().map(|c| *c) else {
             return vec![Event::Rejected(crate::world::Rejection::Raze(
                 RazeError::NotJustTaken,
@@ -300,7 +306,7 @@ impl World {
             t.gold += loot;
         }
         let mut events = Vec::new();
-        events.extend(self.remove_city(city));
+        events.extend(self.remove_city(city, rng));
         events.push(Event::CityRazed {
             player,
             gold: loot,

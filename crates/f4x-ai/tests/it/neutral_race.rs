@@ -23,7 +23,7 @@ impl Controller for Shared<'_> {
 }
 
 fn world(seed: u64) -> Game {
-    Game::new(
+    Game::from(
         new_game(
             f4x_def::testdir::shipped(),
             &NewGame {

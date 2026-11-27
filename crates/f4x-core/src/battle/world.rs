@@ -9,8 +9,10 @@ use crate::rules::unit_flag::{UnitFlag, UnitFlags};
 use crate::rules::Ability;
 use crate::rules::{MovementType, Stat, UnitId};
 use crate::unit::Hurt;
+use crate::world::rng::GameRng;
 use crate::world::{Event, World};
 use f4x_def::half_int::HalfInt;
+use rand::RngCore as _;
 
 use super::field::Field;
 use super::map::{city_deployment, deployment, layout, BattleMap, Pos};
@@ -414,7 +416,7 @@ impl World {
 
     /// Defenders that sat a lost battle out run as fleeing units do: half are lost and a quarter
     /// of the heroes, the rest are driven to a free neighbouring square (lost if there is none).
-    fn bench_flees(&mut self, benched: &[hecs::Entity], victor: PlayerId) {
+    fn bench_flees(&mut self, benched: &[hecs::Entity], victor: PlayerId, rng: &mut GameRng) {
         use crate::rules::UnitKind;
         let mut benched = benched.to_vec();
         self.units().sort_by_serial(&mut benched);
@@ -433,7 +435,7 @@ impl World {
                 .into_iter()
                 .find(|&next| self.free_landing(next, at, owner, &[unit]));
             match landing {
-                Some(next) if self.roll(100) > percent => {
+                Some(next) if rng.roll(100) > percent => {
                     self.strip::<crate::unit::Order>(unit);
                     self.put(unit, next);
                 }
@@ -447,6 +449,7 @@ impl World {
         &mut self,
         attackers: &[hecs::Entity],
         defenders: &[hecs::Entity],
+        rng: &mut GameRng,
     ) -> Result<Vec<Event>, BattleStartError> {
         if self.battle.is_some() {
             return Err(BattleStartError::InProgress);
@@ -593,7 +596,7 @@ impl World {
                 }
             }
         }
-        let seed = self.next_u64();
+        let seed = rng.next_u64();
         // The field is built from the square alone, so a fight on the same square is fought on the
         // same ground.
         let mut map = self.battle_field(site, city, walled, &decks.cells());
@@ -810,9 +813,13 @@ impl World {
     }
 
     /// Carry out a battle command; when it ends the battle, apply the results.
-    pub fn battle_command(&mut self, command: BattleCommand) -> Result<Vec<Event>, BattleError> {
+    pub fn battle_command(
+        &mut self,
+        command: BattleCommand,
+        rng: &mut GameRng,
+    ) -> Result<Vec<Event>, BattleError> {
         if let BattleCommand::Cast { spell, aim, mana } = command {
-            return self.battle_cast(spell, aim, mana);
+            return self.battle_cast(spell, aim, mana, rng);
         }
         if let BattleCommand::SummonDemon { unit } = command {
             return self.battle_summon_demon(unit);
@@ -824,27 +831,27 @@ impl World {
             mana,
         } = command
         {
-            return self.battle_unit_cast(unit, spell, aim, mana);
+            return self.battle_unit_cast(unit, spell, aim, mana, rng);
         }
         let active = self.battle.as_mut().ok_or(BattleError::Over)?;
         let events = active.battle.apply(command)?;
         // Mana Leak and the like change the wizards' reserves.
         self.sync_battle_mana();
         let mut out: Vec<Event> = events.iter().cloned().map(Event::Battle).collect();
-        self.finish_if_over(&mut out);
+        self.finish_if_over(&mut out, rng);
         Ok(out)
     }
 
     /// A battle whose winner is settled is written back, whatever settled it. (A cast, an end of
     /// turn effect or the start of the battle can settle it without the command's own events
     /// saying so, and a battle left open this way blocks every later fight.)
-    pub(crate) fn finish_if_over(&mut self, out: &mut Vec<Event>) {
+    pub(crate) fn finish_if_over(&mut self, out: &mut Vec<Event>, rng: &mut GameRng) {
         if self
             .battle
             .as_ref()
             .is_some_and(|a| a.battle.winner.is_some())
         {
-            out.extend(self.finish_battle());
+            out.extend(self.finish_battle(rng));
         }
     }
 
@@ -888,7 +895,7 @@ impl World {
     }
 
     /// Write a finished battle back: wounds, deaths, and who won.
-    pub(crate) fn finish_battle(&mut self) -> Vec<Event> {
+    pub(crate) fn finish_battle(&mut self, rng: &mut GameRng) -> Vec<Event> {
         let Some(active) = self.battle.take() else {
             return Vec::new();
         };
@@ -902,7 +909,7 @@ impl World {
         // The defenders that did not fight flee if the defence lost (before the square is
         // taken, so that nobody is left on it).
         if battle.winner == Some(Side::Attacker) {
-            self.bench_flees(&benched, battle.player_of(Side::Attacker));
+            self.bench_flees(&benched, battle.player_of(Side::Attacker), rng);
         }
         // The units that sat the fight out go down with a side that lost it.
         let mut fallen: std::collections::BTreeMap<crate::player::PlayerId, u32> =
@@ -1000,7 +1007,7 @@ impl World {
         // A unit that stood on hit points a spell of the battle gave is dead now.
         events.extend(self.remove_units_without_hit_points());
         // Passengers of a ship that went down in the fight scramble ashore or drown.
-        events.extend(self.drown_stranded(None));
+        events.extend(self.drown_stranded(None, rng));
         if let Some(side) = battle.winner {
             events.push(Event::BattleEnded {
                 winner: battle.player_of(side),
@@ -1024,7 +1031,7 @@ impl World {
                     }
                 }
             }
-            events.extend(self.overland_aftermath(&battle, &sources));
+            events.extend(self.overland_aftermath(&battle, &sources, rng));
             events.extend(self.raise_drained(&battle, drained, &zombified, &sources));
         } else {
             // They stand on the site when the winner's survivors move in.
@@ -1047,7 +1054,7 @@ impl World {
                 .filter(|u| u.side == Side::Defender)
                 .filter_map(|u| u.source.and_then(|i| sources.get(i).copied()))
                 .collect();
-            events.extend(self.finish_site_battle(index, winner, &attackers, &guards));
+            events.extend(self.finish_site_battle(index, winner, &attackers, &guards, rng));
         }
         events
     }
@@ -1134,7 +1141,12 @@ impl World {
 
     /// What a battle on the overland map leaves behind: units that fled lose some of their
     /// number, and an attacker who won and cleared the square moves in and takes a city.
-    fn overland_aftermath(&mut self, battle: &Battle, sources: &[hecs::Entity]) -> Vec<Event> {
+    fn overland_aftermath(
+        &mut self,
+        battle: &Battle,
+        sources: &[hecs::Entity],
+        rng: &mut GameRng,
+    ) -> Vec<Event> {
         use crate::rules::UnitKind;
         let mut events = Vec::new();
         let source_of = |u: &BattleUnit| u.source.and_then(|i| sources.get(i).copied());
@@ -1178,7 +1190,7 @@ impl World {
                     Some(UnitKind::Hero) => 25,
                     _ => 50,
                 };
-                if held || (!safe && self.roll(100) <= percent) {
+                if held || (!safe && rng.roll(100) <= percent) {
                     let heir = battle.winner.map(|w| battle.player_of(w));
                     self.remove_unit_to(unit, crate::hero::Fate::Slain, heir);
                     lost += 1;
@@ -1222,7 +1234,7 @@ impl World {
                     .city_owner(city)
                     .is_some_and(|o| o != attacker)
                 {
-                    events.extend(self.rampage_city(city, battle.city_damage, &movers));
+                    events.extend(self.rampage_city(city, battle.city_damage, &movers, rng));
                     return events;
                 }
             }
@@ -1247,7 +1259,7 @@ impl World {
                 .city_owner(city)
                 .is_some_and(|o| o != attacker)
             {
-                events.extend(self.conquer_city(city, attacker, battle.city_damage));
+                events.extend(self.conquer_city(city, attacker, battle.city_damage, rng));
             }
         }
         events
@@ -1258,8 +1270,9 @@ impl World {
         &mut self,
         attackers: &[hecs::Entity],
         defenders: &[hecs::Entity],
+        rng: &mut GameRng,
     ) -> Vec<Event> {
-        self.auto_resolve_with(attackers, defenders, None)
+        self.auto_resolve_with(attackers, defenders, None, rng)
     }
 
     /// [`World::auto_resolve`] with a limit on the mana one wizard may spend from the reserve
@@ -1269,6 +1282,7 @@ impl World {
         attackers: &[hecs::Entity],
         defenders: &[hecs::Entity],
         mana_budget: Option<(PlayerId, u32)>,
+        rng: &mut GameRng,
     ) -> Vec<Event> {
         let near = |world: &World| -> Option<bool> {
             let a = world.units().unit_position(*attackers.first()?)?;
@@ -1289,7 +1303,7 @@ impl World {
                 BattleStartError::NotAdjacent,
             ))];
         }
-        let mut events = match self.start_battle(attackers, defenders) {
+        let mut events = match self.start_battle(attackers, defenders, rng) {
             Ok(e) => e,
             Err(e) => return vec![Event::Rejected(crate::world::Rejection::BattleStart(e))],
         };
@@ -1303,19 +1317,19 @@ impl World {
             let Some(command) = self.next_battle_command() else {
                 break;
             };
-            match self.battle_command(command) {
+            match self.battle_command(command, rng) {
                 Ok(e) => events.extend(e),
                 Err(_) => break,
             }
         }
         // A battle that somehow stalls ends with the active side fleeing.
         while self.battle.is_some() {
-            match self.battle_command(BattleCommand::Flee) {
+            match self.battle_command(BattleCommand::Flee, rng) {
                 Ok(e) => events.extend(e),
                 Err(_) => break,
             }
         }
-        self.finish_if_over(&mut events);
+        self.finish_if_over(&mut events, rng);
         events
     }
 }

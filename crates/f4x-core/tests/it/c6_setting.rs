@@ -103,7 +103,7 @@ fn the_most_units_on_a_square_follows_its_setting() {
         .expect("a city")
         .2;
     // A unit that walks, and a neighbouring square it can walk to: found by trying.
-    let walker = |w: &mut f4x_core::world::World, unit: UnitId, to| {
+    let walker = |w: &mut f4x_core::world::testutil::Table, unit: UnitId, to| {
         w.apply(Command::CreateUnit {
             owner: wizard,
             pos: from,

@@ -162,7 +162,7 @@ impl World {
     /// one of them. A summoning that finds nobody (the roster changed while the cost was paid
     /// over turns) is lost.
     ///
-    /// The cast has lent the game's generator to the effect host, so the pick draws from `rng`.
+    /// The pick draws from `rng`, the generator the cast and its effect host draw from.
     pub(crate) fn hero_hook(
         &mut self,
         spell: SpellId,

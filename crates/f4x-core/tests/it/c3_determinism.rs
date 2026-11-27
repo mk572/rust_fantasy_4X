@@ -2,25 +2,26 @@
 //! and wherever they are run. Two games made from one text hold their `HashMap`s with different
 //! random hashers, so a result that depends on the order of a hash-ordered walk differs between them.
 
-use crate::support::{busy_round, content, shape, text, worlds};
+use crate::support::{busy_round, content, shape, state, text, worlds};
 use f4x_core::world::save::Snapshot;
-use f4x_core::world::World;
+use f4x_core::world::testutil::Table;
 use f4x_master::Game;
 
-fn copy(w: &World) -> World {
-    Snapshot::from_text(&text(w))
+fn copy(w: &Table) -> Table {
+    let world = Snapshot::from_text(&text(w))
         .expect("reads")
         .restore(content())
-        .expect("restores")
+        .expect("restores");
+    Table::new(world, w.rng.clone())
 }
 
-/// The events of each round and the text of the game after it.
-fn play(w: World, rounds: usize) -> Vec<(String, String)> {
-    let mut w = Game::new(w);
+/// The events of each round and the state of the game after it.
+fn play(w: Table, rounds: usize) -> Vec<(String, String)> {
+    let mut w = Game::from(w);
     (0..rounds)
         .map(|_| {
             let events = shape(&busy_round(&mut w, 6));
-            (events, text(&w))
+            (events, state(&w))
         })
         .collect()
 }
@@ -42,17 +43,17 @@ fn a_game_played_in_turns_with_another_plays_as_it_does_alone() {
     let (name_a, a) = worlds.remove(0);
     let (name_b, b) = worlds.remove(0);
     let (alone_a, alone_b) = (play(copy(&a), 15), play(copy(&b), 15));
-    let (mut a, mut b) = (Game::new(copy(&a)), Game::new(copy(&b)));
+    let (mut a, mut b) = (Game::from(copy(&a)), Game::from(copy(&b)));
     for round in 0..15 {
         let ea = shape(&busy_round(&mut a, 6));
         let eb = shape(&busy_round(&mut b, 6));
         assert_eq!(
-            (&ea, text(&a)),
+            (&ea, state(&a)),
             (&alone_a[round].0, alone_a[round].1.clone()),
             "{name_a}, round {round}"
         );
         assert_eq!(
-            (&eb, text(&b)),
+            (&eb, state(&b)),
             (&alone_b[round].0, alone_b[round].1.clone()),
             "{name_b}, round {round}"
         );
@@ -64,12 +65,13 @@ fn a_game_plays_the_same_on_another_thread() {
     for (name, w) in worlds() {
         let here = play(copy(&w), 15);
         let start = text(&w);
+        let dice = w.rng.clone();
         let there = std::thread::spawn(move || {
-            let w = Snapshot::from_text(&start)
+            let world = Snapshot::from_text(&start)
                 .expect("reads")
                 .restore(content())
                 .expect("restores");
-            play(w, 15)
+            play(Table::new(world, dice), 15)
         })
         .join()
         .expect("the thread played");

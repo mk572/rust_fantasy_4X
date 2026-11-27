@@ -442,7 +442,7 @@ fn a_wizard_without_gold_is_found() {
 
 /// Ten turns of the computer's play on a game, with every refusal listed.
 fn played_refusals(case: WorldCase, turns: usize) -> Vec<String> {
-    let mut w = Game::new(fresh_game(case));
+    let mut w = Game::from(fresh_game(case));
     let mut refused = Vec::new();
     for _ in 0..turns {
         for e in w.play_round() {

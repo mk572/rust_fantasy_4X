@@ -10,6 +10,7 @@ use crate::map::Position;
 use crate::player::PlayerId;
 use crate::rules::Ability;
 use crate::spell::target_error::TargetError;
+use crate::world::rng::GameRng;
 use crate::world::{Event, World};
 
 /// Turns a purifying unit works on one square.
@@ -177,7 +178,11 @@ impl World {
     /// Gaia's Blessing: each turn a city's deserts may turn to grassland, its volcanoes to
     /// hills (a tenth each) and its corrupted squares come clean (a fifth). Consecration cleans
     /// every corrupted square of its city's area each turn.
-    pub(crate) fn process_gaias_blessing(&mut self, player: crate::player::PlayerId) -> Vec<Event> {
+    pub(crate) fn process_gaias_blessing(
+        &mut self,
+        player: crate::player::PlayerId,
+        rng: &mut GameRng,
+    ) -> Vec<Event> {
         let mut events = Vec::new();
         let mut cities: Vec<_> = self
             .economy()
@@ -206,7 +211,7 @@ impl World {
                 .map(|(p, _)| p)
                 .collect();
             for p in area {
-                if self.is_corrupted(p) && (consecrated || self.roll(5) == 1) {
+                if self.is_corrupted(p) && (consecrated || rng.roll(5) == 1) {
                     events.extend(self.purify_square(p));
                 }
                 if !blessed {
@@ -214,10 +219,10 @@ impl World {
                 }
                 let has_volcano = self.economy().volcano_at(p).is_some();
                 match self.economy().terrain_class_at(p) {
-                    Some(TerrainClass::Desert) if self.roll(10) == 1 => {
+                    Some(TerrainClass::Desert) if rng.roll(10) == 1 => {
                         events.extend(self.set_class(p, TerrainClass::Grassland));
                     }
-                    Some(TerrainClass::Mountains) if has_volcano && self.roll(10) == 1 => {
+                    Some(TerrainClass::Mountains) if has_volcano && rng.roll(10) == 1 => {
                         self.remove_volcano(p);
                         events.extend(self.set_class(p, TerrainClass::Hills));
                     }

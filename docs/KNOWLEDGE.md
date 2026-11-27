@@ -13,7 +13,7 @@ Non-obvious findings, one rule up front in bold. General lessons (shell, tools) 
 - **A crate above core cannot be used by core's unit tests** (task 458). `f4x-newgame` builds a `World`,
   so it sits above `f4x-core`; a unit test in core that depended on it would see two copies of every
   type. Core tests that need a whole new game load a saved one (`world::testutil::fresh`,
-  `crates/f4x-core/tests/saves/fresh_w*_s*.save`); the test `fixtures` in `f4x-newgame` fails when a file
+  `crates/f4x-core/tests/saves/fresh_w*_s*.save` and `.rng`); the test `fixtures` in `f4x-newgame` fails when a file
   no longer equals what `new_game` makes. After an intended change to the setup or the generator,
   refresh the files (the command is in the failure message) and look at the core tests that depend on a
   seed's map. To check that a move of setup code changed nothing, rebuild the regression saves
@@ -38,9 +38,9 @@ Non-obvious findings, one rule up front in bold. General lessons (shell, tools) 
   defeated neutral player).
 - **A handle borrows the `World`.** A `Player<'_>` or `Wizard<'_>` held across a `&mut self` call does
   not compile; read what the screen needs into locals first.
-- **Lending state to a domain.** `World::with_diplomacy` takes the state and the RNG out of the game,
-  runs the rules over `&World`, puts both back and applies the outcomes: the domain never sees
-  `&mut World`, and the RNG draw order stays what saves replay.
+- **Lending state to a domain.** `World::with_diplomacy` takes the state out of the world,
+  runs the rules over `&World`, puts it back and applies the outcomes: the domain never sees
+  `&mut World`. Rules that draw get the game's generator as an argument.
 - **Saved numbers keep their meaning unless a conversion says otherwise.** `HalfInt` is written as the
   amount (`1.5`). A field that older saves held as a raw half count uses
   `#[serde(with = "f4x_def::half_int::raw")]`, so no `save::UPGRADES` entry is needed; use `UPGRADES`

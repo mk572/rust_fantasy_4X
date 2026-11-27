@@ -1746,7 +1746,7 @@ mod tests {
     /// founded or was taken, and none that was lost is still there.
     #[test]
     fn founded_cities_account_for_the_cities_a_wizard_ends_with() -> TestResult {
-        let mut world = f4x_master::Game::new(new_game(
+        let mut world = f4x_master::Game::from(new_game(
             shipped(),
             &NewGame {
                 seed: 4,
@@ -1795,7 +1795,7 @@ mod tests {
     fn a_settler_that_leaves_the_map_is_counted_by_what_took_it() -> TestResult {
         use f4x_core::world::event::LossCause;
         let content = shipped();
-        let mut world = f4x_master::Game::new(new_game(
+        let mut world = f4x_master::Game::from(new_game(
             content,
             &NewGame {
                 seed: 4,
@@ -1872,7 +1872,7 @@ mod tests {
     #[test]
     fn a_city_with_no_unit_but_workers_is_counted_as_undefended() -> TestResult {
         let content = shipped();
-        let mut world = f4x_master::Game::new(new_game(
+        let mut world = f4x_master::Game::from(new_game(
             content,
             &NewGame {
                 seed: 4,
@@ -1966,7 +1966,7 @@ mod tests {
     /// taker, former owner and plane; one taken on the home plane is not.
     #[test]
     fn a_city_taken_on_the_other_plane_is_a_far_capture() -> TestResult {
-        let world = f4x_master::Game::new(new_game(
+        let world = f4x_master::Game::from(new_game(
             shipped(),
             &NewGame {
                 seed: 4,
@@ -2005,7 +2005,7 @@ mod tests {
     /// The AI's role audit is counted per wizard, summed over turns.
     #[test]
     fn the_role_audit_is_counted() -> TestResult {
-        let world = f4x_master::Game::new(new_game(
+        let world = f4x_master::Game::from(new_game(
             shipped(),
             &NewGame {
                 seed: 4,
@@ -2042,7 +2042,7 @@ mod tests {
     /// off for time, marches dropped for another target.
     #[test]
     fn marches_launched_and_called_off_are_counted() -> TestResult {
-        let world = f4x_master::Game::new(new_game(
+        let world = f4x_master::Game::from(new_game(
             shipped(),
             &NewGame {
                 seed: 4,
@@ -2100,7 +2100,7 @@ mod tests {
 
     #[test]
     fn contacts_count_for_both_wizards_and_only_the_one_who_acts_starts_diplomacy() -> TestResult {
-        let world = f4x_master::Game::new(new_game(
+        let world = f4x_master::Game::from(new_game(
             shipped(),
             &NewGame {
                 seed: 1,
@@ -2136,7 +2136,7 @@ mod tests {
     #[test]
     fn each_kind_of_diplomatic_action_has_its_own_count_and_all_add_up_to_the_total() -> TestResult
     {
-        let world = f4x_master::Game::new(new_game(
+        let world = f4x_master::Game::from(new_game(
             shipped(),
             &NewGame {
                 seed: 1,
@@ -2269,7 +2269,7 @@ mod tests {
     fn failed_casts_are_counted_by_spell_and_reason() -> TestResult {
         let rules = &shipped().rules;
         let (id, def) = rules.spells.iter().next().ok_or("no spells")?;
-        let world = f4x_master::Game::new(new_game(
+        let world = f4x_master::Game::from(new_game(
             shipped(),
             &NewGame {
                 seed: 4,
@@ -2312,7 +2312,7 @@ mod tests {
                 .map(|(i, _)| i)
                 .ok_or(format!("no spell {id}"))
         };
-        let world = f4x_master::Game::new(new_game(
+        let world = f4x_master::Game::from(new_game(
             shipped(),
             &NewGame {
                 seed: 4,

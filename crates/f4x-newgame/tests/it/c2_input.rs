@@ -48,7 +48,8 @@ fn every_seed_makes_a_game_for_every_kind_of_game() {
             };
             let problems = bounded(60, move || {
                 let w = new_game(content(), &case.spec())
-                    .unwrap_or_else(|e| panic!("seed {seed}: {e}"));
+                    .unwrap_or_else(|e| panic!("seed {seed}: {e}"))
+                    .0;
                 start_problems(&w, case)
             });
             assert!(problems.is_empty(), "{case:?}: {problems:?}");
@@ -86,7 +87,7 @@ fn every_setting_at_either_end_makes_a_game_that_keeps_the_rules() {
                         settings,
                         ..Default::default()
                     };
-                    let w = new_game(content(), &spec)?;
+                    let w = new_game(content(), &spec)?.0;
                     let case = WorldCase {
                         wizards,
                         seed,
@@ -181,7 +182,7 @@ fn every_ready_made_wizard_starts_a_game_for_a_human() {
         };
         let num = def.num;
         let problems = bounded(60, move || {
-            let w = new_game(content(), &spec).unwrap_or_else(|e| panic!("wizard {num}: {e}"));
+            let (w, _) = new_game(content(), &spec).unwrap_or_else(|e| panic!("wizard {num}: {e}"));
             start_problems(
                 &w,
                 WorldCase {
@@ -221,7 +222,7 @@ fn every_race_of_the_planes_can_be_chosen_by_a_human() {
         };
         let num = def.num;
         let problems = bounded(60, move || {
-            let w = new_game(content(), &spec).unwrap_or_else(|e| panic!("race {num}: {e}"));
+            let (w, _) = new_game(content(), &spec).unwrap_or_else(|e| panic!("race {num}: {e}"));
             start_problems(
                 &w,
                 WorldCase {
@@ -323,7 +324,7 @@ fn name_lists_that_are_empty_or_odd_give_a_game() {
             ..Default::default()
         };
         let problems = bounded(60, move || {
-            let w = new_game(content(), &spec).expect("a game with these names");
+            let (w, _) = new_game(content(), &spec).expect("a game with these names");
             start_problems(&w, standard())
         });
         assert!(problems.is_empty(), "{problems:?}");
