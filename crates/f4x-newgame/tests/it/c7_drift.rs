@@ -1,12 +1,11 @@
 //! Class 7 (`docs/f4x-newgame-test-design.md`): the world does not drift without anyone meaning it.
 //!
-//! The fresh games that `f4x-core`'s tests load (`fixtures`) and the three played scenarios
-//! (`regression`, `tests/regression/*.save` and `.target`) are pinned to files. A change of the
-//! generator or the setup moves them; moving them is done on purpose with the environment
-//! variables named in the failure. The tests below show that the comparison can fail.
+//! The fresh games that `f4x-core`'s tests load (`fixtures`) are pinned to files; the three played
+//! scenarios are in `f4x-master` (`tests/it/regression.rs`). A change of the generator or the setup
+//! moves them; moving them is done on purpose with the environment variables named in the failure. The
+//! tests below show that the comparison can fail.
 
 mod fixtures;
-mod regression;
 
 use crate::support::*;
 

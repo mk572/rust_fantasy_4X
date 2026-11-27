@@ -6,18 +6,12 @@
 use f4x_core::city::production::{ProductionError, ProductionItem};
 use f4x_core::player::PlayerId;
 use f4x_core::rules::{BuildingId, UnitId};
+use f4x_core::world::testutil::Table;
 use f4x_core::world::{Command, Event, Rejection, World};
+
+use crate::support::worlds;
 use f4x_def::half_int::HalfInt;
 use f4x_def::rules::UnitKind;
-use f4x_master::{turn_players, Game};
-
-/// The fresh worlds, each in a game, so that time can pass in them.
-fn worlds() -> Vec<(String, Game)> {
-    crate::support::worlds()
-        .into_iter()
-        .map(|(name, w)| (name, Game::from(w)))
-        .collect()
-}
 
 /// The wizards of a game.
 fn wizards(w: &World) -> Vec<PlayerId> {
@@ -41,29 +35,6 @@ fn refusal(events: &[Event]) -> Option<Rejection> {
         Event::Rejected(r) => Some(*r),
         _ => None,
     })
-}
-
-/// Where in a round something is asked.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum Phase {
-    BeforeStart,
-    BeforeEnd,
-    AfterEnd,
-}
-
-/// One round as the master runs it, player by player, with `look` called at each step of each player's
-/// turn. The events of the round come back.
-fn round(w: &mut Game, look: &mut dyn FnMut(&mut World, PlayerId, Phase)) -> Vec<Event> {
-    let mut events = w.start_round();
-    for p in turn_players(w) {
-        look(w, p, Phase::BeforeStart);
-        events.extend(w.start_player_turn(p));
-        look(w, p, Phase::BeforeEnd);
-        events.extend(w.end_player_turn(p));
-        look(w, p, Phase::AfterEnd);
-    }
-    events.extend(w.end_round());
-    events
 }
 
 // ---- what a city may build ----
@@ -144,7 +115,7 @@ fn a_city_takes_what_the_content_lets_it_build_and_refuses_the_rest_with_the_rea
             for city in cities_of(&w, p) {
                 for &item in &items {
                     let before = w.economy().city_production(city);
-                    let events = w.command(Command::SetProduction { city, item });
+                    let events = w.apply(Command::SetProduction { city, item });
                     match (may_build(&w, city, item), refusal(&events)) {
                         (Ok(()), None) => {
                             accepted += 1;
@@ -196,7 +167,7 @@ fn an_item_is_finished_the_turn_the_production_covers_its_cost() {
         let p = wizards(&w)[0];
         let city = cities_of(&w, p)[0];
         let (building, cost) = cheapest_building(&w, city);
-        w.command(Command::SetProduction {
+        w.apply(Command::SetProduction {
             city,
             item: ProductionItem::Building(building),
         });
@@ -205,16 +176,10 @@ fn an_item_is_finished_the_turn_the_production_covers_its_cost() {
         loop {
             turns += 1;
             assert!(turns < 400, "{name}: the building was never finished");
-            let mut seen = None;
-            let events = round(&mut w, &mut |w, who, phase| {
-                if who == p && phase == Phase::BeforeEnd {
-                    let eco = w.economy();
-                    let gathered = eco.city_production(city).progress;
-                    let made = eco.city_economy(city).expect("an economy").production;
-                    seen = Some((gathered, made));
-                }
-            });
-            let (gathered, made) = seen.expect("the turn was seen");
+            let eco = w.economy();
+            let gathered = eco.city_production(city).progress;
+            let made = eco.city_economy(city).expect("an economy").production;
+            let events = w.end_player_turn(p);
             let done = events.iter().any(|e| {
                 matches!(e, Event::ProductionCompleted { city: c, item }
                     if *c == city && *item == ProductionItem::Building(building))
@@ -268,7 +233,7 @@ fn a_unit_appears_in_the_city_when_it_is_finished_and_a_settler_takes_a_citizen(
             let Some(unit) = pick else { continue };
             let size = w.city_population(city).figures.max(2);
             w.scenario_set_citizens(city, size);
-            w.command(Command::SetProduction {
+            w.apply(Command::SetProduction {
                 city,
                 item: ProductionItem::Unit(unit),
             });
@@ -278,7 +243,7 @@ fn a_unit_appears_in_the_city_when_it_is_finished_and_a_settler_takes_a_citizen(
             loop {
                 turns += 1;
                 assert!(turns < 400, "{name}: {unit:?} was never finished");
-                let events = round(&mut w, &mut |_, _, _| {});
+                let events = w.end_player_turn(p);
                 if events
                     .iter()
                     .any(|e| matches!(e, Event::ProductionCompleted { city: c, .. } if *c == city))
@@ -330,7 +295,7 @@ fn buying_costs_what_the_rule_says_at_each_stage_and_finishes_the_item_at_the_tu
             .filter(|&(b, _)| may_build(&w, city, ProductionItem::Building(b)).is_ok())
             .max_by_key(|&(_, c)| c)
             .expect("a building");
-        w.command(Command::SetProduction {
+        w.apply(Command::SetProduction {
             city,
             item: ProductionItem::Building(building),
         });
@@ -342,7 +307,7 @@ fn buying_costs_what_the_rule_says_at_each_stage_and_finishes_the_item_at_the_tu
             // With too little gold nothing is bought and nothing changes.
             w.treasury_mut(p).expect("a treasury").gold = wanted - HalfInt::HALF;
             let before = (gold(&w, p), w.economy().city_production(city));
-            let refused = refusal(&w.command(Command::BuyProduction { city }));
+            let refused = refusal(&w.apply(Command::BuyProduction { city }));
             assert_eq!(
                 refused,
                 Some(Rejection::Production(ProductionError::NotEnoughGold)),
@@ -355,7 +320,7 @@ fn buying_costs_what_the_rule_says_at_each_stage_and_finishes_the_item_at_the_tu
             );
             // With enough, the price is taken and the rest of the cost is made up.
             w.treasury_mut(p).expect("a treasury").gold = wanted + HalfInt::from_int(5);
-            let events = w.command(Command::BuyProduction { city });
+            let events = w.apply(Command::BuyProduction { city });
             assert_eq!(refusal(&events), None, "{name}, turn {turn}");
             assert_eq!(
                 gold(&w, p),
@@ -369,23 +334,24 @@ fn buying_costs_what_the_rule_says_at_each_stage_and_finishes_the_item_at_the_tu
             )));
             // Another purchase has nothing left to finish.
             assert_eq!(
-                refusal(&w.command(Command::BuyProduction { city })),
+                refusal(&w.apply(Command::BuyProduction { city })),
                 Some(Rejection::Production(ProductionError::NothingToBuy)),
                 "{name}"
             );
-            let done = round(&mut w, &mut |_, _, _| {})
+            let done = w
+                .end_player_turn(p)
                 .iter()
                 .any(|e| matches!(e, Event::ProductionCompleted { city: c, .. } if *c == city));
             assert!(done, "{name}: the building bought was not finished");
             bought += 1;
             // The next stage: start the same kind of item again, a turn further on.
             w.scenario_set_building(city, building, false);
-            w.command(Command::SetProduction {
+            w.apply(Command::SetProduction {
                 city,
                 item: ProductionItem::Building(building),
             });
             for _ in 0..turn {
-                round(&mut w, &mut |_, _, _| {});
+                w.end_player_turn(p);
             }
         }
     }
@@ -395,9 +361,9 @@ fn buying_costs_what_the_rule_says_at_each_stage_and_finishes_the_item_at_the_tu
     let p = wizards(&w)[0];
     let city = cities_of(&w, p)[0];
     for item in [ProductionItem::TradeGoods, ProductionItem::Housing] {
-        w.command(Command::SetProduction { city, item });
+        w.apply(Command::SetProduction { city, item });
         assert_eq!(
-            refusal(&w.command(Command::BuyProduction { city })),
+            refusal(&w.apply(Command::BuyProduction { city })),
             Some(Rejection::Production(ProductionError::NothingToBuy)),
             "{item:?}"
         );
@@ -433,7 +399,7 @@ fn a_building_sells_for_a_third_of_its_cost_once_a_turn_and_not_while_another_ne
         // The one that is needed is not for sale.
         let before = gold(&w, p);
         assert_eq!(
-            refusal(&w.command(Command::SellBuilding {
+            refusal(&w.apply(Command::SellBuilding {
                 city,
                 building: base
             })),
@@ -446,7 +412,7 @@ fn a_building_sells_for_a_third_of_its_cost_once_a_turn_and_not_while_another_ne
         let def = rules.buildings.get(upper);
         let price = sale(def.cost, def.num == 35 /* city_walls */);
         assert_eq!(
-            refusal(&w.command(Command::SellBuilding {
+            refusal(&w.apply(Command::SellBuilding {
                 city,
                 building: upper
             })),
@@ -457,7 +423,7 @@ fn a_building_sells_for_a_third_of_its_cost_once_a_turn_and_not_while_another_ne
         sold += 1;
         // Only one a turn: the base is free of what needed it, and still not for sale today.
         assert_eq!(
-            refusal(&w.command(Command::SellBuilding {
+            refusal(&w.apply(Command::SellBuilding {
                 city,
                 building: base
             })),
@@ -465,13 +431,13 @@ fn a_building_sells_for_a_third_of_its_cost_once_a_turn_and_not_while_another_ne
             "{name}"
         );
         // The next turn of the wizard opens the sale again.
-        w.start_round();
-        w.start_player_turn(p);
+        w.start_round(2);
+        w.start_player_turn(p, 2);
         let def = rules.buildings.get(base);
         let price = sale(def.cost, def.num == 35);
         let before = gold(&w, p);
         assert_eq!(
-            refusal(&w.command(Command::SellBuilding {
+            refusal(&w.apply(Command::SellBuilding {
                 city,
                 building: base
             })),
@@ -494,7 +460,7 @@ fn after_growth(figures: u32, tens: u32, delta: i32, cap: u32) -> (u32, u32) {
 }
 
 /// The worlds, each with the size to put its cities at: one citizen, half the cap and the cap.
-fn sizes() -> Vec<(String, Game, u32)> {
+fn sizes() -> Vec<(String, Table, u32)> {
     let mut out = Vec::new();
     for fraction in [0, 1, 2] {
         for (name, w) in worlds().into_iter().step_by(2) {
@@ -520,19 +486,15 @@ fn a_city_grows_or_shrinks_by_what_its_economy_says_and_stays_within_one_and_the
             w.scenario_set_citizens(city, size.min(cap));
         }
         for turn in 1..=12 {
-            let mut before = Vec::new();
-            let events = round(&mut w, &mut |w, who, phase| {
-                if who == p && phase == Phase::BeforeStart {
-                    before = cities_of(w, p)
-                        .into_iter()
-                        .map(|c| {
-                            let pop = w.city_population(c);
-                            let delta = w.economy().city_economy(c).map_or(0, |e| e.growth_tens);
-                            (c, pop.figures, pop.tens, delta)
-                        })
-                        .collect();
-                }
-            });
+            let before: Vec<_> = cities_of(&w, p)
+                .into_iter()
+                .map(|c| {
+                    let pop = w.city_population(c);
+                    let delta = w.economy().city_economy(c).map_or(0, |e| e.growth_tens);
+                    (c, pop.figures, pop.tens, delta)
+                })
+                .collect();
+            let events = w.start_player_turn(p, turn + 1);
             for (city, figures, tens, delta) in before {
                 let now = w.city_population(city);
                 let want = after_growth(figures, tens, delta, cap);
@@ -552,6 +514,7 @@ fn a_city_grows_or_shrinks_by_what_its_economy_says_and_stays_within_one_and_the
                 grew += usize::from(now.figures > figures);
                 shrank += usize::from(now.figures < figures);
             }
+            w.end_player_turn(p);
         }
     }
     assert!(
@@ -572,7 +535,7 @@ fn farmers_are_kept_between_what_the_city_needs_and_its_people() {
             assert!(min <= people, "{name}: more farmers needed than people");
             let farmers = |w: &World| w.city_farmers(city);
             for want in [0, min, people, people + 5, u32::MAX] {
-                w.command(Command::SetFarmers {
+                w.apply(Command::SetFarmers {
                     city,
                     farmers: want,
                 });
@@ -619,12 +582,12 @@ fn a_city_is_renamed_trimmed_and_cut_and_an_empty_name_changes_nothing() {
             "äöü".repeat(NAME_LEN).chars().take(NAME_LEN).collect(),
         ),
     ] {
-        w.command(Command::RenameCity { city, name: given });
+        w.apply(Command::RenameCity { city, name: given });
         assert_eq!(name_of(&w), wanted);
     }
     let now = name_of(&w);
     for empty in ["", "   "] {
-        w.command(Command::RenameCity {
+        w.apply(Command::RenameCity {
             city,
             name: empty.into(),
         });

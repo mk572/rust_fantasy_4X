@@ -7,7 +7,6 @@ use f4x_core::rules::UnitId;
 use f4x_core::world::testutil::fresh;
 use f4x_core::world::{Command, Event};
 use f4x_def::half_int::HalfInt;
-use f4x_master::Game;
 
 #[test]
 fn a_stack_that_finds_its_way_full_goes_in_once_the_stack_on_it_has_gone_on() {
@@ -55,14 +54,14 @@ fn a_stack_that_finds_its_way_full_goes_in_once_the_stack_on_it_has_gone_on() {
     }
     let (unit, b, c) = found.expect("a unit walks from the city over a square to another");
 
-    let mut w = Game::from(fresh(wizards, seed).expect("a fresh game"));
+    let mut w = fresh(wizards, seed).expect("a fresh game");
     let limit = w.settings().rules.max_battle_side;
     w.scenario_change_settings(|s| s.rules.max_tile = limit);
     let before = w.units().units_at(b).len();
-    let make = |w: &mut Game, at, n: usize| -> Vec<_> {
+    let make = |w: &mut f4x_core::world::testutil::Table, at, n: usize| -> Vec<_> {
         (0..n)
             .map(|_| {
-                w.command(Command::CreateUnit {
+                w.apply(Command::CreateUnit {
                     owner: wizard,
                     pos: at,
                     unit,
@@ -80,13 +79,13 @@ fn a_stack_that_finds_its_way_full_goes_in_once_the_stack_on_it_has_gone_on() {
         w.scenario_set_moves_left(u, HalfInt::ZERO);
     }
     for (units, to) in [(rear.clone(), b), (head.clone(), c)] {
-        let events = w.command(Command::GoTo { units, to });
+        let events = w.apply(Command::GoTo { units, to });
         assert!(
             !events.iter().any(|e| matches!(e, Event::Rejected(_))),
             "{events:?}"
         );
     }
-    let events = w.play_round();
+    let events = w.start_player_turn(wizard, 2);
     assert!(
         !events
             .iter()
@@ -104,7 +103,7 @@ fn a_stack_that_finds_its_way_full_goes_in_once_the_stack_on_it_has_gone_on() {
 #[test]
 fn a_stack_that_stays_blocked_is_told_why() {
     let (wizards, seed) = WORLDS[0];
-    let mut w = Game::from(fresh(wizards, seed).expect("a fresh game"));
+    let mut w = fresh(wizards, seed).expect("a fresh game");
     let wizard = w
         .player_ids()
         .into_iter()
@@ -142,24 +141,24 @@ fn a_stack_that_stays_blocked_is_told_why() {
     let Some(b) = b else { return };
     let have = w.units().units_at(b).len();
     for _ in have..limit {
-        w.command(Command::CreateUnit {
+        w.apply(Command::CreateUnit {
             owner: wizard,
             pos: b,
             unit,
         });
     }
-    w.command(Command::CreateUnit {
+    w.apply(Command::CreateUnit {
         owner: wizard,
         pos: a,
         unit,
     });
     let walker = *w.units().all_units().last().expect("a unit");
     w.scenario_set_moves_left(walker, HalfInt::ZERO);
-    w.command(Command::GoTo {
+    w.apply(Command::GoTo {
         units: vec![walker],
         to: b,
     });
-    let events = w.play_round();
+    let events = w.start_player_turn(wizard, 2);
     assert!(
         events
             .iter()

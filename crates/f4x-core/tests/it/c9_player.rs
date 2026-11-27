@@ -9,7 +9,6 @@ use f4x_core::world::save::Snapshot;
 use f4x_core::world::testutil::Table;
 use f4x_core::world::{Command, Event, Rejection, World};
 use f4x_def::half_int::HalfInt;
-use f4x_master::Game;
 
 fn wizards(w: &World) -> Vec<PlayerId> {
     w.player_ids()
@@ -257,8 +256,9 @@ fn an_offer_that_is_not_answered_lapses_at_the_turn_change() {
             price: 1,
         }],
     );
-    let mut w = Game::from(w);
-    w.play_round();
+    let mut w = w;
+    w.end_player_turn(p);
+    w.start_player_turn(p, 2);
     // What is waiting now was rolled at this turn change, not kept from before.
     let kept = w
         .player_component::<f4x_core::player::Offers>(p)

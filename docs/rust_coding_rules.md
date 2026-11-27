@@ -59,7 +59,7 @@ The game is built on four major components: rules engine, game engine, client an
 The crates depend on each other in one direction: `f4x-def` is at the bottom (the static definitions,
 no other game crate); `f4x-battle` depends on `f4x-def`; `f4x-core` on `f4x-battle` and `f4x-def`; `f4x-ai` on `f4x-def` and `f4x-core`. The line of the layers is client -> master -> core -> battle -> def, and nothing points up it;
 `f4x-newgame` (the map generator, the setup of a new game) sits above core and uses only its public API,
-so core never calls it; `f4x-master` (the game and its turns, undo and replays) on core, battle and def (until task 822 ends, the tests of core and newgame also use it: `design.md` section 2); `f4x-console` depends on def, core, newgame, ai and master; `f4x-learn` on def, core and
+so core never calls it; `f4x-master` (the game and its turns, undo and replays) on core, battle and def (no crate below it depends on it, for tests either: a test that needs turns to pass lives in it); `f4x-console` depends on def, core, newgame, ai and master; `f4x-learn` on def, core and
 newgame; `f4x-client` and `f4x-tools` on all of these (`f4x-tools` also on `f4x-ai-ref`). A crate loads the data it holds: `f4x-def` loads the
 definitions (`f4x_def::load`). `f4x-core` reads and writes save files only (`world/save/file.rs`); it is deterministic otherwise.
 
@@ -315,12 +315,12 @@ predefined outcome save or a diff against the loaded save.
 
 Regression testing is done without the client.
 
-They live in `crates/f4x-newgame/tests/it/regression.rs`, with the prepared saves and the targets in
+They live in `crates/f4x-master/tests/it/regression.rs`, with the prepared saves and the targets in
 `tests/regression/` (`<name>.save`, `<name>.target`): an early game, a game at war and a game with three
 global enchantments in force, each loaded, played on by a fixed command list, and compared with a
 target of a short summary plus the checksum of the whole save (the game's version left out, so a
 release does not fail them). A failing test prints both texts. Change a target on purpose with
-`F4X_REFRESH_REGRESSION=targets cargo test -p f4x-newgame --test it regression` and read the git diff of
+`F4X_REFRESH_REGRESSION=targets cargo test -p f4x-master --test it regression` and read the git diff of
 `tests/regression/` before committing; after a save format change (`SAVE_VERSION`) or a change of a
 set-up rebuild the saves with `F4X_REFRESH_REGRESSION=saves` (it rewrites the targets too).
 

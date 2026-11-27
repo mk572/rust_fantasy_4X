@@ -1,13 +1,11 @@
 //! Class 9, the wizard: what is researched and learned, the split of the power base.
 
-use crate::support::games;
 use crate::support::{content, worlds};
 use f4x_core::player::PlayerId;
 use f4x_core::wizard::magic::MagicError;
 use f4x_core::world::rng::GameRng;
 use f4x_core::world::testutil::Table;
 use f4x_core::world::{Command, Event, Rejection, World};
-use f4x_master::Game;
 
 fn wizards(w: &World) -> Vec<PlayerId> {
     w.player_ids()
@@ -127,16 +125,16 @@ fn research_takes_a_spell_on_offer_once_and_costs_what_the_rules_list() {
 
 #[test]
 fn research_with_the_cost_nearly_paid_learns_the_spell_in_the_turn_and_frees_the_choice() {
-    for (name, mut w) in games().into_iter().step_by(2) {
+    for (name, mut w) in worlds().into_iter().step_by(2) {
         let p = wizards(&w)[0];
-        w.command(Command::SetPowerSplit {
+        w.apply(Command::SetPowerSplit {
             player: p,
             mana: 0,
             research: 100,
             skill: 0,
         });
         let pick = w.wizard(p).expect("a wizard").candidates()[0];
-        w.command(Command::SetResearch {
+        w.apply(Command::SetResearch {
             player: p,
             spell: pick,
         });
@@ -149,9 +147,11 @@ fn research_with_the_cost_nearly_paid_learns_the_spell_in_the_turn_and_frees_the
             .expect("a save");
         save.research_remaining = 1;
         let dice = GameRng::resume(w.seed(), w.draws());
-        w = Game::new(snap.restore(content()).expect("restores"), dice);
+        w = Table::new(snap.restore(content()).expect("restores"), dice);
         assert!(!w.wizard(p).expect("a wizard").knows(pick));
-        w.play_round();
+        // The points come in at the turn's end, the spell is learned at the next one's start.
+        w.end_player_turn(p);
+        w.start_player_turn(p, 2);
         let wizard = w.wizard(p).expect("a wizard");
         assert!(wizard.knows(pick), "{name}: not learned after a turn");
         assert!(
@@ -197,7 +197,7 @@ fn a_known_spell_cannot_be_researched_and_the_neutral_player_researches_nothing(
 /// it off the wizard), the turn's end begins it again, whoever the wizard is.
 #[test]
 fn a_banished_wizard_whose_return_was_ended_begins_it_again_at_the_turns_end() {
-    for (name, mut w) in games().into_iter().step_by(2) {
+    for (name, mut w) in worlds().into_iter().step_by(2) {
         let p = wizards(&w)[0];
         let mut snap = w.snapshot();
         let save = snap
@@ -210,13 +210,10 @@ fn a_banished_wizard_whose_return_was_ended_begins_it_again_at_the_turns_end() {
         save.summon_at = None;
         save.more_circles.clear();
         let dice = GameRng::resume(w.seed(), w.draws());
-        w = Game::new(snap.restore(content()).expect("restores"), dice);
+        w = Table::new(snap.restore(content()).expect("restores"), dice);
         assert!(w.wizard(p).expect("a wizard").is_banished(), "{name}");
         assert!(w.wizard(p).expect("a wizard").casting().is_none(), "{name}");
-        // Every wizard's turn ends once in a round; the banished one's does too.
-        for _ in 0..wizards(&w).len() {
-            w.play_round();
-        }
+        w.end_player_turn(p);
         let casting = w.wizard(p).expect("a wizard").casting();
         assert!(
             casting.is_some_and(|c| w.spell_has_hook(c.spell, "spell_of_return")),

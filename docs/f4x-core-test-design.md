@@ -41,6 +41,11 @@ value in a test, a test performs an action and checks what the player sees.
   and with the drawing operations as methods; `Table::empty(seed)` is an empty one, and the macro
   `drawing_ops!` gives `f4x-master`'s `Game` the same methods for tests. A test that says two games are the
   same, or that nothing happened, compares the draws too (`support::state`).
+- **No game, no turn order.** Core does not depend on `f4x-master`, for tests either. A core test calls the single
+  world operations (`start_round`, `start_player_turn`, `end_player_turn`, `end_round`), the ones its need is
+  about. A test that needs time to pass, replays or undo is a test of `f4x-master` (`tests/it`), in a module named
+  after its need; no core helper repeats the turn order. The command sweep both use is
+  `testutil::sweep`.
 - **No AI.** The battle player of core's tests is `testutil::battle_policy`.
 - **Long plays are not core's tests.** A game played for many turns with `new_game` and the AI uses several
   crates, so it is an integration test of a crate that sees them all: `f4x-ai/tests/it` (which already depends on
@@ -108,11 +113,12 @@ Guard:
 - **Undo**: after each undoable command, `undo` gives the snapshot from before it; a command that draws, explores or
   starts a battle clears the history.
 
-Replays and undo belong to the game (task 822), so their tests are `crates/f4x-master/tests/it/{replay,undo}.rs`;
-until task 822 ends, class 1 here sends its commands through a `Game`, to check what a refused command leaves in both.
 - **Attacks on the files**: truncated, edited, wrong version, wrong game version, wrong layout, unknown content id,
   wrong content fingerprint, settings out of range, a wizard with no player: each gives a typed `LoadError` and never
   a panic.
+
+Replays and undo belong to the game, so their tests are `crates/f4x-master/tests/it/{replay,undo}.rs`, with
+`refusal.rs` for what a refused command leaves in them.
 
 ### 5. A bad command panics, or is accepted
 
@@ -179,9 +185,23 @@ The subsystems, with the old suite's size (tests), as the order to work in once 
 ## Structure
 
 `crates/f4x-core/tests/it/`, one binary: `main.rs` lists a module per class and subsystem (`c1_refusal`,
-`c2_invariants`, `c3_determinism`, `c4_persist`, `c5_input`, `c6_coupling`, `c7_arithmetic`, `c8_drift`, then one per
-subsystem), and `support` holds the world loader, the matrix of fresh saves, a short scripted driver and the refusal
-table. The checkers (`world_problems`, the digest) live in core itself behind the `testutil` feature. The long plays
+`c2_invariant`, `c4_persist`, `c5_input`, `c6_setting`, `c6_tile`, `c8_drift`, then a `c9_` module per subsystem), and
+`support` holds the world loader and the matrix of fresh saves. The checkers (`world_problems`, the digest) and the
+command sweep live in core itself behind the `testutil` feature.
+
+What of a class needs turns to pass is in `crates/f4x-master/tests/it`:
+
+| Class | Modules there |
+|---|---|
+| 1 refusal | `refusal` |
+| 2 invariants, turn after turn | `invariant` |
+| 3 determinism (all of it) | `determinism` |
+| 4 save, replay, undo | `persist`, `replay`, `undo` |
+| 6 settings, over the turns | `matrix`, `setting`, `tile` |
+| 7 the turn and the numbers (all of it) | `arithmetic`, `treasury` |
+| 8 drift of the turns | `drift` |
+
+The long plays
 with several crates are in `f4x-ai/tests/it`, a module of their own (`c2_core_invariants`, `c8_core_drift`) that
 says in its header that it belongs to this design. Names follow the project's singular rule.
 
@@ -212,7 +232,8 @@ Found by the rebuilt tests, each fixed in the code with the test that found it:
   refusal. The code does not seem to do that: a standing order that cannot go on reports `OrderFailed`, and the only
   two places that build a `Rejected` after other work (diplomacy, moving a building by spell) report it for an
   `Err` alone. The refusal sweep, which now includes every diplomacy command, found no refusal that changed the
-  game on the four worlds, at the start and after 4, 12 and 25 rounds of play (the slow variant, `--ignored`).
+  game on the four worlds, at the start (core) and after 4, 12 and 25 rounds of play (the slow variant in
+  `f4x-master`, `refusal.rs`, `--ignored`).
   If a command ever mixes the two, this sweep is where it shows.
 - Which invariants of class 2 the rules really demand: the list above is a start from reading names, to be checked
   against `docs/design.md` and the code as the checker is written.
@@ -242,14 +263,14 @@ sweeps a range does not run every value there: two sizes of the same test.
 ## Class 8 in use: the pinned digests
 
 `check::digest(&world)` cuts the saved text at the fields of the snapshot and hashes each (the versions left out);
-the pins add the round, the end, the seed and the number of draws as they are.
+the pins add the seed and the number of draws as they are, and in `f4x-master` the round and the end.
 Short scripts are played on the four fresh saves, digested at the checkpoints and compared with pins
 (`f4x_core::world::testutil::pin`). There are two sets:
 
 | Plays | Test | Pins | Regenerate |
 |---|---|---|---|
-| every command of the sweep, then three turns | `f4x-core`, `tests/it/c8_drift.rs` | `crates/f4x-core/tests/pins/core_drift.txt` | `F4X_REFRESH_PINS=1 cargo test -p f4x-core --features testutil --test it c8_` |
-| rounds of the scripted walk, bare turns | `f4x-master`, `tests/it/drift.rs` | `crates/f4x-master/tests/pins/drift.txt` | `F4X_REFRESH_PINS=1 cargo test -p f4x-master --test it drift` |
+| every command of the sweep on a world | `f4x-core`, `tests/it/c8_drift.rs` | `crates/f4x-core/tests/pins/core_drift.txt` | `F4X_REFRESH_PINS=1 cargo test -p f4x-core --features testutil --test it c8_` |
+| the same sweep then three turns, rounds of the scripted walk, bare turns | `f4x-master`, `tests/it/drift.rs` | `crates/f4x-master/tests/pins/drift.txt` | `F4X_REFRESH_PINS=1 cargo test -p f4x-master --test it drift` |
 
 A failure names each checkpoint and the fields that moved. Regenerate on purpose and review the diff: the
 fields that moved should be the ones the change is about. A content change moves the pins too (after

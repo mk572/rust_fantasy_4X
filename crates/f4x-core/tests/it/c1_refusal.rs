@@ -5,21 +5,17 @@
 //! buildings) in every pairing that makes sense and some that do not, so most of them are refused, and
 //! each refusal is checked against the text of the game from before.
 
-use crate::support::{commands, games, state, worlds};
+use crate::support::{commands, state, worlds};
 use f4x_core::world::Event;
 
-/// Try every command of the sweep on each world, warmed up with `warm` rounds of play first, and check
-/// each refusal. Returns how many commands were tried and how many were refused.
-fn sweep(every: usize, warm: usize) -> (usize, usize) {
+/// Try every command of the sweep on each world and check each refusal. Returns how many commands
+/// were tried and how many were refused.
+fn sweep(every: usize) -> (usize, usize) {
     let mut tried = 0;
     let mut refused = 0;
-    let mut recorded = 0;
     // The item commands: (refused, accepted).
     let mut item = (0usize, 0usize);
-    for (name, mut w) in games().into_iter().step_by(every) {
-        for _ in 0..warm {
-            crate::support::busy_round(&mut w, 6);
-        }
+    for (name, mut w) in worlds().into_iter().step_by(every) {
         // Something in the vaults, so that the item commands are refused for what they ask and not
         // for an empty place.
         let items: Vec<_> = w
@@ -37,22 +33,13 @@ fn sweep(every: usize, warm: usize) -> (usize, usize) {
                 w.give_item(p, item.clone());
             }
         }
-        // The commands go through a game with recording and undo on, so that a refused command is
-        // also checked for what it leaves there: nothing in the replay, nothing to undo.
-        w.start_recording();
-        w.set_undo(true);
         // The game goes on changing as commands are accepted (a unit is dismissed, a city founded), so
         // later commands name things that are gone: a stale handle is one more kind of bad input.
         for command in commands(&w) {
             let label = format!("{command:?}");
             let before = state(&w);
-            let history = (
-                w.replay_so_far().ok().map(|r| r.entries.len()),
-                w.can_undo(),
-                w.undo_label().map(str::to_owned),
-            );
             let events =
-                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| w.command(command)))
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| w.apply(command)))
                     .unwrap_or_else(|_| panic!("{name}: {label} panicked"));
             tried += 1;
             let rejected = events.iter().any(|e| matches!(e, Event::Rejected(_)));
@@ -73,21 +60,6 @@ fn sweep(every: usize, warm: usize) -> (usize, usize) {
                     before,
                     "{name}: {label} was refused, and changed the game"
                 );
-                // A command that cannot be written down (it names a unit that is gone) ends the
-                // recording; as long as there is one, a refusal adds nothing to it.
-                if let (Some(was), Ok(now)) = (history.0, w.replay_so_far()) {
-                    recorded += 1;
-                    assert_eq!(
-                        now.entries.len(),
-                        was,
-                        "{name}: {label} was refused and recorded"
-                    );
-                }
-                assert_eq!(
-                    (w.can_undo(), w.undo_label().map(str::to_owned)),
-                    (history.1, history.2),
-                    "{name}: {label} was refused and changed the undo history"
-                );
             }
         }
     }
@@ -97,10 +69,6 @@ fn sweep(every: usize, warm: usize) -> (usize, usize) {
         item.0,
         item.1
     );
-    assert!(
-        recorded > 300,
-        "the recording was checked only {recorded} times in {tried}"
-    );
     (tried, refused)
 }
 
@@ -108,25 +76,11 @@ fn sweep(every: usize, warm: usize) -> (usize, usize) {
 fn a_refused_command_changes_nothing() {
     // One of the four worlds in the normal run, all four in the deep one.
     let every = if f4x_def::testdir::deep() { 1 } else { 4 };
-    let (tried, refused) = sweep(every, 0);
+    let (tried, refused) = sweep(every);
     assert!(
         refused > tried / 4,
         "only {refused} of {tried} commands were refused: the sweep is not reaching the refusals"
     );
-}
-
-/// The same on every world, each after rounds of play, so that refusals are tried against games that
-/// have more going on (orders given, units hurt, cities grown). Slow: run it with `--ignored`.
-#[test]
-#[ignore]
-fn a_refused_command_changes_nothing_in_a_game_under_way() {
-    for warm in [4, 12, 25] {
-        let (tried, refused) = sweep(1, warm);
-        assert!(
-            refused > tried / 4,
-            "after {warm} rounds: only {refused} of {tried} were refused"
-        );
-    }
 }
 
 /// The commands the sweep does not make yet, and why: each is a gap to close, not a decision.

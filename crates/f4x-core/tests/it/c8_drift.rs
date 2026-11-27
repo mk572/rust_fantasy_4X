@@ -1,8 +1,8 @@
-//! Class 8: a change moves the game without being seen. The commands of the sweep, and the turns after
-//! them, are played on the fresh saves, digested (`check::digest`: the saved text cut at the fields of
+//! Class 8: a change moves the game without being seen. The commands of the sweep are run on the
+//! fresh saves, digested (`check::digest`: the saved text cut at the fields of
 //! the snapshot, each hashed) and pinned in `tests/pins/core_drift.txt`. A rule change that moves a game
 //! fails here, naming the plays and the fields that moved. The pins are no rule: they record what the game
-//! does today. The plays that are turns are the game's (`f4x-master/tests/it/drift.rs`). When a move is
+//! does today. The plays with turns are the game's (`f4x-master/tests/it/drift.rs`). When a move is
 //! meant, regenerate the pins and review the diff of the file:
 //!
 //! `F4X_REFRESH_PINS=1 cargo test -p f4x-core --features testutil --test it c8_`
@@ -12,43 +12,28 @@
 use crate::support::{commands, text, worlds};
 use f4x_core::check::digest;
 use f4x_core::world::testutil::pin;
-use f4x_master::Game;
+use f4x_core::world::testutil::Table;
 use std::collections::BTreeMap;
 
 const PINS: &str = "tests/pins/core_drift.txt";
 
-/// The line of a game at a checkpoint: its round, its end and its generator, then `field=hash` for
-/// each field of the digest of its world.
-fn line(game: &Game) -> String {
-    let over = game.game_over().map_or_else(
-        || "none".to_string(),
-        |o| format!("{}:{:?}:{}", o.winner.0, o.kind, o.turn),
-    );
-    let mut parts = vec![
-        format!("round={}", game.round()),
-        format!("over={over}"),
-        format!("seed={}", game.seed()),
-        format!("draws={}", game.draws()),
-    ];
-    parts.extend(digest(game).into_iter().map(|(k, v)| format!("{k}={v}")));
+/// The line of a world at a checkpoint: its generator, then `field=hash` for each field of its
+/// digest.
+fn line(w: &Table) -> String {
+    let mut parts = vec![format!("seed={}", w.seed()), format!("draws={}", w.draws())];
+    parts.extend(digest(w).into_iter().map(|(k, v)| format!("{k}={v}")));
     parts.join(" ")
 }
 
-/// Every checkpoint on every world, as `world play@checkpoint` and its line.
+/// Every command of the sweep on every world, as `world play@checkpoint` and its line.
 fn today() -> BTreeMap<String, String> {
     let mut out = BTreeMap::new();
-    for (world, fresh) in worlds() {
+    for (world, mut w) in worlds() {
         let world = world.replace(' ', "").replace(',', "_");
-        // Every command of the sweep, then three turns: what the commands changed, and what the turns made of it.
-        let mut w = Game::from(fresh);
         for command in commands(&w) {
-            w.command(command);
+            w.apply(command);
         }
         out.insert(format!("{world} commands@all"), line(&w));
-        for _ in 0..3 {
-            w.play_round();
-        }
-        out.insert(format!("{world} commands@+3turns"), line(&w));
     }
     out
 }
@@ -57,7 +42,7 @@ fn today() -> BTreeMap<String, String> {
 fn the_scripted_plays_end_where_they_ended() {
     let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(PINS);
     let header =
-        "# Digests of the scripted plays of tests/it/c8_drift.rs: `world play@round: field=hash ...`.\n\
+        "# Digests of the scripted plays of tests/it/c8_drift.rs: `world play@checkpoint: field=hash ...`.\n\
          # Regenerate on purpose: F4X_REFRESH_PINS=1 cargo test -p f4x-core --features testutil --test it c8_\n";
     let refresh = "F4X_REFRESH_PINS=1 cargo test -p f4x-core --features testutil --test it c8_";
     pin::check(&file, header, refresh, &today());
@@ -78,11 +63,13 @@ fn the_digest_is_the_same_for_the_same_game_and_names_what_differs() {
             "no field {wanted}: {names:?}"
         );
     }
-    // One round moves the random generator and the units, not the settings or the seed.
-    let mut later = Game::new(copy, w.rng.clone());
-    later.play_round();
-    assert!(later.draws() > w.draws());
-    assert_eq!(later.seed(), w.seed());
+    // A unit more moves the units, not the settings.
+    let mut later = Table::new(copy, w.rng.clone());
+    let unit = *later.units().all_units().first().expect("a unit");
+    let kind = later.units().unit_kind_id(unit).expect("its kind");
+    let owner = later.units().unit_owner(unit).expect("its owner");
+    let at = later.units().unit_position(unit).expect("its square");
+    later.spawn_unit(owner, at, kind);
     let (a, b) = (digest(&w), digest(&later));
     let moved: Vec<&str> = a
         .iter()

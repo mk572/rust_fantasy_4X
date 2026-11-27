@@ -4,9 +4,10 @@
 //! saves and loads as itself. The values are not named here: a bool is flipped, a number is tried
 //! over a spread and kept where the game accepts it, a choice takes the variants of its type.
 
-use crate::support::{busy_round, commands, content, state, text, worlds};
+use crate::support::{busy_round, content, state, text, worlds};
 use f4x_core::check::world_problems;
 use f4x_core::world::save::Snapshot;
+use f4x_core::world::testutil::sweep::commands;
 use f4x_core::world::testutil::Table;
 use f4x_core::world::Event;
 use f4x_def::testdir::{deep, sample};

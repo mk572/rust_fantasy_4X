@@ -4,8 +4,7 @@
 //! `city/growth.rs`, the treasury in `player/finance.rs`, magic in `wizard/magic_world.rs`, healing in
 //! `unit/healing.rs`.
 //!
-//! Tests: in tests/it (`c7_turn.rs`, `c9_turn.rs`), and through the turn order in
-//! `f4x-master/tests/it`.
+//! Tests: in `tests/it/c9_turn.rs`, and through the turn order in `f4x-master/tests/it`.
 
 use crate::city::economy::{Farmers, Population};
 use crate::player::PlayerId;

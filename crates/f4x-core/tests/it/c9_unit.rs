@@ -2,7 +2,6 @@
 //! refilled at the turn and is hurt and healed. The costs are worked out here from the content (the
 //! terrain table, the movement type of the unit) and compared with what the game charges.
 
-use crate::support::games;
 use crate::support::{around, worlds};
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::Position;
@@ -216,7 +215,7 @@ fn a_step_costs_what_the_terrain_and_the_movement_of_the_unit_say_or_is_refused(
 
 #[test]
 fn a_unit_without_moves_cannot_step_and_a_new_turn_gives_them_back() {
-    for (name, mut w) in games().into_iter().step_by(2) {
+    for (name, mut w) in worlds().into_iter().step_by(2) {
         let wizard = w
             .player_ids()
             .into_iter()
@@ -230,12 +229,12 @@ fn a_unit_without_moves_cannot_step_and_a_new_turn_gives_them_back() {
         w.scenario_set_moves_left(u, HalfInt::ZERO);
         let to = around(&w, at).into_iter().next().expect("a neighbour");
         assert_eq!(
-            refusal(&w.command(Command::MoveStack { units: vec![u], to })),
+            refusal(&w.apply(Command::MoveStack { units: vec![u], to })),
             Some(Rejection::Move(MoveError::NoMovesLeft)),
             "{name}"
         );
         assert_eq!(w.units().unit_position(u), Some(at));
-        w.play_round();
+        w.start_player_turn(wizard, 2);
         assert_eq!(
             w.units().unit_moves_left(u),
             max,

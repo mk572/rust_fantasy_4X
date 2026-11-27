@@ -239,7 +239,7 @@ fn check(name: &str, build: fn() -> Result<Game, String>) -> TestResult {
     assert_eq!(
         got, want,
         "the game `{name}` ended differently from its target. If the change is on purpose: \
-         F4X_REFRESH_REGRESSION=targets cargo test -p f4x-newgame --test it regression"
+         F4X_REFRESH_REGRESSION=targets cargo test -p f4x-master --test it regression"
     );
     Ok(())
 }

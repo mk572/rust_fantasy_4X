@@ -2,17 +2,28 @@
 //! validation, defeated seats and resuming from a saved state. Replays and undo are in the files
 //! of their names.
 
+mod arithmetic;
 mod attack;
 mod convert;
+mod determinism;
+mod diplomacy;
 mod drift;
 mod end;
+mod invariant;
+mod matrix;
+mod persist;
 mod reaction;
+mod refusal;
+mod regression;
 mod replay;
 mod request;
 mod save;
 mod sender;
+mod setting;
+mod start;
 mod step;
 mod support;
+mod tile;
 mod time_stop;
 mod treasury;
 mod turn;

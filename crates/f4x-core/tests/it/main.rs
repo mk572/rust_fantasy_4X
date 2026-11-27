@@ -2,13 +2,10 @@
 
 mod c1_refusal;
 mod c2_invariant;
-mod c3_determinism;
 mod c4_persist;
 mod c5_input;
-mod c6_matrix;
 mod c6_setting;
 mod c6_tile;
-mod c7_turn;
 mod c8_drift;
 mod c9_battle;
 mod c9_city;

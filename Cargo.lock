@@ -2722,7 +2722,6 @@ dependencies = [
  "f4x-battle",
  "f4x-core",
  "f4x-def",
- "f4x-master",
  "hecs",
  "rand 0.8.8",
  "rand_pcg",
@@ -2800,7 +2799,7 @@ version = "0.0.8"
 dependencies = [
  "f4x-core",
  "f4x-def",
- "f4x-master",
+ "f4x-newgame",
  "hecs",
  "rand 0.8.8",
  "rand_pcg",

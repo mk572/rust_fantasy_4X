@@ -6,22 +6,15 @@
 use f4x_core::player::PlayerId;
 use f4x_core::rules::SpellId;
 use f4x_core::wizard::fortress::FortressError;
-use f4x_core::world::endgame::EndKind;
-use f4x_core::world::{Command, Event, Rejection, World};
-use f4x_def::half_int::HalfInt;
-use f4x_master::Game;
+use f4x_core::world::testutil::Table;
+use f4x_core::world::{Command, Event, World};
 
-/// The fresh worlds, each in a game, so that time can pass in them.
-fn worlds() -> Vec<(String, Game)> {
-    crate::support::worlds()
-        .into_iter()
-        .map(|(name, w)| (name, Game::from(w)))
-        .collect()
-}
+use crate::support::worlds;
+use f4x_def::half_int::HalfInt;
 
 struct Fall {
     name: String,
-    w: Game,
+    w: Table,
     /// The one who takes, and the one who loses.
     a: PlayerId,
     b: PlayerId,
@@ -420,51 +413,19 @@ fn a_banished_wizard_may_resign_and_is_then_defeated_by_the_banisher_without_a_s
 }
 
 #[test]
-fn defeating_the_last_rival_ends_the_game_by_conquest() {
-    let mut ended = 0;
+fn taking_the_fortress_of_a_wizard_that_cannot_pay_for_the_return_defeats_it() {
+    let mut defeated = 0;
     for mut f in falls() {
-        // Every wizard but the two is defeated first; the game goes on while two stand.
-        let others: Vec<_> =
-            f.w.wizards()
-                .into_iter()
-                .filter(|&id| id != f.a && id != f.b)
-                .collect();
-        for o in others {
-            let cities: Vec<_> =
-                f.w.economy()
-                    .cities_of(o)
-                    .into_iter()
-                    .map(|(c, _)| c)
-                    .collect();
-            for c in cities {
-                f.w.capture_city(c, f.a);
-            }
-        }
-        f.w.check_end();
-        assert!(
-            f.w.game_over().is_none(),
-            "{}: over while two wizards stand",
-            f.name
-        );
         f.w.scenario_set_casting_skill(f.b, 1);
         if can_pay_for_return(&f.w, f.b) {
             continue;
         }
-        let mut events = f.w.capture_city(f.capital, f.a);
-        events.extend(f.w.check_end());
-        assert!(
-            told(
-                &events,
-                |e| matches!(e, Event::GameOver { winner, kind, .. }
-                if *winner == f.a && *kind == EndKind::Conquest)
-            ),
-            "{}: {events:?}",
-            f.name
-        );
-        assert!(f.w.game_over().is_some(), "{}", f.name);
-        ended += 1;
+        f.w.capture_city(f.capital, f.a);
+        let b = f.w.player(f.b).expect("the loser");
+        assert!(b.is_defeated(), "{}", f.name);
+        defeated += 1;
     }
-    assert!(ended > 0, "no world ended by conquest");
+    assert!(defeated > 0, "no wizard was defeated in any world");
 }
 
 /// The spell that ends the game when its wizard finishes casting it (`spell_of_mastery`).
@@ -476,7 +437,7 @@ fn starting_the_spell_of_mastery_is_told_to_all_and_listed_with_what_is_still_ow
         let spell = SpellId::new(MASTERY);
         f.w.cheat_learn_spell(f.a, spell);
         f.w.treasury_mut(f.a).expect("a treasury").mana = HalfInt::from_int(100_000);
-        let events = f.w.command(Command::CastSpell {
+        let events = f.w.apply(Command::CastSpell {
             player: f.a,
             spell,
             target: None,
@@ -501,8 +462,9 @@ fn starting_the_spell_of_mastery_is_told_to_all_and_listed_with_what_is_still_ow
             "{}: {casters:?}",
             f.name
         );
-        assert!(
-            f.w.game_over().is_none(),
+        assert_eq!(
+            f.w.mastered_by(),
+            None,
             "{}: won before it was paid",
             f.name
         );
@@ -510,29 +472,14 @@ fn starting_the_spell_of_mastery_is_told_to_all_and_listed_with_what_is_still_ow
 }
 
 #[test]
-fn finishing_the_spell_of_mastery_wins_at_once_and_scores_it_for_the_caster_only() {
+fn finishing_the_spell_of_mastery_is_recorded_at_once_and_scores_it_for_the_caster_only() {
     for mut f in falls() {
         let spell = SpellId::new(MASTERY);
         f.w.cheat_learn_spell(f.a, spell);
         f.w.scenario_casting(f.a, spell, 0);
-        let events = f.w.end_player_turn(f.a);
-        assert!(
-            told(
-                &events,
-                |e| matches!(e, Event::GameOver { winner, kind, .. }
-                if *winner == f.a && *kind == EndKind::SpellOfMastery)
-            ),
-            "{}: {events:?}",
-            f.name
-        );
-        let over = f.w.game_over().expect("the game is over");
-        assert_eq!(
-            (over.winner, over.kind),
-            (f.a, EndKind::SpellOfMastery),
-            "{}",
-            f.name
-        );
-        let (won, lost) = (f.w.score(f.a, f.w.round()), f.w.score(f.b, f.w.round()));
+        f.w.end_player_turn(f.a);
+        assert_eq!(f.w.mastered_by(), Some(f.a), "{}", f.name);
+        let (won, lost) = (f.w.score(f.a, 1), f.w.score(f.b, 1));
         assert!(
             won.mastery > 0 && lost.mastery == 0,
             "{}: {won:?} {lost:?}",
@@ -545,16 +492,6 @@ fn finishing_the_spell_of_mastery_wins_at_once_and_scores_it_for_the_caster_only
                 * won.percent
                 / 100,
             "{}: the total is not the sum",
-            f.name
-        );
-        // A game that is over takes no more commands.
-        let later = f.w.play_round();
-        assert!(
-            told(&later, |e| matches!(
-                e,
-                Event::Rejected(Rejection::GameOver)
-            )),
-            "{}: {later:?}",
             f.name
         );
     }

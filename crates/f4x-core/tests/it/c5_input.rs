@@ -6,7 +6,6 @@ use f4x_core::map::{Plane, Position};
 use f4x_core::world::save::Snapshot;
 use f4x_core::world::testutil::Table;
 use f4x_core::world::{Command, Event};
-use f4x_master::Game;
 
 /// Apply `command`; a panic names the command.
 fn apply(w: &mut Table, command: Command, what: &str) -> Vec<Event> {
@@ -193,10 +192,6 @@ fn a_game_with_no_map_and_no_players_takes_every_command_without_a_panic() {
     empty.set_content(content());
     for command in list {
         apply(&mut empty, command, "an empty game");
-    }
-    let mut empty = Game::from(empty);
-    for _ in 0..3 {
-        empty.play_round();
     }
     // What was left is still a game that saves and loads.
     let again = Snapshot::from_text(&text(&empty))

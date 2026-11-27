@@ -19,5 +19,5 @@ ron.workspace = true
 [dev-dependencies]
 f4x-master = { path = ".", features = ["testutil"] }
 f4x-core = { workspace = true, features = ["testutil"] }
-f4x-newgame.workspace = true
+f4x-newgame = { workspace = true, features = ["testutil"] }
 f4x-def = { workspace = true, features = ["testutil"] }

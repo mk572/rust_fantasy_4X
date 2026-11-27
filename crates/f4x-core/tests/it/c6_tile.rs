@@ -3,7 +3,6 @@
 //! ceiling on everything that puts units there). A unit that is hired, summoned or built is never
 //! refused for a full square; only the sanity limit stops it.
 
-use crate::support::games;
 use crate::support::worlds;
 use f4x_core::map::Position;
 use f4x_core::unit::TILE_SANITY_LIMIT;
@@ -125,39 +124,6 @@ fn a_tower_takes_twice_the_walking_limit() {
         vec![w.max_tile(), 2 * w.max_tile()],
         "the limits that are in use: {seen:?}"
     );
-}
-
-/// The sanity limit looks only at squares where a unit was just put, so every way of putting one there
-/// must be watched. Whatever the commands of the sweep do, no square is left over the limit (the game
-/// itself asserts the same after each command in a debug build).
-#[test]
-fn no_command_leaves_a_square_over_the_sanity_limit() {
-    use crate::support::{busy_round, commands};
-    for (name, mut w) in games().into_iter().step_by(2) {
-        // Crowd a square close to the limit, so that what the commands put there tips it over.
-        let (wizard, at) = wizard_and_city(&w);
-        let unit = f4x_core::rules::UnitId::new(w.content().rules.units.defs()[0].num);
-        while w.units().units_at(at).len() < TILE_SANITY_LIMIT {
-            w.command(Command::CreateUnit {
-                owner: wizard,
-                pos: at,
-                unit,
-            });
-        }
-        for command in commands(&w) {
-            let label = format!("{command:?}");
-            w.command(command);
-            assert!(
-                w.crowded_anywhere().is_empty(),
-                "{name}: after {label}: {:?}",
-                w.crowded_anywhere()
-            );
-        }
-        for _ in 0..5 {
-            busy_round(&mut w, 200);
-            assert!(w.crowded_anywhere().is_empty(), "{name}");
-        }
-    }
 }
 
 /// A save with a crowded square (written by hand) is put right by the first command.

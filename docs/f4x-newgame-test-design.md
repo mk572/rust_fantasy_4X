@@ -20,7 +20,8 @@ in the way of `docs/f4x-def-test-design.md`.
 ## What the old suite did, and what it left open
 
 Good, and kept in some form: it ran on the shipped content, never on a hand-built rule set; most tests read the
-count or the limit from the settings; there is a drift guard (`fixtures.rs`, `regression.rs`).
+count or the limit from the settings; there is a drift guard (`fixtures.rs`, and `regression.rs`, today in
+`f4x-master`).
 
 Weak:
 
@@ -113,9 +114,9 @@ The human is set only when the game is not all-AI. The neutral cities: not over 
 fortresses, nodes, towers and lairs by the stated distances, of the races of their plane, with a garrison and a
 population the land holds; roads only when the setting says so. The temperaments and heroes exist for everyone.
 
-Guard: the same matrix, with a second **independent checker** for a finished game (`start_problems(game)`), and the
-property that a played game goes on: ten turns by the AI on every world of a small matrix without a refusal or
-a panic, and a save made from the new game loads back equal.
+Guard: the same matrix, with a second **independent checker** for a finished game (`start_problems(game)`), and a
+save made from the new game loads back equal. That a played game goes on (ten rounds on every world of a small
+matrix without a refusal or a panic) needs turns, so it is a test of `f4x-master` (`tests/it/start.rs`).
 
 ### 5. A rule that is a defined algorithm
 
@@ -150,9 +151,10 @@ the memory rule "units by number" applies in the meantime.
 ### 7. The world drifts without anyone intending it
 
 Whole games are pinned to files: the fresh games `f4x-core`'s tests load (`fixtures.rs`) and the three played
-scenarios (`regression.rs`, `tests/regression/*.save` and `.target`). A change of the generator or the setup moves
-them, and moving them must be deliberate (`F4X_REFRESH_FIXTURES`, `F4X_REFRESH_REGRESSION`). These two files are
-kept as they are, moved to `c7_drift.rs`. The guard guards itself: a test makes a world with another seed and
+scenarios (`f4x-master/tests/it/regression.rs`, `tests/regression/*.save` and `.target`; they need turns, and no
+crate below `f4x-master` depends on it). A change of the generator or the setup moves
+them, and moving them must be deliberate (`F4X_REFRESH_FIXTURES`, `F4X_REFRESH_REGRESSION`). `fixtures.rs` is
+kept as it was, under `c7_drift.rs`. The guard guards itself: a test makes a world with another seed and
 shows the comparison fails (otherwise it could compare a file with itself).
 
 ## The matrix
@@ -219,14 +221,14 @@ After the suite is built it is attacked, as `f4x-def` was. Two kinds:
 
 | Module | Class | Holds |
 |---|---|---|
-| `support.rs` | | the matrix (`worlds()`), `world(seed, ...)` with a cache so that a world is made once per run, the copy of the shipped content to break (as `f4x-def`'s `support.rs`), and the time limit helper |
+| `support.rs` | | the matrix (`worlds()`; the cases `WorldCase` come from `src/testutil.rs`, which `f4x-master` uses too), `world(seed, ...)` with a cache so that a world is made once per run, the copy of the shipped content to break (as `f4x-def`'s `support.rs`), and the time limit helper |
 | `c1_determinism.rs` | 1 | same call same world; interleaved and threaded; independence of steps; the floats (`anchor`) |
 | `c2_input.rs` | 2 | extreme seeds, settings at the ends and over them, bad `NewGame` fields, damaged content, `generate` extremes |
 | `c3_map.rs` | 3 | `map_problems(&Generated, &Content, &GenParams)`: the independent checker and a test per rule that it fires |
-| `c4_start.rs` | 4 | `start_problems(&World)`: the same for a started game; a played game goes on; save and load |
+| `c4_start.rs` | 4 | `start_problems(&World)`: the same for a started game; save and load |
 | `c5_algorithms.rs` | 5 | the algorithms reachable from outside (`neutral::range`, `neutral::neutral_city_count`, `temperament::*`, `island::growth` through `grow_site_islands`, `computer_wizard` through `new_game`); the private ones are inline tests |
 | `c6_coupling.rs` | 6 | the numbers the crate names against the rows of the shipped content |
-| `c7_drift.rs` | 7 | `fixtures` and `regression` of the old suite, and the proof that the comparison can fail |
+| `c7_drift.rs` | 7 | `fixtures` of the old suite, and the proof that the comparison can fail |
 
 In the modules of `src` only the inline tests of private algorithms stay (class 5), each short, each a property.
 Every `mod tests` that only made a game and looked at it is dropped: `c3` and `c4` do it for every world.
@@ -271,10 +273,10 @@ scenarios of `c7_drift` did not move either.
 | Old | Successor |
 |---|---|
 | `shipped_content.rs` (placement rules, minerals of Myrror) | `c3_map` checker over the matrix, mineral tests |
-| `shipped_game.rs`: turns pass, save loads, same seed | `c4_start`, `c1_determinism` |
-| `shipped_game.rs`: counts, picks, book limits | kept as `c4_pick_rules.rs` |
+| `shipped_game.rs`: turns pass, save loads, same seed | `f4x-master` `start`, `c4_start`, `c1_determinism` |
+| `shipped_game.rs`: counts, picks, book limits | kept as `c4_pick_rules.rs`; the games played with many books are in `f4x-master` `start` |
 | `world_settings.rs`: the default counts are the original's | dropped (restates numbers of the original); the rest is `c3_counts.rs` |
-| `fixtures.rs`, `regression.rs` | `c7_drift/` |
+| `fixtures.rs`, `regression.rs` | `c7_drift/`, `f4x-master` `regression` |
 | inline `anchor` test | three property tests in `setup.rs` |
 
 ## Left as they are, on purpose

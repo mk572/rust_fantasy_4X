@@ -1,10 +1,13 @@
 //! The steps of the turn order, on real games.
 
 use f4x_core::player::MONSTERS;
+use f4x_core::world::save::Snapshot;
+use f4x_core::world::testutil::sweep::commands;
+use f4x_core::world::testutil::Table;
 use f4x_core::world::{Event, Rejection};
-use f4x_master::{Entry, Step};
+use f4x_master::{Entry, Game, Step};
 
-use crate::support::{content, games, text, wizards};
+use crate::support::{content, games, text, wizards, worlds};
 
 #[test]
 fn a_whole_round_is_the_steps_for_every_player() {
@@ -124,4 +127,23 @@ fn only_the_start_of_a_round_advances_the_round_counter() {
             "{name}: {events:?}"
         );
     }
+}
+
+#[test]
+fn a_game_with_no_map_and_no_players_plays_its_rounds() {
+    let (_, full) = worlds().remove(0);
+    let mut empty = Table::empty(1);
+    empty.set_content(content());
+    for command in commands(&full) {
+        empty.apply(command);
+    }
+    let mut empty = Game::from(empty);
+    for _ in 0..3 {
+        empty.play_round();
+    }
+    // What was left is still a game that saves and loads.
+    let again = Snapshot::from_text(&text(&empty))
+        .expect("reads")
+        .restore(content());
+    assert!(again.is_ok(), "{:?}", again.err());
 }

@@ -16,3 +16,5 @@ pub mod node;
 pub mod place;
 pub mod setup;
 pub mod temperament;
+#[cfg(feature = "testutil")]
+pub mod testutil;

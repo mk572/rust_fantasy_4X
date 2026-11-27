@@ -3,20 +3,15 @@
 
 use crate::support::{knobs, limits};
 use f4x_core::wizard::BuildError;
-use f4x_core::world::{Event, World};
+use f4x_core::world::World;
 use f4x_def::content::Content;
 use f4x_def::settings::{BOOKS_PER_REALM_RANGE, BOOKS_TOTAL_RANGE};
 use f4x_def::testdir::TestResult;
-use f4x_master::Game;
 use f4x_newgame::error::NewGameError;
 use f4x_newgame::setup::{new_game, NewGame};
 
 fn shipped() -> &'static Content {
     f4x_def::testdir::shipped()
-}
-
-fn end_turns(w: &mut Game, n: usize) -> Vec<Event> {
-    (0..n).flat_map(|_| w.play_round()).collect()
 }
 
 /// A new game on the shipped content with the map-size counts set by hand.
@@ -244,39 +239,6 @@ fn a_ready_made_human_wizard_over_the_most_books_is_asked_to_spend_the_picks() -
             NewGameError::Wizard(BuildError::UnspentPicks { .. })
         ),
         "{refused:?}"
-    );
-    Ok(())
-}
-
-#[test]
-fn wizards_with_more_books_in_a_realm_than_the_default_allows_play_on() -> TestResult {
-    use f4x_def::settings::DEFAULT_MAX_BOOKS_PER_REALM;
-    let mut most_seen = 0;
-    for seed in 1..40 {
-        let mut spec = NewGame {
-            seed,
-            all_ai: true,
-            ..Default::default()
-        };
-        spec.settings.basic.opponents = 5;
-        spec.settings.wizards.max_books_per_realm = *BOOKS_PER_REALM_RANGE.end();
-        spec.settings.wizards.max_books_total = *BOOKS_TOTAL_RANGE.end();
-        spec.settings.wizards.picks.ai = most_picks();
-        let mut w = Game::from(new_game(shipped(), &spec)?);
-        for p in w.player_ids() {
-            if let Some(wizard) = w.wizard(p) {
-                most_seen = most_seen.max(wizard.books().values().copied().max().unwrap_or(0));
-            }
-        }
-        let refused: Vec<_> = end_turns(&mut w, 3)
-            .into_iter()
-            .filter(|e| matches!(e, Event::Rejected(_)))
-            .collect();
-        assert!(refused.is_empty(), "seed {seed}: {refused:?}");
-    }
-    assert!(
-        most_seen > DEFAULT_MAX_BOOKS_PER_REALM,
-        "no wizard went over the default most of {DEFAULT_MAX_BOOKS_PER_REALM} books in a realm in 39 games: {most_seen}"
     );
     Ok(())
 }

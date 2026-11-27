@@ -6,12 +6,13 @@
 //!
 //! `F4X_REFRESH_PINS=1 cargo test -p f4x-master --test it drift`
 //!
-//! What a run of commands does to a world is pinned in core (`c8_drift.rs`).
+//! What a run of commands alone does to a world is pinned in core (`c8_drift.rs`).
 
 use std::collections::BTreeMap;
 
 use f4x_core::check::digest;
 use f4x_core::world::testutil::pin;
+use f4x_core::world::testutil::sweep::commands;
 use f4x_master::Game;
 
 use crate::support::{busy_round, games};
@@ -65,6 +66,17 @@ fn today() -> BTreeMap<String, String> {
                 }
             }
         }
+    }
+    // Every command of the sweep, then three turns: what the turns made of what the commands changed.
+    for (world, mut w) in games() {
+        let world = world.replace(' ', "").replace(',', "_");
+        for command in commands(&w) {
+            w.command(command);
+        }
+        for _ in 0..3 {
+            w.play_round();
+        }
+        out.insert(format!("{world} commands@+3turns"), line(&w));
     }
     out
 }

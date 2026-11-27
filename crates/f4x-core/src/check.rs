@@ -2,7 +2,8 @@
 //! class 2). Written from the rules, not from the code that keeps them, so a bug in a handler shows here.
 //! It reads the game through its views and reports each broken invariant as a line of text, `rule: what`.
 //!
-//! Tests: in `tests/it/c2_invariant.rs`, which also breaks each rule on purpose to see it found.
+//! Tests: here, which break each rule on purpose to see it found; over the fresh worlds in
+//! `tests/it/c2_invariant.rs` and turn after turn in `f4x-master/tests/it/invariant.rs`.
 
 use std::collections::{HashMap, HashSet};
 

@@ -10,7 +10,6 @@ use f4x_core::rules::UnitId;
 use f4x_core::world::testutil::Table;
 use f4x_core::world::{Command, Event, Rejection, World};
 use f4x_def::half_int::HalfInt;
-use f4x_master::Game;
 
 /// The result of a diplomacy command: the reason it was refused, if it was.
 fn run(w: &mut Table, command: D) -> Option<DiplomacyError> {
@@ -516,34 +515,6 @@ fn a_banished_wizard_starts_nothing_but_still_answers() {
     }
 }
 
-#[test]
-fn the_game_never_changes_a_treaty_by_itself() {
-    // Taking a city costs the winner standing but starts no war (`docs/diplomacy.md` 9.2).
-    for (name, w, ids) in met() {
-        let mut w = Game::from(w);
-        let (a, b) = (ids[0], ids[1]);
-        let city = w
-            .economy()
-            .cities()
-            .into_iter()
-            .find(|c| c.1.owner == b && w.economy().citizens(c.0) > 0)
-            .expect("a city with people")
-            .0;
-        w.conquer_city(city, a, 0);
-        assert_eq!(
-            w.treaty(a, b),
-            Treaty::None,
-            "{name}: a city taken is no war"
-        );
-        // Nor do the turns that follow start one: a pact is ended only by a player.
-        w.start_treaty(a, b, Treaty::Pact);
-        for _ in 0..6 {
-            w.play_round();
-        }
-        assert_ne!(w.treaty(a, b), Treaty::War, "{name}: war came by itself");
-    }
-}
-
 /// A race player with a city, of those in the world.
 fn race_with_a_city(w: &World) -> PlayerId {
     w.player_ids()
@@ -728,30 +699,6 @@ fn a_race_without_a_city_that_loses_its_last_unit_has_no_relations_left() {
         w.apply(Command::DismissUnit { unit });
         assert!(w.is_dormant(race), "{name}");
         assert_eq!(w.treaty(a, race), Treaty::None, "{name}");
-    }
-}
-
-#[test]
-fn an_alliance_stands_though_one_ally_is_at_war_with_the_others_ally() {
-    for (name, w, ids) in met().into_iter().filter(|m| m.2.len() >= 3) {
-        let mut w = Game::from(w);
-        let (a, b, c) = (ids[0], ids[1], ids[2]);
-        w.start_treaty(a, b, Treaty::Alliance);
-        w.start_treaty(b, c, Treaty::Alliance);
-        w.declare_war(a, c);
-        for _ in 0..3 {
-            w.play_round();
-        }
-        assert_eq!(
-            w.treaty(a, b),
-            Treaty::Alliance,
-            "{name}: the game split it"
-        );
-        assert_eq!(
-            w.treaty(b, c),
-            Treaty::Alliance,
-            "{name}: the game split it"
-        );
     }
 }
 

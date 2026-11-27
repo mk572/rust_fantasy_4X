@@ -4,6 +4,7 @@
 //! Tests: none, because this is test support.
 
 pub mod pin;
+pub mod sweep;
 
 use crate::player::PlayerId;
 use crate::world::rng::GameRng;

@@ -1,30 +1,11 @@
 //! Class 7: the turn does its arithmetic over everything, so it is checked where the numbers are big
 //! or many: a tally against the sum of its parts, a treasury at the end of its range, a city at its
-//! size cap, a game played far past its usual end. The treasuries through the turn order are the
-//! game's (`f4x-master/tests/it/treasury.rs`).
+//! size cap, a game played far past its usual end. The treasuries through the turn order are in
+//! `treasury.rs`.
 
-use crate::support::games;
-use crate::support::text;
+use crate::support::{content, games, gold, mana, text, wizards};
 use f4x_core::check::world_problems;
-use f4x_core::player::PlayerId;
-use f4x_core::world::World;
 use f4x_def::half_int::HalfInt;
-
-/// The players that keep a treasury: the wizards.
-fn wizards(w: &World) -> Vec<PlayerId> {
-    w.player_ids()
-        .into_iter()
-        .filter(|&p| !w.is_neutral_player(p) && w.wizard(p).is_some())
-        .collect()
-}
-
-fn gold(w: &World, p: PlayerId) -> HalfInt {
-    w.player(p).expect("a player").treasury().gold
-}
-
-fn mana(w: &World, p: PlayerId) -> HalfInt {
-    w.player(p).expect("a player").treasury().mana
-}
 
 #[test]
 fn the_budget_is_the_sum_of_what_the_cities_yield() {
@@ -143,9 +124,6 @@ fn a_game_played_far_past_its_usual_end_holds_together() {
         "the turns were not counted"
     );
     // What 400 turns left still saves and loads as itself.
-    let again = w
-        .snapshot()
-        .restore(crate::support::content())
-        .expect("restores");
+    let again = w.snapshot().restore(content()).expect("restores");
     assert_eq!(text(&again), text(&w));
 }

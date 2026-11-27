@@ -376,8 +376,7 @@ No command takes a round.
 - **Old replay files are refused**; the converter (10.8) is for saves. A replay written by a 0.0.8 build from before the commands carried their sender is not read either.
 - **Undo belongs to the game** too: it restores the whole `Game`, open reactions included, and takes the command out of the replay log. What cannot be taken back stays as today (a command that explored, drew a random number or started a battle, and everything before it; the end of a turn); the game sees the draws itself, and the world tells it the other facts.
 - **Turn-order, replay and undo tests** move to `f4x-master`.
-- **Core tests that only need time to pass** call `Game::play_round`, with `f4x-master` as a dev-dependency of `f4x-core`, while the move is under way. Only the tests under `tests/` can use it, and `docs/design.md` section 2 records the exception. No test helper in core repeats the turn order.
-- **The dev-dependency is temporary** (27 November 2026). Once the move is done, a test that needs the core alone sits in core and a test that needs the game sits in master, and core no longer depends on master, for tests either (the "Sort the tests" step of task 822).
+- **No crate below master depends on it, for tests either** (27 November 2026, built the same day; during the move core's tests used a dev-dependency). A test that needs the core alone sits in `f4x-core` and calls the single world operations it is about; a test that needs turns to pass, replays or undo sits in `f4x-master`. So do the tests of `f4x-newgame` that let a new game play, with the world cases both use in `f4x_newgame::testutil`. No test helper in core repeats the turn order.
 
 ### 10.10 Random numbers (decided 26 November 2026, built 27 November 2026)
 

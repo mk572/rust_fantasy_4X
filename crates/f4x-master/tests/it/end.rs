@@ -3,6 +3,7 @@
 use f4x_core::player::PlayerId;
 use f4x_core::world::endgame::EndKind;
 use f4x_core::world::{Command, Event, Rejection};
+use f4x_def::rules::SpellId;
 use f4x_master::{Game, GameOver};
 use f4x_newgame::setup::{new_game, NewGame};
 
@@ -128,4 +129,16 @@ fn a_game_that_is_over_takes_no_commands_and_no_turns() {
     }
     assert_eq!(game.play_round(), [Event::Rejected(Rejection::GameOver)]);
     assert_eq!((text(game.world()), game.round()), before);
+}
+
+#[test]
+fn a_casting_of_the_spell_of_mastery_finished_in_a_turn_ends_the_game_there() {
+    let (mut game, w) = three(false);
+    // `spell_of_mastery`.
+    let spell = SpellId::new(213);
+    game.cheat_learn_spell(w[0], spell);
+    game.scenario_casting(w[0], spell, 0);
+    let events = game.end_player_turn(w[0]);
+    assert_eq!(told_over(&events), [(w[0], EndKind::SpellOfMastery)]);
+    assert!(game.game_over().is_some());
 }

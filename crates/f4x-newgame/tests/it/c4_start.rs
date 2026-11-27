@@ -10,9 +10,8 @@ use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::PlayerId;
 use f4x_core::wizard::retort_available;
-use f4x_core::world::{Event, World};
+use f4x_core::world::World;
 use f4x_def::half_int::HalfInt;
-use f4x_master::Game;
 use f4x_newgame::neutral::{FORTRESS_CLEARANCE, SITE_CLEARANCE};
 use f4x_newgame::setup::{parse_retort, MIN_START_SIZE};
 
@@ -438,52 +437,6 @@ fn a_wizard_without_gold_is_found() {
     let mut w = fresh_game(case);
     w.treasury_mut(PlayerId(0)).expect("a purse").gold = HalfInt::from_int(-1);
     assert!(has_rule(&start_problems(&w, case), "purse"));
-}
-
-/// Ten turns of the computer's play on a game, with every refusal listed.
-fn played_refusals(case: WorldCase, turns: usize) -> Vec<String> {
-    let mut w = Game::from(fresh_game(case));
-    let mut refused = Vec::new();
-    for _ in 0..turns {
-        for e in w.play_round() {
-            if matches!(e, Event::Rejected(_)) {
-                refused.push(format!("{e:?}"));
-            }
-        }
-    }
-    refused
-}
-
-#[test]
-fn turns_pass_on_a_cut_of_the_worlds_without_a_refusal_or_a_panic() {
-    let std = standard();
-    let mut worlds = vec![std];
-    for &variant in VARIANTS {
-        worlds.push(WorldCase {
-            variant,
-            seed: 3,
-            ..std
-        });
-    }
-    for (width, height) in sizes() {
-        worlds.push(WorldCase {
-            width,
-            height,
-            seed: 6,
-            ..std
-        });
-    }
-    for w in [2, most_wizards()] {
-        worlds.push(WorldCase {
-            wizards: w,
-            seed: 8,
-            ..std
-        });
-    }
-    for case in worlds {
-        let refused = played_refusals(case, 10);
-        assert!(refused.is_empty(), "{case:?}: {refused:?}");
-    }
 }
 
 #[test]

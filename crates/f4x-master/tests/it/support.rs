@@ -1,9 +1,10 @@
-//! What the replay and undo tests share: the saved fresh games of core, played through a [`Game`].
+//! What the tests share: the saved fresh games of core, as worlds and played through a [`Game`].
 
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::Position;
 use f4x_core::player::PlayerId;
-use f4x_core::world::testutil::{fresh, shipped, FRESH_WORLDS};
+use f4x_core::world::testutil::sweep::around;
+use f4x_core::world::testutil::{fresh, shipped, Table, FRESH_WORLDS};
 use f4x_core::world::{Command, Event, World};
 use f4x_def::half_int::HalfInt;
 use f4x_def::rules::{UnitId, UnitKind};
@@ -30,41 +31,75 @@ pub fn text(w: &World) -> String {
     w.snapshot().to_text().expect("a game writes as text")
 }
 
-/// The squares round `at`, east and west wrapping, those off the top or bottom left out.
-fn around(w: &World, at: Position) -> Vec<Position> {
-    let map = w.map().expect("a map");
-    let mut out = Vec::new();
-    for dy in -1i32..=1 {
-        for dx in -1i32..=1 {
-            let y = at.y as i32 + dy;
-            if (dx, dy) != (0, 0) && (0..map.height() as i32).contains(&y) {
-                out.push(Position {
-                    x: (at.x as i32 + dx).rem_euclid(map.width() as i32) as u32,
-                    y: y as u32,
-                    plane: at.plane,
-                });
-            }
-        }
-    }
-    out
-}
-
 /// One round of play without an AI: every unit of the first `limit` tries one step to a
 /// neighbouring square (the first the game accepts), then the turn ends. The commands go through
-/// the game, so they are recorded and can be undone.
-pub fn busy_round(game: &mut Game, limit: usize) {
+/// the game, so they are recorded and can be undone. The events come back, so two games played the
+/// same way can be compared.
+pub fn busy_round(game: &mut Game, limit: usize) -> Vec<Event> {
+    let mut events = Vec::new();
     for u in game.units().all_units().into_iter().take(limit) {
         let Some(at) = game.units().unit_position(u) else {
             continue;
         };
         for to in around(game.world(), at) {
             let out = game.command(Command::MoveStack { units: vec![u], to });
-            if !out.iter().any(|e| matches!(e, Event::Rejected(_))) {
+            let refused = out.iter().any(|e| matches!(e, Event::Rejected(_)));
+            events.extend(out);
+            if !refused {
                 break;
             }
         }
     }
-    game.play_round();
+    events.extend(game.play_round());
+    events
+}
+
+/// Every fresh game as a world alone, with its name for a failure message.
+pub fn worlds() -> Vec<(String, Table)> {
+    FRESH_WORLDS
+        .iter()
+        .map(|&(w, s)| {
+            let world = fresh(w, s).unwrap_or_else(|e| panic!("{e}"));
+            (format!("{w} wizards, seed {s}"), world)
+        })
+        .collect()
+}
+
+/// [`text`] and the numbers drawn so far: all that playing changes, for a test that says two games
+/// are the same or that nothing happened to one.
+pub fn state(game: &Game) -> String {
+    format!("{}draws {}\n", text(game), game.draws())
+}
+
+/// The events as text with the entity handles blanked (`170v1` becomes `E`): a loaded game numbers
+/// its entities afresh, so two games that are the same differ in these alone. Creation numbers (the
+/// saved text) are what is compared exactly.
+pub fn shape(events: &[Event]) -> String {
+    let text = format!("{events:?}");
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::new();
+    let mut i = 0;
+    while i < chars.len() {
+        let start = i;
+        while i < chars.len() && chars[i].is_ascii_digit() {
+            i += 1;
+        }
+        if i > start && i < chars.len() && chars[i] == 'v' {
+            let mut j = i + 1;
+            while j < chars.len() && chars[j].is_ascii_digit() {
+                j += 1;
+            }
+            if j > i + 1 && !chars[start.saturating_sub(1)].is_alphanumeric() {
+                out.push('E');
+                i = j;
+                continue;
+            }
+        }
+        i = start;
+        out.push(chars[i]);
+        i += 1;
+    }
+    out
 }
 
 /// A command that changes the game, draws no random number and explores nothing: the tax rate of a
