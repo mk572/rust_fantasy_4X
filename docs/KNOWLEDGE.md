@@ -61,6 +61,11 @@ Non-obvious findings, one rule up front in bold. General lessons (shell, tools) 
   where one happens. The test pins seed 4; an AI change that rolls the dice differently may need another.
 - **Guard.** `f4x-tools world-methods` reports files with more than 12 methods on `World`. It is a tool,
   not a test; the singular-name rule has no test on purpose.
+- **Every race player exists from the start, most games leaving some dormant.** `World::player_ids`
+  includes them. Code that lists players to the human, counts wars or picks someone to deal with
+  asks `is_dormant` (or `PlayerView::is_diplomat`, `at_war_with_anyone`). `takes_part_in_diplomacy`
+  stays true for them, so that the rules still note what was done to a race that has just lost its
+  last city. Do not add a player to a game world in a test: take one that is there.
 
 ## Orders that stop (tasks 515, 555)
 

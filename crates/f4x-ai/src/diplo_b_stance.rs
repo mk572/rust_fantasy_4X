@@ -73,6 +73,7 @@ pub(crate) fn values(
     if world.player_ids().into_iter().any(|a| {
         a != me
             && a != other
+            && !world.is_dormant(a)
             && world.treaty(me, a) == Treaty::Alliance
             && world.treaty(a, other) == Treaty::War
     }) {

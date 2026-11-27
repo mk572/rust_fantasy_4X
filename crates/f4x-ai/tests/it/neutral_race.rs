@@ -59,7 +59,7 @@ fn the_neutral_players_play_with_one_ai_each_and_send_no_order_a_wizard_less_pla
     let races: Vec<_> = w
         .player_ids()
         .into_iter()
-        .filter(|&p| w.race_of_player(p).is_some())
+        .filter(|&p| w.race_of_player(p).is_some() && !w.is_dormant(p))
         .collect();
     assert!(!races.is_empty(), "the neutral players are still there");
     let plans = neutral.borrow().plans();
@@ -96,7 +96,8 @@ fn a_neutral_player_casts_no_spell_researches_nothing_and_turns_its_mana_into_go
 }
 
 #[test]
-fn the_ai_of_a_neutral_player_goes_with_the_player() {
+fn a_neutral_player_with_nothing_left_keeps_its_ai_and_cannot_be_dealt_with() {
+    use f4x_core::diplomacy::DiplomacyCommand;
     let mut w = world(7);
     let neutral = RefCell::new(NeutralAi::default());
     play(&mut w, &neutral, 2);
@@ -106,7 +107,7 @@ fn the_ai_of_a_neutral_player_goes_with_the_player() {
         .first()
         .map(|(p, _)| p)
         .expect("a neutral AI");
-    // The player has nothing left: the next round removes it, and its AI with it.
+    w.make_contact(PlayerId(0), first);
     for u in w.units().player_units(first) {
         w.apply(Command::DismissUnit { unit: u });
     }
@@ -121,8 +122,17 @@ fn the_ai_of_a_neutral_player_goes_with_the_player() {
         let _ = w.destroy_city(c);
     }
     play(&mut w, &neutral, 2);
-    assert!(!w.has_player(first), "the empty player is gone");
-    assert!(neutral.borrow().plans().iter().all(|(p, _)| *p != first));
+    assert!(w.is_dormant(first), "the player has nothing left");
+    assert!(neutral.borrow().plans().iter().any(|(p, _)| *p == first));
+    assert!(w.have_met(PlayerId(0), first), "the contact is remembered");
+    let events = w.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+        player: PlayerId(0),
+        on: first,
+    }));
+    assert!(
+        events.iter().any(|e| matches!(e, Event::Rejected(_))),
+        "{events:?}"
+    );
 }
 
 #[test]

@@ -49,6 +49,10 @@ wizard's early returns do not apply to them; and they greet the human by their r
 (`crates/f4x-client/assets/neutral/`), named "Independent {race}". The human opens the talk by clicking
 an independent city of a race met. **An attack on an independent unit or city is a declaration of war on that player**, exactly as an attack on a wizard is (the human is asked first, `attack_war.rs`; the game refuses an attack on a pact or alliance partner until a player has declared war).
 
+Every race has its player from the start of the game. One with no city and no unit is dormant
+(`World::is_dormant`): it is not listed, its war counts for nothing and a command that deals with
+it is refused. What it and the others remember of each other stays.
+
 ### The diplomacy list (task 489)
 
 `diplomacy_list_screen.rs` is the overview: one scrolling list of the contacts met (rival wizards, then

@@ -316,6 +316,7 @@ pub(crate) fn arms_enemy(world: &World, judge: PlayerId, asker: PlayerId) -> boo
             || world.player_ids().into_iter().any(|p| {
                 p != judge
                     && p != asker
+                    && !world.is_dormant(p)
                     && world.treaty(judge, p) == Treaty::Alliance
                     && world.treaty(asker, p) == Treaty::War
             })

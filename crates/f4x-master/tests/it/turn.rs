@@ -4,13 +4,12 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use f4x_core::player::race_player::FIRST_RACE_PLAYER;
+use f4x_core::map::{Plane, Position};
 use f4x_core::player::{PlayerId, MONSTERS};
 use f4x_core::world::save::ContentCheck;
 use f4x_core::world::Event;
 use f4x_master::{
-    turn_players, Controller, Entry, FlowError, Game, Master, Phase, SaveFile, Seat, Status, Step,
-    Stopped, Until,
+    Controller, Entry, FlowError, Game, Master, Phase, SaveFile, Seat, Status, Step, Stopped, Until,
 };
 
 use crate::support::{content, games};
@@ -53,24 +52,58 @@ fn table<'a>(game: &Game, log: &Log, wait_at: Option<PlayerId>) -> Vec<Seat<'a>>
     seats
 }
 
-/// A fresh game, with its independent race players.
+/// A fresh game, with the race players that have something to play with.
 fn game() -> (Game, Vec<PlayerId>) {
     let (_, game) = games().remove(0);
-    let races: Vec<PlayerId> = game
-        .player_ids()
+    let races: Vec<PlayerId> = race_players(&game)
         .into_iter()
-        .filter(|&p| game.race_of_player(p).is_some())
+        .filter(|&p| !game.is_dormant(p))
         .collect();
     assert!(races.len() > 1, "the game has too few race players");
     (game, races)
 }
 
+fn race_players(game: &Game) -> Vec<PlayerId> {
+    game.player_ids()
+        .into_iter()
+        .filter(|&p| game.race_of_player(p).is_some())
+        .collect()
+}
+
+/// A square a city can be founded on, with nothing on it.
+fn free_site(game: &Game) -> Position {
+    let grid = game.map().expect("a map").plane(Plane::Arcanus);
+    let (width, height) = (grid.width(), grid.height());
+    let plane = Plane::Arcanus;
+    (0..height)
+        .flat_map(|y| (0..width).map(move |x| Position { plane, x, y }))
+        .find(|&at| {
+            game.map().expect("a map").feature_entity(at).is_none()
+                && game.economy().site_max_size(at) > 0
+                && game.economy().city_at(at).is_none()
+                && game.units().units_at(at).is_empty()
+        })
+        .expect("a free site")
+}
+
+/// The players that take a turn in `game` as it stands.
+fn playing(game: &Game) -> Vec<PlayerId> {
+    let list = game.turn_players().iter().copied();
+    list.filter(|&p| game.takes_turn(p)).collect()
+}
+
 #[test]
 fn the_wizards_play_first_then_each_race_player_by_number_then_the_monsters() {
-    let (game, races) = game();
-    let order = turn_players(game.world());
+    let (game, _) = game();
+    let order = game.turn_players();
     let wizards = order.iter().take_while(|&&p| game.is_wizard(p)).count();
     assert!(wizards > 0);
+    let races = race_players(&game);
+    assert_eq!(
+        races.len(),
+        game.content().rules.races.iter().count(),
+        "every race has its player"
+    );
     assert_eq!(order[wizards..order.len() - 1], races[..]);
     assert!(races.windows(2).all(|w| w[0].0 < w[1].0));
     assert_eq!(order.last(), Some(&MONSTERS));
@@ -80,7 +113,7 @@ fn the_wizards_play_first_then_each_race_player_by_number_then_the_monsters() {
 fn every_player_has_a_turn_of_its_own_started_and_ended_before_the_next_begins() {
     let (mut game, _) = game();
     let log = Log::default();
-    let order = turn_players(game.world());
+    let order = playing(&game);
     game.start_recording();
     Master::new(table(&game, &log, None)).run(&mut game, Until::Rounds(1));
     assert_eq!(*log.borrow(), order);
@@ -103,38 +136,58 @@ fn every_player_has_a_turn_of_its_own_started_and_ended_before_the_next_begins()
 }
 
 #[test]
-fn a_player_that_appears_during_a_round_plays_in_it() {
+fn a_race_with_no_city_and_no_unit_is_skipped_and_keeps_what_it_has() {
     let (mut game, _) = game();
-    let late = (FIRST_RACE_PLAYER..MONSTERS.0)
-        .rev()
-        .map(PlayerId)
-        .find(|&p| !game.has_player(p))
-        .expect("a free player number");
+    let list = game.turn_players().to_vec();
+    let idle = race_players(&game)
+        .into_iter()
+        .find(|&p| game.is_dormant(p))
+        .expect("a race with nothing");
+    let gold = game.player(idle).expect("a player").treasury().gold;
     let log = Log::default();
-    // The turns as they stand, and the late one in its place: before the monsters'.
-    let mut expected = turn_players(game.world());
-    expected.insert(expected.len() - 1, late);
+    Master::new(table(&game, &log, None)).run(&mut game, Until::Rounds(2));
+    assert!(!log.borrow().contains(&idle));
+    assert_eq!(
+        game.player(idle).expect("still there").treasury().gold,
+        gold
+    );
+    assert_eq!(game.turn_players(), list, "the list does not change");
+}
+
+#[test]
+fn a_race_plays_in_its_place_once_it_has_a_city() {
+    let (mut game, _) = game();
+    // The last race with nothing.
+    let late = race_players(&game)
+        .into_iter()
+        .rev()
+        .find(|&p| game.is_dormant(p))
+        .expect("a race with nothing");
+    let race = game.race_of_player(late).expect("a race");
+    let site = free_site(&game);
+    let log = Log::default();
     let mut seats = table(&game, &log, None);
     let first = seats[0].player().expect("a wizard's seat");
     let heard = log.clone();
     seats[0] = Seat::new(
         first,
         Box::new(Doer(move |game: &mut Game, player| {
-            if !game.has_player(late) {
-                game.world_mut().add_neutral_player(late);
+            if game.is_dormant(late) {
+                game.world_mut().found_neutral_city(site, race);
             }
             heard.borrow_mut().push(player);
             Status::Done
         })),
     );
     Master::new(seats).run(&mut game, Until::Rounds(1));
-    assert_eq!(*log.borrow(), expected);
+    assert_eq!(log.borrow().iter().filter(|&&p| p == late).count(), 1);
+    assert_eq!(*log.borrow(), playing(&game));
 }
 
 #[test]
 fn a_game_saved_in_a_race_players_turn_goes_on_with_that_turn() {
     let (mut game, races) = game();
-    let order = turn_players(game.world());
+    let order = playing(&game);
     let waiting = races[1];
     let log = Log::default();
     let mut master = Master::new(table(&game, &log, Some(waiting)));

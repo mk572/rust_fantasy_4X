@@ -153,7 +153,7 @@ impl App {
             .player_ids()
             .into_iter()
             .filter(|&id| id != HUMAN && self.game.takes_part_in_diplomacy(id))
-            .filter(|&id| self.game.have_met(HUMAN, id))
+            .filter(|&id| self.game.have_met(HUMAN, id) && !self.game.is_dormant(id))
             .map(|id| {
                 let relation = self.feeling(id);
                 let treaty = self.game.treaty(HUMAN, id);
@@ -642,8 +642,12 @@ mod tests {
             .into_iter()
             .find(|&w| w != HUMAN)
             .expect("a rival");
-        let neutral = f4x_core::player::race_player::race_player_id(f4x_def::rules::RaceId::new(0));
-        app.game.add_neutral_player(neutral);
+        let neutral = app
+            .game
+            .player_ids()
+            .into_iter()
+            .find(|&p| app.game.race_of_player(p).is_some() && !app.game.is_dormant(p))
+            .expect("an independent race");
         app.game.make_contact(HUMAN, neutral);
         app.game.make_contact(HUMAN, rival);
         let rows = app.diplomacy_rows();
@@ -659,6 +663,20 @@ mod tests {
         assert!(!n.name.starts_with("Independent"), "{}", n.name);
         assert!(n.full_name.starts_with("Independent"), "{}", n.full_name);
         assert_eq!(n.ranks, None, "a neutral race has no magic or research");
+    }
+
+    #[test]
+    fn a_race_met_that_has_no_city_and_no_unit_is_not_listed() {
+        let mut app = App::for_test();
+        let idle = app
+            .game
+            .player_ids()
+            .into_iter()
+            .find(|&p| app.game.is_dormant(p))
+            .expect("a race with nothing");
+        app.game.make_contact(HUMAN, idle);
+        assert!(app.game.have_met(HUMAN, idle));
+        assert!(app.contacts().iter().all(|c| c.id != idle));
     }
 
     #[test]

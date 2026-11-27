@@ -318,6 +318,24 @@ pub enum DiplomacyCommand {
     },
 }
 
+impl DiplomacyCommand {
+    /// The two players the command is between.
+    fn parties(&self) -> [PlayerId; 2] {
+        match *self {
+            DiplomacyCommand::Greeted { player, with }
+            | DiplomacyCommand::BreakTreaty { player, with } => [player, with],
+            DiplomacyCommand::DeclareWar { player, on } => [player, on],
+            DiplomacyCommand::Answer { player, from, .. }
+            | DiplomacyCommand::Counter { player, from, .. } => [player, from],
+            DiplomacyCommand::Propose { from, to, .. }
+            | DiplomacyCommand::GiveGold { from, to, .. }
+            | DiplomacyCommand::GiveSpell { from, to, .. }
+            | DiplomacyCommand::Warn { from, to }
+            | DiplomacyCommand::Remark { from, to, .. } => [from, to],
+        }
+    }
+}
+
 /// Why an AI wizard did what it did to another (`DiplomacyCommand::Remark`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Remark {
@@ -693,6 +711,7 @@ impl Diplomacy {
             third != from
                 && third != to
                 && view.takes_part_in_diplomacy(third)
+                && !view.is_dormant(third)
                 && self.have_met(from, third)
                 && self.have_met(to, third)
         };
@@ -949,6 +968,12 @@ impl Diplomacy {
         ctx: &mut DiplomacyCtx<'_>,
         command: DiplomacyCommand,
     ) -> Vec<Event> {
+        // Nobody deals with a dormant player.
+        if command.parties().iter().any(|&p| ctx.view.is_dormant(p)) {
+            return vec![Event::Rejected(crate::world::Rejection::Diplomacy(
+                DiplomacyError::NotWizards,
+            ))];
+        }
         // A banished wizard starts nothing with the others; it may still answer an offer.
         let actor = match command {
             DiplomacyCommand::Greeted { .. }

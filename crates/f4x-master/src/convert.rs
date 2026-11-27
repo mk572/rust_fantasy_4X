@@ -182,6 +182,8 @@ pub(crate) fn from_old(text: &str, game_version: &str) -> Result<SaveFile, LoadE
             .as_deref()
             .and_then(|flow| flow::phase(flow, &world.players)),
         game_over: old.game_over,
+        // The restored save makes the list.
+        players: Vec::new(),
     };
     Ok(SaveFile {
         version: SAVE_VERSION,

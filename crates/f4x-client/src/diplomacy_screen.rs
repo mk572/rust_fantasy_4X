@@ -341,7 +341,7 @@ impl App {
         self.game
             .player_ids()
             .into_iter()
-            .filter(|&t| self.game.takes_part_in_diplomacy(t))
+            .filter(|&t| self.game.takes_part_in_diplomacy(t) && !self.game.is_dormant(t))
             .filter(|&t| t != HUMAN && t != with)
             .filter(|&t| {
                 let kind = if war {

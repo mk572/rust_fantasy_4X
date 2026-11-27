@@ -296,6 +296,10 @@ impl World {
     /// Make the player of one independent city: it has a treasury and pays its way like a wizard,
     /// but is no wizard (no magic, no victory, no AI).
     pub fn add_neutral_player(&mut self, id: player::PlayerId) -> hecs::Entity {
+        debug_assert!(
+            self.player_entity(id).is_none(),
+            "player {id:?} is made twice"
+        );
         let e = self.ecs.spawn(player::bundle(
             id,
             self.content.rules.config.wizard.start_tax_rate,
@@ -363,16 +367,6 @@ impl World {
             .and_then(|p| wizard::entity::of_player(&self.ecs, p))
         {
             let _ = self.ecs.insert_one(w, value);
-        }
-    }
-
-    /// An independent city's player goes with its city; wizards' players are never removed.
-    pub(crate) fn remove_player(&mut self, id: player::PlayerId) {
-        if let Some(e) = self.player_index.remove(&id) {
-            if let Some(w) = wizard::entity::of_player(&self.ecs, e) {
-                let _ = self.ecs.despawn(w);
-            }
-            let _ = self.ecs.despawn(e);
         }
     }
 

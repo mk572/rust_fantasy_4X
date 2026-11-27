@@ -370,9 +370,11 @@ No command takes a round.
 
 There is no neutral seat. The players are the wizards, the independent race players (no wizard, one for each race, each played by an AI) and the monster player, and each has a turn of its own, with its own start, play, end and (once built) reactions.
 
-- The order of the turns follows from the players in the world (`turn_order`, `turn_players`): the wizards, the race players by player number, the monster player last. The game stores no list of seats.
-- A race player can appear during a game. One that appears during a round plays in it if its place in the order has not passed. A defeated player, or one that has left the game, gets no turn.
+- Every race has its player from the start of the game to its end (decided 27 November 2026); the monster player exists from the start too. None is made or removed during a game.
+- The `Game` keeps the list of the players in the order of their turns and saves it (`GameState::players`, `Game::turn_players`): the wizards, the race players by player number, the monster player last. The list is made when the game begins and does not change.
+- A player is skipped, with no start, play or end of a turn, when it is defeated, or is a race with no city and no unit when its place comes (`Game::takes_turn`, `World::is_dormant`). A race that gets one later plays the next time its place comes.
+- A dormant race keeps everything it had (decided 27 November 2026: no reset): treasury, vault, relations and its AI's memory. Nobody deals with it until it returns (`diplomacy.md` "Neutral players").
 - The saved phase names the player whose turn it is, not a position in a list.
 - A seat of the master (`Seat`) says who plays a turn: `Seat::new` for one wizard, `Seat::non_wizards` for the controller that is asked in the turn of every other player (`f4x_ai::NeutralAi`, one AI for each race player and the roaming monsters).
-- The converter of old saves (10.8) turns a seat number into a player. A save made while the old shared seat was playing goes on in the monsters' turn, the last of the round, so that no turn is started twice.
+- The converter of old saves (10.8) turns a seat number into a player; a restored old save gets the race players it lacks and its list of players. A save made while the old shared seat was playing goes on in the monsters' turn, the last of the round, so that no turn is started twice.
 - One turn at a time changed the order of operations and of the random draws, so it came after the comparison of 10.8, as a change of its own.

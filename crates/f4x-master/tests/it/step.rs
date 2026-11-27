@@ -10,15 +10,19 @@ use crate::support::{content, games, text};
 fn a_whole_round_is_the_steps_for_every_player() {
     for ((name, mut a), (_, mut b)) in games().into_iter().zip(games()) {
         a.play_round();
-        let players = b.turn_players();
+        let players = b.turn_players().to_vec();
         let round = b.round();
         for &p in &players {
-            b.world_mut().advance(|w| w.end_player_turn(p));
+            if !b.is_dormant(p) {
+                b.world_mut().advance(|w| w.end_player_turn(p));
+            }
         }
         b.world_mut().advance(|w| w.end_round());
         b.world_mut().advance(|w| w.start_round(round + 1));
         for &p in &players {
-            b.world_mut().advance(|w| w.start_player_turn(p, round + 1));
+            if !b.is_dormant(p) {
+                b.world_mut().advance(|w| w.start_player_turn(p, round + 1));
+            }
         }
         assert_eq!(text(a.world()), text(b.world()), "{name}");
     }

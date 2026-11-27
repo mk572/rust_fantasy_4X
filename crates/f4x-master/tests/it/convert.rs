@@ -50,6 +50,29 @@ fn an_old_save_gives_a_game_in_its_round_with_its_wars_and_plans() {
 }
 
 #[test]
+fn a_restored_old_save_has_a_player_for_every_race_and_lists_who_plays() {
+    let saved = SaveFile::from_text(OLD).expect("converts").world.players;
+    let game = restore(OLD).expect("loads").game;
+    let races = game.content().rules.races.iter().count();
+    let of_races: Vec<PlayerId> = game
+        .player_ids()
+        .into_iter()
+        .filter(|&p| game.race_of_player(p).is_some())
+        .collect();
+    assert_eq!(of_races.len(), races);
+    // Those the save did not have come with nothing; those it had keep what they had.
+    assert!(of_races
+        .iter()
+        .filter(|p| !saved.iter().any(|s| s.id == p.0))
+        .all(|&p| game.is_dormant(p)));
+    for s in &saved {
+        let gold = game.player(PlayerId(s.id)).map(|p| p.treasury().gold);
+        assert_eq!(gold, Some(s.gold), "player {}", s.id);
+    }
+    assert_eq!(game.turn_players(), f4x_master::turn_players(game.world()));
+}
+
+#[test]
 fn a_converted_save_is_written_and_read_as_a_save_of_this_version() {
     let file = SaveFile::from_text(OLD).expect("converts");
     let again = SaveFile::from_text(&file.to_text().expect("writes")).expect("reads");

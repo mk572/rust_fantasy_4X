@@ -314,20 +314,24 @@ impl<'a> Master<'a> {
         })
     }
 
-    /// Whether `player` can take a turn: in the game, not defeated, and seated.
-    fn eligible(&self, world: &World, player: PlayerId) -> bool {
-        world.player(player).is_some_and(|p| !p.is_defeated())
-            && self.seat_of(world, player).is_some()
+    /// Whether `player` plays when its place comes: it takes its turn ([`Game::takes_turn`]) and
+    /// is seated.
+    fn eligible(&self, game: &Game, player: PlayerId) -> bool {
+        game.takes_turn(player) && self.seat_of(game, player).is_some()
     }
 
-    /// What comes after the turns before `from` in the order of the turns: the start of the turn
-    /// of the first player from there that can take one, or the end of the round. The players
-    /// are those in the game now, so one that appeared during the round plays in it if its
-    /// place has not passed.
-    fn next_turn(&self, world: &World, from: impl Fn(PlayerId) -> bool) -> Phase {
-        turn_players(world)
-            .into_iter()
-            .find(|&p| from(p) && self.eligible(world, p))
+    /// What comes after the turn of `last` (`None`: at the start of the round): the start of the
+    /// turn of the next player in the game's order that can play, or the end of the round.
+    fn next_turn(&self, game: &Game, last: Option<PlayerId>) -> Phase {
+        let order = game.turn_players();
+        let from = last.map_or(0, |last| {
+            let place = order.iter().position(|&p| p == last);
+            place.map_or(order.len(), |i| i + 1)
+        });
+        order[from..]
+            .iter()
+            .copied()
+            .find(|&p| self.eligible(game, p))
             .map_or(Phase::RoundEnd, Phase::TurnStart)
     }
 
@@ -342,7 +346,7 @@ impl<'a> Master<'a> {
             Phase::Over => stopped = Stopped::Over,
             Phase::RoundStart => {
                 events.extend(game.start_round());
-                self.state.phase = match self.next_turn(game, |_| true) {
+                self.state.phase = match self.next_turn(game, None) {
                     Phase::RoundEnd => Phase::Over,
                     first => first,
                 };
@@ -352,16 +356,11 @@ impl<'a> Master<'a> {
                     events.extend(game.start_player_turn(player));
                     self.state.phase = Phase::Acting(player);
                 } else {
-                    let after = turn_order(player);
-                    self.state.phase = self.next_turn(game, |p| turn_order(p) > after);
+                    self.state.phase = self.next_turn(game, Some(player));
                 }
             }
             Phase::Acting(player) => {
-                // A player that has left the game has nothing to play. (Not `has_player`, which
-                // does not count the monsters' owner.)
-                let seat = self
-                    .seat_of(game, player)
-                    .filter(|_| game.player(player).is_some());
+                let seat = self.seat_of(game, player);
                 let status = seat.map_or(Status::Done, |i| {
                     self.seats[i].controller.play(game, player, &mut events)
                 });
@@ -371,12 +370,8 @@ impl<'a> Master<'a> {
                 }
             }
             Phase::TurnEnd(player) => {
-                if game.player(player).is_some() {
-                    events.extend(game.end_player_turn(player));
-                }
-                // A player may have been defeated, or have appeared, during the turn.
-                let after = turn_order(player);
-                self.state.phase = self.next_turn(game, |p| turn_order(p) > after);
+                events.extend(game.end_player_turn(player));
+                self.state.phase = self.next_turn(game, Some(player));
             }
             Phase::RoundEnd => {
                 events.extend(game.end_round());

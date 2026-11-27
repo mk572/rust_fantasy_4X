@@ -30,9 +30,13 @@ pub struct Game {
 impl Game {
     /// A game of this world in its first round, with undo off and nothing recorded.
     pub fn new(world: World) -> Self {
+        let state = save::GameState {
+            players: step::turn_players(&world),
+            ..Default::default()
+        };
         Self {
             world,
-            state: save::GameState::default(),
+            state,
             recording: None,
             history: undo::History::default(),
         }

@@ -87,7 +87,7 @@ impl Game {
         }
         let ends_history = matches!(command, Command::Battle(_) | Command::EnterSite { .. });
         let label = label_of(&command);
-        let state = self.state;
+        let state = self.state.clone();
         let snapshot = (!ends_history).then(|| self.world.snapshot());
         let (draws, explored) = (self.world.draws(), self.world.explored_total());
         let events = self.world.apply(command);

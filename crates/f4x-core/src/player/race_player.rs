@@ -1,11 +1,13 @@
 //! The neutral player of a race (task 522): every independent city of a race, on both planes,
-//! belongs to one player, as if one wizard without magic ruled them all. It is made when the
-//! first city of the race turns neutral and removed when it has no city and no unit left. Its
-//! number is [`FIRST_RACE_PLAYER`] plus the race's number, so it is the same in every game and
-//! save. The monsters' owner stays a player of its own.
+//! belongs to one player, as if one wizard without magic ruled them all. Every race has its
+//! player from the start of the game to its end. While one has no city and no unit it is dormant
+//! ([`World::is_dormant`]): it takes no turn and nobody deals with it, but it keeps what it has
+//! (treasury, vault, relations). Its number is [`FIRST_RACE_PLAYER`] plus the race's number, so
+//! it is the same in every game and save. The monsters' owner stays a player of its own.
 //!
-//! Tests: in player/race_player/tests.rs.
+//! Tests: in tests/it.
 
+use crate::diplomacy::Treaty;
 use crate::player::{PlayerId, MONSTERS};
 use crate::rules::RaceId;
 use crate::world::World;
@@ -30,39 +32,43 @@ impl World {
             .then(|| RaceId::new(u16::from(id.0 - FIRST_RACE_PLAYER)))
     }
 
-    /// The neutral player of `race`, made now if the race has none: it starts with the gold
-    /// that a computer wizard starts with (and its cities share the one treasury).
-    pub(crate) fn race_player(&mut self, race: RaceId) -> PlayerId {
-        let id = race_player_id(race);
-        if !self.has_player(id) {
+    /// Whether `id` is the neutral player of a race that has no city and no unit.
+    pub fn is_dormant(&self, id: PlayerId) -> bool {
+        self.race_of_player(id).is_some()
+            && self.economy().city_count(id) == 0
+            && self.units().player_units(id).is_empty()
+    }
+
+    /// Whether `player` is at war with anybody who is still there: a war with a dormant player
+    /// counts for nothing while it lasts.
+    pub fn at_war_with_anyone(&self, player: PlayerId) -> bool {
+        self.player_ids()
+            .into_iter()
+            .any(|p| p != player && !self.is_dormant(p) && self.treaty(player, p) == Treaty::War)
+    }
+
+    /// Make the neutral player of every race that has none: it starts with the gold that a
+    /// computer wizard starts with (and its cities share the one treasury). A game begins with
+    /// all of them.
+    pub fn add_race_players(&mut self) {
+        let races: Vec<RaceId> = self.content.rules.races.iter().map(|(id, _)| id).collect();
+        let gold = self.settings.wizards.starting_gold.of(false);
+        for race in races {
+            let id = race_player_id(race);
+            if self.has_player(id) {
+                continue;
+            }
             self.add_neutral_player(id);
-            let gold = self.settings.wizards.starting_gold.of(false);
             if let Some(t) = self.treasury_mut(id) {
                 t.gold = f4x_def::half_int::HalfInt::from_int(gold);
             }
         }
-        id
     }
 
-    /// The neutral players that have no city and no unit are gone, with their treasury and the
-    /// items in their vault. Called at the end of every round.
-    pub(crate) fn retire_empty_race_players(&mut self) {
-        let empty: Vec<PlayerId> = self
-            .player_ids()
-            .into_iter()
-            .filter(|&id| self.race_of_player(id).is_some())
-            .filter(|&id| {
-                self.economy().city_count(id) == 0 && self.units().player_units(id).is_empty()
-            })
-            .collect();
-        for id in empty {
-            let vault = self
-                .items()
-                .held(|h| matches!(h, crate::item::entity::HeldBy::Vault(p, _) if p == id));
-            for (item, _) in vault {
-                self.despawn_item(item);
-            }
-            self.remove_player(id);
-        }
+    /// The neutral player of `race`, for something that is to be its own.
+    pub(crate) fn race_player(&self, race: RaceId) -> PlayerId {
+        let id = race_player_id(race);
+        debug_assert!(self.has_player(id), "the game has no player for {race:?}");
+        id
     }
 }

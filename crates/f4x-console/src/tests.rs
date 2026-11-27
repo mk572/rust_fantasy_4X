@@ -1018,7 +1018,7 @@ fn a_neutral_city_that_cannot_pay_loses_its_garrison() {
 }
 
 #[test]
-fn taking_a_neutral_city_changes_its_owner_and_the_race_player_goes_with_its_last_city() {
+fn taking_a_neutral_city_changes_its_owner_and_the_race_player_stays_without_one() {
     let mut w = game();
     let wizards_before = wizards(&w);
     let (city, _) = neutral_cities(&w)[0];
@@ -1028,16 +1028,6 @@ fn taking_a_neutral_city_changes_its_owner_and_the_race_player_goes_with_its_las
     assert!(events
         .iter()
         .all(|e| matches!(e, f4x_core::world::Event::CityCaptured { .. })));
-    // The race's player stays while it has a city or a unit; with neither it goes at the round
-    // end, not before (a race with one city and no garrison is such a case).
-    if w.economy()
-        .cities()
-        .iter()
-        .any(|(_, c, _)| c.owner == owner)
-        || !w.units().player_units(owner).is_empty()
-    {
-        assert!(w.has_player(owner));
-    }
     // Even when the last one falls nobody is "defeated".
     for (c, _) in neutral_cities(&w) {
         assert!(w
@@ -1047,11 +1037,11 @@ fn taking_a_neutral_city_changes_its_owner_and_the_race_player_goes_with_its_las
     }
     assert!(neutral_cities(&w).is_empty());
     w.end_round();
-    // (No battle was fought here, so its garrison stays with it, and so does the player.)
+    // (No battle was fought here, so its garrison stays with it.)
+    assert!(w.has_player(owner), "a race keeps its player");
     assert_eq!(
-        w.has_player(owner),
-        !w.units().player_units(owner).is_empty(),
-        "the race player goes when it has no city and no unit"
+        w.is_dormant(owner),
+        w.units().player_units(owner).is_empty()
     );
     assert_eq!(wizards(&w), wizards_before);
     assert!(w

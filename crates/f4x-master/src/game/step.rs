@@ -63,9 +63,17 @@ impl Game {
         self.state.phase = Some(phase);
     }
 
-    /// [`turn_players`] of the game's world.
-    pub fn turn_players(&self) -> Vec<PlayerId> {
-        turn_players(&self.world)
+    /// The players that take turns, in the order they take them: the list made when the game
+    /// began ([`turn_players`]).
+    pub fn turn_players(&self) -> &[PlayerId] {
+        &self.state.players
+    }
+
+    /// Whether `player` takes its turn when its place in the order comes: a defeated player does
+    /// not, and neither does a dormant one ([`World::is_dormant`]).
+    pub fn takes_turn(&self, player: PlayerId) -> bool {
+        self.world.player(player).is_some_and(|p| !p.is_defeated())
+            && !self.world.is_dormant(player)
     }
 
     /// The round begins: once, before any player acts.
@@ -110,7 +118,7 @@ impl Game {
         self.forget_history();
         self.state.phase = None;
         let players = match step {
-            Step::PlayRound => self.turn_players(),
+            Step::PlayRound => self.turn_players().to_vec(),
             _ => Vec::new(),
         };
         let round = self.round();
@@ -142,13 +150,17 @@ fn whole_round(
 ) -> Vec<Event> {
     let mut events = Vec::new();
     for &p in players {
-        events.extend(world.end_player_turn(p));
+        if !world.is_dormant(p) {
+            events.extend(world.end_player_turn(p));
+        }
     }
     events.extend(world.end_round());
     events.extend(judge(world, round, over));
     events.extend(world.start_round(round + 1));
     for &p in players {
-        events.extend(world.start_player_turn(p, round + 1));
+        if !world.is_dormant(p) {
+            events.extend(world.start_player_turn(p, round + 1));
+        }
     }
     events
 }

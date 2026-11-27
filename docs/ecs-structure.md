@@ -186,7 +186,7 @@ item entities held by the player); **defeat** is the player's, **banishment** th
   independent city's player, or the monsters' player. Nothing is ownerless and nothing has a
   placeholder owner. Tests build only such situations; a test of a situation the game cannot
   create in normal play exists only to test error handling (a rejected command, a refused save).
-- The neutral player of a race has the id `FIRST_RACE_PLAYER` (100) plus the race's number (`player/race_player.rs`: `race_player_id`, `World::race_of_player`, `race_player`, `seat_of`); it is made when the first city of the race turns neutral and removed at the round end when it has no city and no unit (`retire_empty_race_players`). The one player
+- The neutral player of a race has the id `FIRST_RACE_PLAYER` (100) plus the race's number (`player/race_player.rs`: `race_player_id`, `World::race_of_player`, `race_player`, `seat_of`); every race has its player from the start of a game to its end (`add_race_players`). One with no city and no unit is dormant (`is_dormant`): it takes no turn and nobody deals with it, but it keeps its treasury, vault and relations, so a list of all players (`player_ids`) includes it. The one player
   that owns the monsters is made with the game (`World::monsters`, id `player::MONSTERS`, kept at
   255; the save does not store it, the game makes it). It is an entity with `PlayerId` and `Neutral` like
   the race players but is in no list of players (`World::has_player` is false for it). Whether a player is
@@ -303,15 +303,15 @@ The prefabs already made stay a registry on `World` (`prefab_taken`).
 
 | Event | What is spawned | What is despawned | What stays |
 |---|---|---|---|
-| Game setup | players and wizards (together), the monsters' neutral player, features, neutral cities with their players | | |
+| Game setup | players and wizards (together), the player of every race, the monsters' neutral player, features, neutral cities | | |
 | Unit created | the unit entity | | |
 | Unit dies or is disbanded | | the unit; spell instances targeting it | a hero's entity (state `Dead`); its items pass to the heir or winner by changing `HeldBy`, or are despawned when lost |
 | City founded | the city | | |
 | City conquered | | | the city, with its new `Owner`; its enchantments as today (`conquest.rs` decides) |
 | City destroyed | | the city; spell instances targeting it | |
-| Neutral city taken or destroyed | | its race's neutral player at the round end, once it has no city and no unit (its vault items go with it) | the id is the race's, made again when a city of the race turns neutral |
+| Neutral city taken or destroyed | | the city, if destroyed | its race's neutral player, dormant once it has no city and no unit |
 | Wizard banished | the Spell of Return, as a cast in progress | the fortress and summoning circle (components of the wizard) | player, wizard, `Banishment`, the wizard's other spell instances |
-| Wizard defeated | | all the spell instances the wizard cast (global, on cities, on units, the cast in progress), as `aftermath` does; the wizard's units; its nodes are freed (`Owner` removed) | player, wizard and `Defeat`; its cities become neutral cities with a neutral player each |
+| Wizard defeated | | all the spell instances the wizard cast (global, on cities, on units, the cast in progress), as `aftermath` does; the wizard's units; its nodes are freed (`Owner` removed) | player, wizard and `Defeat`; its cities become neutral cities of their race's player |
 | Spell cast (lasting) | a spell instance | | |
 | Spell expires, is dispelled or cancelled | | the spell instance | |
 | Feature cleared (encounter site) | | the feature | |
@@ -320,10 +320,8 @@ The prefabs already made stay a registry on `World` (`prefab_taken`).
 | Item scrapped or lost | | the item | |
 | Battle starts / ends | | | the battle's own state |
 
-A player that has a wizard, and that wizard, are never despawned during a game: the score, the
-history and the diplomacy log refer to them. The players without a wizard (the monsters' owner and
-the neutral players of the races) are the exception: a race's player is despawned once
-it has no city and no unit, as the table says.
+No player and no wizard is despawned during a game: the score, the history and the diplomacy
+log refer to them, and a race that returns finds what it had.
 
 ### 3.9 Saving and replaying
 

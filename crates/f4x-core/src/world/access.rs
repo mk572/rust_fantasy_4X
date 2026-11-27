@@ -218,6 +218,7 @@ impl World {
         world.names = names;
         world.set_map(map);
         world.spawn_features(placements);
+        world.add_race_players();
         world
     }
 

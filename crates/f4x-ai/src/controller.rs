@@ -36,8 +36,7 @@ impl Controller for AiSeat<'_> {
 /// The computer play of every player without a wizard, each in a turn of its own: the neutral
 /// player of each race plays as any AI does (task 522), with the same [`Ai`] and the same turn,
 /// and the roaming monsters in theirs. It keeps one [`Ai`] for each race player, made when the
-/// player first plays or when a loaded game carries plans for it, and dropped when the player is
-/// gone. Attacks on the players in `defended_by` are not resolved but kept for the host (see
+/// player first plays or when a loaded game carries plans for it. Attacks on the players in `defended_by` are not resolved but kept for the host (see
 /// [`NeutralAi::take_attacks`]).
 #[derive(Default)]
 pub struct NeutralAi {
@@ -138,7 +137,6 @@ impl NeutralAi {
     /// Play the turn of `player`: a race player's, or the monsters'.
     pub fn play_turn(&mut self, game: &mut Game, player: PlayerId, events: &mut Vec<Event>) {
         crate::battle::install();
-        self.ais.retain(|&id, _| game.race_of_player(id).is_some());
         if player == MONSTERS {
             let (more, attacks) = crate::monster::roam(game, &self.defended_by);
             events.extend(more);

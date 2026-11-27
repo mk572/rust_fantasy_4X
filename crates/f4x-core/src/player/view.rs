@@ -188,7 +188,9 @@ impl<'a> PlayerView<'a> {
     /// race (not the monsters)? A computer player talks to, quarrels with and makes treaties with
     /// these; what needs the wizard itself (the spells) still asks for it.
     pub fn is_diplomat(&self, other: PlayerId) -> bool {
-        other != self.me && self.world.takes_part_in_diplomacy(other)
+        other != self.me
+            && self.world.takes_part_in_diplomacy(other)
+            && !self.world.is_dormant(other)
     }
 
     /// Whether a wizard the player is at war with has a book in one of `realms` (the books of a

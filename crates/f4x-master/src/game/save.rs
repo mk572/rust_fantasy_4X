@@ -19,14 +19,14 @@ use serde::{Deserialize, Serialize};
 
 use super::end::GameOver;
 use super::Game;
-use crate::{convert, Phase};
+use crate::{convert, turn_players, Phase};
 
 /// What each computer player has in mind, as text its controller wrote, with the player. The game
 /// never reads them: they are saved beside it and handed back.
 pub type Plans = Vec<(PlayerId, String)>;
 
 /// The part of a game that is not in its world.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GameState {
     /// The round the game is in, the first being 1.
     pub round: u32,
@@ -37,6 +37,10 @@ pub struct GameState {
     /// How the game ended, once it has.
     #[serde(default)]
     pub game_over: Option<GameOver>,
+    /// The players that take turns, in the order they take them. Fixed when the game begins.
+    /// Empty only in a save converted from an older layout, until it is restored.
+    #[serde(default)]
+    pub players: Vec<PlayerId>,
 }
 
 impl Default for GameState {
@@ -45,6 +49,7 @@ impl Default for GameState {
             round: 1,
             phase: None,
             game_over: None,
+            players: Vec::new(),
         }
     }
 }
@@ -124,9 +129,16 @@ impl SaveFile {
         content: impl Into<Arc<Content>>,
         check: ContentCheck,
     ) -> Result<Restored, LoadError> {
-        let (world, notes) = self.world.restore_with(content, check)?;
+        let (mut world, notes) = self.world.restore_with(content, check)?;
+        let mut state = self.game;
+        if state.players.is_empty() {
+            // A converted save: older games made a race's player only while it had something,
+            // and kept no list of the players.
+            world.add_race_players();
+            state.players = turn_players(&world);
+        }
         let mut game = Game::new(world);
-        game.state = self.game;
+        game.state = state;
         Ok(Restored {
             game,
             plans: self.plans,
@@ -141,7 +153,7 @@ impl Game {
         SaveFile {
             version: SAVE_VERSION,
             game_version: GAME_VERSION.to_string(),
-            game: self.state,
+            game: self.state.clone(),
             world: self.world.snapshot(),
             plans,
         }
