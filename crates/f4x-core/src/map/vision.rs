@@ -4,8 +4,10 @@
 use crate::city::economy::Economy;
 use crate::fast::FastMap;
 use crate::map::{Plane, Position};
-use crate::player::PlayerId;
+use crate::player::{Owner, PlayerId};
 use crate::rules::Ability;
+use crate::unit::{PatrolSeen, Standby, Unit};
+use crate::world::serial::Serial;
 use f4x_def::half_int::HalfInt;
 
 use crate::rules::stats::compute_half;
@@ -39,6 +41,91 @@ impl Economy<'_> {
                             <= units.unit_sight(u)
                 })
         })
+    }
+
+    /// Those of `watchers` that themselves see units of other players that `counts` (asked with
+    /// the watcher's owner and the other's), each with those units: the ones within its own sight
+    /// that its owner can make out. What the owner's other units and cities see does not count.
+    ///
+    /// Asked after every change of the world while an order or a patrol is out, so what costs
+    /// (a unit's sight) is worked out only where a unit that counts could be seen.
+    pub(crate) fn company_of(
+        &self,
+        watchers: &[hecs::Entity],
+        counts: impl Fn(PlayerId, PlayerId) -> bool,
+    ) -> Vec<(hecs::Entity, Vec<hecs::Entity>)> {
+        let Some(map) = self.map else {
+            return Vec::new();
+        };
+        let width = map.width() as i32;
+        let units = self.units();
+        let watching: Vec<(hecs::Entity, PlayerId, Position)> = watchers
+            .iter()
+            .filter_map(|&w| Some((w, units.unit_owner(w)?, units.unit_position(w)?)))
+            .collect();
+        let mut owners: Vec<PlayerId> = watching.iter().map(|w| w.1).collect();
+        owners.sort_unstable_by_key(|p| p.0);
+        owners.dedup();
+        // For each owner entity met: the player, and which of `owners` count its units, a bit
+        // each (a game has far fewer players than the bits). Asked once for each owner: the answer costs more than the look at a square.
+        let mut met: Vec<(hecs::Entity, Option<(PlayerId, u64)>)> = Vec::new();
+        let standing: Vec<(hecs::Entity, u64, Position)> =
+            self.ecs
+                .query::<(&Owner, &Position)>()
+                .with::<&Unit>()
+                .iter()
+                .filter_map(|(unit, (owner, &at))| {
+                    let known = match met.iter().find(|m| m.0 == owner.0) {
+                        Some(m) => m.1,
+                        None => {
+                            let known =
+                                crate::player::id_of(self.ecs, owner.0).map(|them| {
+                                    let wanting = owners.iter().take(64).enumerate().fold(
+                                        0,
+                                        |bits, (n, &me)| {
+                                            bits | u64::from(me != them && counts(me, them)) << n
+                                        },
+                                    );
+                                    (them, wanting)
+                                });
+                            met.push((owner.0, known));
+                            known
+                        }
+                    };
+                    let (_, wanting) = known.filter(|k| k.1 != 0)?;
+                    Some((unit, wanting, at))
+                })
+                .collect();
+        if standing.is_empty() {
+            return Vec::new();
+        }
+        watching
+            .into_iter()
+            .filter_map(|(watcher, owner, at)| {
+                let place = owners.iter().position(|&p| p == owner)?;
+                let bit = 1u64.checked_shl(u32::try_from(place).ok()?)?;
+                let mut sight = None;
+                let seen: Vec<hecs::Entity> = standing
+                    .iter()
+                    .filter(|&&(other, wanting, p)| {
+                        if wanting & bit == 0 || p.plane != at.plane {
+                            return false;
+                        }
+                        let sight = *sight.get_or_insert_with(|| units.unit_sight(watcher));
+                        // The shorter way round: the map wraps sideways.
+                        let east = (p.x as i32 - at.x as i32).rem_euclid(width);
+                        crate::map::fog::in_sight(
+                            east.min(width - east),
+                            p.y as i32 - at.y as i32,
+                            sight,
+                            self.diagonal_extra,
+                        ) && self.unit_visible_to(other, owner)
+                    })
+                    .map(|&(other, ..)| other)
+                    .collect();
+                (!seen.is_empty()).then_some((watcher, seen))
+            })
+            .collect()
     }
 
     /// How far a city sees, in squares: 2.5, or more with an Oracle (4.5), City Walls (3.5) or
@@ -234,13 +321,14 @@ impl VisionEffect {
     pub(crate) fn with_events(self, events: &[crate::world::Event]) -> Self {
         use crate::world::Event as E;
         let harmless = |e: &E| match self {
-            Self::None => matches!(e, E::Rejected(_) | E::Diplomacy(_)),
+            Self::None => matches!(e, E::Rejected(_) | E::Diplomacy(_) | E::OrderOver { .. }),
             Self::Walk => matches!(
                 e,
                 E::Rejected(_)
                     | E::UnitsMoved { .. }
                     | E::AttackRequested { .. }
                     | E::SiteEncounter { .. }
+                    | E::OrderOver { .. }
             ),
             Self::Recount => false,
         };
@@ -264,6 +352,66 @@ pub(crate) struct VisionCache {
 }
 
 impl crate::world::World {
+    /// Those of `watchers` that see units of other players that `counts`, each with the creation
+    /// numbers of those (`Economy::company_of`).
+    pub(crate) fn serials_seen_by(
+        &self,
+        watchers: &[hecs::Entity],
+        counts: impl Fn(PlayerId, PlayerId) -> bool,
+    ) -> Vec<(hecs::Entity, Vec<Serial>)> {
+        self.economy()
+            .company_of(watchers, counts)
+            .into_iter()
+            .map(|(watcher, others)| {
+                let others = others.into_iter().map(|o| self.units().serial_of(o));
+                (watcher, others.collect())
+            })
+            .collect()
+    }
+
+    /// What is in sight of any of `watchers` now: what an order or a patrol given to them starts
+    /// with, in a fixed order.
+    pub(crate) fn in_sight_of(
+        &self,
+        watchers: &[hecs::Entity],
+        counts: impl Fn(PlayerId, PlayerId) -> bool,
+    ) -> Vec<Serial> {
+        let mut seen: Vec<Serial> = self
+            .serials_seen_by(watchers, counts)
+            .into_iter()
+            .flat_map(|(_, others)| others)
+            .collect();
+        seen.sort_unstable();
+        seen.dedup();
+        seen
+    }
+
+    /// A unit on patrol is on patrol no longer when a unit of another player comes into its
+    /// sight that was not in view when the patrol was set.
+    pub(crate) fn end_patrols_on_sight(&mut self) {
+        let mut patrols: Vec<hecs::Entity> = self
+            .ecs
+            .query::<&Standby>()
+            .iter()
+            .filter(|(_, s)| **s == Standby::Patrol)
+            .map(|(unit, _)| unit)
+            .collect();
+        if patrols.is_empty() {
+            return;
+        }
+        self.units().sort_by_serial(&mut patrols);
+        for (unit, seen) in self.serials_seen_by(&patrols, |_, _| true) {
+            let new = {
+                let known = self.ecs.get::<&PatrolSeen>(unit).ok();
+                seen.iter()
+                    .any(|s| !known.as_ref().is_some_and(|k| k.0.contains(s)))
+            };
+            if new {
+                self.strip::<Standby>(unit);
+            }
+        }
+    }
+
     /// Keep what `player` sees, and what its units' stats are made of (`unit::kept`), from now
     /// until [`World::drop_kept`]: for the length of a computer wizard's turn, in which every
     /// change of the game is a command it sends.

@@ -1,7 +1,8 @@
 //! The main screen's right column while a stack is selected (`Main_Screen_Draw_Unit_Window`,
 //! `Main_Screen_Draw_Unit_Action_Buttons`, `Main_Screen_Draw_Movement_Bar` in `MainScr.c`): up
-//! to nine unit pictures in a grid of three, the Done, Patrol, Wait and Build buttons and the
-//! stack's moves. A click on a picture picks that unit, a right-click opens its sheet.
+//! to nine unit pictures in a grid of three, the Done, Order, Wait and Build buttons and the
+//! stack's moves. A click on a picture picks that unit and wakes it, a right-click opens its
+//! sheet.
 
 use crate::action_button_art::Action;
 use crate::font::{rgb, Effect, Ink, Style};
@@ -24,7 +25,7 @@ const START: (f32, f32) = (247.0, 79.0);
 const STEP: (f32, f32) = (23.0, 29.0);
 /// Where the four buttons sit.
 const DONE: (f32, f32) = (246.0, 176.0);
-const PATROL: (f32, f32) = (280.0, 176.0);
+const ORDER: (f32, f32) = (280.0, 176.0);
 const WAIT: (f32, f32) = (246.0, 186.0);
 const SPECIAL: (f32, f32) = (280.0, 186.0);
 
@@ -32,7 +33,7 @@ const SPECIAL: (f32, f32) = (280.0, 186.0);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StackButton {
     Done,
-    Patrol,
+    Order,
     Wait,
     Special,
 }
@@ -256,7 +257,7 @@ impl App {
             }
         };
         button(self, Action::Done, DONE, StackButton::Done);
-        button(self, Action::Patrol, PATROL, StackButton::Patrol);
+        button(self, Action::Order, ORDER, StackButton::Order);
         button(self, Action::Wait, WAIT, StackButton::Wait);
         match special {
             Special::None => {
@@ -300,6 +301,11 @@ impl App {
             } else {
                 self.selection.push(unit);
             }
+            // A unit picked by its picture awaits orders again (see ReMoM `UNITSTK.c`,
+            // `Update_Stack_Active`).
+            if self.selection.contains(&unit) {
+                self.wake(vec![unit]);
+            }
         }
         if let Some(unit) = click.slot_info {
             let group = self.stack_units();
@@ -308,14 +314,14 @@ impl App {
         let units = self.selection.clone();
         match click.button {
             Some(StackButton::Done) => self.stand_by(units, Standby::Done),
-            Some(StackButton::Patrol) => self.stand_by(units, Standby::Patrol),
+            Some(StackButton::Order) => self.open_order_menu(),
             Some(StackButton::Wait) => self.select_next_idle(true),
             Some(StackButton::Special) => self.special_button(),
             None => {}
         }
     }
 
-    /// The Done and Patrol buttons: the units are skipped, and the next stack is picked.
+    /// The Done button and the Patrol order: the units are skipped, and the next stack is picked.
     pub(crate) fn stand_by(&mut self, units: Vec<hecs::Entity>, standby: Standby) {
         self.game.apply(
             HUMAN,

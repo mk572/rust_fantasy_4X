@@ -1,4 +1,4 @@
-//! The unit window's action buttons (Done, Patrol, Wait and Build, Meld or Purify) without their
+//! The unit window's action buttons (Done, Order, Wait and Build, Meld or Purify) without their
 //! labels: 33 by 9 pictures of marbled gold (`scripts/button_text_free.py`, files
 //! `assets/button/<name>_<frame>.png`, frame 1 is the pressed button, and `<name>_locked.png` the
 //! dimmed one). The label is a text key drawn over the picture by the font engine in the 5 px
@@ -20,7 +20,8 @@ use crate::view::App;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, strum::EnumIter)]
 pub(crate) enum Action {
     Done,
-    Patrol,
+    /// The place and picture of the original's Patrol button.
+    Order,
     Wait,
     Build,
     Meld,
@@ -35,7 +36,7 @@ impl Action {
     pub(crate) fn key(self) -> &'static str {
         match self {
             Action::Done => "ui.button_done",
-            Action::Patrol => "ui.button_patrol",
+            Action::Order => "ui.button_order",
             Action::Wait => "ui.button_wait",
             Action::Build => "ui.button_build",
             Action::Meld => "ui.button_meld",
@@ -50,7 +51,7 @@ impl Action {
     fn index(self) -> usize {
         match self {
             Action::Done | Action::Ok | Action::Cancel => 0,
-            Action::Patrol => 1,
+            Action::Order => 1,
             Action::Wait => 2,
             Action::Build => 3,
             Action::Meld => 4,
@@ -77,7 +78,7 @@ const UP: &[&[u8]] = &[
     include_bytes!("../assets/button/purify.png"),
 ];
 
-/// The locked pictures: Done, Patrol, Wait and Build.
+/// The locked pictures: Done, Order, Wait and Build.
 const LOCKED: &[&[u8]] = &[
     include_bytes!("../assets/button/done_locked.png"),
     include_bytes!("../assets/button/patrol_locked.png"),

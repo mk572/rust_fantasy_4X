@@ -24,6 +24,12 @@ pub enum Command {
         units: Vec<hecs::Entity>,
         to: map::Position,
     },
+    /// Give the units of one square a standing order other than a walk or a road.
+    GiveOrder {
+        #[serde(with = "world::stable_ref::many")]
+        units: Vec<hecs::Entity>,
+        errand: unit::Errand,
+    },
     /// Cancel standing orders.
     ClearOrders {
         #[serde(with = "world::stable_ref::many")]

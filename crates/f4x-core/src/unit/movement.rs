@@ -42,6 +42,9 @@ pub enum MoveError {
     /// The square holds a wizard the mover has a pact or an alliance with: the treaty has to be
     /// broken first (`DiplomacyCommand::BreakTreaty`); the game never breaks it for the mover.
     Treaty,
+    /// A standing order walked at the end of a turn would attack: units never do so by
+    /// themselves.
+    WouldFight,
 }
 
 impl MoveError {
@@ -61,6 +64,7 @@ impl MoveError {
             Self::NoGate => "refuse_map.move_error_no_gate",
             Self::Warded => "refuse_map.move_error_warded",
             Self::Treaty => "refuse_map.move_error_treaty",
+            Self::WouldFight => "refuse_map.move_error_would_fight",
         }
     }
 }
@@ -756,6 +760,8 @@ impl World {
         // (`World::unload_in_ports`).
         for &p in &carried {
             self.put(p, to);
+            // Where it was to walk, it walks no more: the ship has taken it elsewhere.
+            crate::unit::ledger::end_order(&self.ecs, p);
         }
         // Who is aboard what now.
         let flies = self.economy().stack_traits(units);

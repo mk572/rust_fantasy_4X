@@ -110,7 +110,7 @@ apart. Layers, rules, generation and differences from the original are in
 
 ## 6. Game flow and systems
 All player and AI actions are `Command` values sent to the game (`Game::apply(player, command)`, `f4x-master`), which refuses what is not the player's to give and passes the rest to `World::apply`; that validates them and returns `Event`s (refusals are events, not panics). Read-only queries take `&self`
-and are used freely by the client. Time passes in rounds, and in each round every player takes a turn: the turn start grows outposts and cities, heals the wounded, refills moves and continues standing orders; the turn end settles the treasury (income, spare food sold, upkeep, disbanding the unpaid), runs the wizard's magic and completes production; the round end runs the world-wide work once.
+and are used freely by the client. Time passes in rounds, and in each round every player takes a turn: the turn start grows outposts and cities, heals the wounded, refills moves; the turn end walks the units with a standing order on, settles the treasury (income, spare food sold, upkeep, disbanding the unpaid), runs the wizard's magic and completes production; the round end runs the world-wide work once.
 Movement is counted in moves with halves (`HalfInt`; a road step costs 0.5), stacks hold nine, and moving onto hostile units emits `AttackRequested`, which a client turns into `Command::BeginBattle`. Production, buying and selling, the
 treasury and healing rules are all written out in [`game-flow.md`](game-flow.md); the order of a round and of the players' turns is in [`turn-structure.md`](turn-structure.md).
 

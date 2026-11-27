@@ -11,11 +11,14 @@
 pub mod experience;
 pub(crate) mod healing;
 pub(crate) mod kept;
+pub mod ledger;
 pub mod mobility;
 pub mod movement;
 pub mod mutation;
+pub mod order;
 pub mod pathing;
 pub mod sanity;
+pub mod scouting;
 pub mod stasis;
 pub mod transport;
 pub mod undead;
@@ -67,20 +70,22 @@ pub const WEAPON_ADAMANTIUM: u8 = 3;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct MovesLeft(pub HalfInt);
 
-/// A standing order carried out at the start of each turn.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub enum Order {
-    /// Walk this path (the first entry is the next tile).
-    GoTo(Vec<Position>),
-}
+pub use order::{Errand, Order, OrderEnd, OrderError, Scouting, Trip};
 
 /// What a player has told an idle unit to do about being asked for orders (the main screen's
-/// Done and Patrol buttons): `Done` skips it for this turn, `Patrol` until it moves again.
+/// Done and Patrol buttons): `Done` skips it for this turn, `Patrol` until it moves one step
+/// (`Command::MoveStack`) or another player's unit comes into its sight
+/// (`World::end_patrols_on_sight`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Standby {
     Done,
     Patrol,
 }
+
+/// The units of other players a patrol knew of when it was set: they do not end it. Read only
+/// while the unit's standby is `Patrol`, and written anew each time that is set.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct PatrolSeen(pub Vec<crate::world::serial::Serial>);
 
 impl UnitView<'_> {
     /// The unit's standby, if it has one.
@@ -651,8 +656,21 @@ impl<'a> UnitView<'a> {
     /// (`Rules::combat_power`), times what it carries beyond that level: the formula of
     /// `battle::power` on its stats and abilities now over the formula on the stats and abilities of
     /// its level alone (an item or a spell raises it, a curse lowers it; a hero's rolled abilities are in its rating).
-    /// A unit with no row is worth the formula.
+    /// A unit with no row is worth the formula. Kept for a computer wizard's turn (see
+    /// `unit::kept`).
     pub fn unit_power(&self, unit: hecs::Entity) -> f32 {
+        if let Some(kept) = kept::power(self.ecs, unit) {
+            if kept::checking() {
+                assert_eq!(kept, self.compute_power(unit), "kept power of {unit:?}");
+            }
+            return kept;
+        }
+        let power = self.compute_power(unit);
+        kept::keep_power(self.ecs, unit, power);
+        power
+    }
+
+    fn compute_power(&self, unit: hecs::Entity) -> f32 {
         let now = crate::battle::power::unit_power(
             |s| self.unit_stat(unit, s),
             |a| self.unit_has_ability(unit, a),
@@ -828,41 +846,27 @@ impl<'a> UnitView<'a> {
         crate::player::Bonus::of_half(cut, gold)
     }
 
-    /// A player's units, in the order of `all_units`.
-    pub fn player_units(&self, player: PlayerId) -> Vec<hecs::Entity> {
-        // Filter first, then sort: the player's few units, not all of them. The owner is
-        // compared as the player entity, found once.
-        let Some(entity) = self
-            .ecs
-            .query::<&PlayerId>()
-            .iter()
-            .find(|(_, id)| **id == player)
-            .map(|(e, _)| e)
-        else {
-            return Vec::new();
-        };
-        let mut out: Vec<_> = self
-            .ecs
-            .query::<(&Unit, &Owner)>()
-            .iter()
-            .filter(|(_, (_, o))| o.0 == entity)
-            .map(|(e, _)| e)
-            .collect();
-        self.sort_by_serial(&mut out);
-        out
+    /// The army ledger of a player; `None` for an id that is no player's.
+    fn army(&self, player: PlayerId) -> Option<hecs::Ref<'a, ledger::ArmyLedger>> {
+        let entity = crate::player::find_entity(self.ecs, player)?;
+        self.ecs.get::<&ledger::ArmyLedger>(entity).ok()
     }
 
-    /// How many units a player has (what `player_units` would count, without the list or the
-    /// sort).
+    /// A player's units, in the order of `all_units`.
+    pub fn player_units(&self, player: PlayerId) -> Vec<hecs::Entity> {
+        self.army(player)
+            .map_or_else(Vec::new, |army| army.living().collect())
+    }
+
+    /// The record of the units that left a player's army, in the order they did.
+    pub fn departed_units(&self, player: PlayerId) -> Vec<ledger::DepartedUnit> {
+        self.army(player)
+            .map_or_else(Vec::new, |army| army.departed().to_vec())
+    }
+
+    /// How many units a player has (what `player_units` would count, without the list).
     pub fn player_unit_count(&self, player: PlayerId) -> usize {
-        let Some(entity) = crate::player::find_entity(self.ecs, player) else {
-            return 0;
-        };
-        self.ecs
-            .query::<(&Unit, &Owner)>()
-            .iter()
-            .filter(|(_, (_, o))| o.0 == entity)
-            .count()
+        self.army(player).map_or(0, |army| army.len())
     }
 
     /// Whether the unit counts towards a city's garrison for keeping order.
@@ -891,7 +895,30 @@ pub(crate) fn spawn(
     ));
     let moves = UnitView::new(ecs, content).unit_max_moves(e);
     crate::world::put_in(ecs, e, MovesLeft(moves));
+    ledger::enlist(ecs, e);
     e
+}
+
+/// Take every part of a unit off an entity, which stays: what a hero's entry loses when the hero
+/// leaves service. Every component a unit can carry is listed here, except `Serial` and
+/// `Experience`, which are a hero's own.
+pub(crate) fn strip_body(ecs: &mut hecs::World, entity: hecs::Entity) {
+    use crate::world::strip_in;
+    strip_in::<Unit>(ecs, entity);
+    strip_in::<Owner>(ecs, entity);
+    strip_in::<Position>(ecs, entity);
+    strip_in::<Hurt>(ecs, entity);
+    strip_in::<MovesLeft>(ecs, entity);
+    strip_in::<Unpaid>(ecs, entity);
+    strip_in::<WeaponQuality>(ecs, entity);
+    strip_in::<Standby>(ecs, entity);
+    strip_in::<PatrolSeen>(ecs, entity);
+    strip_in::<crate::spell::temp_effect::TempEffects>(ecs, entity);
+    strip_in::<undead::Undead>(ecs, entity);
+    strip_in::<stasis::Stasis>(ecs, entity);
+    strip_in::<transport::Aboard>(ecs, entity);
+    strip_in::<transport::Marooned>(ecs, entity);
+    strip_in::<transport::Bridge>(ecs, entity);
 }
 
 impl World {

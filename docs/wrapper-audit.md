@@ -151,7 +151,7 @@ Callers is a text count and an upper bound.
 | std | f4x-core | `crates/f4x-core/src/feature/entity.rs:53` | `FeatureIndex::insert` | `insert` | 276 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
 | std | f4x-core | `crates/f4x-core/src/feature/entity.rs:57` | `FeatureIndex::remove` | `remove` | 75 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
 | std | f4x-core | `crates/f4x-core/src/world/access.rs:105` | `World::unit_has_order` | `is_ok` | 52 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
-| std | f4x-core | `crates/f4x-core/src/world/access.rs:117` | `World::unit_building_road` | `is_ok` | 2 | Keep | agreed; hides the RoadWork component |
+| std | f4x-core | `crates/f4x-core/src/world/access.rs:117` | `World::unit_building_road` | `is_ok` | 2 | Keep | agreed; hides how road work is kept |
 | std | f4x-core | `crates/f4x-core/src/world/access.rs:136` | `World::component` | `ok` | 7 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
 | std | f4x-core | `crates/f4x-core/src/world/access.rs:142` | `World::entity_exists` | `contains` | 4 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |
 | std | f4x-core | `crates/f4x-core/src/world/access.rs:31` | `World::map` | `as_ref` | 2519 | Keep | the name adds meaning (predicate, accessor or constructor of a type) |

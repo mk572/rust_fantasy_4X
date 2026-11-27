@@ -8,6 +8,7 @@ use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::world::{Command, Event};
 
+use crate::military::mean_fighter_strength;
 use crate::view::{garrison_wanted, is_fighter, unit_strength};
 use crate::Ai;
 use f4x_master::Game;
@@ -21,21 +22,6 @@ pub fn city_cap(view: &PlayerView, at: Position) -> usize {
 /// of a city (cavalry, fliers).
 const FAST: i32 = 2;
 
-/// The strength an average soldier of the wizard has: the unit the defence wanted of a city is
-/// counted in.
-fn typical_strength(view: &PlayerView) -> f32 {
-    let each: Vec<f32> = view
-        .my_units()
-        .into_iter()
-        .filter(|&u| is_fighter(view, u))
-        .map(|u| unit_strength(view, u))
-        .collect();
-    if each.is_empty() {
-        return 1.0;
-    }
-    each.iter().sum::<f32>() / each.len() as f32
-}
-
 /// What share of the peace-time defence a wizard in `phase` keeps (task 645): while it builds, a
 /// young city is held by little and the gold goes to settlers and buildings. A tuning number
 /// (`AIK_BUILD_GARRISON`), to be measured by the soak.
@@ -47,11 +33,11 @@ fn phase_factor(phase: crate::phase::Phase) -> f32 {
 }
 
 /// The defence strength a city wants: the soldiers `garrison_wanted` asks for, each of the
-/// strength of an average soldier of the wizard (so a few strong units or many weak ones meet it
-/// alike). A city with no enemy near it (the base count) wants the share its phase gives; a
+/// strength of an average soldier of the wizard (1 with none), so a few strong units or many weak
+/// ones meet it alike. A city with no enemy near it (the base count) wants the share its phase gives; a
 /// city near the border keeps what the border asks.
 pub fn wanted_strength(view: &PlayerView, at: Position, round: u32) -> f32 {
-    wanted_share(view, at, round) * typical_strength(view)
+    wanted_share(view, at, round) * mean_fighter_strength(view).unwrap_or(1.0)
 }
 
 /// How many average soldiers a city wants: `garrison_wanted`, less the share a building wizard

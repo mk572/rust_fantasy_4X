@@ -137,12 +137,12 @@ the people* is the next turn start:
 
 | Turn end (`end_player_turn`) | Turn start (`start_player_turn`) |
 |---|---|
-| raze windows | reopen sales, stasis |
-| minimum farmers | research learned, next spell chosen (`process_research`) |
-| `settle_treasury`: gold and food income, then food and gold upkeep; a shortage releases units now | Gaia's Blessing, Chaos Rift (terrain and buildings change before food is counted) |
-| `process_magic`: mana income, research points, mana upkeep, casting (a summon or ward finished now defends) | outposts, population growth, pestilence (`grow_city`) |
-| city production: units and buildings finish, so they defend (`produce_city`) | experience, healing |
-| | moves refill (units finished at the end move now), offers, workers, orders |
+| standing orders walk on, with the moves left (task 830) | reopen sales, stasis |
+| raze windows | research learned, next spell chosen (`process_research`) |
+| minimum farmers | Gaia's Blessing, Chaos Rift (terrain and buildings change before food is counted) |
+| `settle_treasury`: gold and food income, then food and gold upkeep; a shortage releases units now | outposts, population growth, pestilence (`grow_city`) |
+| `process_magic`: mana income, research points, mana upkeep, casting (a summon or ward finished now defends) | experience, healing |
+| city production: units and buildings finish, so they defend (`produce_city`) | moves refill (units finished at the end move now), offers, workers |
 
 The first round skips the start-of-turn work (the game begins with the first turn), and the end
 work runs from the first turn on, so the number of ticks stays what it was. The research points
@@ -194,7 +194,7 @@ Phases (core operations, orchestrated by `f4x-master`): `start_round`, `start_pl
 | `process_diplomacy` | round | `end_round` | timers once; proposals are answered in the AI turns |
 | `process_purify`, `process_road_work` | player | `start_player_turn(p)` | `p`'s workers |
 | `sail_marooned`, `drown_stranded` | player | `start_player_turn(p)` | `p`'s ships and units |
-| `follow_orders` | player | `start_player_turn(p)` | `p`'s units with standing orders, last |
+| `walk_orders` | player | `end_player_turn(p)` | `p`'s units with standing orders, first; never attacks (moved from the turn start, task 830, 27 November 2026) |
 
 Elimination: a defeated player gets no `start_player_turn`/`end_player_turn`; its cities and units
 are already gone or neutral. Time Stop: while it lasts, other wizards' turns still run their

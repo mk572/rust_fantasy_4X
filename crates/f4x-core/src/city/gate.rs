@@ -76,6 +76,7 @@ impl World {
             self.put(u, MovesLeft(left));
             self.put(u, to);
         }
+        self.end_orders_of_moved(units);
         self.explore(owner, to, crate::map::fog::sight_for(2));
         Ok(vec![Event::UnitsMoved {
             units: units.to_vec(),

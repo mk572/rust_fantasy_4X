@@ -152,6 +152,7 @@ impl World {
             Some(_) if !node.guardian => true,
             Some(_) => rng.roll(100) <= 25,
         };
+        crate::unit::ledger::record(&self.ecs, melder, crate::unit::ledger::Departure::UsedUp);
         self.despawn_with_spells(melder);
         let mut events = Vec::new();
         if taken {

@@ -53,7 +53,7 @@ impl World {
         if !self.economy().is_sea(at) {
             return Err(MoveError::Impassable);
         }
-        let _ = self.ecs.remove_one::<crate::unit::Order>(ship);
+        crate::unit::ledger::end_order(&self.ecs, ship);
         self.put(ship, Bridge);
         Ok(())
     }

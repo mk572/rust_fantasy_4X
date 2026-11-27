@@ -177,7 +177,11 @@ impl World {
 
     pub fn new() -> Self {
         let mut ecs = hecs::World::new();
-        let monsters = ecs.spawn((player::MONSTERS, player::Neutral));
+        let monsters = ecs.spawn((
+            player::MONSTERS,
+            player::Neutral,
+            unit::ledger::ArmyLedger::default(),
+        ));
         Self {
             ecs,
             monsters,
@@ -379,9 +383,28 @@ impl World {
 
     /// Hand a unit or city to a player: its [`player::Owner`] becomes the player's entity.
     pub(crate) fn set_owner(&mut self, thing: hecs::Entity, player: player::PlayerId) {
-        if let Some(e) = self.player_entity(player) {
-            let _ = self.ecs.insert_one(thing, player::Owner(e));
+        if self.ecs.satisfies::<&unit::Unit>(thing) == Ok(true) {
+            self.change_sides(thing, player, unit::ledger::Departure::ChangedSides);
+        } else if let Some(owner) = self.player_entity(player) {
+            let _ = self.ecs.insert_one(thing, player::Owner(owner));
         }
+    }
+
+    /// Give a unit to `player`; its old owner's ledger records it as having left as `how` says.
+    pub(crate) fn change_sides(
+        &mut self,
+        unit: hecs::Entity,
+        player: player::PlayerId,
+        how: unit::ledger::Departure,
+    ) {
+        let Some(owner) = self.player_entity(player) else {
+            return;
+        };
+        if self.units().unit_owner_entity(unit) == Some(owner) {
+            return;
+        }
+        unit::ledger::record(&self.ecs, unit, how);
+        unit::ledger::transfer(&mut self.ecs, unit, owner);
     }
 
     /// Whether `id` is a player of the game: a wizard's or an independent city's (not the
@@ -536,6 +559,7 @@ impl World {
             ))];
         }
         let vision = map::vision::VisionEffect::of(&cmd);
+        let _paused = unit::kept::pause();
         let mut events = self.execute_command(cmd, rng);
         self.settle(vision, &mut events);
         events
@@ -545,6 +569,7 @@ impl World {
     /// turn operations ([`World::start_round`] and the others), and the world is tidied up once
     /// afterwards, as after a command. The order of the steps is the caller's (`f4x-master`).
     pub fn advance(&mut self, steps: impl FnOnce(&mut Self) -> Vec<Event>) -> Vec<Event> {
+        let _paused = unit::kept::pause();
         let mut events = steps(self);
         self.settle(map::vision::VisionEffect::Recount, &mut events);
         events
@@ -559,7 +584,15 @@ impl World {
         // What hooks in battles, spells and the turn raised between wizards comes last.
         events.extend(self.drain_diplomacy_events());
         events.extend(self.drain_item_awards());
+        self.end_patrols_on_sight();
+        self.end_orders_on_sight(events);
         self.vision_after(vision, events);
+        #[cfg(any(test, feature = "testutil"))]
+        debug_assert_eq!(
+            crate::check::army_problems(self),
+            Vec::<String>::new(),
+            "a unit changed hands past the ledger"
+        );
     }
 
     fn execute_command(&mut self, cmd: Command, rng: &mut GameRng) -> Vec<Event> {
@@ -574,22 +607,51 @@ impl World {
                     .iter()
                     .filter_map(|&u| Some((u, self.units().unit_standby(u)?)))
                     .collect();
+                // And its standing order: the player has taken it over.
+                let ordered: Vec<_> = units
+                    .iter()
+                    .filter_map(|&u| {
+                        let order = unit::ledger::order_of(&self.ecs, u)?;
+                        Some((u, order, unit::ledger::seen_of(&self.ecs, u)))
+                    })
+                    .collect();
                 for &u in &units {
                     let _ = self.ecs.remove_one::<unit::Standby>(u);
                 }
+                self.end_orders_of_moved(&units);
                 self.start_from_tower_on(&units, to);
                 let events = self.do_move(&units, to, rng);
                 if events.iter().any(|e| matches!(e, Event::Rejected(_))) {
                     for (u, standby) in standing {
                         let _ = self.ecs.insert_one(u, standby);
                     }
+                    for (u, order, seen) in ordered {
+                        unit::ledger::give_order(&self.ecs, u, order, &seen);
+                    }
                 }
                 events
             }
             Command::SetStandby { units, standby } => {
+                let seen = if standby == Some(unit::Standby::Patrol) {
+                    self.in_sight_of(&units, |_, _| true)
+                } else {
+                    Vec::new()
+                };
                 for u in units {
                     match standby {
                         Some(s) => {
+                            // Done is for this turn only: a patrol stays one (see ReMoM
+                            // `MainScr.c`, `Stack_Action`).
+                            if s == unit::Standby::Done
+                                && self.units().unit_standby(u) == Some(unit::Standby::Patrol)
+                            {
+                                continue;
+                            }
+                            // A patrol takes the place of an order: the unit stays where it is.
+                            if s == unit::Standby::Patrol {
+                                unit::ledger::end_order(&self.ecs, u);
+                                let _ = self.ecs.insert_one(u, unit::PatrolSeen(seen.clone()));
+                            }
                             let _ = self.ecs.insert_one(u, s);
                         }
                         None => {
@@ -599,21 +661,13 @@ impl World {
                 }
                 Vec::new()
             }
-            Command::GoTo { units, to } => match self.go_to_path(&units, to) {
-                Some(path) => {
-                    for &u in &units {
-                        let _ = self.ecs.insert_one(u, unit::Order::GoTo(path.clone()));
-                    }
-                    self.follow_orders(&units, rng)
-                }
-                None => vec![Event::Rejected(Rejection::NoPath(
-                    self.why_no_path(&units, to),
-                ))],
-            },
+            Command::GoTo { units, to } => self.go_to(&units, to, rng),
+            Command::GiveOrder { units, errand } => self
+                .give_errand(&units, errand, rng)
+                .unwrap_or_else(|why| vec![Event::Rejected(why)]),
             Command::ClearOrders { units } => {
                 for u in units {
-                    let _ = self.ecs.remove_one::<unit::Order>(u);
-                    let _ = self.ecs.remove_one::<map::road::RoadWork>(u);
+                    unit::ledger::end_order(&self.ecs, u);
                 }
                 Vec::new()
             }
@@ -670,7 +724,10 @@ impl World {
             Command::ShiftPlane { units } => {
                 let from = units.first().and_then(|&u| self.units().unit_position(u));
                 match (self.shift_plane(&units), from) {
-                    (Ok(to), Some(from)) => vec![Event::UnitsMoved { units, from, to }],
+                    (Ok(to), Some(from)) => {
+                        self.end_orders_of_moved(&units);
+                        vec![Event::UnitsMoved { units, from, to }]
+                    }
                     (Err(e), _) => vec![Event::Rejected(Rejection::Move(e))],
                     (Ok(_), None) => Vec::new(),
                 }
@@ -880,7 +937,7 @@ impl World {
         }
     }
 
-    fn settle_outpost(&mut self, unit: hecs::Entity, name: String) -> Vec<Event> {
+    pub(crate) fn settle_outpost(&mut self, unit: hecs::Entity, name: String) -> Vec<Event> {
         let (Some(pos), Some(owner)) = (
             self.units().unit_position(unit),
             self.units().unit_owner(unit),
@@ -907,6 +964,7 @@ impl World {
             .unit_def(unit)
             .and_then(|d| d.race.as_ref())
             .copied();
+        unit::ledger::record(&self.ecs, unit, unit::ledger::Departure::UsedUp);
         self.despawn_with_spells(unit);
         let city = self.spawn_city(owner, pos, name, race, 0);
         vec![Event::CityFounded { city, pos }]
@@ -943,153 +1001,9 @@ impl World {
         }
     }
 
-    /// Advance each listed unit along its standing order as far as its moves allow.
-    pub(crate) fn follow_orders(
-        &mut self,
-        units: &[hecs::Entity],
-        rng: &mut GameRng,
-    ) -> Vec<Event> {
-        let mut events = Vec::new();
-        // Units sharing a tile and an order walk together.
-        let mut groups: Vec<Vec<hecs::Entity>> = Vec::new();
-        for &u in units {
-            let Some(pos) = self.units().unit_position(u) else {
-                continue;
-            };
-            let order = self.ecs.get::<&unit::Order>(u).ok().map(|o| (*o).clone());
-            let Some(order) = order else { continue };
-            match groups.iter_mut().find(|g| {
-                let f = g[0];
-                self.units().unit_position(f) == Some(pos)
-                    && self.ecs.get::<&unit::Order>(f).ok().map(|o| (*o).clone())
-                        == Some(order.clone())
-            }) {
-                Some(g) => g.push(u),
-                None => groups.push(vec![u]),
-            }
-        }
-        // A group whose next square is full waits for the others to move (they may be the ones
-        // standing on it) and tries again; what is still blocked when nothing more moves has its
-        // order end with the reason, as before. So a column of big stacks walking one way clears
-        // from its head, whatever the order of their serial numbers.
-        let mut waiting = groups;
-        loop {
-            let mut blocked = Vec::new();
-            let mut moved = false;
-            for group in waiting {
-                let (went, stuck) = self.follow_group(&group, false, &mut events, rng);
-                moved |= went;
-                if stuck {
-                    blocked.push(group);
-                }
-            }
-            if blocked.is_empty() || !moved {
-                for group in blocked {
-                    self.follow_group(&group, true, &mut events, rng);
-                }
-                break;
-            }
-            waiting = blocked;
-        }
-        events
-    }
-
-    /// One group of units that walk together, as far as its moves and its path go. Returns whether
-    /// it moved, and whether it stopped for lack of room on the next square (`StackFull`,
-    /// `NoRoom`): unless `last`, such a group keeps its order for another try; with `last` its
-    /// order ends with the reason.
-    fn follow_group(
-        &mut self,
-        group: &[hecs::Entity],
-        last: bool,
-        events: &mut Vec<Event>,
-        rng: &mut GameRng,
-    ) -> (bool, bool) {
-        let (mut went, mut stuck) = (false, false);
-        // The lead unit of a group may have been lost to a battle that an earlier group's
-        // move brought on: then the group has no order to follow any more.
-        let Ok(order) = self.ecs.get::<&unit::Order>(group[0]).map(|o| (*o).clone()) else {
-            return (false, false);
-        };
-        let unit::Order::GoTo(mut path) = order;
-        while let Some(&next) = path.first() {
-            // A stack that settled in a vacant lair on the last step is gone from the map.
-            let Some(from) = self.units().unit_position(group[0]) else {
-                path.clear();
-                break;
-            };
-            match self.move_stack(group, next) {
-                Ok(unit::movement::Entry::Free) => {
-                    went = true;
-                    path.remove(0);
-                    events.push(Event::UnitsMoved {
-                        units: group.to_vec(),
-                        from,
-                        to: next,
-                    });
-                    events.extend(self.collect_site(group, next, rng));
-                }
-                Ok(unit::movement::Entry::Site(lair)) => {
-                    went = true;
-                    events.push(Event::SiteEncounter {
-                        units: group.to_vec(),
-                        from,
-                        to: next,
-                        lair,
-                    });
-                    path.clear();
-                }
-                Ok(unit::movement::Entry::Hostile(defenders)) => {
-                    went = true;
-                    events.extend(self.hostile_entry(group, from, next, defenders, rng));
-                    path.clear();
-                }
-                Err(unit::movement::MoveError::NoMovesLeft) => break,
-                Err(unit::movement::MoveError::StackFull | unit::movement::MoveError::NoRoom)
-                    if !last =>
-                {
-                    stuck = true;
-                    break;
-                }
-                Err(why) => {
-                    // The order is over, and the caller is told why.
-                    if let Some(player) = self.units().unit_owner(group[0]) {
-                        events.push(Event::OrderFailed {
-                            player,
-                            units: group.to_vec(),
-                            at: from,
-                            to: next,
-                            why,
-                        });
-                    }
-                    path.clear();
-                }
-            }
-        }
-        for &u in group {
-            if path.is_empty() {
-                let _ = self.ecs.remove_one::<unit::Order>(u);
-            } else {
-                let _ = self.ecs.insert_one(u, unit::Order::GoTo(path.clone()));
-            }
-        }
-        (went, stuck)
-    }
-
-    /// The path of a go-to order, from the tower square of the destination's plane when the stack
-    /// stands in a tower (`start_from_tower_on`).
-    fn go_to_path(
-        &mut self,
-        units: &[hecs::Entity],
-        to: map::Position,
-    ) -> Option<Vec<map::Position>> {
-        self.start_from_tower_on(units, to);
-        self.find_path(units, to)
-    }
-
     /// A stack moved into hostile units or a hostile city. Against units it asks for a battle;
     /// an enemy city with no unit in it is simply walked into and taken.
-    fn hostile_entry(
+    pub(crate) fn hostile_entry(
         &mut self,
         units: &[hecs::Entity],
         from: map::Position,

@@ -22,6 +22,7 @@ impl World {
             Command::CreateUnit { owner, .. } | Command::FoundCity { owner, .. } => Some(*owner),
             Command::MoveStack { units, .. }
             | Command::GoTo { units, .. }
+            | Command::GiveOrder { units, .. }
             | Command::ClearOrders { units }
             | Command::SetStandby { units, .. }
             | Command::EnterSite { units, .. }
@@ -88,6 +89,7 @@ fn ordered_units(command: &Command) -> &[hecs::Entity] {
         Command::Anyway(inner) => ordered_units(inner),
         Command::MoveStack { units, .. }
         | Command::GoTo { units, .. }
+        | Command::GiveOrder { units, .. }
         | Command::ClearOrders { units }
         | Command::SetStandby { units, .. }
         | Command::EnterSite { units, .. }

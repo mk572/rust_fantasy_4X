@@ -8,7 +8,30 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::map::Position;
+use crate::player::PlayerId;
 use crate::world::World;
+
+/// Where a player's army ledger differs from the units that name the player as their owner,
+/// oldest first.
+pub(crate) fn army_problems(w: &World) -> Vec<String> {
+    let units = w.units();
+    let mut owned: HashMap<PlayerId, Vec<hecs::Entity>> = HashMap::new();
+    for u in units.all_units() {
+        if let Some(owner) = units.unit_owner(u) {
+            owned.entry(owner).or_default().push(u);
+        }
+    }
+    let mut players = w.player_ids();
+    players.push(crate::player::MONSTERS);
+    players
+        .into_iter()
+        .filter_map(|p| {
+            let listed = units.player_units(p);
+            let have = owned.remove(&p).unwrap_or_default();
+            (listed != have).then(|| format!("army: {p:?} lists {listed:?} and has {have:?}"))
+        })
+        .collect()
+}
 
 /// Every invariant the world breaks, empty when it holds.
 pub fn world_problems(w: &World) -> Vec<String> {
@@ -124,6 +147,9 @@ pub fn world_problems(w: &World) -> Vec<String> {
             }
         }
     }
+    // The ledgers: each player's lists its units and no others.
+    bad.extend(army_problems(w));
+
     bad
 }
 
@@ -204,6 +230,21 @@ mod tests {
         w.ecs.despawn(entity).expect("despawn");
         let bad = world_problems(&w);
         assert!(bad.iter().any(|b| b.starts_with("unit-owner:")), "{bad:#?}");
+    }
+
+    #[test]
+    fn a_unit_that_changed_hands_past_the_ledger_is_found() {
+        let mut w = world();
+        let u = some_unit(&w);
+        let owner = w.units().unit_owner(u).expect("an owner");
+        let other = w
+            .player_ids()
+            .into_iter()
+            .find(|&p| p != owner)
+            .expect("another player");
+        let entity = w.player_entity(other).expect("the player");
+        w.put(u, Owner(entity));
+        only(&w, "army");
     }
 
     #[test]

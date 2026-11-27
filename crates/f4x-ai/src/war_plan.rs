@@ -3,7 +3,7 @@
 //! war goal (the prize, changed rarely) and as the next target (the step now), keeps each choice
 //! until something is clearly better (`GOAL_HOLD`, `NEXT_HOLD`), and names the recon: the towns
 //! with unexplored ground around them, which the scouts look at before others
-//! (`scout::best_target_with`). What is not built yet is in the doc and task 648.
+//! (the `favour` squares of a scouting order). What is not built yet is in the doc and task 648.
 //!
 //! Tests: at the end of this file, the ratings on plain data and the plan on the shipped rules.
 
@@ -45,10 +45,6 @@ const NEXT_HOLD: f32 = 2.0;
 const RECON_RADIUS: i32 = 4;
 /// The most towns the plan asks the scouts to look at.
 const RECON_TOWNS: usize = 6;
-/// Added to the value of a scouting square near a recon town (squares of new ground are worth one each).
-pub(crate) const RECON_BONUS: f32 = 20.0;
-/// How near a scouting square must be to a recon town to get the bonus.
-pub(crate) const RECON_NEAR: u32 = 3;
 
 /// One town of the enemy, as the AI knows it.
 #[derive(Debug, Clone, PartialEq)]

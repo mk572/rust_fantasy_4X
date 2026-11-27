@@ -270,7 +270,7 @@ impl App {
                 return;
             }
         }
-        // On the main screen Next Turn replaces Done, Patrol, Wait and Build once every unit has
+        // On the main screen Next Turn replaces Done, Order, Wait and Build once every unit has
         // moved, and is not there before.
         let next_turn_shown = matches!(self.screen, Screen::Map) && self.all_units_moved();
         // The income, food and mana panels (233 to 235) are the summary column's, drawn while no

@@ -366,14 +366,14 @@ fn a_step_between_two_river_squares_costs_half_a_move_with_the_river_roads_setti
 
 /// A loaded galley of `owner` on a sea square, and every land square beside it filled to the limit
 /// with the owner's units, so that whoever comes ashore comes to a full square.
-struct ShipByAFullShore {
-    ship: hecs::Entity,
-    owner: PlayerId,
+pub(crate) struct ShipByAFullShore {
+    pub(crate) ship: hecs::Entity,
+    pub(crate) owner: PlayerId,
     aboard: Vec<hecs::Entity>,
     shore: Vec<Position>,
 }
 
-fn ships_by_a_full_shore(w: &mut Table) -> Option<ShipByAFullShore> {
+pub(crate) fn ships_by_a_full_shore(w: &mut Table) -> Option<ShipByAFullShore> {
     let owner = w.wizards()[0];
     let (width, height) = {
         let map = w.map().expect("a map");

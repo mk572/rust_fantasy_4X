@@ -336,6 +336,22 @@ pub struct PlayerSave {
     pub offers: Vec<crate::player::offer::Offer>,
     pub defeated: bool,
     pub defeated_by: Option<u8>,
+    /// The units that left the player's army, in the order they did (`unit::ledger`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub departed: Vec<DepartedSave>,
+}
+
+/// One record of a unit that left an army.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DepartedSave {
+    pub serial: u64,
+    /// The unit's type; none for a hero, which is the one of the hero list with this serial.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unit: Option<u16>,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub xp: u32,
+    pub how: crate::unit::ledger::Departure,
+    pub at: Position,
 }
 
 /// A wizard entity: what the creation screen makes and what follows from it. Spells are saved by
@@ -542,7 +558,11 @@ pub struct UnitSave {
     pub moves: HalfInt,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub order: Option<Order>,
-    /// Road work in progress.
+    /// The enemies the unit knew of when it got its order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub order_seen: Vec<u64>,
+    /// Road work in progress, as saves from before it was an order have it. Read only: a save
+    /// written now has it in `order`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub road_work: Option<crate::map::road::RoadWork>,
     /// Creation number of the ship the unit is aboard.
@@ -554,6 +574,9 @@ pub struct UnitSave {
     /// Done or Patrol (the main screen's buttons).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub standby: Option<crate::unit::Standby>,
+    /// The units a patrol knew of when it was set.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub patrol_seen: Vec<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stasis: Option<crate::unit::stasis::Stasis>,
     /// Temporary modifiers and abilities.
@@ -705,6 +728,72 @@ fn intern(list: &mut Vec<u16>, num: u16) -> u16 {
 }
 
 impl World {
+    /// A player's records of units that left, as they are saved.
+    fn departed_saves(&self, player: PlayerId) -> Vec<DepartedSave> {
+        use crate::unit::ledger::Who;
+        self.units()
+            .departed_units(player)
+            .into_iter()
+            .map(|d| {
+                let (unit, xp) = match d.who {
+                    Who::Troop { kind, xp } => (Some(kind.num()), xp),
+                    Who::Hero(_) => (None, 0),
+                };
+                DepartedSave {
+                    serial: d.serial.0,
+                    unit,
+                    xp,
+                    how: d.how,
+                    at: d.at,
+                }
+            })
+            .collect()
+    }
+
+    /// Put a saved record of a unit that left back into `player`'s ledger; the heroes are made
+    /// by now.
+    fn restore_departed(&mut self, player: PlayerId, d: DepartedSave) -> Result<(), LoadError> {
+        use crate::unit::ledger::{DepartedUnit, Who};
+        let serial = Serial(d.serial);
+        let who = match d.unit {
+            Some(n) => Who::Troop {
+                kind: self
+                    .content
+                    .rules
+                    .units
+                    .id_numbered(n)
+                    .ok_or_else(|| LoadError::UnknownId("unit", n.to_string()))?,
+                xp: d.xp,
+            },
+            None => Who::Hero(
+                self.units()
+                    .all_heroes()
+                    .into_iter()
+                    .find(|&h| self.units().serial_of(h) == serial)
+                    .ok_or_else(|| {
+                        LoadError::Inconsistent(format!(
+                            "the record of a hero that is not there, number {}",
+                            d.serial
+                        ))
+                    })?,
+            ),
+        };
+        let owner = self.player_entity(player).ok_or_else(|| {
+            LoadError::Inconsistent(format!("a record for the missing player {}", player.0))
+        })?;
+        crate::unit::ledger::keep(
+            &self.ecs,
+            owner,
+            DepartedUnit {
+                serial,
+                who,
+                how: d.how,
+                at: d.at,
+            },
+        );
+        Ok(())
+    }
+
     /// The item entities, oldest first.
     fn item_saves(&self) -> Vec<MagicItemSave> {
         use crate::item::entity::HeldBy;
@@ -973,6 +1062,7 @@ impl World {
                 offers: self.offers(*id),
                 defeated: self.player(*id).is_some_and(|p| p.is_defeated()),
                 defeated_by: self.player(*id).and_then(|p| p.defeated_by()).map(|d| d.0),
+                departed: self.departed_saves(*id),
             })
             .collect();
         let wizards = self
@@ -994,20 +1084,28 @@ impl World {
                     xp: self.ecs.get::<&Experience>(u).map_or(0, |x| x.0),
                     weapon: self.units().unit_weapon_quality(u),
                     moves: self.units().unit_moves_left(u),
-                    order: self.ecs.get::<&Order>(u).ok().map(|o| (*o).clone()),
+                    order: crate::unit::ledger::order_of(&self.ecs, u),
                     aboard: self
                         .ecs
                         .get::<&crate::unit::transport::Aboard>(u)
                         .ok()
                         .map(|a| a.0 .0),
-                    road_work: self
-                        .ecs
-                        .get::<&crate::map::road::RoadWork>(u)
-                        .ok()
-                        .map(|w| (*w).clone()),
+                    order_seen: crate::unit::ledger::seen_of(&self.ecs, u)
+                        .into_iter()
+                        .map(|s| s.0)
+                        .collect(),
+                    road_work: None,
                     effects: self.units().temp_effects(u),
                     undead: self.units().unit_is_undead(u),
                     standby: self.units().unit_standby(u),
+                    patrol_seen: self
+                        .ecs
+                        .get::<&crate::unit::PatrolSeen>(u)
+                        .ok()
+                        .filter(|_| {
+                            self.units().unit_standby(u) == Some(crate::unit::Standby::Patrol)
+                        })
+                        .map_or_else(Vec::new, |seen| seen.0.iter().map(|s| s.0).collect()),
                     marooned: self.ecs.get::<&crate::unit::transport::Marooned>(u).is_ok(),
                     unpaid: self.units().unit_is_unpaid(u),
                     bridge: self.ecs.get::<&crate::unit::transport::Bridge>(u).is_ok(),
@@ -1364,8 +1462,10 @@ impl Snapshot {
                 )));
             }
         }
+        let mut departed: Vec<(PlayerId, Vec<DepartedSave>)> = Vec::new();
         for p in self.players {
             let id = PlayerId(p.id);
+            departed.push((id, p.departed));
             if world.player_entity(id).is_some() {
                 return Err(LoadError::Inconsistent(format!(
                     "player {} appears twice",
@@ -1625,6 +1725,7 @@ impl Snapshot {
                     serial,
                 )),
             };
+            crate::unit::ledger::enlist(&world.ecs, entity);
             if u.weapon > 0 {
                 world.put(entity, crate::unit::WeaponQuality(u.weapon));
             }
@@ -1634,6 +1735,14 @@ impl Snapshot {
             effects_load(&mut world.ecs, entity, u.effects);
             if let Some(standby) = u.standby {
                 world.put(entity, standby);
+            }
+            if !u.patrol_seen.is_empty() {
+                let seen = u
+                    .patrol_seen
+                    .iter()
+                    .map(|&s| crate::world::serial::Serial(s))
+                    .collect();
+                world.put(entity, crate::unit::PatrolSeen(seen));
             }
             if u.undead {
                 world.put(entity, crate::unit::undead::Undead);
@@ -1650,11 +1759,22 @@ impl Snapshot {
             if let Some(stasis) = u.stasis {
                 world.put(entity, stasis);
             }
+            // An older save may have both; the walk is the later of the two.
             if let Some(work) = u.road_work {
-                world.put(entity, work);
+                crate::unit::ledger::give_order(&world.ecs, entity, Order::Road(work), &[]);
             }
             if let Some(order) = u.order {
-                world.put(entity, order);
+                let seen: Vec<_> = u
+                    .order_seen
+                    .iter()
+                    .map(|&s| crate::world::serial::Serial(s))
+                    .collect();
+                crate::unit::ledger::give_order(&world.ecs, entity, order, &seen);
+            }
+        }
+        for (player, records) in departed {
+            for record in records {
+                world.restore_departed(player, record)?;
             }
         }
         // A hero serves exactly when it has its body.

@@ -85,6 +85,7 @@ mod newgame_flow;
 mod newgame_picks;
 mod offer_prompt;
 mod options_screen;
+mod order_menu;
 mod outpost_screen;
 mod pack_set;
 mod page;

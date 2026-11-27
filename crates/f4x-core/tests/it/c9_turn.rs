@@ -3,11 +3,15 @@
 //! a treasury that cannot pay. The order of the operations and the round counter are the game's
 //! (`f4x-master/tests/it`).
 
-use crate::support::{around, state, worlds};
+use crate::support::{around, content, state, worlds};
 use f4x_core::map::terrain::TerrainClass;
+use f4x_core::map::{Position, TerrainId};
 use f4x_core::player::{PlayerId, MONSTERS};
+use f4x_core::rules::UnitId;
 use f4x_core::unit::movement::MoveError;
 use f4x_core::unit::Standby;
+use f4x_core::world::rng::GameRng;
+use f4x_core::world::save::Snapshot;
 use f4x_core::world::testutil::Table;
 use f4x_core::world::{Command, Event, Rejection, World};
 use f4x_def::half_int::HalfInt;
@@ -148,6 +152,15 @@ fn standby_done_lasts_the_turn_and_patrol_stays() {
             });
             assert_eq!(w.units().unit_standby(u), Some(s), "{name}");
         }
+        w.apply(Command::SetStandby {
+            units: vec![patrol],
+            standby: Some(Standby::Done),
+        });
+        assert_eq!(
+            w.units().unit_standby(patrol),
+            Some(Standby::Patrol),
+            "{name}: Done ended a patrol"
+        );
         w.start_round(2);
         w.start_player_turn(p, 2);
         assert_eq!(
@@ -236,12 +249,14 @@ fn a_standing_order_does_not_move_a_unit_while_another_wizard_keeps_time_stop() 
         tried += 1;
         w.start_round(2);
         w.start_player_turn(other, 2);
+        w.end_player_turn(other);
         assert_eq!(
             w.units().unit_position(theirs),
             Some(their_at),
             "{name}: a unit walked in stopped time"
         );
         w.start_player_turn(keeper, 2);
+        w.end_player_turn(keeper);
         assert_ne!(
             w.units().unit_position(own),
             Some(own_at),
@@ -370,4 +385,313 @@ fn a_player_may_choose_who_goes_and_only_among_their_own_units() {
         assert!(w.units().unit_position(chosen).is_none(), "{name}");
     }
     assert!(tried > 0, "no world could be overloaded");
+}
+
+/// An empty field: no unit in the world, and a stretch of grassland far from every city and lair.
+/// Returns the square in its middle.
+fn open_field(w: &mut Table) -> Position {
+    for u in w.units().unsorted_units() {
+        w.scenario_remove_unit(u);
+    }
+    let cities: Vec<Position> = w.economy().cities().into_iter().map(|c| c.2).collect();
+    let (width, height) = w
+        .map()
+        .map(|m| (m.width(), m.height()))
+        .expect("a game has a map");
+    let plane = cities[0].plane;
+    let square = |x: u32, y: u32| Position { x, y, plane };
+    let around = |at: Position| {
+        (-FIELD..=FIELD).flat_map(move |dx| {
+            (-FIELD..=FIELD).map(move |dy| {
+                square(
+                    (at.x as i32 + dx).rem_euclid(width as i32) as u32,
+                    (at.y as i32 + dy) as u32,
+                )
+            })
+        })
+    };
+    let middle = (FIELD as u32..height - FIELD as u32)
+        .flat_map(|y| (0..width).map(move |x| square(x, y)))
+        .find(|&at| around(at).all(|p| !cities.contains(&p) && w.economy().lair_at(p).is_none()))
+        .expect("a stretch with no city and no lair");
+    for at in around(middle) {
+        w.scenario_set_terrain(at, TerrainId(4 /* grassland */));
+    }
+    middle
+}
+
+/// How far the field reaches from its middle, in squares: past the sight of the units used here.
+const FIELD: i32 = 4;
+
+fn put(w: &mut Table, owner: PlayerId, at: Position, unit: u16) -> hecs::Entity {
+    w.apply(Command::CreateUnit {
+        owner,
+        pos: at,
+        unit: UnitId::new(unit),
+    })
+    .iter()
+    .find_map(|e| match e {
+        Event::UnitCreated { unit, .. } => Some(*unit),
+        _ => None,
+    })
+    .expect("a unit is made")
+}
+
+/// `at` moved by `dx`, `dy`.
+fn off(w: &World, at: Position, dx: i32, dy: i32) -> Position {
+    let width = w.map().expect("a game has a map").width() as i32;
+    Position {
+        x: (at.x as i32 + dx).rem_euclid(width) as u32,
+        y: (at.y as i32 + dy) as u32,
+        plane: at.plane,
+    }
+}
+
+fn patrol(w: &mut Table, unit: hecs::Entity) {
+    w.apply(Command::SetStandby {
+        units: vec![unit],
+        standby: Some(Standby::Patrol),
+    });
+}
+
+#[test]
+fn patrol_ends_when_another_players_unit_comes_into_sight() {
+    for (name, mut w) in worlds() {
+        let p = wizards(&w)[0];
+        let at = open_field(&mut w);
+        let watcher = put(&mut w, p, at, 104 /* high_men_spearmen */);
+        let done = put(&mut w, p, at, 104 /* high_men_spearmen */);
+        patrol(&mut w, watcher);
+        w.apply(Command::SetStandby {
+            units: vec![done],
+            standby: Some(Standby::Done),
+        });
+        let far = w.units().unit_sight(watcher).floor() + 1;
+
+        // One's own unit is company enough to stay, and so is a stranger just out of sight, even
+        // when another unit of the owner stands beside it.
+        let beyond = off(&w, at, far, 0);
+        let square = off(&w, at, 1, 0);
+        put(&mut w, p, square, 104 /* high_men_spearmen */);
+        let square = off(&w, at, far, 1);
+        let scout = put(&mut w, p, square, 104 /* high_men_spearmen */);
+        put(&mut w, MONSTERS, beyond, 104 /* high_men_spearmen */);
+        assert_eq!(
+            w.units().unit_standby(watcher),
+            Some(Standby::Patrol),
+            "{name}: Patrol ended with no stranger in its sight"
+        );
+        assert!(w.units().unit_position(scout).is_some(), "{name}");
+
+        let square = off(&w, at, far - 1, 0);
+        put(&mut w, MONSTERS, square, 104 /* high_men_spearmen */);
+        assert_eq!(
+            w.units().unit_standby(watcher),
+            None,
+            "{name}: Patrol stayed with a stranger in sight"
+        );
+        assert_eq!(
+            w.units().unit_standby(done),
+            Some(Standby::Done),
+            "{name}: Done is not ended by what is seen"
+        );
+
+        // Set again with the stranger still there, it holds: that one is known.
+        patrol(&mut w, watcher);
+        assert_eq!(
+            w.units().unit_standby(watcher),
+            Some(Standby::Patrol),
+            "{name}: a stranger in view when Patrol was set ended it"
+        );
+        let text = w.snapshot().to_text().expect("writes");
+        let again = Snapshot::from_text(&text)
+            .expect("reads")
+            .restore(content())
+            .expect("restores");
+        let mut again = Table::new(again, GameRng::new(1));
+        let loaded = again.units().units_at(at);
+        let loaded = loaded[0];
+        again.apply(Command::ClearOrders { units: Vec::new() });
+        assert_eq!(
+            again.units().unit_standby(loaded),
+            Some(Standby::Patrol),
+            "{name}: the loaded game forgot what the patrol knew"
+        );
+        // Another one ends it.
+        let square = off(&w, at, 0, 1);
+        put(&mut w, MONSTERS, square, 104 /* high_men_spearmen */);
+        assert_eq!(
+            w.units().unit_standby(watcher),
+            None,
+            "{name}: Patrol stayed though a second stranger came into sight"
+        );
+    }
+}
+
+#[test]
+fn patrol_ends_for_an_invisible_unit_only_when_it_can_be_made_out() {
+    for (name, mut w) in worlds() {
+        let p = wizards(&w)[0];
+        let at = open_field(&mut w);
+        let watcher = put(&mut w, p, at, 104 /* high_men_spearmen */);
+        patrol(&mut w, watcher);
+        let square = off(&w, at, 1, 0);
+        put(&mut w, MONSTERS, square, 194 /* air_elemental */);
+        assert_eq!(
+            w.units().unit_standby(watcher),
+            Some(Standby::Patrol),
+            "{name}: an unseen unit ended Patrol"
+        );
+        put(&mut w, p, at, 167 /* night_stalker */);
+        assert_eq!(
+            w.units().unit_standby(watcher),
+            None,
+            "{name}: Patrol stayed though the owner sees through the invisibility"
+        );
+    }
+}
+
+#[test]
+fn patrol_ends_for_a_unit_that_only_passes_by() {
+    for (name, mut w) in worlds() {
+        let p = wizards(&w)[0];
+        let at = open_field(&mut w);
+        let watcher = put(&mut w, p, at, 104 /* high_men_spearmen */);
+        let far = w.units().unit_sight(watcher).floor() + 1;
+        // A way of two steps, the first into the watcher's sight and the second out of it again,
+        // with sea on every other side.
+        let way = [
+            off(&w, at, far, -1),
+            off(&w, at, far - 1, 0),
+            off(&w, at, far, 1),
+        ];
+        for dy in -2..=2 {
+            for dx in far - 2..=far + 1 {
+                let square = off(&w, at, dx, dy);
+                if square != at && !way.contains(&square) {
+                    w.scenario_set_terrain(square, TerrainId(8 /* ocean */));
+                }
+            }
+        }
+        let passer = put(&mut w, MONSTERS, way[0], 104 /* high_men_spearmen */);
+        patrol(&mut w, watcher);
+        assert_eq!(
+            w.units().unit_standby(watcher),
+            Some(Standby::Patrol),
+            "{name}"
+        );
+        w.scenario_set_moves_left(passer, HalfInt::from_int(10));
+        w.apply(Command::GoTo {
+            units: vec![passer],
+            to: way[2],
+        });
+        assert_eq!(w.units().unit_position(passer), Some(way[2]), "{name}");
+        assert_eq!(
+            w.units().unit_standby(watcher),
+            None,
+            "{name}: Patrol stayed though a stranger walked through its sight"
+        );
+    }
+}
+
+/// Whether a go-to for `unit` alone was taken.
+fn go_to(w: &mut Table, unit: hecs::Entity, to: Position) -> bool {
+    !w.apply(Command::GoTo {
+        units: vec![unit],
+        to,
+    })
+    .iter()
+    .any(|e| matches!(e, Event::Rejected(_)))
+}
+
+#[test]
+fn a_go_to_walks_on_at_the_end_of_the_owners_turn_and_not_at_its_start() {
+    for (name, mut w) in worlds() {
+        let p = wizards(&w)[0];
+        let at = open_field(&mut w);
+        let from = off(&w, at, -FIELD, 0);
+        let walker = put(&mut w, p, from, 104 /* high_men_spearmen */);
+        let to = off(&w, at, FIELD, 0);
+        assert!(go_to(&mut w, walker, to), "{name}");
+        let first = w.units().unit_position(walker);
+        assert!(first != Some(from) && first != Some(to), "{name}");
+        w.start_player_turn(p, 2);
+        assert_eq!(w.units().unit_position(walker), first, "{name}");
+        w.end_player_turn(p);
+        assert_ne!(w.units().unit_position(walker), first, "{name}");
+        assert_eq!(w.unit_destination(walker), Some(to), "{name}");
+    }
+}
+
+#[test]
+fn a_walk_at_the_end_of_a_turn_never_attacks() {
+    for (name, mut w) in worlds() {
+        let p = wizards(&w)[0];
+        let at = open_field(&mut w);
+        let walker = put(&mut w, p, at, 104 /* high_men_spearmen */);
+        let there = off(&w, at, 1, 0);
+        put(&mut w, MONSTERS, there, 104 /* high_men_spearmen */);
+        w.scenario_set_moves_left(walker, HalfInt::ZERO);
+        assert!(go_to(&mut w, walker, there), "{name}");
+        assert!(w.unit_has_order(walker), "{name}");
+        w.start_player_turn(p, 2);
+        let events = w.end_player_turn(p);
+        assert!(
+            events.iter().any(|e| matches!(
+                e,
+                Event::OrderFailed {
+                    why: MoveError::WouldFight,
+                    ..
+                }
+            )),
+            "{name}: {events:?}"
+        );
+        assert!(
+            !events
+                .iter()
+                .any(|e| matches!(e, Event::AttackRequested { .. })),
+            "{name}"
+        );
+        assert_eq!(w.units().unit_position(walker), Some(at), "{name}");
+        assert!(!w.unit_has_order(walker), "{name}");
+    }
+}
+
+#[test]
+fn an_order_ends_when_the_unit_is_moved_by_hand_or_told_to_patrol() {
+    for (name, mut w) in worlds() {
+        let p = wizards(&w)[0];
+        let at = open_field(&mut w);
+        let walker = put(&mut w, p, at, 104 /* high_men_spearmen */);
+        let to = off(&w, at, FIELD, 0);
+        let standby = |w: &mut Table, standby| {
+            w.apply(Command::SetStandby {
+                units: vec![walker],
+                standby: Some(standby),
+            });
+        };
+        assert!(go_to(&mut w, walker, to), "{name}");
+        w.start_player_turn(p, 2);
+        // A move the game refuses changes nothing.
+        w.apply(Command::MoveStack {
+            units: vec![walker],
+            to,
+        });
+        assert!(w.unit_has_order(walker), "{name}: refused move");
+        standby(&mut w, Standby::Done);
+        assert!(w.unit_has_order(walker), "{name}: done");
+        standby(&mut w, Standby::Patrol);
+        assert!(!w.unit_has_order(walker), "{name}: patrol");
+
+        assert!(go_to(&mut w, walker, to), "{name}");
+        w.start_player_turn(p, 3);
+        let here = w.units().unit_position(walker).expect("a square");
+        let beside = off(&w, here, 0, 1);
+        w.apply(Command::MoveStack {
+            units: vec![walker],
+            to: beside,
+        });
+        assert_eq!(w.units().unit_position(walker), Some(beside), "{name}");
+        assert!(!w.unit_has_order(walker), "{name}: moved by hand");
+    }
 }

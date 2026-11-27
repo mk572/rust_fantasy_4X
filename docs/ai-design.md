@@ -653,7 +653,9 @@ unit tests in `wizardry.rs` and `f4x-ai/src/battle/order.rs`, `crates/f4x-learn/
 - **Ships** (step 8, task 230). Four of the eight seeds put the wizards on different land masses
   or planes; the soak cannot end those by conquest. A trireme (two land units, needs a Ship
   Wrights Guild) or a galley (five, needs a Ship Yard, which needs a Sawmill) is built in a
-  coastal city; a stack of the ship and its passengers moves with one `GoTo`; passengers land with
+  coastal city; a stack of the ship and its passengers moves with one `GoTo`
+  (scouting ships, land scouts, settlers, spirits, reinforcements and escorts use the players'
+  standing orders, `ai-unit-registry.md` "Orders"); passengers land with
   an ordinary move onto the land next to the target. What the AI would have to add: a port, the
   buildings, a gathering of nine or more units over several trips, and a landing area it holds
   until the force is whole. Built in `naval.rs` (port, ship, one landing at a time); a ship loaded for a rival's city declares war first; what stays open is a second ship, planes (a sea scout lands a fighter on empty land, a ship takes a party to a guarded tower, a scout changes plane on a cleared one; an army does not cross yet), and why seeds 2 and 8 make no landing on the other wizard (task 230).
@@ -819,6 +821,13 @@ of 42, within the noise of this sample.
 Every unit has exactly one role, and none has an empty one. The roles live in one place, the
 registry `Ai::roles` (`roles.rs`); the whole subsystem (data, groups, claim rules, the audit, how to
 add a role) is in [`ai-unit-registry.md`](ai-unit-registry.md).
+
+**The units themselves.** The AI asks for its units with `PlayerView::my_units`, which reads the
+army ledger (`ecs-structure.md` 3.12): oldest first, at the cost of its own units, so it asks again
+rather than keeping a list of its own. A unit's strength (`unit_power`) is worked out once and kept
+until a command changes what units are made of (`KNOWLEDGE.md`, "Speed and caches"); the mean
+strength of the fighters, which the plans and the garrisons count in, is worked out once for each
+view (`military::mean_fighter_strength`).
 
 In short: a map from a unit's serial to one assignment (role, since, target square, party, tied
 unit, standstill count). A claim of a role is refused for a unit that holds one of equal or higher

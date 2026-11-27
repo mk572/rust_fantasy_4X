@@ -10,6 +10,7 @@ use crate::roles::Role;
 use crate::Ai;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
+use f4x_core::unit::Errand;
 use f4x_core::world::{Command, Event};
 use f4x_def::rules::Ability;
 use f4x_master::Game;
@@ -94,8 +95,9 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         if nodes.contains(&here) {
             let _ = ai.send(
                 game,
-                Command::Meld {
+                Command::GiveOrder {
                     units: vec![spirit],
+                    errand: Errand::Meld { to: here },
                 },
                 events,
             );
@@ -147,7 +149,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         };
         let chosen = candidates
             .into_iter()
-            .find(|&node| crate::escort::walk(ai, game, spirit, node, events));
+            .find(|&to| crate::escort::walk(ai, game, spirit, Errand::Meld { to }, events));
         match chosen {
             Some(node) => {
                 let _ = ai.roles.claim(serial, Role::Meld, turn, Some(node));

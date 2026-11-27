@@ -721,6 +721,9 @@ impl Ai {
             Command::GoTo { units, to } | Command::MoveStack { units, to } => {
                 Some(Aim::Walk(units.clone(), *to))
             }
+            Command::GiveOrder { units, errand } => {
+                errand.square().map(|to| Aim::Walk(units.clone(), to))
+            }
             Command::AutoResolve {
                 attackers,
                 defenders,
@@ -732,8 +735,11 @@ impl Ai {
             } => Some(Aim::Fight(attackers.clone(), defenders.clone())),
             _ => None,
         };
-        let walk_command = matches!(command, Command::GoTo { .. } | Command::MoveStack { .. })
-            .then(|| command.clone());
+        let walk_command = matches!(
+            command,
+            Command::GoTo { .. } | Command::MoveStack { .. } | Command::GiveOrder { .. }
+        )
+        .then(|| command.clone());
         // The battle AI plays both sides of an AI's battle, each side's orders under that
         // side's name, until a defender gives its own (docs/turn-structure.md 10.4).
         let sender = match command {

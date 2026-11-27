@@ -1,4 +1,5 @@
-//! What a unit's stats are made of, kept for the length of a computer wizard's turn.
+//! What a unit's stats are made of, and its strength, kept for the length of a computer wizard's
+//! turn.
 //!
 //! A stat asks for every modifier of the unit (abilities, level, hero, spells, items, temporary
 //! effects, global spells), and the AI asks for several stats of the same units again and again.
@@ -7,6 +8,10 @@
 //!
 //! The cache is armed by [`crate::world::World::keep_for_turn`] for the world of that game only and
 //! is dropped after the turn; a `UnitView` over any other world (a battle, a copy) never sees it.
+//! The values of units are for reading between commands. While the world changes they are set
+//! aside ([`pause`]): a command raises experience, casts spells and the like, and the rules that
+//! follow in the same command must see the unit as it now is.
+//!
 //! It is emptied by [`crate::world::World`]'s `execute` after every command except the ones named
 //! harmless in `map::vision::VisionEffect` (a walk changes where a unit stands, and nothing a
 //! unit's modifiers or abilities are made of depends on that). `F4X_CHECK_UNITS=1` works every hit
@@ -25,8 +30,13 @@ use std::rc::Rc;
 struct Kept {
     /// The address of the world the cache is for.
     ecs: usize,
+    /// How many changes of the world are under way: while any is, no unit value is read or kept.
+    paused: u32,
     modifiers: FastMap<hecs::Entity, Rc<Vec<Modifier>>>,
     abilities: FastMap<hecs::Entity, Rc<Vec<Ability>>>,
+    /// `UnitView::unit_power`: made of nothing but the two above, the unit's level and the
+    /// content, and asked for over and over when the AI weighs its army.
+    power: FastMap<hecs::Entity, f32>,
     /// The player whose turn it is, and the squares where something hostile to it stands
     /// (`Economy::hostile_squares`): its own commands are the only changes, and walking its own
     /// units does not change them.
@@ -36,6 +46,13 @@ struct Kept {
     /// what they are made of, and none of them changes by a walk except the room, which each
     /// entry remembers.
     grids: FastMap<GridKey, Rc<CachedGrid>>,
+}
+
+impl Kept {
+    /// Whether the values of units may be read from and put into the cache for this world now.
+    fn serves_units(&self, ecs: &hecs::World) -> bool {
+        self.paused == 0 && self.ecs == address(ecs)
+    }
 }
 
 thread_local! {
@@ -57,6 +74,29 @@ pub(crate) fn arm(ecs: &hecs::World, player: PlayerId) {
     });
 }
 
+/// Sets the values of units aside until it is dropped (see the module doc).
+#[must_use]
+pub(crate) struct Paused;
+
+pub(crate) fn pause() -> Paused {
+    KEPT.with(|k| {
+        if let Some(kept) = k.borrow_mut().as_mut() {
+            kept.paused += 1;
+        }
+    });
+    Paused
+}
+
+impl Drop for Paused {
+    fn drop(&mut self) {
+        KEPT.with(|k| {
+            if let Some(kept) = k.borrow_mut().as_mut() {
+                kept.paused = kept.paused.saturating_sub(1);
+            }
+        });
+    }
+}
+
 /// Stop keeping.
 pub(crate) fn disarm() {
     KEPT.with(|k| *k.borrow_mut() = None);
@@ -68,6 +108,7 @@ pub(crate) fn clear() {
         if let Some(kept) = k.borrow_mut().as_mut() {
             kept.modifiers.clear();
             kept.abilities.clear();
+            kept.power.clear();
             kept.hostile = None;
             kept.grids.clear();
         }
@@ -77,7 +118,7 @@ pub(crate) fn clear() {
 pub(crate) fn modifiers(ecs: &hecs::World, unit: hecs::Entity) -> Option<Rc<Vec<Modifier>>> {
     KEPT.with(|k| {
         let k = k.borrow();
-        let kept = k.as_ref().filter(|kept| kept.ecs == address(ecs))?;
+        let kept = k.as_ref().filter(|kept| kept.serves_units(ecs))?;
         kept.modifiers.get(&unit).cloned()
     })
 }
@@ -87,7 +128,7 @@ pub(crate) fn keep_modifiers(ecs: &hecs::World, unit: hecs::Entity, mods: &Rc<Ve
         if let Some(kept) = k
             .borrow_mut()
             .as_mut()
-            .filter(|kept| kept.ecs == address(ecs))
+            .filter(|kept| kept.serves_units(ecs))
         {
             kept.modifiers.insert(unit, mods.clone());
         }
@@ -97,7 +138,7 @@ pub(crate) fn keep_modifiers(ecs: &hecs::World, unit: hecs::Entity, mods: &Rc<Ve
 pub(crate) fn abilities(ecs: &hecs::World, unit: hecs::Entity) -> Option<Rc<Vec<Ability>>> {
     KEPT.with(|k| {
         let k = k.borrow();
-        let kept = k.as_ref().filter(|kept| kept.ecs == address(ecs))?;
+        let kept = k.as_ref().filter(|kept| kept.serves_units(ecs))?;
         kept.abilities.get(&unit).cloned()
     })
 }
@@ -107,9 +148,29 @@ pub(crate) fn keep_abilities(ecs: &hecs::World, unit: hecs::Entity, list: &Rc<Ve
         if let Some(kept) = k
             .borrow_mut()
             .as_mut()
-            .filter(|kept| kept.ecs == address(ecs))
+            .filter(|kept| kept.serves_units(ecs))
         {
             kept.abilities.insert(unit, list.clone());
+        }
+    });
+}
+
+pub(crate) fn power(ecs: &hecs::World, unit: hecs::Entity) -> Option<f32> {
+    KEPT.with(|k| {
+        let k = k.borrow();
+        let kept = k.as_ref().filter(|kept| kept.serves_units(ecs))?;
+        kept.power.get(&unit).copied()
+    })
+}
+
+pub(crate) fn keep_power(ecs: &hecs::World, unit: hecs::Entity, power: f32) {
+    KEPT.with(|k| {
+        if let Some(kept) = k
+            .borrow_mut()
+            .as_mut()
+            .filter(|kept| kept.serves_units(ecs))
+        {
+            kept.power.insert(unit, power);
         }
     });
 }

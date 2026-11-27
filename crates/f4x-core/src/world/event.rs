@@ -531,9 +531,18 @@ pub enum Event {
         from: map::Position,
         to: map::Position,
     },
-    /// A standing order (`Order::GoTo`) stopped before its end because a step was refused (the
-    /// square filled up, the ground changed); the order is gone and the units stand where they
-    /// are. Running out of moves is not a failure: the order goes on next turn.
+    /// A standing order ended before it was done, with no step refused: its unit saw an enemy,
+    /// its target is gone, no way leads there, or there is nothing left to do.
+    OrderOver {
+        player: player::PlayerId,
+        units: Vec<hecs::Entity>,
+        at: map::Position,
+        why: unit::OrderEnd,
+    },
+    /// A standing order stopped before its end because a step was refused (the
+    /// square filled up, the ground changed, or, at the end of a turn, the step would start a
+    /// fight); the order is gone and the units stand where they are. Running out of moves is not
+    /// a failure: the order goes on at the end of the next turn.
     OrderFailed {
         player: player::PlayerId,
         units: Vec<hecs::Entity>,
@@ -609,6 +618,8 @@ pub enum Rejection {
     Move(unit::movement::MoveError),
     /// A go-to order found no way, and why.
     NoPath(unit::pathing::failure::NoPath),
+    /// An order that cannot be given.
+    Order(unit::OrderError),
     Production(city::production::ProductionError),
     Magic(wizard::magic::MagicError),
     Fortress(wizard::fortress::FortressError),
@@ -645,6 +656,7 @@ impl Rejection {
             Self::FoundCity(e) => e.key(),
             Self::Move(e) => e.key(),
             Self::NoPath(e) => e.key(),
+            Self::Order(e) => e.key(),
             Self::Production(e) => e.key(),
             Self::Magic(e) => e.key(),
             Self::Fortress(e) => e.key(),

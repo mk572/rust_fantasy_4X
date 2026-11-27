@@ -8,6 +8,7 @@ use std::path::Path;
 use crate::text::Args;
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::PlayerId;
+use f4x_core::unit::Standby;
 use f4x_core::world::rng::GameRng;
 use f4x_def::content::Content;
 use f4x_newgame::mapgen::GenParams;
@@ -190,6 +191,8 @@ pub struct App {
     pub(crate) pointer_walk: Option<(crate::pointer::WalkKey, bool)>,
     /// A road being planned.
     pub(crate) road_plan: Option<crate::road_plan::RoadPlan>,
+    /// A square being picked for an order of the Order menu (`order_menu.rs`).
+    pub(crate) order_target: Option<crate::order_menu::OrderTarget>,
     /// The city picker in the side panel, while it is open.
     pub(crate) city_select: Option<crate::city_select::CitySelect>,
     /// The Surveyor is describing the square under the mouse (F1).
@@ -410,6 +413,7 @@ impl App {
             units_waited: false,
             pointer_walk: None,
             road_plan: None,
+            order_target: None,
             city_select: None,
             surveyor: false,
             survey_probe: None,
@@ -628,6 +632,17 @@ impl App {
                     ))
                 }
                 Event::Rejected(why) => Some(self.text(why.key())),
+                Event::OrderOver {
+                    player, at, why, ..
+                } if player == HUMAN => Some(
+                    self.text_with(
+                        "log.order_over",
+                        &Args::new()
+                            .count("x", at.x)
+                            .count("y", at.y)
+                            .text("reason", self.text(why.key())),
+                    ),
+                ),
                 // Only the human's own orders are reported: the computer players' are theirs.
                 // The square the stack stopped on, so that the player knows which one it is.
                 Event::OrderFailed {
@@ -1833,6 +1848,7 @@ impl App {
                         // The panel takes the key itself (Cancel).
                     } else if self.targeting.take().is_some() {
                         self.log.push(self.text("log.cast_cancelled"));
+                    } else if self.cancel_order_target() {
                     } else if self.road_plan.is_some() {
                         self.road_plan_cancel();
                     } else if self.surveyor {
@@ -2437,13 +2453,9 @@ impl App {
         if self.hotkeys.pressed("wait", input) && !self.selection.is_empty() {
             self.select_next_idle(true);
         }
+        // The key of the Done button, which does what the button does.
         if self.hotkeys.pressed("done", input) && !self.selection.is_empty() {
-            self.game.apply(
-                HUMAN,
-                Command::ClearOrders {
-                    units: self.selection.clone(),
-                },
-            );
+            self.stand_by(self.selection.clone(), Standby::Done);
         }
         if self.hotkeys.pressed("centre", input) {
             if let Some(at) = self.selection_position() {
@@ -2463,9 +2475,10 @@ impl App {
             } else if input.mouse_pressed(MouseButton::Right) && self.road_plan.is_some() {
                 self.road_plan_cancel();
             } else if input.mouse_pressed(MouseButton::Right)
-                && self.game.is_explored(HUMAN, pos)
-                && self.foreign_stack_at(pos)
-                && self.open_unit_list(pos)
+                && (self.cancel_order_target()
+                    || self.game.is_explored(HUMAN, pos)
+                        && self.foreign_stack_at(pos)
+                        && self.open_unit_list(pos))
             {
             } else if input.mouse_pressed(MouseButton::Right)
                 && !self.selection.is_empty()
@@ -2503,6 +2516,12 @@ impl App {
     /// Send the selected units to `pos` (the click that moves units is the preference
     /// `Left Click Moves Units`).
     fn go_to(&mut self, pos: Position) {
+        let units = self.units_that_can_move();
+        self.send_go_to(units, pos);
+    }
+
+    /// Send `units` of the selection to `pos`.
+    pub(crate) fn send_go_to(&mut self, units: Vec<hecs::Entity>, pos: Position) {
         // A stack in a city with an Earth Gate that is sent to another city with one is
         // teleported there at once, for one move (`MainScr.c`, the Earth Gate branch).
         if self.game.can_use_earth_gate(&self.selection, pos).is_ok() {
@@ -2519,7 +2538,6 @@ impl App {
             }
             return;
         }
-        let units = self.units_that_can_move();
         self.send_attack_checked(Command::GoTo { units, to: pos }, pos);
     }
 
@@ -2529,6 +2547,7 @@ impl App {
             return;
         }
         if let Some(t) = self.targeting.take() {
+            self.order_target = None;
             self.aim_at(t, pos);
             return;
         }
@@ -2536,6 +2555,9 @@ impl App {
             if !self.road_plan_on_button(input) {
                 self.road_plan_click(pos);
             }
+            return;
+        }
+        if self.order_target_click(pos) {
             return;
         }
         if self.surveyor {

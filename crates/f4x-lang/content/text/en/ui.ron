@@ -30,7 +30,7 @@
     // The labels of the unit window's buttons: capitals.
     "ui.button_done": "DONE",
     "ui.button_cancel": "CANCEL",
-    "ui.button_patrol": "PATROL",
+    "ui.button_order": "ORDER",
     "ui.button_wait": "WAIT",
     "ui.button_build": "BUILD",
     "ui.button_meld": "MELD",

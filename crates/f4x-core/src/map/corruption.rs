@@ -101,7 +101,7 @@ impl World {
             return Err(PurifyError::NotCorrupted);
         }
         for u in workers {
-            self.strip::<crate::unit::Order>(u);
+            crate::unit::ledger::end_order(&self.ecs, u);
             self.put(
                 u,
                 PurifyWork {

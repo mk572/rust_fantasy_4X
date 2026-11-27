@@ -4,7 +4,7 @@
 //! ```text
 //! round start   (once: the round counter, world events)
 //!   for each player, in the order of the turns (`turn_players`):
-//!     turn start   (moves refilled, offers, standing orders)
+//!     turn start   (moves refilled, offers)
 //!     the player's controller plays (a human may take many calls; an AI plays at once)
 //!     turn end     (the player's cities, treasury, magic, healing)
 //! round end     (once: durations and world-wide work)

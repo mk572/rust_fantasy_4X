@@ -67,6 +67,12 @@ Non-obvious findings, one rule up front in bold. General lessons (shell, tools) 
   has none. `takes_part_in_diplomacy` stays true for them, so that the rules still note that the
   others have met them. Do not add a player to a game world in a test: take one that is there.
 
+## An accepted order is not a unit that has moved (task 830)
+
+- Standing orders walk at the **end** of the owner's turn (27 November 2026; before, at its start). A
+  `GoTo` that finds no moves left is accepted and walks later: code that then frees whatever carried
+  the unit (a ship) has to check that the unit has left the square (`pickup.rs`, `advance`).
+
 ## Orders that stop (tasks 515, 555)
 
 - **A step that fails must be reported, not dropped.** `follow_orders` used to end a `GoTo` on any refused
@@ -80,6 +86,12 @@ Non-obvious findings, one rule up front in bold. General lessons (shell, tools) 
 
 ## Speed and caches (tasks 428, 512, 514)
 
+- **What follows every command is on the hot path.** `World::settle` runs the check of what orders
+  and patrols see after each command, with the kept unit values paused, so every `unit_sight` there
+  is worked out anew. The first version of it for orders cost the 5-wizard speed benchmark about 30 ms
+  a turn. Look at every unit once (one query, not a lookup for each), ask about an owner pair (a
+  treaty) once, and work out a watcher's sight only when a unit that counts could be seen
+  (`Economy::company_of`, task 830).
 - **Take what does not depend on the square out of a search's loop.** `unit_abilities` and `hostile_at`
   are queries over the world; for each of eight neighbours of each square a reachability search cost
   100 ms. `reachable_squares` and `find_path` take a unit's `StepProfile` once. Hash maps keyed by
@@ -91,9 +103,14 @@ Non-obvious findings, one rule up front in bold. General lessons (shell, tools) 
   put down; the rest stays), `Recount` for everything else and for any command whose events are not all
   harmless. **A new command is a `Recount` until it is named.** Anything that changes the game outside
   `World::apply` during the turn breaks this.
-- **A unit's modifiers and abilities are kept for the same turn too** (`unit/kept.rs`, a thread-local
-  cache armed by `keep_for_turn`). `World::execute` empties it after every `Recount`; a command that
-  changes what a unit is made of must therefore be one.
+- **A unit's modifiers, abilities and strength are kept for the same turn too** (`unit/kept.rs`, a
+  thread-local cache armed by `keep_for_turn`). `World::execute` empties it after every `Recount`; a
+  command that changes what a unit is made of must therefore be one.
+- **Emptying a cache after a command is not enough: set it aside during the command.** A command
+  changes units (experience from a fight, a spell turned off) and its own later rules read them: the
+  dead-unit sweep at its end saw the values from before it. `execute` and `advance` hold
+  `kept::pause()`. After touching the cache or adding to it, play the late 5-wizard snapshot with
+  `F4X_CHECK_UNITS=1` (`soak --from soak-out/bench/p5/seed25/t0400.f4x --players 5 --turns 440`).
 - **Prove a speedup by the games it plays.** Games are deterministic: build the commit before into a
   second worktree (`git worktree add DIR HEAD`, `CARGO_TARGET_DIR=OTHER cargo build --release -p
   f4x-tools`), play the bench snapshots with both binaries (`soak --from soak-out/bench/p5/seed25/t0400.f4x

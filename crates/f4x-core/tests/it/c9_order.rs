@@ -1,4 +1,4 @@
-//! Standing orders (`GoTo`) are followed at the start of the turn, group by group. A group whose next
+//! Standing orders (`GoTo`) are walked at the end of the owner's turn, group by group. A group whose next
 //! square is full waits for the groups that can move, and goes in once they have: a column of big
 //! stacks walking one way clears from its head, whatever the order of their creation.
 
@@ -74,7 +74,7 @@ fn a_stack_that_finds_its_way_full_goes_in_once_the_stack_on_it_has_gone_on() {
     let rear = make(&mut w, a, 2);
     let head = make(&mut w, b, limit.saturating_sub(before));
     assert_eq!(w.units().units_at(b).len(), limit, "the square is full");
-    // Orders given with no moves left stand until the turn starts.
+    // Orders given with no moves left stand until the end of the next turn.
     for &u in rear.iter().chain(&head) {
         w.scenario_set_moves_left(u, HalfInt::ZERO);
     }
@@ -85,7 +85,8 @@ fn a_stack_that_finds_its_way_full_goes_in_once_the_stack_on_it_has_gone_on() {
             "{events:?}"
         );
     }
-    let events = w.start_player_turn(wizard, 2);
+    w.start_player_turn(wizard, 2);
+    let events = w.end_player_turn(wizard);
     assert!(
         !events
             .iter()
@@ -158,7 +159,8 @@ fn a_stack_that_stays_blocked_is_told_why() {
         units: vec![walker],
         to: b,
     });
-    let events = w.start_player_turn(wizard, 2);
+    w.start_player_turn(wizard, 2);
+    let events = w.end_player_turn(wizard);
     assert!(
         events
             .iter()

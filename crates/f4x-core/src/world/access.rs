@@ -108,28 +108,46 @@ impl World {
 
     /// Has the unit a standing order (a path it is walking)?
     pub fn unit_has_order(&self, unit: hecs::Entity) -> bool {
-        self.ecs.get::<&Order>(unit).is_ok()
+        crate::unit::ledger::has_order(&self.ecs, unit)
     }
 
-    /// The square the unit's standing order walks to: the end of its path.
+    /// The unit's standing order.
+    pub fn unit_order(&self, unit: hecs::Entity) -> Option<Order> {
+        crate::unit::ledger::order_of(&self.ecs, unit)
+    }
+
+    /// The square the unit's standing order takes it to: the end of its path, the square of the
+    /// unit it escorts, the last square of its road. `None` for a scout that has chosen none.
     pub fn unit_destination(&self, unit: hecs::Entity) -> Option<crate::map::Position> {
-        match &*self.ecs.get::<&Order>(unit).ok()? {
+        match self.unit_order(unit)? {
             Order::GoTo(path) => path.last().copied(),
+            Order::Scout(scouting) => scouting.trip.map(|t| t.to),
+            Order::Meld(trip) | Order::Reinforce(trip) | Order::Settle { trip, .. } => {
+                Some(trip.to)
+            }
+            Order::Escort(charge) => {
+                let owner = self.player_entity(self.units().unit_owner(unit)?)?;
+                let ledger = self
+                    .ecs
+                    .get::<&crate::unit::ledger::ArmyLedger>(owner)
+                    .ok()?;
+                self.units().unit_position(ledger.unit(charge)?)
+            }
+            Order::Road(work) => Some(work.rest.last().copied().unwrap_or(work.at)),
         }
     }
 
     /// Is the unit (an engineer) building a road?
     pub fn unit_building_road(&self, unit: hecs::Entity) -> bool {
-        self.ecs.get::<&crate::map::road::RoadWork>(unit).is_ok()
+        matches!(self.unit_order(unit), Some(Order::Road(_)))
     }
 
-    /// Is the unit waiting for orders: moves left, and not on standby, walking a path or
-    /// building a road? What the main screen cycles through.
+    /// Is the unit waiting for orders: moves left, and neither on standby nor under an order?
+    /// What the main screen cycles through.
     pub fn unit_is_idle(&self, unit: hecs::Entity) -> bool {
         self.units().unit_moves_left(unit) > 0
             && self.units().unit_standby(unit).is_none()
-            && self.ecs.get::<&Order>(unit).is_err()
-            && self.ecs.get::<&crate::map::road::RoadWork>(unit).is_err()
+            && !self.unit_has_order(unit)
     }
 
     // ---- for tests and tools --------------------------------------------------------

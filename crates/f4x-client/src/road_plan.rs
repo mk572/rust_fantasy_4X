@@ -57,6 +57,7 @@ impl App {
         let Some(start) = self.game.units().unit_position(first) else {
             return;
         };
+        self.order_target = None;
         self.road_plan = Some(RoadPlan {
             units: self.selection.clone(),
             start,

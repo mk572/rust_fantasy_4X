@@ -2,6 +2,7 @@
 // Ein Schlüssel steht nur in einer Datei (docs/text.md).
 {
     "log.founded": "{city} gegründet",
+    "log.order_over": "Befehl bei {x}, {y} beendet: {reason}",
     "log.order_failed": "Befehle bei {x}, {y} abgebrochen, die Einheiten bleiben stehen: {reason}",
     "log.a_rival": "ein Rivale",
     "log.a_hero": "Ein Held",

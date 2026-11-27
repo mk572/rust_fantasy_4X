@@ -18,7 +18,7 @@ The city screen's Buy, Change and OK (wooden, 30x10 and 36x10; style 1 lettering
 no shadow) are cleaned by colour: the lettering is the only blue-over-red pixels. They are written as
 `city_<name>.png`; the pressed picture is the up one moved, as for the others.
 
-The four action buttons of the unit window (Done, Patrol, Wait and Build, Meld or Purify) are
+The four action buttons of the unit window (Done, Patrol (our Order), Wait and Build, Meld or Purify) are
 33x9 and lettered in style 0 (5 px), ink (8,4,4), at y=2, with the "shadow down" copies in a lighter gold. Only the rows of the lettering
 count as ink, since the Wait and Build pictures have a dark speck below it. Only the up picture is
 made: the original's pressed picture (frame 1) is the up one a pixel right and down under a dark

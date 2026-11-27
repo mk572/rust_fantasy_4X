@@ -15,7 +15,7 @@ column. It is a text search, so a row can be a false alarm (a pure function give
 input) and a made-up situation built another way (a number written onto a unit) is not found.
 The `Decision` column is for the walk through the list.
 
-**Part 1: 12 tests. Part 2: 0 tests. Of 1885 in all.**
+**Part 1: 12 tests. Part 2: 0 tests. Of 2090 in all.**
 
 # Part 1: made-up units, battles, spells and rule sets
 

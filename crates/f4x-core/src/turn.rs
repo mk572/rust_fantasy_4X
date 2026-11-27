@@ -29,9 +29,8 @@ impl World {
     /// The start of one player's turn: what changes the land and the people runs first (the
     /// research that finished, Gaia's Blessing and Chaos Rift, outposts, growth, pestilence,
     /// experience, healing), so they act on the state they will see; then moves are refilled
-    /// (a unit finished at the last turn end moves now), offers rolled, the work of their units
-    /// carried on and their standing orders followed. The first round has none of it: the game
-    /// begins with the first turn.
+    /// (a unit finished at the last turn end moves now), offers rolled and the work of their
+    /// units carried on. The first round has none of it: the game begins with the first turn.
     pub fn start_player_turn(
         &mut self,
         player: PlayerId,
@@ -64,15 +63,6 @@ impl World {
         events.extend(self.sail_marooned(player));
         events.extend(self.drown_stranded(Some(player), rng));
         events.extend(self.process_road_work(player));
-        let mut with_orders: Vec<_> = self
-            .ecs
-            .query::<&crate::unit::Order>()
-            .iter()
-            .map(|(e, _)| e)
-            .filter(|&e| self.units().unit_owner(e) == Some(player))
-            .collect();
-        self.units().sort_by_serial(&mut with_orders);
-        events.extend(self.follow_orders(&with_orders, rng));
         events
     }
 
@@ -106,15 +96,16 @@ impl World {
         events
     }
 
-    /// The end of one player's turn: income, bills and production, so a defender finished now
-    /// defends against the rivals' turns and a shortage costs its units now. Raze windows shut;
+    /// The end of one player's turn. First the units with a standing order walk on with the moves
+    /// the turn left them. Then income, bills and production, so a defender finished now defends
+    /// against the rivals' turns and a shortage costs its units now. Raze windows shut;
     /// farmers are kept on the farms; the treasury settles (gold and food income, upkeep); the
     /// wizard's magic runs (mana income, research points, mana upkeep, casting); the cities build.
-    /// First of all, what was proposed in the turn and not answered lapses.
+    /// Before all of it, what was proposed in the turn and not answered lapses.
     pub fn end_player_turn(&mut self, player: PlayerId, rng: &mut GameRng) -> Vec<Event> {
         self.diplomacy.lapse_proposals();
+        let mut events = self.walk_orders(player, rng);
         self.close_raze_windows(player);
-        let mut events = Vec::new();
         // The monsters' owner has units only: no cities, no treasury, no magic.
         if player == crate::player::MONSTERS {
             return events;

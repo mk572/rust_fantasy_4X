@@ -35,7 +35,7 @@ pub(crate) struct CityPick {
 
 /// What a frame of the list decides.
 #[derive(Debug, PartialEq, Eq)]
-enum Step {
+pub(crate) enum Step {
     Stay,
     Cancel,
     Pick,
@@ -192,6 +192,34 @@ impl App {
             .iter()
             .map(|&c| self.game.city_name(c).unwrap_or_default())
             .collect();
+        let (pick_row, step_taken) = self.pick_list(&prompt, &lines, row, input);
+        match step_taken {
+            Step::Stay => Some(CityPick {
+                prompt,
+                cities,
+                row: pick_row,
+                answer,
+            }),
+            Step::Cancel => {
+                answer(self, None);
+                None
+            }
+            Step::Pick => {
+                answer(self, Some(cities[pick_row]));
+                None
+            }
+        }
+    }
+
+    /// A box over the screen with a question and the lines to choose from, `row` highlighted:
+    /// the row highlighted now and what this frame decides.
+    pub(crate) fn pick_list(
+        &mut self,
+        prompt: &str,
+        lines: &[String],
+        row: usize,
+        input: &Input,
+    ) -> (usize, Step) {
         let row = row.min(lines.len().saturating_sub(1));
         let (w, h) = (screen_width(), screen_height());
         let step = 30.0;
@@ -219,7 +247,7 @@ impl App {
             Color::new(0.08, 0.06, 0.04, 0.95),
         );
         draw_rectangle_lines(w / 2.0 - 280.0, h / 2.0 - 80.0, 560.0, height, 3.0, GOLD);
-        crate::frame::text_centered(&prompt, w / 2.0, h / 2.0 - 45.0, 22.0, WHITE);
+        crate::frame::text_centered(prompt, w / 2.0, h / 2.0 - 45.0, 22.0, WHITE);
         for n in 0..shown {
             let color = if first + n == pick_row { GOLD } else { WHITE };
             crate::frame::text_centered(
@@ -237,22 +265,7 @@ impl App {
             18.0,
             WHITE,
         );
-        match step_taken {
-            Step::Stay => Some(CityPick {
-                prompt,
-                cities,
-                row: pick_row,
-                answer,
-            }),
-            Step::Cancel => {
-                answer(self, None);
-                None
-            }
-            Step::Pick => {
-                answer(self, Some(cities[pick_row]));
-                None
-            }
-        }
+        (pick_row, step_taken)
     }
 }
 

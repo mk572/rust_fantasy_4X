@@ -12,6 +12,7 @@ use f4x_core::battle::world::BattleStartError;
 use f4x_core::diplomacy::{DiplomacyCommand as D, Treaty};
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::player::PlayerId;
+use f4x_core::unit::ledger::Departure;
 use f4x_core::world::testutil::Table;
 use f4x_core::world::{Command, Event, Rejection, World};
 use f4x_def::half_int::HalfInt;
@@ -1260,9 +1261,18 @@ fn all_the_drained_dead_rise_on_the_winners_square_however_full_it_is() {
             "{}: {events:?}",
             f.name
         );
+        let lost = f.w.units().departed_units(a);
         for &u in &attackers {
             assert_eq!(f.w.units().unit_owner(u), Some(owner), "{}", f.name);
             assert_eq!(f.w.units().unit_position(u), Some(site), "{}", f.name);
+            // Whoever lost it has it down as slain, though it fights on for the other side.
+            let serial = f.w.units().serial_of(u);
+            assert!(
+                lost.iter()
+                    .any(|d| d.serial == serial && d.how == Departure::Slain),
+                "{}: {lost:?}",
+                f.name
+            );
         }
         assert!(
             f.w.units().units_at(site).len() > f.w.tile_limit(site),

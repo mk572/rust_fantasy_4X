@@ -295,6 +295,27 @@ pub fn commands(w: &World) -> Vec<Command> {
                 units: vec![u],
                 path: vec![to],
             });
+            for errand in [
+                crate::unit::Errand::Scout {
+                    to: Some(to),
+                    avoid: Vec::new(),
+                    favour: Vec::new(),
+                },
+                crate::unit::Errand::Meld { to },
+                crate::unit::Errand::Settle { to, name: None },
+                crate::unit::Errand::Reinforce { to },
+            ] {
+                out.push(Command::GiveOrder {
+                    units: vec![u],
+                    errand,
+                });
+            }
+        }
+        for &charge in &units {
+            out.push(Command::GiveOrder {
+                units: vec![u],
+                errand: crate::unit::Errand::Escort { charge },
+            });
         }
     }
     out.push(Command::MoveStack {

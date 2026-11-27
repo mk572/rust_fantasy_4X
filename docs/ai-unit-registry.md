@@ -131,6 +131,11 @@ each other's roles to stay out of the way.
 
 ## 5. The dispatcher and the end-of-turn audit
 
+A walk the AI orders is walked at once and then at the end of each of its turns (`game-flow.md`
+3.2, task 830): during its turn a unit still on its way stands where the last turn left it, with its
+moves unspent. The end-of-turn walk never attacks; the AI sends the unit into a fight itself.
+A ship whose passengers have no moves left to step ashore keeps them booked until they have gone.
+
 Since task 645 (`docs/ai-design.md` section 14) a unit with nothing to do **awaits orders where it
 stands**, and the turn is run by the dispatcher (`dispatch.rs`):
 
@@ -163,12 +168,29 @@ await orders like any other.
 
 A settler that leaves a city for its site (`expand.rs` calls `escort::walk`) is given the strongest
 free soldier the city can spare above `garrison_wanted`; a city with none sends its settler alone.
-The two get one `GoTo` as a stack, so they walk at the pace of the slower. After the settlers have
-moved, `escort::run` frees the escorts whose charge is gone and sends an escort that fell behind to
-its charge. Settlers, spirits on their way to a node (`escort::walk`) and engineers working within 8
-squares of a rival's city (`escort::guard`, which takes the soldier from the nearest city that can
-spare one and sends it to the engineer, who waits for it) are escorted. Healers and low-experience
-heroes have no role yet. Not built: the charge waiting when its escort is lost and an enemy is near.
+The soldier gets an escort order (`Errand::Escort`) and the charge its own errand; the core walks
+the two as one stack, at the pace of the slower, and an escort that cannot cross what its charge
+crosses stays behind (`game-flow.md` 3.2). After the settlers have moved, `escort::run` frees the
+escorts whose charge is gone, ending their orders; `dispatch::repair_escorts` tells an escort that
+is apart from its charge to follow again. Settlers, spirits on their way to a node
+(`escort::walk`), healers and weak heroes alone in the field (`escort::stragglers`) and engineers
+working within 8 squares of a rival's city (`escort::guard`, which takes the soldier from the
+nearest city that can spare one and sends it to the engineer, who waits for it) are escorted. Not
+built: the charge waiting when its escort is lost and an enemy is near.
+
+### Orders
+
+Scouts on foot and at sea, spirits bound for a node, settlers, reinforcements and escorts are given the same
+standing orders a player gives (`Command::GiveOrder`, `game-flow.md` 3.2); the core walks them, and
+ends them when they cannot be done, or (scout, meld, settle, road) when an enemy comes into sight.
+The registry still holds the role and the target: an ended order leaves the role, and the
+dispatcher's step 2 gives the order again or drops the mission. A scouting order picks its next
+patch itself, and step 2 copies it into the registry. A scouting ship shares the order with the
+party aboard (`SeaParty`), and `scout.rs` looks each turn whether one of them can step ashore on
+land nobody holds, the ship under way or not. The planar scout (a walk to a tower) and the war roles
+walk with `GoTo`. An order whose unit no longer holds its role is ended before the audit
+(`dispatch::drop_stray_orders`). The saved registry is as it was, so an older save loads: its
+units have a `GoTo` or no order, and are given their errand when the role next sends them.
 
 ### The road
 
@@ -209,8 +231,9 @@ already hold `Perimeter` for it:
 ### The meld
 
 `meld::run`: a spirit (the ability to meld; not a fighter for the army) takes `Meld` with the
-nearest open node it can reach (`to`): not warped, not already the wizard's, no guards. It goes
-with an escort when its city has a soldier to spare, and melds when it stands on the node; one that
+nearest open node it can reach (`to`): not warped, not already the wizard's, no guards. It is given
+a meld order (the core melds it when it arrives), goes with an escort when its city has a soldier
+to spare; one that
 stands still four turns on the way gives the node up (`Ai::bad_sites`).
 
 ## 6. Where to add a role

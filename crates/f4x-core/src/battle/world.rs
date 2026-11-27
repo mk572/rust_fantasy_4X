@@ -462,7 +462,7 @@ impl World {
                 .find(|&next| self.free_landing(next, at, owner, &[unit]));
             match landing {
                 Some(next) if rng.roll(100) > percent => {
-                    self.strip::<crate::unit::Order>(unit);
+                    crate::unit::ledger::end_order(&self.ecs, unit);
                     self.put(unit, next);
                 }
                 _ => self.remove_unit_to(unit, crate::hero::Fate::Slain, Some(victor)),
@@ -1175,8 +1175,8 @@ impl World {
         for unit in dead {
             self.make_undead(unit);
             self.strip::<Hurt>(unit);
-            self.strip::<crate::unit::Order>(unit);
-            self.set_owner(unit, player);
+            // Its owner lost it in the fight, though it now rises for the winner.
+            self.change_sides(unit, player, crate::unit::ledger::Departure::Slain);
             self.put(unit, pos);
             self.put(unit, crate::unit::MovesLeft(HalfInt::ZERO));
             if zombified.contains(&unit) {

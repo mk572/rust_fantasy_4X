@@ -392,10 +392,10 @@ impl App {
             self.income_text(view, value, &label, 101.0 + 32.0 * k as f32);
         }
 
-        // The locked buttons (done, patrol, wait and build).
+        // The locked buttons (done, order, wait and build).
         for (action, at) in [
             (Action::Done, (246.0, 176.0)),
-            (Action::Patrol, (280.0, 176.0)),
+            (Action::Order, (280.0, 176.0)),
             (Action::Wait, (246.0, 186.0)),
             (Action::Build, (280.0, 186.0)),
         ] {

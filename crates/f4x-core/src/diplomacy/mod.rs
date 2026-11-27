@@ -1381,7 +1381,6 @@ impl World {
         self.set_owner(unit, to);
         let _ = self.ecs.insert_one(unit, at);
         self.watch_tile(at);
-        let _ = self.ecs.remove_one::<crate::unit::Order>(unit);
     }
 
     /// Take off every city the spells that `a` and `b` cast on each other's cities.

@@ -151,7 +151,7 @@ A wrong structure is moved and not worked around, and names are singular.
 |---|---|---|
 | **Player** | `player/` | `PlayerId`, `Treasury {gold, mana}`, `Tax`, `Bonus`, `History`, `GrandVizier`, `Offers`, `Defeat`, `Control`, `Neutral` (marker), `WizardLink`, `Serial` |
 | **Wizard** | `wizard/` | `Name`, `Portrait`, `Banner`, `CapitalRace`, `Books`, `Retorts`, `Skill`, `PowerSplit`, `Research`, `KnownSpells`, `Candidates`, `Fame`, `Personality`, `Objective`, `Fortress`, `SummonAt`, `Banishment`, `PlayerLink`, `Serial` |
-| **Unit** | `unit/` | `Unit`, `Owner`, `Position`, `Hurt`, `Experience`, `WeaponQuality`, `MovesLeft`, `Order`, `Standby`, `Serial`, `Bridge` (a ship parked as a bridge, `unit/transport.rs`), and the other components it has today |
+| **Unit** | `unit/` | `Unit`, `Owner`, `Position`, `Hurt`, `Experience`, `WeaponQuality`, `MovesLeft`, `Standby`, `Serial`, `Bridge` (a ship parked as a bridge, `unit/transport.rs`), and the other components it has today |
 | **Hero** | `hero/` | `Hero` (type number, name, abilities, casting skill, spells), `HeroState`, `Owner`, `Experience`, `Serial`; the unit components while serving |
 | **City** | `city/` | `City`, `Position`, `Owner`, `Population`, `Farmers`, `Buildings`, `CityRace`, `Production`, `Serial` |
 | **Spell instance** | `spell/` | `SpellCast {def}`, `Caster`, `SpellTarget`, `Serial`; `Owed`, `Crafting` on a cast in progress |
@@ -384,3 +384,41 @@ The pattern is the one of section 2: a **read handle** over the parts it needs
 `World::player(id)`, `World::wizard(id)`), and functions over `&mut hecs::World` for changes. Domain state
 is private to its module; a domain returns outcomes for what it cannot change itself. Queries over a `hecs` world have no fixed order: wherever the order is visible (events, the AI's
 choices), sort by `Serial`.
+
+### 3.12 The army ledger
+
+Every player entity (the wizards, the race players, the monsters' player) has an `ArmyLedger`
+(`unit/ledger.rs`): the player's units by creation number, oldest first. `player_units` and
+`player_unit_count` read it, so asking for a player's units costs that player's units, not a search
+of everyone's.
+
+- It **points at the unit entities and copies nothing** of theirs: what a unit is and where it
+  stands are read from the unit.
+- It holds the units' **standing orders** (`unit::Order`, by creation number: go to, scout, meld,
+  settle, reinforce, escort, road work), and with each the enemies its unit knew of when it was
+  given. Nothing else does: an order is not a component of the unit. It is read with
+  `World::unit_order`, `unit_has_order` and `unit_destination`, written by `ledger::give_order`,
+  `advance_order` and `end_order`, and ends with the unit's place in the ledger (it leaves or changes
+  sides). The save keeps each unit's order (and what it has seen) with the unit's record, and the
+  loader gives it to the ledger; the road work of an older save is read as an order. The core carries
+  the orders out (`game-flow.md` 3.2).
+- A serving hero is in it, like any unit. A hero that is not serving is not: **heroes stay in the hero
+  list** (the hero entities, `all_heroes`, 3.5) whatever happens to them. A hero that leaves has the
+  parts of its body taken off its entry (`unit::strip_body`, which lists every component a unit can
+  carry; a new one is added there, and a debug build stops on a hero that keeps one).
+- Only three operations write it: a unit joins (`enlist`: `unit::spawn`, a hero entering service, the
+  save loader), changes sides (`transfer`: `World::set_owner`) and leaves (`strike`:
+  `despawn_with_spells`, a hero's `release_body`). `Owner` is never written onto a unit in any other
+  way.
+- It also keeps a **record of every unit that left** (`departed_units`): its creation number, how it
+  left (`Departure`: slain, destroyed for good, let go, used up, changed sides), the square it stood
+  on, and either its type and experience or, for a hero, a link to its entry in the hero list, which
+  says what the hero is and has become since. The records are kept for the whole game and nothing in
+  the rules acts on them. A drained unit that rises for the winner is slain to the one who lost it.
+  The monsters keep none. Every removal says why: `remove_unit` (from the hero's `Fate`),
+  `change_sides` and the two places a unit is used up (founding a city, melding with a node).
+- The list of units is not saved: loading builds it again (and the orders with it, from the units'
+  records). The records are saved with each player
+  (`PlayerSave::departed`, left out when empty). In test builds every change of the world ends with a
+  check of the ledgers against the units (`check::army_problems`, also part of `world_problems`).
+

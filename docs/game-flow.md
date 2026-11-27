@@ -50,7 +50,7 @@ The commands are the variants of `Command` (`world/command.rs`, each with its do
 
 | Area | Commands |
 |---|---|
-| Units and movement | `MoveStack`, `GoTo`, `ClearOrders`, `SetStandby`, `SetBridge`, `ShiftPlane`, `EarthGate`, `EnterSite`, `Meld`, `Purify`, `BuildRoad`, `DismissUnit`, `SettleOutpost` |
+| Units and movement | `MoveStack`, `GoTo`, `GiveOrder`, `ClearOrders`, `SetStandby`, `SetBridge`, `ShiftPlane`, `EarthGate`, `EnterSite`, `Meld`, `Purify`, `BuildRoad`, `DismissUnit`, `SettleOutpost` |
 | Battles | `BeginBattle`, `AutoResolve`, `Defend`, `Battle` (an order in the battle being fought) |
 | Cities | `SetProduction`, `BuyProduction`, `SellBuilding`, `SetFarmers`, `BalanceFarmers`, `SetAutoBuild`, `SetGrandVizier`, `RenameCity`, `RazeCity` |
 | Treasury and shortages | `SetTaxRate`, `Alchemy`, `ReleaseTroops`, `ReleaseUpkeep` |
@@ -127,13 +127,61 @@ The commands are the variants of `Command` (`world/command.rs`, each with its do
 - `find_path` is A\* on the eight-neighbour grid (wrapping sideways), costing each step as
   the **slowest unit's** cost. Tiles holding hostile units are avoided unless they are the
   destination. `path_turns` estimates turns from the allowance of the units that move: land units riding a ship of the stack cost nothing and do not slow it, so the ship's speed decides.
-- `GoTo` stores the path in an `Order::GoTo` component on every unit of the stack and
-  immediately follows it as far as moves allow.
-- Units with an order continue at the start of their owner's turn (section 4.1, step 4). Units on the
-  same tile with identical orders walk together, and a group whose next square is full waits for the
-  others to move first. The order ends when the path is finished, when a step is refused for any
-  reason other than running out of moves (`OrderFailed`), or when it meets hostile units, a hostile
-  city or a guarded site.
+- A **standing order** (`unit::Order`, `unit/order.rs`) is kept in its owner's army ledger
+  (`ecs-structure.md` 3.12). `GoTo` gives every unit of the stack a walk; `GiveOrder` one of the
+  errands below, to units that stand on one square; `BuildRoad` the road work. A new order takes
+  the place of what the units were told, standby included.
+
+| Order | What the units do | Over when |
+|---|---|---|
+| Go to | walk to the square | they arrive |
+| Scout | walk to the square that shows the most new ground (`unit/scouting.rs`), then to the next, keeping away from the patches the owner's other scouts walk to; a ship carries its passengers along, and their spent moves do not hold it up | nothing in reach shows anything new |
+| Meld | walk to a magic node their owner knows, and meld | melded, or the node may no longer be melded with |
+| Settle | walk to an explored square fit for a city, and found it (the name given, else one of the race's) | founded, or no city may be founded there |
+| Reinforce | walk to a city of their owner | they arrive, or the city is no longer theirs |
+| Escort | walk with the charge as one stack, at the pace of the slower; follow it when they are left behind; wait when they stand with it or its square is full | the charge is gone or changes sides |
+| Build road | work along a path, at the start of each turn | the path is done |
+
+- An order moves its units **as it is given**, as far as moves allow, and then at the **end** of
+  their owner's turn, with the moves the turn left them (section 4.2, step 2), so the player can
+  change an order before it moves anything; road work goes on at the turn start (4.1). Units on the
+  same square with identical orders walk together, escorts after everyone else, and a group whose
+  next square is full waits for the others to move first. A scout chooses a new patch for each step
+  it makes at most, and a spent one chooses when it can walk again. A way that no longer starts
+  where the units stand is found again.
+- An order **never starts a fight**: a step that would attack units or a city, or enter a guarded
+  site, is refused (`WouldFight`). The one exception is a Go to as it is given, which is the
+  player's own move: it asks for the attack (`AttackRequested`) or the assault (`SiteEncounter`),
+  and the order ends. An order ends when a step is refused for any reason other than running out of
+  moves (`OrderFailed`), or because it cannot be done any more (`OrderOver`: target gone, no way,
+  nothing left).
+- **Enemies in sight.** Scout, Meld, Settle and Build road end (`OrderOver`) when one of the units
+  walking together sees an enemy, a monster or a unit of a player at war with the owner, that was
+  not in view when the order was given; giving the order again carries on. Go to, Reinforce and
+  Escort walk on. Decided 27 November 2026. As with Patrol, only the unit's own sight counts, and
+  the check follows every change of the world and every step of a walk.
+- Moving a unit by hand (`MoveStack`, `ShiftPlane`, `EarthGate`) ends its order, except an
+  escort's whose charge is moved with it; a ship carrying it off, a patrol, purifying, a bridge post
+  and leaving or changing sides end it too. A refused move changes nothing. `ClearOrders` ends it.
+- A player gives orders with the unit window's **Order** button (`f4x-client`, `order_menu.rs`),
+  which opens a menu of the orders the selected units can take: **Go to**, **Scout**, **Meld** (a
+  unit that melds), **Settle** (settlers), **Build road** (a builder; opens the road plan),
+  **Escort** (when there is another unit to go with), **Reinforce** (when there is a city),
+  **Patrol**, and **Cancel orders** when the units have been told something. Go to, Meld, Settle,
+  Escort and Reinforce then take a click on the map (Escape or a right-click gives up); where
+  several units could be escorted the client asks which. A click on the map (the preference `Left
+  Click Moves Units`, else a right-click) sends a Go to as well.
+- A click on a unit's picture in the unit window wakes it, if the click leaves it selected:
+  the client ends its order (`ClearOrders`) and its standby, whether it has moves left or not.
+  Picking the stack on the map wakes no one.
+- A unit set aside with `SetStandby` is not asked for orders: `Done` (the button and its key)
+  until its owner's next turn starts, which leaves a standing order and a patrol as they
+  are; `Patrol` until it moves one step (`MoveStack`) or another player's unit, whoever that
+  player is, comes into its sight. As with an order, the units in view when Patrol is set (to any
+  of the units it is set for together) are ignored, and setting it again takes those in view then
+  (decided 27 November 2026). Its own sight counts (`unit_sight`), not what its owner's other units
+  and cities see, and an invisible unit only when the owner can make it out. The check follows every
+  change of the world and every step of a walk.
 
 ## 4. The turn
 
@@ -169,22 +217,24 @@ units before the rivals can attack) and growth is the next turn **start**.
 3. Refill each unit's moves (units in stasis, and units not owned by the Time Stop caster,
    receive zero); clear completed standby. A unit finished at the last turn end moves now.
 4. Roll the player's offers; purify work; ships in port unload, marooned ships sail and stranded
-   units drown; road work; follow standing orders in unit creation order.
+   units drown; road work.
 
 ### 4.2 `World::end_player_turn(player)`
 
 1. Proposals made in the turn and not answered lapse.
-2. Close the player's raze windows.
-3. Raise farmers to the minimum needed to feed each inhabited city.
-4. Settle the treasury (section 5): gold and food income, then food and gold upkeep.
-5. `process_magic`: mana income, research points, mana upkeep, casting progress and the
+2. The units with a standing order walk on, in unit creation order (section 3.2).
+3. Close the player's raze windows.
+4. Raise farmers to the minimum needed to feed each inhabited city.
+5. Settle the treasury (section 5): gold and food income, then food and gold upkeep.
+6. `process_magic`: mana income, research points, mana upkeep, casting progress and the
    resolution of a finished spell.
-6. Production: each city checks that its item is possible, refreshes autobuild and applies its
+7. Production: each city checks that its item is possible, refreshes autobuild and applies its
    production (a building or unit may complete).
 
-The monsters' owner has units only and takes no part in 3 to 6; at its turn start its units only gain
-experience and heal, and its lairs heal. While Time Stop lasts, the other players take no part in 3
-to 6, and its keeper pays no gold or food (4) and builds nothing (6).
+The monsters' owner has units only and takes no part in 4 to 7; at its turn start its units only gain
+experience and heal, and its lairs heal. While Time Stop lasts, the other players take no part in 4
+to 7 (and their units have no moves to walk with), and its keeper pays no gold or food (5) and builds
+nothing (7).
 
 ### 4.3 `World::end_round()`
 

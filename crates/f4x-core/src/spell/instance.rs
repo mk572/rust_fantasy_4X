@@ -478,9 +478,11 @@ impl World {
     }
 
     /// Remove an entity, and with it every spell instance that is on it. Every unit, city and
-    /// feature goes through here, so that no instance has a target that is gone.
+    /// feature goes through here, so that no instance has a target that is gone and no ledger
+    /// lists a unit that is.
     pub(crate) fn despawn_with_spells(&mut self, entity: hecs::Entity) {
         self.despawn_spells_on(entity);
+        crate::unit::ledger::strike(&self.ecs, entity);
         let _ = self.ecs.despawn(entity);
     }
 

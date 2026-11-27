@@ -16,7 +16,8 @@ use f4x_core::world::save::Snapshot;
 use f4x_core::world::testutil::Table;
 use f4x_core::world::{Command, Event, Rejection, World};
 use f4x_def::half_int::HalfInt;
-use f4x_def::rules::{CastContext, SpellTarget};
+use f4x_def::rules::effects::{Effect, EffectRule, Trigger};
+use f4x_def::rules::{CastContext, ModOp, SpellTarget, Stat, UnitId};
 
 /// What a target is, for the table of what each spell takes.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -943,4 +944,55 @@ fn a_spell_gives_way_to_the_stronger_ones_it_is_not_cumulative_with_and_not_the_
         }
     }
     assert!(refused > 0 && free > 0, "{refused} refused, {free} free");
+}
+
+/// A computer wizard's turn keeps what units are made of between its commands; the rules that run
+/// inside a command must not read what was kept before it.
+#[test]
+fn a_unit_alive_only_by_a_spell_dies_when_it_is_turned_off_in_a_computer_wizards_turn() {
+    let (_, mut w) = worlds().remove(0);
+    let p = w.wizards()[0];
+    // A lasting spell of the content that gives an own unit more hit points.
+    let adds_hits = |r: &EffectRule| {
+        r.when == Trigger::Passive
+            && matches!(
+                r.effect,
+                Effect::Modify {
+                    stat: Stat::MaxHp,
+                    op: ModOp::Add,
+                    ..
+                }
+            )
+    };
+    let spell = w
+        .content()
+        .rules
+        .spells
+        .iter()
+        .find(|(_, d)| d.target == SpellTarget::OwnUnit && d.effects.iter().any(adds_hits))
+        .map(|(id, _)| id)
+        .expect("a spell that adds hit points");
+    let pos = w.economy().cities_of(p)[0].1;
+    w.apply(Command::CreateUnit {
+        owner: p,
+        pos,
+        unit: UnitId::new(104 /* high_men_spearmen */),
+    });
+    let unit = *w.units().all_units().last().expect("the new unit");
+    let (_, without) = w.units().unit_hits(unit);
+    w.scenario_enchant_unit(unit, spell, p);
+    let (_, with) = w.units().unit_hits(unit);
+    assert!(with > without, "the spell adds no hit points");
+    // All the hits it has of its own are taken: it lives by the spell's.
+    w.scenario_set_hurt(unit, without);
+    w.keep_for_turn(p);
+    assert_eq!(w.units().unit_hits(unit), (with - without, with));
+    w.apply(Command::TurnOffUnitSpell {
+        player: p,
+        unit,
+        spell,
+    });
+    let standing = w.units().all_units().contains(&unit);
+    w.drop_kept();
+    assert!(!standing, "a unit with no hit points still stands");
 }

@@ -291,24 +291,29 @@ impl World {
         let moves = self.units().unit_max_moves(entity);
         self.put(entity, MovesLeft(moves));
         self.put(entity, HeroState::Serving);
+        crate::unit::ledger::enlist(&self.ecs, entity);
         let sight = self.units().unit_sight(entity);
         self.explore(player, pos, sight);
         Ok(())
     }
 
-    /// The hero's body is gone: the entity keeps only what is the hero's own (serial, what was
-    /// rolled, experience) and gets the state the way it left gives. It is no one's now.
+    /// The hero leaves its body: the unit's parts come off the hero's entry, which stays where it
+    /// is with what is the hero's own (serial, what was rolled, experience) and gets the state the
+    /// way it left gives. It is no one's now.
     fn release_body(&mut self, hero: hecs::Entity, state: HeroState) {
-        let kept = (
-            self.ecs.get::<&Serial>(hero).map(|s| *s),
-            self.ecs.get::<&Hero>(hero).map(|h| (*h).clone()),
-            self.ecs.get::<&Experience>(hero).map(|x| *x),
+        crate::unit::ledger::strike(&self.ecs, hero);
+        crate::unit::strip_body(&mut self.ecs, hero);
+        self.put(hero, state);
+        // Serial, Hero, HeroState and Experience: anything more is a part of a unit that
+        // `strip_body` does not know.
+        debug_assert_eq!(
+            self.ecs
+                .entity(hero)
+                .map(|e| e.component_types().count())
+                .ok(),
+            Some(4),
+            "a released hero keeps a part of its body"
         );
-        let (Ok(serial), Ok(data), Ok(xp)) = kept else {
-            return;
-        };
-        let _ = self.ecs.despawn(hero);
-        self.ecs.spawn_at(hero, (serial, data, state, xp));
     }
 
     /// Take a unit out of the game for good: the one way to do it, so that a hero's entity
@@ -333,6 +338,7 @@ impl World {
     ) {
         let owner = self.units().unit_owner(unit);
         if self.ecs.get::<&Hero>(unit).is_err() {
+            crate::unit::ledger::record(&self.ecs, unit, fate.into());
             self.despawn_with_spells(unit);
             return;
         }
@@ -356,6 +362,7 @@ impl World {
         // What the hero still holds (a neutral winner takes nothing) is gone with it.
         self.despawn_items_of(unit);
         self.despawn_spells_on(unit);
+        crate::unit::ledger::record(&self.ecs, unit, fate.into());
         self.release_body(unit, fate.state());
     }
 

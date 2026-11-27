@@ -10,7 +10,9 @@ use crate::map::terrain::TerrainClass;
 use crate::map::Position;
 use crate::rules::Stat;
 use crate::spell::target_error::TargetError;
+use crate::unit::ledger;
 use crate::unit::movement::MoveError;
+use crate::unit::Order;
 use crate::world::{Event, World};
 
 /// Turns a river adds to the road on its square: the bridge.
@@ -163,24 +165,27 @@ impl World {
             left,
             rest: path[1..].to_vec(),
         };
-        for &u in &builders {
-            self.strip::<crate::unit::Order>(u);
-            self.put(u, work.clone());
-        }
+        self.set_order(&builders, Order::Road(work));
         // A square that already has its road needs no work.
         Ok(self.process_road_work_for(&builders))
     }
 
+    /// The road a unit is working on.
+    fn road_work(&self, unit: hecs::Entity) -> Option<RoadWork> {
+        match ledger::order_of(&self.ecs, unit)? {
+            Order::Road(work) => Some(work),
+            _ => None,
+        }
+    }
+
     /// One turn of road work for every engineer stack.
     pub(crate) fn process_road_work(&mut self, player: crate::player::PlayerId) -> Vec<Event> {
-        let mut workers: Vec<hecs::Entity> = self
-            .ecs
-            .query::<&RoadWork>()
-            .iter()
-            .map(|(e, _)| e)
-            .filter(|&e| self.units().unit_owner(e) == Some(player))
+        let workers: Vec<hecs::Entity> = self
+            .units()
+            .player_units(player)
+            .into_iter()
+            .filter(|&u| self.road_work(u).is_some())
             .collect();
-        self.units().sort_by_serial(&mut workers);
         let mut events = Vec::new();
         // Stacks work together: handle each group of workers sharing a square once.
         let mut done: Vec<hecs::Entity> = Vec::new();
@@ -193,8 +198,7 @@ impl World {
                 .copied()
                 .filter(|&w| {
                     self.units().unit_position(w) == self.units().unit_position(u)
-                        && self.ecs.get::<&RoadWork>(w).ok().map(|x| (*x).clone())
-                            == self.ecs.get::<&RoadWork>(u).ok().map(|x| (*x).clone())
+                        && self.road_work(w) == self.road_work(u)
                 })
                 .collect();
             done.extend(group.iter().copied());
@@ -213,15 +217,12 @@ impl World {
         let Some(&lead) = group.first() else {
             return events;
         };
-        let Some(mut work) = self.ecs.get::<&RoadWork>(lead).ok().map(|w| (*w).clone()) else {
+        let Some(mut work) = self.road_work(lead) else {
             return events;
         };
-        let pos = self.units().unit_position(lead);
-        if pos != Some(work.at) {
+        if self.units().unit_position(lead) != Some(work.at) {
             // Moved away by hand: the job is off.
-            for &u in group {
-                self.strip::<RoadWork>(u);
-            }
+            self.stop_road(group);
             return events;
         }
         let points = self.construction_points(group);
@@ -250,21 +251,31 @@ impl World {
                 events.extend(self.road_under_towns_beside(work.at));
             }
             let Some(&next) = work.rest.first() else {
-                for &u in group {
-                    self.strip::<RoadWork>(u);
-                }
+                self.stop_road(group);
                 return events;
             };
-            match self.move_stack(group, next) {
+            let mut moving = self.with_escorts(group, work.at);
+            let mut step = self.move_stack(&moving, next);
+            // An escort that cannot go where its charge goes is left behind.
+            if matches!(step, Err(MoveError::Impassable)) && moving.len() > group.len() {
+                moving = group.to_vec();
+                step = self.move_stack(&moving, next);
+            }
+            match step {
                 Ok(crate::unit::movement::Entry::Free) => {
                     events.push(Event::UnitsMoved {
-                        units: group.to_vec(),
+                        units: moving,
                         from: work.at,
                         to: next,
                     });
                     work.at = next;
                     work.rest.remove(0);
                     work.left = self.turns_for(next, points);
+                    self.note_road_work(group, &work);
+                    self.end_orders_on_sight(&mut events);
+                    if self.road_work(lead).is_none() {
+                        return events;
+                    }
                 }
                 // A full square (or one the stack cannot step on yet) is waited out: the road
                 // under the engineers is done, the work stays and they try again next turn
@@ -275,17 +286,25 @@ impl World {
                     break;
                 }
                 _ => {
-                    for &u in group {
-                        self.strip::<RoadWork>(u);
-                    }
+                    self.stop_road(group);
                     return events;
                 }
             }
         }
-        for &u in group {
-            self.put(u, work.clone());
-        }
+        self.note_road_work(group, &work);
         events
+    }
+
+    fn note_road_work(&mut self, group: &[hecs::Entity], work: &RoadWork) {
+        for &u in group {
+            ledger::advance_order(&self.ecs, u, Order::Road(work.clone()));
+        }
+    }
+
+    fn stop_road(&mut self, group: &[hecs::Entity]) {
+        for &u in group {
+            ledger::end_order(&self.ecs, u);
+        }
     }
 
     /// A road finished on `at` reaches the towns beside it: a town without a road under it gets

@@ -10,6 +10,7 @@ pub mod shortfall;
 pub mod upkeep;
 pub mod view;
 
+use crate::unit::ledger::ArmyLedger;
 use f4x_def::half_int::HalfInt;
 
 pub use f4x_def::id::PlayerId;
@@ -171,7 +172,10 @@ pub const BANNER_CHOICES: u8 = 10;
 /// and `WizardLink` when the game adds it.
 ///
 /// `tax` is the rate everyone starts with (`start_tax_rate` of `wizard` in `rules.ron`).
-pub fn bundle(id: PlayerId, tax: u8) -> (PlayerId, Treasury, Tax, Bonus, History, Offers) {
+pub fn bundle(
+    id: PlayerId,
+    tax: u8,
+) -> (PlayerId, Treasury, Tax, Bonus, History, Offers, ArmyLedger) {
     (
         id,
         Treasury::default(),
@@ -179,12 +183,13 @@ pub fn bundle(id: PlayerId, tax: u8) -> (PlayerId, Treasury, Tax, Bonus, History
         Bonus::default(),
         History::default(),
         Offers::default(),
+        ArmyLedger::default(),
     )
 }
 
 /// A new player for a test world with no game: the start tax rate of the shipped rules.
 #[cfg(test)]
-pub fn test_bundle(id: PlayerId) -> (PlayerId, Treasury, Tax, Bonus, History, Offers) {
+pub fn test_bundle(id: PlayerId) -> (PlayerId, Treasury, Tax, Bonus, History, Offers, ArmyLedger) {
     bundle(
         id,
         f4x_def::testdir::shipped()

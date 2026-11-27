@@ -85,7 +85,7 @@ pub struct PlayerView<'a> {
     me: PlayerId,
     seen: [OnceCell<Vec<bool>>; 2],
     /// A number the caller works out once for this view (see [`PlayerView::memo`]).
-    memo: OnceCell<f32>,
+    memo: OnceCell<Option<f32>>,
 }
 
 impl<'a> PlayerView<'a> {
@@ -106,7 +106,7 @@ impl<'a> PlayerView<'a> {
     /// the first call and kept for the life of the view. A view borrows the game, so the game
     /// cannot change under it: the kept number is the one a new call would give. The view holds
     /// one slot; every caller of one view must ask for the same number.
-    pub fn memo(&self, compute: impl FnOnce() -> f32) -> f32 {
+    pub fn memo(&self, compute: impl FnOnce() -> Option<f32>) -> Option<f32> {
         *self.memo.get_or_init(compute)
     }
 
@@ -479,10 +479,12 @@ impl<'a> PlayerView<'a> {
 
     /// Is the engineer at work on a road?
     pub fn unit_builds_road(&self, unit: hecs::Entity) -> bool {
-        self.world
-            .ecs
-            .get::<&crate::map::road::RoadWork>(unit)
-            .is_ok()
+        self.world.unit_building_road(unit)
+    }
+
+    /// The unit's standing order.
+    pub fn unit_order(&self, unit: hecs::Entity) -> Option<crate::unit::Order> {
+        self.world.unit_order(unit)
     }
 
     /// Whether a road can be built on the square (not on water): a way that crosses water (a ship's
