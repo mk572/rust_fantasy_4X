@@ -21,7 +21,7 @@ pub mod trade;
 pub use trade::Goods;
 
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::map::Position;
 use crate::player::PlayerId;
@@ -118,6 +118,15 @@ pub struct Proposal {
     pub kind: ProposalKind,
     /// How many times a trade has been countered on the way here (0: the first offer).
     pub round: u8,
+}
+
+impl Proposal {
+    /// Whether `player` makes it, receives it, or is the one it is about.
+    fn concerns(&self, player: PlayerId) -> bool {
+        self.from == player
+            || self.to == player
+            || matches!(self.kind, ProposalKind::WarOn(p) | ProposalKind::BreakAllianceWith(p) if p == player)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -241,6 +250,10 @@ pub enum DiplomacyEvent {
     WizardDestroyed {
         winner: PlayerId,
         loser: PlayerId,
+    },
+    /// The independent race of `player` has lost its last city.
+    IndependenceLost {
+        player: PlayerId,
     },
     /// `caster` cast a lasting enchantment on itself (the Spell of Mastery as it is begun).
     EnchantmentCast {
@@ -1209,6 +1222,51 @@ impl Diplomacy {
         }
     }
 
+    /// Every treaty, war and promise of peace between `player` and anybody ends, and every
+    /// proposal from, to or about it lapses. That they have met stays known.
+    pub(crate) fn end_relations(&mut self, ctx: &mut DiplomacyCtx<'_>, player: PlayerId) {
+        let treaties: Vec<(PlayerId, PlayerId)> = self
+            .pairs
+            .iter()
+            .filter(|(&(a, b), pair)| {
+                (a == player.0 || b == player.0) && pair.status != Treaty::None
+            })
+            .map(|(&(a, b), _)| (PlayerId(a), PlayerId(b)))
+            .collect();
+        for (a, b) in treaties {
+            self.set_status(ctx, a, b, Treaty::None);
+        }
+        for (&(from, to), stance) in &mut self.stances {
+            if from == player.0 || to == player.0 {
+                stance.peace_duration = 0;
+            }
+        }
+        let (lapsed, open): (Vec<Proposal>, Vec<Proposal>) = std::mem::take(&mut self.proposals)
+            .into_iter()
+            .partition(|p| p.concerns(player));
+        self.proposals = open;
+        for proposal in lapsed {
+            self.queue.push(DiplomacyEvent::ProposalAnswered {
+                proposal,
+                accepted: false,
+                lapsed: true,
+            });
+        }
+    }
+
+    /// The players that have a treaty, a war, a promise of peace or an open proposal.
+    fn bound_players(&self) -> BTreeSet<PlayerId> {
+        let treaties = self.pairs.iter().filter(|(_, p)| p.status != Treaty::None);
+        let promises = self.stances.iter().filter(|(_, s)| s.peace_duration > 0);
+        let proposals = self.proposals.iter().map(|p| (p.from.0, p.to.0));
+        treaties
+            .map(|(&ids, _)| ids)
+            .chain(promises.map(|(&ids, _)| ids))
+            .chain(proposals)
+            .flat_map(|(a, b)| [PlayerId(a), PlayerId(b)])
+            .collect()
+    }
+
     /// The part of the turn that belongs to diplomacy (`Next_Turn_Calc` order): proposals that
     /// nobody answered lapse, peace runs down, the enchantments in force sour or sweeten,
     /// relations drift, new wizards are met, and the patience comes back.
@@ -1441,6 +1499,28 @@ impl World {
     /// A wizard begins the Spell of Mastery: the others take note at once.
     pub(crate) fn begin_cast_relations(&mut self, player: PlayerId, spell: SpellId) {
         self.with_diplomacy(|d, ctx| d.begin_cast_relations(ctx, player, spell));
+    }
+
+    /// `owner` has just lost a city: a race that has none left has lost its independence, and
+    /// with it its relations with everybody (while it has units it may make new ones).
+    pub(crate) fn city_lost_relations(&mut self, owner: PlayerId) {
+        if self.race_of_player(owner).is_some() && self.economy().city_count(owner) == 0 {
+            self.with_diplomacy(|d, ctx| {
+                d.end_relations(ctx, owner);
+                d.queue
+                    .push(DiplomacyEvent::IndependenceLost { player: owner });
+            });
+        }
+    }
+
+    /// A dormant player has no relations: one with units and no city may have made some, and has
+    /// lost the last of the units.
+    pub(crate) fn end_dormant_relations(&mut self) {
+        for player in self.diplomacy.bound_players() {
+            if self.is_dormant(player) {
+                self.with_diplomacy(|d, ctx| d.end_relations(ctx, player));
+            }
+        }
     }
 
     /// Attacking a wizard one has a treaty with breaks it first.

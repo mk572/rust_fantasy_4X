@@ -553,6 +553,7 @@ impl World {
     fn settle(&mut self, vision: map::vision::VisionEffect, events: &mut Vec<Event>) {
         events.extend(self.remove_units_without_hit_points());
         events.extend(self.enforce_tile_sanity());
+        self.end_dormant_relations();
         // What hooks in battles, spells and the turn raised between wizards comes last.
         events.extend(self.drain_diplomacy_events());
         events.extend(self.drain_item_awards());

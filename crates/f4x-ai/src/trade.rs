@@ -117,7 +117,10 @@ pub(crate) fn verdict(
 /// Whether `judge` is willing to part with the units and the hero of `goods`: not while it is at
 /// war, not its last defender of a city and not its last hero.
 fn will_give(world: &World, judge: PlayerId, goods: Goods) -> bool {
-    let at_war = world.at_war_with_anyone(judge);
+    let at_war = world
+        .player_ids()
+        .into_iter()
+        .any(|p| p != judge && world.treaty(judge, p) == Treaty::War);
     let defended = |serial| {
         core::giveable_unit(world, judge, serial)
             .or_else(|| core::giveable_hero(world, judge, serial))
@@ -526,7 +529,11 @@ fn sell(world: &World, minds: &Diplomats, me: PlayerId, other: PlayerId) -> Opti
 /// `garrison_wanted` asks for, with one to spare, at peace with everybody (`will_give` asks the
 /// same of the one who answers). The cheapest first, so the best stay home.
 fn surplus_unit(world: &World, me: PlayerId) -> Option<f4x_core::world::serial::Serial> {
-    if world.at_war_with_anyone(me) {
+    let at_war = world
+        .player_ids()
+        .into_iter()
+        .any(|p| p != me && world.treaty(me, p) == Treaty::War);
+    if at_war {
         return None;
     }
     let view = PlayerView::new(world, me);

@@ -452,6 +452,14 @@ impl App {
                     .text("victim", self.diplo_name(victim));
                 Some(self.text_with("diplomacy.breaks_treaty", &args))
             }
+            D::IndependenceLost { player } if self.game.have_met(HUMAN, player) => {
+                let race = self.game.race_of_player(player)?;
+                let num = self.game.content().rules.races.get(race).num;
+                Some(self.text_with(
+                    "diplomacy.independence_lost",
+                    &Args::new().term("race", self.names.race_plural_term(num)),
+                ))
+            }
             D::Remarked { from, to, why } if to == HUMAN => Some(self.text_with(
                 why.key(),
                 &Args::new().text("wizard", self.diplo_name(from)),
@@ -1305,6 +1313,26 @@ mod tests {
             *n = (*n).max(3);
         }
         app
+    }
+
+    #[test]
+    fn the_human_is_told_that_a_race_met_has_lost_its_independence() -> TestResult {
+        let mut app = App::for_test();
+        let race = app
+            .game
+            .player_ids()
+            .into_iter()
+            .find(|&p| app.game.race_of_player(p).is_some() && !app.game.is_dormant(p))
+            .ok_or("no independent race")?;
+        let news = f4x_core::diplomacy::DiplomacyEvent::IndependenceLost { player: race };
+        assert_eq!(app.diplomacy_line(news.clone()), None, "never met");
+        app.game.make_contact(HUMAN, race);
+        let line = app.diplomacy_line(news).ok_or("no news")?;
+        let num = app.game.race_of_player(race).ok_or("no race")?;
+        let num = app.game.content().rules.races.get(num).num;
+        let name = app.names.race_plural_term(num);
+        assert!(line.contains(&name.text), "{line}");
+        Ok(())
     }
 
     #[test]

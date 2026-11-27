@@ -186,7 +186,7 @@ item entities held by the player); **defeat** is the player's, **banishment** th
   independent city's player, or the monsters' player. Nothing is ownerless and nothing has a
   placeholder owner. Tests build only such situations; a test of a situation the game cannot
   create in normal play exists only to test error handling (a rejected command, a refused save).
-- The neutral player of a race has the id `FIRST_RACE_PLAYER` (100) plus the race's number (`player/race_player.rs`: `race_player_id`, `World::race_of_player`, `race_player`, `seat_of`); every race has its player from the start of a game to its end (`add_race_players`). One with no city and no unit is dormant (`is_dormant`): it takes no turn and nobody deals with it, but it keeps its treasury, vault and relations, so a list of all players (`player_ids`) includes it. The one player
+- The neutral player of a race has the id `FIRST_RACE_PLAYER` (100) plus the race's number (`player/race_player.rs`: `race_player_id`, `World::race_of_player`, `race_player`, `seat_of`); every race has its player from the start of a game to its end (`add_race_players`). One with no city and no unit is dormant (`is_dormant`): it takes no turn and nobody deals with it, but it keeps its treasury and vault, so a list of all players (`player_ids`) includes it. The one player
   that owns the monsters is made with the game (`World::monsters`, id `player::MONSTERS`, kept at
   255; the save does not store it, the game makes it). It is an entity with `PlayerId` and `Neutral` like
   the race players but is in no list of players (`World::has_player` is false for it). Whether a player is

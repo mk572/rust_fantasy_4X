@@ -544,6 +544,9 @@ impl World {
             }
         }
         self.set_owner(city, to);
+        if let Some(from) = from {
+            self.city_lost_relations(from);
+        }
         self.put(
             city,
             Production {

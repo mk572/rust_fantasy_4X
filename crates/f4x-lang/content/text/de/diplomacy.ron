@@ -164,5 +164,6 @@
     "diplomacy.list_unmet": (count: "n", one: "{n} Magier noch nicht getroffen", other: "{n} Magier noch nicht getroffen"),
     "diplomacy.list_more": "+{n} weitere",
     "diplomacy.neutral_name": "Unabhängig: {race}",
+    "diplomacy.independence_lost": "{race} haben ihre Unabhängigkeit verloren",
     "diplomacy.have_alliance": "Du hast ein Bündnis mit {wizard}",
 }

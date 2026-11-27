@@ -49,9 +49,14 @@ wizard's early returns do not apply to them; and they greet the human by their r
 (`crates/f4x-client/assets/neutral/`), named "Independent {race}". The human opens the talk by clicking
 an independent city of a race met. **An attack on an independent unit or city is a declaration of war on that player**, exactly as an attack on a wizard is (the human is asked first, `attack_war.rs`; the game refuses an attack on a pact or alliance partner until a player has declared war).
 
-Every race has its player from the start of the game. One with no city and no unit is dormant
-(`World::is_dormant`): it is not listed, its war counts for nothing and a command that deals with
-it is refused. What it and the others remember of each other stays.
+Every race has its player from the start of the game. **A race that loses its last city has no
+relations left** (decided 27 November 2026): its wars, pacts, alliances and promises of peace with
+everybody end, and open proposals from, to or about it lapse. The human is told that the race has
+lost its independence, if they have met it (`DiplomacyEvent::IndependenceLost`). The race is not
+defeated (only a wizard can be): it keeps its units, and if it has any, new relations may be made.
+A raiding race that destroys a city it has only just taken loses nothing by it. One with no city and no unit is dormant (`World::is_dormant`): it has no treaty, it is not
+listed and a command that deals with it is refused. That it has met the others, and what they and it
+remember of each other, stays.
 
 ### The diplomacy list (task 489)
 
@@ -477,7 +482,7 @@ touching the rules. What the core does offer is data and helpers the AI may use:
 relation, what a wizard may know about the other (never the hidden terms of another player), and
 the original's rating of a proposal (`Diplomacy_Test`, §4) lives in `f4x-ai` (`diplomacy::rate`; moved out of the core in October 2026). The default AI
 uses that function and the §8 rules as its starting logic, kept as AI code with its numbers in
-data, not as rules of the game. **The game never changes a treaty or starts or ends a war by itself** (rule restated 23 November 2026, after copies of the original's code broke it: war on taking a city, `G_DIPL_PickSides`, the break after trespassing, removed). Treaties and war change only by a player's command (`DeclareWar`, `BreakTreaty`, an answered proposal) and by nothing else. The game puts a limit where the original had none: a player cannot attack a pact or alliance partner until they have broken the treaty (the original lets them attack and breaks it for them). **Direction (23 November 2026, task 775):** the core only sends the event of what happened to a wizard; the AI (`f4x-ai`) keeps and adjusts its own ratings. The relation numbers the core still moves below are to move into the AI. Until that is done, the core's own automatic parts remain rules: relation changes from
+data, not as rules of the game. **The game never changes a treaty or starts or ends a war by itself** (rule restated 23 November 2026, after copies of the original's code broke it: war on taking a city, `G_DIPL_PickSides`, the break after trespassing, removed). Treaties and war change only by a player's command (`DeclareWar`, `BreakTreaty`, an answered proposal) and by nothing else, except that those of a player who is gone end: a defeated wizard's, and a race's when it loses its last city ("Neutral players"). The game puts a limit where the original had none: a player cannot attack a pact or alliance partner until they have broken the treaty (the original lets them attack and breaks it for them). **Direction (23 November 2026, task 775):** the core only sends the event of what happened to a wizard; the AI (`f4x-ai`) keeps and adjusts its own ratings. The relation numbers the core still moves below are to move into the AI. Until that is done, the core's own automatic parts remain rules: relation changes from
 events (§5), drift and growth (§7), and the effects of an accepted treaty or declared war (§6).
 Pending proposals are saved with the game; if the receiver does not answer in the same turn the
 proposal lapses as refused.

@@ -777,6 +777,9 @@ fn diplomacy(world: &World, d: &f4x_core::diplomacy::DiplomacyEvent) -> String {
             player(world, *winner),
             player(world, *loser)
         ),
+        D::IndependenceLost { player: p } => {
+            format!("{} lost its independence", player(world, *p))
+        }
         D::EnchantmentCast { caster, spell: s } => format!(
             "the other wizards take note of {} by {}",
             spell(world, *s),

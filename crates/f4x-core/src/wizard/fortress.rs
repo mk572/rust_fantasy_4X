@@ -393,6 +393,7 @@ impl World {
         if let (Some(pos), Some(mut w)) = (pos, self.wizard_mut(loser)) {
             circle_lost_to_capture(&mut w, pos);
         }
+        self.city_lost_relations(loser);
         if was_fortress {
             events.extend(self.banish(loser, winner));
         } else if self.is_wizard(loser) && self.economy().city_count(loser) == 0 {
@@ -645,12 +646,23 @@ impl World {
             .get::<&Position>(city)
             .map(|p| *p)
             .map_err(|_| FortressError::NotYourCity)?;
+        // A city the owner has only just taken was never one of its own to lose: a raiding race
+        // that destroys it had no independence.
+        let just_taken = self
+            .ecs
+            .get::<&crate::city::conquest::Conquered>(city)
+            .is_ok();
         self.despawn_with_spells(city);
         if let Some(mut w) = self.wizard_mut(owner) {
             circle_lost_to_destruction(&mut w, pos);
         }
+        if !just_taken {
+            self.city_lost_relations(owner);
+        }
         let mut events = vec![Event::CityDestroyed { pos }];
-        if self.economy().city_count(owner) == 0 {
+        // A wizard with no city is out of the game; an independent race is not, and keeps its
+        // units (`city_lost_relations`).
+        if self.is_wizard(owner) && self.economy().city_count(owner) == 0 {
             events.extend(self.defeat(owner, owner, Fall::Defeated));
         }
         Ok(events)

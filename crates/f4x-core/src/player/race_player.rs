@@ -2,12 +2,12 @@
 //! belongs to one player, as if one wizard without magic ruled them all. Every race has its
 //! player from the start of the game to its end. While one has no city and no unit it is dormant
 //! ([`World::is_dormant`]): it takes no turn and nobody deals with it, but it keeps what it has
-//! (treasury, vault, relations). Its number is [`FIRST_RACE_PLAYER`] plus the race's number, so
+//! (treasury, vault). Its treaties and wars end when it loses its last city
+//! (`docs/diplomacy.md`, "Neutral players"). Its number is [`FIRST_RACE_PLAYER`] plus the race's number, so
 //! it is the same in every game and save. The monsters' owner stays a player of its own.
 //!
 //! Tests: in tests/it.
 
-use crate::diplomacy::Treaty;
 use crate::player::{PlayerId, MONSTERS};
 use crate::rules::RaceId;
 use crate::world::World;
@@ -37,14 +37,6 @@ impl World {
         self.race_of_player(id).is_some()
             && self.economy().city_count(id) == 0
             && self.units().player_units(id).is_empty()
-    }
-
-    /// Whether `player` is at war with anybody who is still there: a war with a dormant player
-    /// counts for nothing while it lasts.
-    pub fn at_war_with_anyone(&self, player: PlayerId) -> bool {
-        self.player_ids()
-            .into_iter()
-            .any(|p| p != player && !self.is_dormant(p) && self.treaty(player, p) == Treaty::War)
     }
 
     /// Make the neutral player of every race that has none: it starts with the gold that a

@@ -191,6 +191,9 @@ impl World {
         if citizens == 0 {
             // An outpost is destroyed, not held.
             let mut events = self.capture_city(city, winner);
+            if let Some(taker) = self.player_entity(winner) {
+                self.put(city, Conquered(taker));
+            }
             events.extend(self.remove_city(city));
             return events;
         }

@@ -166,5 +166,6 @@
     "diplomacy.list_unmet": (count: "n", one: "{n} wizard not met yet", other: "{n} wizards not met yet"),
     "diplomacy.list_more": "+{n} more",
     "diplomacy.neutral_name": "Independent {race}",
+    "diplomacy.independence_lost": "The {race} have lost their independence",
     "diplomacy.have_alliance": "You have an alliance with {wizard}",
 }

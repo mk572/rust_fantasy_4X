@@ -362,7 +362,11 @@ pub fn veteran_cost(view: &World, unit: hecs::Entity, base: i32) -> i32 {
 
 /// A unit of this production cost to `holder`.
 pub fn unit_cost_worth(view: &World, holder: PlayerId, cost: i32) -> i32 {
-    if view.at_war_with_anyone(holder) {
+    let at_war = view
+        .player_ids()
+        .into_iter()
+        .any(|p| p != holder && view.treaty(holder, p) == crate::diplomacy::Treaty::War);
+    if at_war {
         cost * view.content().rules.config.trade.unit_at_war_pct / 100
     } else {
         cost

@@ -1,8 +1,11 @@
 //! Class 9, diplomacy: meeting, proposals and their answers, treaties, war and peace, gifts.
 
 use crate::support::worlds;
-use f4x_core::diplomacy::{DiplomacyCommand as D, DiplomacyError, ProposalKind, Treaty};
+use f4x_core::diplomacy::{
+    DiplomacyCommand as D, DiplomacyError, DiplomacyEvent, ProposalKind, Treaty,
+};
 use f4x_core::player::PlayerId;
+use f4x_core::rules::UnitId;
 use f4x_core::world::{Command, Event, Rejection, World};
 use f4x_def::half_int::HalfInt;
 use f4x_master::Game;
@@ -536,6 +539,193 @@ fn the_game_never_changes_a_treaty_by_itself() {
             w.play_round();
         }
         assert_ne!(w.treaty(a, b), Treaty::War, "{name}: war came by itself");
+    }
+}
+
+/// A race player with a city, of those in the world.
+fn race_with_a_city(w: &World) -> PlayerId {
+    w.player_ids()
+        .into_iter()
+        .find(|&p| w.race_of_player(p).is_some() && !w.economy().cities_of(p).is_empty())
+        .expect("an independent race")
+}
+
+fn independence_lost(event: &Event, race: PlayerId) -> bool {
+    matches!(
+        event,
+        Event::Diplomacy(DiplomacyEvent::IndependenceLost { player }) if *player == race
+    )
+}
+
+#[test]
+fn a_raiding_race_that_razes_what_it_took_loses_no_independence() {
+    for (name, mut w, ids) in met() {
+        let a = ids[0];
+        let raiders = w
+            .player_ids()
+            .into_iter()
+            .find(|&p| w.is_dormant(p))
+            .expect("a race with nothing");
+        let (city, owner) = w
+            .economy()
+            .cities()
+            .into_iter()
+            .map(|c| (c.0, c.1.owner))
+            .find(|&(c, p)| w.race_of_player(p).is_some() && w.economy().citizens(c) > 0)
+            .expect("an independent city");
+        let (kind, at) = w
+            .units()
+            .all_units()
+            .into_iter()
+            .find_map(|u| Some((w.units().unit_def(u)?.num, w.units().unit_position(u)?)))
+            .expect("a unit");
+        w.spawn_unit(raiders, at, UnitId::new(kind));
+        w.make_contact(a, raiders);
+        w.declare_war(a, raiders);
+        w.drain_diplomacy_events();
+        w.conquer_city(city, raiders, 0);
+        w.apply(Command::RazeCity {
+            player: raiders,
+            city,
+        });
+        assert!(w.economy().cities_of(raiders).is_empty(), "{name}: razed");
+        assert_eq!(w.treaty(a, raiders), Treaty::War, "{name}");
+        let told = w.drain_diplomacy_events();
+        assert!(
+            !told.iter().any(|e| independence_lost(e, raiders)),
+            "{name}: {told:?} about {owner:?}"
+        );
+    }
+}
+
+#[test]
+fn a_race_that_loses_its_last_city_has_no_relations_left() {
+    for (name, mut w, ids) in met() {
+        let (a, b) = (ids[0], ids[1]);
+        let race = race_with_a_city(&w);
+        w.make_contact(a, race);
+        w.make_contact(b, race);
+        w.start_treaty(a, race, Treaty::Pact);
+        w.declare_war(b, race);
+        assert_eq!(
+            run(
+                &mut w,
+                D::Propose {
+                    from: b,
+                    to: race,
+                    kind: ProposalKind::Peace
+                }
+            ),
+            None,
+            "{name}"
+        );
+        let cities: Vec<_> = w
+            .economy()
+            .cities()
+            .into_iter()
+            .filter(|c| c.1.owner == race)
+            .map(|c| c.0)
+            .collect();
+        let (last, others) = cities.split_last().expect("a city");
+        w.drain_diplomacy_events();
+        for &city in others {
+            w.capture_city(city, a);
+        }
+        let told = w.drain_diplomacy_events();
+        assert!(!told.iter().any(|e| independence_lost(e, race)), "{name}");
+        assert_eq!(w.treaty(a, race), Treaty::Pact, "{name}: a city is left");
+        assert_eq!(w.treaty(b, race), Treaty::War, "{name}: a city is left");
+        assert!(!w.diplomacy.proposals().is_empty(), "{name}");
+        w.capture_city(*last, a);
+        for p in [a, b] {
+            assert_eq!(w.treaty(p, race), Treaty::None, "{name}");
+            assert_eq!(w.diplomacy.war_age(p, race), None, "{name}");
+            assert!(w.have_met(p, race), "{name}: they know each other");
+        }
+        assert!(
+            w.diplomacy
+                .proposals()
+                .iter()
+                .all(|p| p.from != race && p.to != race),
+            "{name}"
+        );
+        let told = w.drain_diplomacy_events();
+        let news = told.iter().filter(|e| independence_lost(e, race)).count();
+        assert_eq!(news, 1, "{name}: {told:?}");
+        assert!(
+            told.iter().any(|e| matches!(
+                e,
+                Event::Diplomacy(DiplomacyEvent::TreatyChanged {
+                    treaty: Treaty::None,
+                    ..
+                })
+            )),
+            "{name}: {told:?}"
+        );
+    }
+}
+
+#[test]
+fn a_razed_or_ruined_last_city_ends_the_relations_too() {
+    for (name, mut w, ids) in met() {
+        let a = ids[0];
+        let race = race_with_a_city(&w);
+        w.make_contact(a, race);
+        w.declare_war(a, race);
+        let cities: Vec<_> = w
+            .economy()
+            .cities()
+            .into_iter()
+            .filter(|c| c.1.owner == race)
+            .map(|c| c.0)
+            .collect();
+        let (kind, at) = w
+            .units()
+            .all_units()
+            .into_iter()
+            .find_map(|u| Some((w.units().unit_def(u)?.num, w.units().unit_position(u)?)))
+            .expect("a unit");
+        let abroad = w.spawn_unit(race, at, UnitId::new(kind));
+        for city in cities {
+            let events = w.destroy_city(city).expect("an independent city goes");
+            assert!(
+                !events
+                    .iter()
+                    .any(|e| matches!(e, Event::WizardDefeated { .. })),
+                "{name}: {events:?}"
+            );
+        }
+        assert_eq!(w.treaty(a, race), Treaty::None, "{name}");
+        // The race is not out of the game: what it has elsewhere stays.
+        assert!(!w.player(race).expect("a player").is_defeated(), "{name}");
+        assert!(w.units().player_units(race).contains(&abroad), "{name}");
+        assert!(!w.is_dormant(race), "{name}");
+    }
+}
+
+#[test]
+fn a_race_without_a_city_that_loses_its_last_unit_has_no_relations_left() {
+    for (name, mut w, ids) in met() {
+        let a = ids[0];
+        let race = w
+            .player_ids()
+            .into_iter()
+            .find(|&p| w.is_dormant(p))
+            .expect("a race with nothing");
+        // It has a unit and no city, as a raiding party does.
+        let (kind, at) = w
+            .units()
+            .all_units()
+            .into_iter()
+            .find_map(|u| Some((w.units().unit_def(u)?.num, w.units().unit_position(u)?)))
+            .expect("a unit");
+        let unit = w.spawn_unit(race, at, UnitId::new(kind));
+        w.make_contact(a, race);
+        w.declare_war(a, race);
+        assert_eq!(w.treaty(a, race), Treaty::War, "{name}");
+        w.apply(Command::DismissUnit { unit });
+        assert!(w.is_dormant(race), "{name}");
+        assert_eq!(w.treaty(a, race), Treaty::None, "{name}");
     }
 }
 
