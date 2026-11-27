@@ -172,6 +172,7 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 830 | Medium | Core / Client / AI | Unit orders for players: kept in the army ledger, carried out by core as for the AI, given with an Order button in the client |
 | 831 | High | AI | A settings file for the strategic AI's levers (`ai_strategy.ron`), with no change of behaviour |
 | 833 | Medium | Core / Def | Check the rules outside the battle for numbers that stand in the code, and move them into the content |
+| 834 | Low | Housekeeping | Decide what becomes of the old branch `claude/content-packs-units-buildings` |
 
 ## Descriptions
 
@@ -921,4 +922,11 @@ situation is a target, not a need (Earth Lore and Raise Volcano nearly always ha
 - A rule number moves into the content (the row it belongs to, or `rules.ron`), where the engine and the AI read the same entry; a copy of it in the AI goes.
 - No change of value: the pinned scripted plays move only in the content fingerprint of their files. Tests read the values from the content.
 - What stays in the code is listed with the reason in `docs/constants-review.md`.
+*Needs:* nothing.
+
+**834. The old content-packs branch.** Asked for by the user, 27 November 2026, who did not remember what the branch `claude/content-packs-units-buildings` on GitHub was for or where it came from.
+- **Origin:** three commits by Claude in a cloud session on 10 October 2026 (https://claude.ai/code/session_01WpyE9qiej5kV5RvKuAHhvX).
+- **Content:** content packs (a base pack in `content/base/`; further packs that add, override or remove definitions by id; art data apart from the rules; pack checks in `f4x-tools`), a first runtime for units and buildings, `docs/modding.md`, and a `CLAUDE.md` of that time. None of these paths or documents is in `main` under those names.
+- **State:** built on a far older code base. A trial merge had 26 conflicts, and `main` had about 1700 commits since the branch forked: it cannot be merged as it is.
+- Check whether anything in it is still wanted for modding support (task 788; compare `docs/crate-layout-plan-c.md`). What is wanted goes into task 788 as text. Then tag the branch, so that its commits are kept, and delete it.
 *Needs:* nothing.
