@@ -289,7 +289,7 @@ mod tests {
 
     fn war(w: &mut Game) {
         w.make_contact(P0, P1);
-        w.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+        w.command(Command::Diplomacy(DiplomacyCommand::DeclareWar {
             player: P0,
             on: P1,
         }));

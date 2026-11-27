@@ -598,9 +598,18 @@ impl App {
             .filter(|u| viewer.is_none_or(|v| battle.seen_by(v, u.id)))
     }
 
-    /// Start a battle for the stack the human just moved, or for a site's guards.
+    /// Whose name a battle command goes under: the player it acts for. The client gives the
+    /// orders of the other side too, in the battle the human fights, and starts a rival's
+    /// attack on the human, until the rival sends its own (`docs/turn-structure.md` 10.4).
+    fn battle_sender(&self, command: &Command) -> f4x_core::player::PlayerId {
+        self.game.command_actor(command).unwrap_or(HUMAN)
+    }
+
+    /// Start a battle for the stack the human just moved, for a site's guards, or for a
+    /// rival's attack on the human.
     pub(crate) fn begin_battle(&mut self, command: Command) {
-        let events = self.game.apply(command);
+        let sender = self.battle_sender(&command);
+        let events = self.game.apply(sender, command);
         self.note(events);
         if self.game.in_battle() {
             self.open_battle_screen();
@@ -610,7 +619,8 @@ impl App {
     /// Fight a battle to the end without the battle screen (strategic combat only, or an
     /// attack the player left to the computer).
     pub(crate) fn auto_battle(&mut self, command: Command) {
-        let events = self.game.apply(command);
+        let sender = self.battle_sender(&command);
+        let events = self.game.apply(sender, command);
         self.record_combat_results(&events);
         let won = events.iter().find_map(|e| match e {
             Event::BattleEnded { winner, .. } => Some(*winner == HUMAN),
@@ -995,11 +1005,15 @@ impl App {
             _ => None,
         };
         let command = Command::Battle(order.clone());
-        let events = self.game.apply(if confirmed {
-            Command::Anyway(Box::new(command))
-        } else {
-            command
-        });
+        let sender = self.battle_sender(&command);
+        let events = self.game.apply(
+            sender,
+            if confirmed {
+                Command::Anyway(Box::new(command))
+            } else {
+                command
+            },
+        );
         self.record_combat_results(&events);
         // A summoned creature has a name too.
         if let Some(b) = self.game.battle() {
@@ -2920,10 +2934,13 @@ mod tests {
             .id_numbered(39)
             .ok_or("barbarian_spearmen is not in the content")?;
         let defenders = vec![app.game.spawn_unit(f4x_core::player::MONSTERS, pos, kind)];
-        app.game.apply(Command::BeginBattle {
-            attackers,
-            defenders,
-        });
+        app.game.apply(
+            HUMAN,
+            Command::BeginBattle {
+                attackers,
+                defenders,
+            },
+        );
         let battle = app.game.battle().ok_or("no battle began")?.clone();
         Ok((app, battle))
     }

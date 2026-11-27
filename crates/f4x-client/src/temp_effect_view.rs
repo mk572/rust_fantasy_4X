@@ -132,12 +132,15 @@ mod tests {
             .expect("a wizard")
             .get_mut::<f4x_core::wizard::sheet::Skill>()
             .left = 99_999;
-        let events = app.game.apply(f4x_core::world::Command::CastSpell {
-            extra: 0,
-            player: HUMAN,
-            spell,
-            target: Some(Target::Unit(unit)),
-        });
+        let events = app.game.apply(
+            HUMAN,
+            f4x_core::world::Command::CastSpell {
+                extra: 0,
+                player: HUMAN,
+                spell,
+                target: Some(Target::Unit(unit)),
+            },
+        );
         assert!(app.game.units().unit_is_mutated(unit), "{events:?}");
         let effects = app.game.units().temp_effects(unit);
         let lines = app.temp_effect_lines(unit);

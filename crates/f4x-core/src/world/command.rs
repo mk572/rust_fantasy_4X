@@ -297,3 +297,15 @@ pub enum Command {
     /// A talk with another wizard: proposals, answers, gifts, treaties and war.
     Diplomacy(diplomacy::DiplomacyCommand),
 }
+
+impl Command {
+    /// Whether this only sets a world up (a unit or a city out of nothing, which scenarios,
+    /// cheats and tests make): no player may send it (`docs/turn-structure.md` 10.4).
+    pub fn is_setup(&self) -> bool {
+        match self {
+            Self::Anyway(inner) => inner.is_setup(),
+            Self::CreateUnit { .. } | Self::FoundCity { .. } | Self::PlaceFortress { .. } => true,
+            _ => false,
+        }
+    }
+}

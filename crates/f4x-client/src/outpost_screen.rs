@@ -203,7 +203,7 @@ impl App {
         let lay = Layout::new();
         let prompt = self.text("outpost.name_starting");
         if self.name_box(&lay, (60.0, 30.0), &prompt, &mut name, input) {
-            let events = self.game.apply(Command::RenameCity { city, name });
+            let events = self.game.apply(HUMAN, Command::RenameCity { city, name });
             self.note(events);
             None
         } else {
@@ -372,7 +372,7 @@ impl OutpostUi {
         self.name = name;
         if done {
             let name = std::mem::take(&mut self.name);
-            let events = app.game.apply(Command::RenameCity { city, name });
+            let events = app.game.apply(HUMAN, Command::RenameCity { city, name });
             app.note(events);
             self.naming = false;
         }

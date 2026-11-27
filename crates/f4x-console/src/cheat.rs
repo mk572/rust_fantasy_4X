@@ -227,7 +227,7 @@ fn spawn(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     )?;
     let pos = parse_pos(a.need(1, "position")?, Plane::Arcanus)?;
     let owner = player_arg(ctx, a, 2)?;
-    ctx.apply(Command::CreateUnit { owner, pos, unit })
+    ctx.cheat(Command::CreateUnit { owner, pos, unit })
 }
 
 fn kill(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
@@ -327,7 +327,7 @@ fn newcity(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             .next()
             .map(|(id, _)| id);
     }
-    ctx.apply(Command::FoundCity {
+    ctx.cheat(Command::FoundCity {
         owner,
         pos,
         name,
@@ -512,7 +512,7 @@ fn fortress(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         Some((_, p)) => parse_player(p)?,
         None => ctx.session.player,
     };
-    ctx.apply(Command::PlaceFortress {
+    ctx.cheat(Command::PlaceFortress {
         player,
         pos,
         name,

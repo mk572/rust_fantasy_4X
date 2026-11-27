@@ -109,7 +109,7 @@ fn a_neutral_player_with_nothing_left_keeps_its_ai_and_cannot_be_dealt_with() {
         .expect("a neutral AI");
     w.make_contact(PlayerId(0), first);
     for u in w.units().player_units(first) {
-        w.apply(Command::DismissUnit { unit: u });
+        w.command(Command::DismissUnit { unit: u });
     }
     let cities: Vec<_> = w
         .economy()
@@ -125,7 +125,7 @@ fn a_neutral_player_with_nothing_left_keeps_its_ai_and_cannot_be_dealt_with() {
     assert!(w.is_dormant(first), "the player has nothing left");
     assert!(neutral.borrow().plans().iter().any(|(p, _)| *p == first));
     assert!(w.have_met(PlayerId(0), first), "the contact is remembered");
-    let events = w.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+    let events = w.command(Command::Diplomacy(DiplomacyCommand::DeclareWar {
         player: PlayerId(0),
         on: first,
     }));
@@ -151,7 +151,7 @@ fn a_neutral_player_meets_answers_proposals_and_trades_no_spells() {
     assert!(!w.takes_part_in_diplomacy(f4x_core::player::MONSTERS));
     w.make_contact(PlayerId(0), race);
     assert!(w.have_met(PlayerId(0), race), "wizards and neutrals meet");
-    let events = w.apply(Command::Diplomacy(DiplomacyCommand::Propose {
+    let events = w.command(Command::Diplomacy(DiplomacyCommand::Propose {
         from: PlayerId(0),
         to: race,
         kind: ProposalKind::Pact,

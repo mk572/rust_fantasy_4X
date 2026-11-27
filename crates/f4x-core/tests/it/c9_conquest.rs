@@ -476,7 +476,7 @@ fn starting_the_spell_of_mastery_is_told_to_all_and_listed_with_what_is_still_ow
         let spell = SpellId::new(MASTERY);
         f.w.cheat_learn_spell(f.a, spell);
         f.w.treasury_mut(f.a).expect("a treasury").mana = HalfInt::from_int(100_000);
-        let events = f.w.apply(Command::CastSpell {
+        let events = f.w.command(Command::CastSpell {
             player: f.a,
             spell,
             target: None,

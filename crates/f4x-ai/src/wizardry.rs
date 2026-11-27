@@ -636,7 +636,7 @@ fn split(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let mut chosen = target;
     for _ in 0..40 {
         chosen = target;
-        game.apply(set_split(me, as_split(chosen)));
+        game.apply(me, set_split(me, as_split(chosen)));
         let view = PlayerView::new(game, me);
         let income = view.income();
         let deficit_allowed = f4x_def::half_int::HalfInt::from_int(
@@ -2074,7 +2074,7 @@ mod tests {
             .filter(|(_, d)| d.target == f4x_def::rules::SpellTarget::None)
             .map(|(id, _)| id)
             .collect();
-        w.apply(set_split(player, (80, 0, 20)));
+        w.command(set_split(player, (80, 0, 20)));
         for spell in loaded {
             let income = w.income(player);
             if income.split.mana < income.mana_upkeep {
@@ -2266,7 +2266,7 @@ mod tests {
                 .is_none(),
             "at peace: no curse"
         );
-        w.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+        w.command(Command::Diplomacy(DiplomacyCommand::DeclareWar {
             player: P0,
             on: P1,
         }));
@@ -2314,7 +2314,7 @@ mod tests {
         };
         cast(&ai, &mut w, &mut Vec::new());
         assert!(!began(&w)?, "at peace: nothing on the world");
-        w.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+        w.command(Command::Diplomacy(DiplomacyCommand::DeclareWar {
             player: P0,
             on: P1,
         }));
@@ -2537,7 +2537,7 @@ mod tests {
         let far = candidates
             .into_iter()
             .find(|&pos| {
-                let events = w.apply(Command::FoundCity {
+                let events = w.command(Command::FoundCity {
                     owner: P0,
                     pos,
                     name: "Far".into(),
@@ -2630,7 +2630,7 @@ mod tests {
     #[test]
     fn a_city_with_an_enemy_by_it_is_bolstered_before_the_fortress() -> TestResult {
         let mut w = game(COAST_CITY, 8 /* high_men */);
-        let events = w.apply(f4x_core::world::Command::FoundCity {
+        let events = w.command(f4x_core::world::Command::FoundCity {
             owner: P0,
             pos: at(3, 3),
             name: "Second".into(),
@@ -2644,7 +2644,7 @@ mod tests {
         let wall = spell(3 /* wall_of_stone */)?;
         w.cheat_learn_spell(P0, wall);
         w.make_contact(P0, P1);
-        w.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+        w.command(Command::Diplomacy(DiplomacyCommand::DeclareWar {
             player: P0,
             on: P1,
         }));
@@ -2682,7 +2682,7 @@ mod tests {
             crate::intent::global_wanted(&PlayerView::new(w, P0), def)
         };
         assert!(!victim(&w, wrath) && !victim(&w, storm), "at peace");
-        w.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+        w.command(Command::Diplomacy(DiplomacyCommand::DeclareWar {
             player: P0,
             on: P1,
         }));
@@ -2733,7 +2733,7 @@ mod tests {
         w.scenario_add_global(P1, awareness);
         let aim = |w: &World| pick_target(&PlayerView::new(w, P0), disjunction);
         assert!(aim(&w).is_none(), "at peace: left alone");
-        w.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+        w.command(Command::Diplomacy(DiplomacyCommand::DeclareWar {
             player: P0,
             on: P1,
         }));
@@ -2752,7 +2752,7 @@ mod tests {
         w.cheat_learn_spell(P0, blast);
         treasury(&mut w, P0)?.mana = f4x_def::half_int::HalfInt::from_int(5_000);
         let aim = |w: &World| pick_target(&PlayerView::new(w, P0), blast);
-        w.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+        w.command(Command::Diplomacy(DiplomacyCommand::DeclareWar {
             player: P0,
             on: P1,
         }));
@@ -2770,7 +2770,7 @@ mod tests {
         w.cheat_learn_spell(P0, blast);
         treasury(&mut w, P0)?.mana = f4x_def::half_int::HalfInt::from_int(5_000);
         w.scenario_casting(P1, spell(113 /* meteor_storm */)?, 100);
-        w.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+        w.command(Command::Diplomacy(DiplomacyCommand::DeclareWar {
             player: P0,
             on: P1,
         }));
@@ -2789,7 +2789,7 @@ mod tests {
         spawn(&mut w, P1, near, 104 /* high_men_spearmen */, 8);
         let aim = |w: &World| pick_target(&PlayerView::new(w, P0), stasis);
         assert!(aim(&w).is_none(), "at peace: left alone");
-        w.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+        w.command(Command::Diplomacy(DiplomacyCommand::DeclareWar {
             player: P0,
             on: P1,
         }));

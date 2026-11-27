@@ -52,7 +52,7 @@ fn sweep(every: usize, warm: usize) -> (usize, usize) {
                 w.undo_label().map(str::to_owned),
             );
             let events =
-                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| w.apply(command)))
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| w.command(command)))
                     .unwrap_or_else(|_| panic!("{name}: {label} panicked"));
             tried += 1;
             let rejected = events.iter().any(|e| matches!(e, Event::Rejected(_)));

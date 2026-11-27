@@ -626,6 +626,10 @@ pub enum Rejection {
     GameOver,
     /// The command acts for a player the game does not have.
     NoSuchPlayer,
+    /// The command acts for another player than its sender, or orders another player's units.
+    NotYourCommand,
+    /// The command sets a world up (`Command::is_setup`): no player may send it.
+    SetupOnly,
 }
 
 impl Rejection {
@@ -653,6 +657,8 @@ impl Rejection {
             Self::Offer(e) => e.key(),
             Self::GameOver => "refuse_map.game_over",
             Self::NoSuchPlayer => "refuse_map.no_such_player",
+            Self::NotYourCommand => "refuse_map.not_your_command",
+            Self::SetupOnly => "refuse_map.setup_only",
         }
     }
 }

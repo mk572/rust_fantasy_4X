@@ -54,7 +54,7 @@ pub fn busy_round(game: &mut Game, limit: usize) {
             continue;
         };
         for to in around(game.world(), at) {
-            let out = game.apply(Command::MoveStack { units: vec![u], to });
+            let out = game.command(Command::MoveStack { units: vec![u], to });
             if !out.iter().any(|e| matches!(e, Event::Rejected(_))) {
                 break;
             }
@@ -72,7 +72,7 @@ pub fn a_change_that_can_be_taken_back(game: &mut Game) -> Option<String> {
         .find(|&p| !game.is_neutral_player(p) && game.wizard(p).is_some())?;
     let before = text(game.world());
     for rate in 0..=10u8 {
-        let out = game.apply(Command::SetTaxRate { player, rate });
+        let out = game.command(Command::SetTaxRate { player, rate });
         if !out.iter().any(|e| matches!(e, Event::Rejected(_))) && text(game.world()) != before {
             return Some(before);
         }
@@ -83,7 +83,7 @@ pub fn a_change_that_can_be_taken_back(game: &mut Game) -> Option<String> {
 /// Put everyone on the farms, so that balancing them changes something.
 pub fn all_farm(game: &mut Game) {
     for (city, ..) in game.economy().cities() {
-        game.apply(Command::SetFarmers {
+        game.command(Command::SetFarmers {
             city,
             farmers: u32::MAX,
         });

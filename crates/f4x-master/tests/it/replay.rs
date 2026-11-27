@@ -29,7 +29,7 @@ fn balancing_the_farmers_is_replayed_and_can_be_taken_back() {
         game.start_recording();
         game.set_undo(true);
         let before = text(game.world());
-        game.apply(Command::BalanceFarmers { player });
+        game.command(Command::BalanceFarmers { player });
         let balanced = text(game.world());
         assert_ne!(balanced, before, "{name}: nothing was balanced");
         let replay = game.replay_so_far().expect("a record");
@@ -70,7 +70,10 @@ fn a_replay_that_is_no_replay_or_names_nothing_is_refused() {
     busy_round(&mut game, 3);
     let mut replay = game.stop_recording().expect("recorded");
     let unknown = "MoveStack(units: [999999], to: (x: 0, y: 0, plane: Arcanus))";
-    replay.entries.insert(0, Entry::Command(unknown.into()));
+    let sender = game.player_ids()[0];
+    replay
+        .entries
+        .insert(0, Entry::Command(sender, unknown.into()));
     assert!(matches!(
         replay.play(content(), usize::MAX),
         Err(ReplayError::Unresolved(0))
@@ -92,7 +95,7 @@ fn the_units_a_recorded_command_names_are_told_apart() {
         .entries
         .iter()
         .filter_map(|e| match e {
-            Entry::Command(c) if c.starts_with("MoveStack") => Some(c.as_str()),
+            Entry::Command(_, c) if c.starts_with("MoveStack") => Some(c.as_str()),
             _ => None,
         })
         .collect();

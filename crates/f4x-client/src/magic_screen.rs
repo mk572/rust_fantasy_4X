@@ -305,12 +305,15 @@ impl MagicUi {
     /// Keep the staves' positions as the power split.
     fn commit_staves(&mut self, app: &mut App) {
         let [m, r, s] = self.pos;
-        let events = app.game.apply(Command::SetPowerSplit {
-            player: HUMAN,
-            mana: (2 * m) as u8,
-            research: (2 * r) as u8,
-            skill: (2 * s) as u8,
-        });
+        let events = app.game.apply(
+            HUMAN,
+            Command::SetPowerSplit {
+                player: HUMAN,
+                mana: (2 * m) as u8,
+                research: (2 * r) as u8,
+                skill: (2 * s) as u8,
+            },
+        );
         app.note(events);
     }
 
@@ -680,11 +683,14 @@ impl MagicUi {
             ui.slider = 3;
         }
         if ok && amount > 0 {
-            let events = app.game.apply(Command::Alchemy {
-                player: HUMAN,
-                amount,
-                gold_to_mana: ui.gold_to_mana,
-            });
+            let events = app.game.apply(
+                HUMAN,
+                Command::Alchemy {
+                    player: HUMAN,
+                    amount,
+                    gold_to_mana: ui.gold_to_mana,
+                },
+            );
             app.note(events);
             self.alchemy = None;
             return;
@@ -776,10 +782,13 @@ impl Page for MagicUi {
             match app.confirm_box(&question, input) {
                 Some(true) => {
                     self.turn_off = None;
-                    let events = app.game.apply(Command::TurnOffSpell {
-                        player: HUMAN,
-                        spell,
-                    });
+                    let events = app.game.apply(
+                        HUMAN,
+                        Command::TurnOffSpell {
+                            player: HUMAN,
+                            spell,
+                        },
+                    );
                     app.note(events);
                     self.first = 0;
                 }

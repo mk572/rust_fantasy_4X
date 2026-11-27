@@ -197,7 +197,7 @@ mod tests {
     /// Player 0 with a city on the coast and a second one inland, and its circle on the coast.
     fn two_cities() -> Result<Game, Box<dyn std::error::Error>> {
         let mut w = game(COAST_CITY, 8 /* high_men */);
-        let events = w.apply(Command::FoundCity {
+        let events = w.command(Command::FoundCity {
             owner: P0,
             pos: at(INLAND_CITY.0, INLAND_CITY.1),
             name: "Inland".into(),
@@ -272,7 +272,7 @@ mod tests {
             Ok(view.city_economy(city).ok_or("no economy")?.rebels)
         };
         // On the gentlest tax nothing stirs, and the garrison is what defence wants: not everyone.
-        w.apply(Command::SetTaxRate {
+        w.command(Command::SetTaxRate {
             player: P0,
             rate: 0,
         });
@@ -280,7 +280,7 @@ mod tests {
         assert!(kept(&w).len() < all.len(), "{:?}", kept(&w));
         // With rebels the normal units stay: they keep order, half a rebel each.
         let rate = harshest_tax(&w);
-        w.apply(Command::SetTaxRate { player: P0, rate });
+        w.command(Command::SetTaxRate { player: P0, rate });
         assert!(rebels(&w)? > 0, "the harshest tax stirs no unrest");
         let with_rebels = kept(&w);
         assert!(

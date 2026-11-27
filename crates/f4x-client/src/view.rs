@@ -1401,7 +1401,8 @@ impl App {
         }
         let t = self.cache.budget(&self.game, HUMAN);
         if t.food_surplus < t.food_upkeep {
-            self.game.apply(Command::BalanceFarmers { player: HUMAN });
+            self.game
+                .apply(HUMAN, Command::BalanceFarmers { player: HUMAN });
         }
         self.seating.human_done = true;
         self.turn_events = Some(Vec::new());
@@ -1594,11 +1595,15 @@ impl App {
             // No one defends in person here: the computer fights the attacks on the human.
             while self.turn_events.is_some() {
                 while let Some(attack) = self.next_defence() {
-                    let events = self.game.apply(Command::AutoResolve {
+                    let command = Command::AutoResolve {
                         mana_budget: None,
                         attackers: attack.attackers,
                         defenders: attack.defenders,
-                    });
+                    };
+                    // The attacker's order, which the client gives for it
+                    // (`docs/turn-structure.md` 10.4).
+                    let sender = self.game.command_actor(&command).unwrap_or(HUMAN);
+                    let events = self.game.apply(sender, command);
                     // A smoke test or screenshot run: an attack the game will not resolve is a
                     // bug to stop at (the panic shows the refusal), not one to play on from.
                     assert!(
@@ -1952,7 +1957,7 @@ impl App {
                         target: Some(target),
                     }
                 };
-                let events = self.game.apply(cmd);
+                let events = self.game.apply(HUMAN, cmd);
                 self.note(events);
             }
         }
@@ -2013,7 +2018,9 @@ impl App {
         match self.confirmation_box(&lay, &text, input) {
             Some(true) => None,
             Some(false) => {
-                let events = self.game.apply(Command::CancelCast { player: HUMAN });
+                let events = self
+                    .game
+                    .apply(HUMAN, Command::CancelCast { player: HUMAN });
                 self.note(events);
                 None
             }
@@ -2047,7 +2054,7 @@ impl App {
     /// What the keys answer to the resign question; whether it stays open.
     pub(crate) fn resign_answer(&mut self, input: &Input) -> bool {
         if input.key_pressed(KeyCode::Y) {
-            let events = self.game.apply(Command::Resign { player: HUMAN });
+            let events = self.game.apply(HUMAN, Command::Resign { player: HUMAN });
             self.note(events);
             return false;
         }
@@ -2436,9 +2443,12 @@ impl App {
         if self.hotkeys.pressed("plane_shift", input) {
             // The plane button: the selected units change plane if they can, else the view does.
             let shifted = !self.selection.is_empty() && {
-                let events = self.game.apply(Command::ShiftPlane {
-                    units: self.selection.clone(),
-                });
+                let events = self.game.apply(
+                    HUMAN,
+                    Command::ShiftPlane {
+                        units: self.selection.clone(),
+                    },
+                );
                 let ok = !events
                     .iter()
                     .any(|e| matches!(e, f4x_core::world::Event::Rejected(_)));
@@ -2455,16 +2465,20 @@ impl App {
         }
         self.stack_keys(input);
         if self.hotkeys.pressed("balance_farmers", input) {
-            self.game.apply(Command::BalanceFarmers { player: HUMAN });
+            self.game
+                .apply(HUMAN, Command::BalanceFarmers { player: HUMAN });
             self.log.push(self.text("log.farmers_balanced"));
         }
         if self.hotkeys.pressed("wait", input) && !self.selection.is_empty() {
             self.select_next_idle(true);
         }
         if self.hotkeys.pressed("done", input) && !self.selection.is_empty() {
-            self.game.apply(Command::ClearOrders {
-                units: self.selection.clone(),
-            });
+            self.game.apply(
+                HUMAN,
+                Command::ClearOrders {
+                    units: self.selection.clone(),
+                },
+            );
         }
         if self.hotkeys.pressed("centre", input) {
             if let Some(at) = self.selection_position() {
@@ -2527,10 +2541,13 @@ impl App {
         // A stack in a city with an Earth Gate that is sent to another city with one is
         // teleported there at once, for one move (`MainScr.c`, the Earth Gate branch).
         if self.game.can_use_earth_gate(&self.selection, pos).is_ok() {
-            let events = self.game.apply(Command::EarthGate {
-                units: self.selection.clone(),
-                to: pos,
-            });
+            let events = self.game.apply(
+                HUMAN,
+                Command::EarthGate {
+                    units: self.selection.clone(),
+                    to: pos,
+                },
+            );
             self.note(events);
             if let Some(at) = self.selection_position() {
                 self.center_on(at);
@@ -2619,15 +2636,21 @@ impl App {
         match self.special_action() {
             Special::Build => self.settle(),
             Special::Meld => {
-                let events = self.game.apply(Command::Meld {
-                    units: self.selection.clone(),
-                });
+                let events = self.game.apply(
+                    HUMAN,
+                    Command::Meld {
+                        units: self.selection.clone(),
+                    },
+                );
                 self.note(events);
             }
             Special::Purify => {
-                let events = self.game.apply(Command::Purify {
-                    units: self.selection.clone(),
-                });
+                let events = self.game.apply(
+                    HUMAN,
+                    Command::Purify {
+                        units: self.selection.clone(),
+                    },
+                );
                 self.note(events);
             }
             Special::None if self.selection.is_empty() => self.settle(),
@@ -2666,7 +2689,9 @@ impl App {
             return;
         };
         let name = self.next_city_name();
-        let events = self.game.apply(Command::SettleOutpost { unit, name });
+        let events = self
+            .game
+            .apply(HUMAN, Command::SettleOutpost { unit, name });
         let founded = events.iter().find_map(|e| match e {
             Event::CityFounded { city, .. } => Some(*city),
             _ => None,
@@ -3088,7 +3113,8 @@ mod tests {
         app.view_step_keys(&press(&[KeyCode::V]));
         assert_eq!(app.game.revision(), r, "a read or a UI change");
         // A command.
-        app.game.apply(Command::BalanceFarmers { player: HUMAN });
+        app.game
+            .apply(HUMAN, Command::BalanceFarmers { player: HUMAN });
         let after_command = app.game.revision();
         assert_ne!(after_command, r, "a command");
         // A direct mutator.

@@ -257,12 +257,13 @@ impl App {
             } else {
                 Mood::Neutral
             };
-            self.game.apply(Command::Diplomacy(
-                f4x_core::diplomacy::DiplomacyCommand::Greeted {
+            self.game.apply(
+                HUMAN,
+                Command::Diplomacy(f4x_core::diplomacy::DiplomacyCommand::Greeted {
                     player: HUMAN,
                     with,
-                },
-            ));
+                }),
+            );
         } else if self.audience_refused(with) {
             ui.menu = Menu::Reply;
             ui.message = say::cold_shoulder(self.texts(), salt);
@@ -922,7 +923,7 @@ impl DiploUi {
                 kind,
             }
         };
-        let mut events = app.game.apply(Command::Diplomacy(command));
+        let mut events = app.game.apply(HUMAN, Command::Diplomacy(command));
         if events.iter().any(|e| matches!(e, Event::Rejected(_))) {
             app.note(events);
             let said = say::refused(app.texts(), kind, level, salt);
@@ -999,23 +1000,25 @@ impl DiploUi {
             }
             Act::Propose(kind) => self.diplo_propose(app, kind),
             Act::Break => {
-                let events = app.game.apply(Command::Diplomacy(
-                    f4x_core::diplomacy::DiplomacyCommand::BreakTreaty {
+                let events = app.game.apply(
+                    HUMAN,
+                    Command::Diplomacy(f4x_core::diplomacy::DiplomacyCommand::BreakTreaty {
                         player: HUMAN,
                         with,
-                    },
-                ));
+                    }),
+                );
                 app.note(events);
                 self.diplo_say(say::treaty_broken(app.texts()), Mood::Bad, false);
             }
             Act::Gold(amount) => {
-                let events = app.game.apply(Command::Diplomacy(
-                    f4x_core::diplomacy::DiplomacyCommand::GiveGold {
+                let events = app.game.apply(
+                    HUMAN,
+                    Command::Diplomacy(f4x_core::diplomacy::DiplomacyCommand::GiveGold {
                         from: HUMAN,
                         to: with,
                         amount,
-                    },
-                ));
+                    }),
+                );
                 let failed = events.iter().any(|e| matches!(e, Event::Rejected(_)));
                 app.note(events);
                 if !failed {
@@ -1024,13 +1027,14 @@ impl DiploUi {
                 }
             }
             Act::GiveSpell(spell) => {
-                let events = app.game.apply(Command::Diplomacy(
-                    f4x_core::diplomacy::DiplomacyCommand::GiveSpell {
+                let events = app.game.apply(
+                    HUMAN,
+                    Command::Diplomacy(f4x_core::diplomacy::DiplomacyCommand::GiveSpell {
                         from: HUMAN,
                         to: with,
                         spell,
-                    },
-                ));
+                    }),
+                );
                 let failed = events.iter().any(|e| matches!(e, Event::Rejected(_)));
                 app.note(events);
                 if !failed {
@@ -1089,13 +1093,14 @@ impl DiploUi {
                 let Some(p) = self.waiting_trade(app) else {
                     return;
                 };
-                let events = app.game.apply(Command::Diplomacy(
-                    f4x_core::diplomacy::DiplomacyCommand::Answer {
+                let events = app.game.apply(
+                    HUMAN,
+                    Command::Diplomacy(f4x_core::diplomacy::DiplomacyCommand::Answer {
                         player: HUMAN,
                         from: with,
                         accept,
-                    },
-                ));
+                    }),
+                );
                 app.note(events);
                 if accept {
                     let said = say::accepted(app.texts(), p.kind, salt);

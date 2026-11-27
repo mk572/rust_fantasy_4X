@@ -330,7 +330,7 @@ pub(crate) mod tests {
 
     fn found(game: &mut Game, owner: PlayerId, x: u32, y: u32) {
         let race = game.content().rules.races.id_numbered(8);
-        game.apply(Command::FoundCity {
+        game.command(Command::FoundCity {
             owner,
             pos: at(x, y),
             name: format!("City{x}x{y}"),
@@ -418,12 +418,12 @@ pub(crate) mod tests {
         use f4x_core::diplomacy::DiplomacyCommand::Propose;
         let mut w = pair(30, 1, 100);
         let free = value(&w, P0, P1, true).enemy;
-        w.apply(Command::Diplomacy(Propose {
+        w.command(Command::Diplomacy(Propose {
             from: P0,
             to: P1,
             kind: ProposalKind::Pact,
         }));
-        w.apply(Command::Diplomacy(DiplomacyCommand::Answer {
+        w.command(Command::Diplomacy(DiplomacyCommand::Answer {
             player: P1,
             from: P0,
             accept: true,

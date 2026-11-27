@@ -138,7 +138,7 @@ fn no_command_leaves_a_square_over_the_sanity_limit() {
         let (wizard, at) = wizard_and_city(&w);
         let unit = f4x_core::rules::UnitId::new(w.content().rules.units.defs()[0].num);
         while w.units().units_at(at).len() < TILE_SANITY_LIMIT {
-            w.apply(Command::CreateUnit {
+            w.command(Command::CreateUnit {
                 owner: wizard,
                 pos: at,
                 unit,
@@ -146,7 +146,7 @@ fn no_command_leaves_a_square_over_the_sanity_limit() {
         }
         for command in commands(&w) {
             let label = format!("{command:?}");
-            w.apply(command);
+            w.command(command);
             assert!(
                 w.crowded_anywhere().is_empty(),
                 "{name}: after {label}: {:?}",

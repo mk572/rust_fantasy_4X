@@ -30,13 +30,14 @@ impl Modal for AttackWar {
         );
         match app.confirmation_box(&Layout::new(), &text, input) {
             Some(true) => {
-                let mut events = app
-                    .game
-                    .apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+                let mut events = app.game.apply(
+                    HUMAN,
+                    Command::Diplomacy(DiplomacyCommand::DeclareWar {
                         player: HUMAN,
                         on: self.on,
-                    }));
-                events.extend(app.game.apply(self.then));
+                    }),
+                );
+                events.extend(app.game.apply(HUMAN, self.then));
                 app.note(events);
                 None
             }
@@ -69,7 +70,7 @@ impl App {
         match self.war_to_declare(to) {
             Some(on) => self.modals.open(AttackWar { on, then: command }),
             None => {
-                let events = self.game.apply(command);
+                let events = self.game.apply(HUMAN, command);
                 self.note(events);
             }
         }
@@ -109,7 +110,7 @@ mod tests {
             .into_iter()
             .find(|&to| {
                 app.game
-                    .apply(Command::CreateUnit {
+                    .command(Command::CreateUnit {
                         owner: rival,
                         pos: to,
                         unit: kind,

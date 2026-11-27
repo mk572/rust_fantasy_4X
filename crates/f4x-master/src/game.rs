@@ -19,6 +19,7 @@ pub mod step;
 pub mod undo;
 
 use f4x_battle::battle::BattleCommand;
+use f4x_core::player::PlayerId;
 use f4x_core::world::rng::GameRng;
 use f4x_core::world::{Command, Event, Rejection, World};
 
@@ -74,13 +75,17 @@ impl Game {
         self.world
     }
 
-    /// A player's command: run, written down when the game is recording, and kept for undo.
-    pub fn apply(&mut self, command: Command) -> Vec<Event> {
-        // A game that has ended takes nothing more, and records nothing.
-        if self.state.game_over.is_some() {
-            return vec![Event::Rejected(Rejection::GameOver)];
+    /// A command `player` sends: run, written down when the game is recording, and kept for
+    /// undo. Refused when the game has ended, when the game does not have the player, when the
+    /// command only sets a world up, and when it is another player's to give
+    /// ([`World::may_command`]). Whose turn it is is not checked here
+    /// ([`Master::apply`](crate::Master::apply) does).
+    pub fn apply(&mut self, player: PlayerId, command: Command) -> Vec<Event> {
+        // A refusal changes nothing and records nothing.
+        if let Some(why) = self.refusal(player, &command) {
+            return vec![Event::Rejected(why)];
         }
-        self.record_command(&command);
+        self.record_command(player, &command);
         let mut events = self.run_undoable(command);
         // A refused command changed nothing, so it is not part of the record.
         if events.iter().any(|e| matches!(e, Event::Rejected(_))) {
@@ -88,6 +93,21 @@ impl Game {
         }
         events.extend(self.check_end());
         events
+    }
+
+    /// Why the game itself turns `command` of `player` down, before the world sees it.
+    fn refusal(&self, player: PlayerId, command: &Command) -> Option<Rejection> {
+        if self.state.game_over.is_some() {
+            Some(Rejection::GameOver)
+        } else if self.world.player(player).is_none() {
+            Some(Rejection::NoSuchPlayer)
+        } else if command.is_setup() {
+            Some(Rejection::SetupOnly)
+        } else if !self.world.may_command(player, command) {
+            Some(Rejection::NotYourCommand)
+        } else {
+            None
+        }
     }
 
     /// The next command of the side to play in the battle being fought
@@ -114,6 +134,24 @@ impl Game {
         let skipped = i64::from(round) - i64::from(self.state.round);
         self.world.scenario_age_wars(skipped);
         self.state.round = round;
+    }
+}
+
+/// Tests give the orders of whichever player they need.
+#[cfg(feature = "testutil")]
+impl Game {
+    /// Send `command` as the player it acts for ([`World::command_actor`]), or run it on the
+    /// world when it sets the world up ([`Command::is_setup`]).
+    pub fn command(&mut self, command: Command) -> Vec<Event> {
+        if command.is_setup() {
+            let mut events = self.world.apply(command, &mut self.state.rng);
+            events.extend(self.check_end());
+            return events;
+        }
+        // One that names nobody is sent by whoever comes first: the world refuses it.
+        let player = self.world.command_actor(&command);
+        let player = player.or_else(|| self.world.player_ids().first().copied());
+        self.apply(player.unwrap_or(f4x_core::player::MONSTERS), command)
     }
 }
 

@@ -39,12 +39,12 @@ fn world() -> Result<(Game, SpellId), Box<dyn std::error::Error>> {
 
 /// Make the two allies (the proposal and its answer, as a human and a rival would).
 fn ally(w: &mut Game) {
-    w.apply(Command::Diplomacy(DiplomacyCommand::Propose {
+    w.command(Command::Diplomacy(DiplomacyCommand::Propose {
         from: P0,
         to: P1,
         kind: ProposalKind::Alliance,
     }));
-    w.apply(Command::Diplomacy(DiplomacyCommand::Answer {
+    w.command(Command::Diplomacy(DiplomacyCommand::Answer {
         player: P1,
         from: P0,
         accept: true,
@@ -76,12 +76,12 @@ fn an_ally_takes_a_trade_a_little_short_of_fair_and_a_stranger_does_not() -> Tes
 fn the_margin_eases_with_a_treaty_and_with_goodwill() -> TestResult {
     let (mut w, _) = world()?;
     let stranger = margin(&w, &Diplomats::new(), P1, P0);
-    w.apply(Command::Diplomacy(DiplomacyCommand::Propose {
+    w.command(Command::Diplomacy(DiplomacyCommand::Propose {
         from: P0,
         to: P1,
         kind: ProposalKind::Pact,
     }));
-    w.apply(Command::Diplomacy(DiplomacyCommand::Answer {
+    w.command(Command::Diplomacy(DiplomacyCommand::Answer {
         player: P1,
         from: P0,
         accept: true,
@@ -151,7 +151,7 @@ fn a_spell_is_bought_when_the_price_is_one_the_seller_takes() -> TestResult {
 #[test]
 fn no_trade_with_an_enemy_and_nothing_to_give_an_enemys_friend() -> TestResult {
     let (mut w, _) = world()?;
-    w.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+    w.command(Command::Diplomacy(DiplomacyCommand::DeclareWar {
         player: P0,
         on: P1,
     }));

@@ -435,7 +435,7 @@ mod tests {
     fn world() -> Result<(Game, hecs::Entity), Box<dyn std::error::Error>> {
         let mut w = game(COAST_CITY, 8 /* high_men */);
         let race = w.content().rules.races.id_numbered(8).ok_or("high men")?;
-        let events = w.apply(Command::FoundCity {
+        let events = w.command(Command::FoundCity {
             owner: P0,
             pos: at(INLAND_CITY.0, INLAND_CITY.1),
             name: "Second".into(),
@@ -569,7 +569,7 @@ mod tests {
         let (mut w, first) = world()?;
         let race = w.content().rules.races.id_numbered(8).ok_or("high men")?;
         for (x, y) in [(6, 10), (10, 10)] {
-            let events = w.apply(Command::FoundCity {
+            let events = w.command(Command::FoundCity {
                 owner: P0,
                 pos: at(x, y),
                 name: format!("C{x}{y}"),

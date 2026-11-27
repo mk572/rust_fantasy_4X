@@ -188,7 +188,7 @@ mod tests {
     /// A coast city with `n` spearmen and a second, empty city inland.
     fn two_cities(n: usize) -> Result<(Game, Ai), Box<dyn std::error::Error>> {
         let mut w = game(COAST_CITY, 8 /* high_men */);
-        let events = w.apply(Command::FoundCity {
+        let events = w.command(Command::FoundCity {
             owner: P0,
             pos: at(INLAND_CITY.0, INLAND_CITY.1),
             name: "Inland".into(),

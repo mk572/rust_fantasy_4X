@@ -81,13 +81,14 @@ impl App {
         }
         let text = self.text_with(question_key(proposal.kind), &args);
         if let Some(accept) = self.confirmation_box(&lay, &text, input) {
-            let events = self
-                .game
-                .apply(Command::Diplomacy(DiplomacyCommand::Answer {
+            let events = self.game.apply(
+                HUMAN,
+                Command::Diplomacy(DiplomacyCommand::Answer {
                     player: HUMAN,
                     from: proposal.from,
                     accept,
-                }));
+                }),
+            );
             self.note(events);
         }
         self.pending_proposal().is_some()

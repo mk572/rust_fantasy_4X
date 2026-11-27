@@ -144,7 +144,7 @@ fn a_city_takes_what_the_content_lets_it_build_and_refuses_the_rest_with_the_rea
             for city in cities_of(&w, p) {
                 for &item in &items {
                     let before = w.economy().city_production(city);
-                    let events = w.apply(Command::SetProduction { city, item });
+                    let events = w.command(Command::SetProduction { city, item });
                     match (may_build(&w, city, item), refusal(&events)) {
                         (Ok(()), None) => {
                             accepted += 1;
@@ -196,7 +196,7 @@ fn an_item_is_finished_the_turn_the_production_covers_its_cost() {
         let p = wizards(&w)[0];
         let city = cities_of(&w, p)[0];
         let (building, cost) = cheapest_building(&w, city);
-        w.apply(Command::SetProduction {
+        w.command(Command::SetProduction {
             city,
             item: ProductionItem::Building(building),
         });
@@ -268,7 +268,7 @@ fn a_unit_appears_in_the_city_when_it_is_finished_and_a_settler_takes_a_citizen(
             let Some(unit) = pick else { continue };
             let size = w.city_population(city).figures.max(2);
             w.scenario_set_citizens(city, size);
-            w.apply(Command::SetProduction {
+            w.command(Command::SetProduction {
                 city,
                 item: ProductionItem::Unit(unit),
             });
@@ -330,7 +330,7 @@ fn buying_costs_what_the_rule_says_at_each_stage_and_finishes_the_item_at_the_tu
             .filter(|&(b, _)| may_build(&w, city, ProductionItem::Building(b)).is_ok())
             .max_by_key(|&(_, c)| c)
             .expect("a building");
-        w.apply(Command::SetProduction {
+        w.command(Command::SetProduction {
             city,
             item: ProductionItem::Building(building),
         });
@@ -342,7 +342,7 @@ fn buying_costs_what_the_rule_says_at_each_stage_and_finishes_the_item_at_the_tu
             // With too little gold nothing is bought and nothing changes.
             w.treasury_mut(p).expect("a treasury").gold = wanted - HalfInt::HALF;
             let before = (gold(&w, p), w.economy().city_production(city));
-            let refused = refusal(&w.apply(Command::BuyProduction { city }));
+            let refused = refusal(&w.command(Command::BuyProduction { city }));
             assert_eq!(
                 refused,
                 Some(Rejection::Production(ProductionError::NotEnoughGold)),
@@ -355,7 +355,7 @@ fn buying_costs_what_the_rule_says_at_each_stage_and_finishes_the_item_at_the_tu
             );
             // With enough, the price is taken and the rest of the cost is made up.
             w.treasury_mut(p).expect("a treasury").gold = wanted + HalfInt::from_int(5);
-            let events = w.apply(Command::BuyProduction { city });
+            let events = w.command(Command::BuyProduction { city });
             assert_eq!(refusal(&events), None, "{name}, turn {turn}");
             assert_eq!(
                 gold(&w, p),
@@ -369,7 +369,7 @@ fn buying_costs_what_the_rule_says_at_each_stage_and_finishes_the_item_at_the_tu
             )));
             // Another purchase has nothing left to finish.
             assert_eq!(
-                refusal(&w.apply(Command::BuyProduction { city })),
+                refusal(&w.command(Command::BuyProduction { city })),
                 Some(Rejection::Production(ProductionError::NothingToBuy)),
                 "{name}"
             );
@@ -380,7 +380,7 @@ fn buying_costs_what_the_rule_says_at_each_stage_and_finishes_the_item_at_the_tu
             bought += 1;
             // The next stage: start the same kind of item again, a turn further on.
             w.scenario_set_building(city, building, false);
-            w.apply(Command::SetProduction {
+            w.command(Command::SetProduction {
                 city,
                 item: ProductionItem::Building(building),
             });
@@ -395,9 +395,9 @@ fn buying_costs_what_the_rule_says_at_each_stage_and_finishes_the_item_at_the_tu
     let p = wizards(&w)[0];
     let city = cities_of(&w, p)[0];
     for item in [ProductionItem::TradeGoods, ProductionItem::Housing] {
-        w.apply(Command::SetProduction { city, item });
+        w.command(Command::SetProduction { city, item });
         assert_eq!(
-            refusal(&w.apply(Command::BuyProduction { city })),
+            refusal(&w.command(Command::BuyProduction { city })),
             Some(Rejection::Production(ProductionError::NothingToBuy)),
             "{item:?}"
         );
@@ -433,7 +433,7 @@ fn a_building_sells_for_a_third_of_its_cost_once_a_turn_and_not_while_another_ne
         // The one that is needed is not for sale.
         let before = gold(&w, p);
         assert_eq!(
-            refusal(&w.apply(Command::SellBuilding {
+            refusal(&w.command(Command::SellBuilding {
                 city,
                 building: base
             })),
@@ -446,7 +446,7 @@ fn a_building_sells_for_a_third_of_its_cost_once_a_turn_and_not_while_another_ne
         let def = rules.buildings.get(upper);
         let price = sale(def.cost, def.num == 35 /* city_walls */);
         assert_eq!(
-            refusal(&w.apply(Command::SellBuilding {
+            refusal(&w.command(Command::SellBuilding {
                 city,
                 building: upper
             })),
@@ -457,7 +457,7 @@ fn a_building_sells_for_a_third_of_its_cost_once_a_turn_and_not_while_another_ne
         sold += 1;
         // Only one a turn: the base is free of what needed it, and still not for sale today.
         assert_eq!(
-            refusal(&w.apply(Command::SellBuilding {
+            refusal(&w.command(Command::SellBuilding {
                 city,
                 building: base
             })),
@@ -471,7 +471,7 @@ fn a_building_sells_for_a_third_of_its_cost_once_a_turn_and_not_while_another_ne
         let price = sale(def.cost, def.num == 35);
         let before = gold(&w, p);
         assert_eq!(
-            refusal(&w.apply(Command::SellBuilding {
+            refusal(&w.command(Command::SellBuilding {
                 city,
                 building: base
             })),
@@ -572,7 +572,7 @@ fn farmers_are_kept_between_what_the_city_needs_and_its_people() {
             assert!(min <= people, "{name}: more farmers needed than people");
             let farmers = |w: &World| w.city_farmers(city);
             for want in [0, min, people, people + 5, u32::MAX] {
-                w.apply(Command::SetFarmers {
+                w.command(Command::SetFarmers {
                     city,
                     farmers: want,
                 });
@@ -619,12 +619,12 @@ fn a_city_is_renamed_trimmed_and_cut_and_an_empty_name_changes_nothing() {
             "äöü".repeat(NAME_LEN).chars().take(NAME_LEN).collect(),
         ),
     ] {
-        w.apply(Command::RenameCity { city, name: given });
+        w.command(Command::RenameCity { city, name: given });
         assert_eq!(name_of(&w), wanted);
     }
     let now = name_of(&w);
     for empty in ["", "   "] {
-        w.apply(Command::RenameCity {
+        w.command(Command::RenameCity {
             city,
             name: empty.into(),
         });

@@ -129,7 +129,7 @@ fn access_limits_what_a_front_end_can_ever_do() {
 #[test]
 fn legal_commands_check_ownership() {
     let (mut w, mut c) = (game(), console());
-    w.apply(f4x_core::world::Command::CreateUnit {
+    w.command(f4x_core::world::Command::CreateUnit {
         owner: PlayerId(1),
         pos: f4x_core::map::Position {
             plane: f4x_core::map::Plane::Arcanus,
@@ -218,7 +218,7 @@ fn moving_into_an_enemy_starts_a_battle_you_can_fight_by_text() -> TestResult {
             it.next().expect("there is one").parse()?,
         )
     };
-    w.apply(f4x_core::world::Command::CreateUnit {
+    w.command(f4x_core::world::Command::CreateUnit {
         owner: PlayerId(1),
         pos: f4x_core::map::Position {
             plane: f4x_core::map::Plane::Arcanus,
@@ -245,7 +245,7 @@ fn moving_into_an_enemy_starts_a_battle_you_can_fight_by_text() -> TestResult {
         if b.player_of(b.active) == PlayerId(1) {
             // The opponent's side: let the console play it as that player.
             let order = f4x_ai::battle::order::next_command(b);
-            w.apply(f4x_core::world::Command::Battle(order));
+            w.command(f4x_core::world::Command::Battle(order));
             continue;
         }
         let order = f4x_ai::battle::order::next_command(b);
@@ -757,7 +757,7 @@ fn nature_s_eye_reveals_visible_units_four_squares_from_the_city() -> TestResult
             break;
         }
         w.play_round();
-        w.apply(f4x_core::world::Command::ResolveCast {
+        w.command(f4x_core::world::Command::ResolveCast {
             player: HUMAN,
             target: Target::City(city),
         });
@@ -1165,12 +1165,12 @@ fn battle_units_carry_their_immunities_and_whether_their_weapons_are_magical() -
         .units
         .id_numbered(168)
         .expect("the shipped content has it");
-    w.apply(f4x_core::world::Command::CreateUnit {
+    w.command(f4x_core::world::Command::CreateUnit {
         owner: HUMAN,
         pos: home,
         unit: werewolves,
     });
-    let events = w.apply(f4x_core::world::Command::BeginBattle {
+    let events = w.command(f4x_core::world::Command::BeginBattle {
         attackers: w.units().player_units(HUMAN),
         defenders: w.units().player_units(PlayerId(1)),
     });
@@ -1228,13 +1228,13 @@ fn battle_units_carry_the_numbers_of_their_special_attacks() -> TestResult {
             .units
             .id_numbered(name)
             .expect("the shipped content has it");
-        w.apply(f4x_core::world::Command::CreateUnit {
+        w.command(f4x_core::world::Command::CreateUnit {
             owner: HUMAN,
             pos: home,
             unit,
         });
     }
-    w.apply(f4x_core::world::Command::BeginBattle {
+    w.command(f4x_core::world::Command::BeginBattle {
         attackers: w.units().player_units(HUMAN),
         defenders: w.units().player_units(PlayerId(1)),
     });
@@ -1342,7 +1342,7 @@ fn start_siege(w: &mut Game, city: hecs::Entity) {
     for u in w.units().player_units(HUMAN) {
         w.cheat_move_unit(u, from);
     }
-    let events = w.apply(f4x_core::world::Command::BeginBattle {
+    let events = w.command(f4x_core::world::Command::BeginBattle {
         attackers: w.units().player_units(HUMAN),
         defenders: w.units().units_at(at),
     });
@@ -1516,7 +1516,7 @@ fn a_taken_city_can_be_razed_until_the_turn_ends() -> TestResult {
     let fame_after_taking = w.wizard(HUMAN).expect("the player is a wizard").fame();
     let gold_after_taking = w.player(HUMAN).expect("the player exists").treasury().gold;
     // Only the taker may raze it.
-    let events = w.apply(f4x_core::world::Command::RazeCity {
+    let events = w.command(f4x_core::world::Command::RazeCity {
         player: PlayerId(2),
         city,
     });
@@ -1538,7 +1538,7 @@ fn a_taken_city_can_be_razed_until_the_turn_ends() -> TestResult {
             .expect("the entity has it")
             .figures,
     ) as i32;
-    let events = w.apply(f4x_core::world::Command::RazeCity {
+    let events = w.command(f4x_core::world::Command::RazeCity {
         player: HUMAN,
         city,
     });
@@ -1568,7 +1568,7 @@ fn a_taken_city_can_be_razed_until_the_turn_ends() -> TestResult {
         "the chance to raze survives a save"
     );
     back.play_round();
-    let events = back.apply(f4x_core::world::Command::RazeCity {
+    let events = back.command(f4x_core::world::Command::RazeCity {
         player: HUMAN,
         city: again,
     });
@@ -1610,7 +1610,7 @@ fn razing_a_wizards_fortress_city_leaves_the_wizard_banished_and_the_winner_unha
             || w.player(loser).expect("the player exists").is_defeated(),
         "banished or out"
     );
-    let events = w.apply(f4x_core::world::Command::RazeCity {
+    let events = w.command(f4x_core::world::Command::RazeCity {
         player: HUMAN,
         city,
     });
@@ -1663,7 +1663,7 @@ fn an_auto_resolved_siege_of_a_walled_city_ends_and_may_take_it() {
             .id_numbered(193)
             .expect("the shipped content has it");
         for _ in 0..3 {
-            w.apply(f4x_core::world::Command::CreateUnit {
+            w.command(f4x_core::world::Command::CreateUnit {
                 owner: HUMAN,
                 pos: from,
                 unit: giant,
@@ -1751,7 +1751,7 @@ fn units_list_and_cast_their_own_spells_by_text() {
 fn pass_turn(w: &mut Game) {
     let r = cast(w, "bend");
     assert!(r.ok, "{}", r.text());
-    w.apply(f4x_core::world::Command::Battle(
+    w.command(f4x_core::world::Command::Battle(
         f4x_battle::battle::BattleCommand::EndTurn,
     ));
 }
@@ -2680,7 +2680,7 @@ fn a_proposal_waits_and_an_answer_signs_it() {
     let none = c.execute(&mut w, &format!("answer {number} yes"));
     assert!(none.text().contains("proposed nothing"), "{}", none.text());
     // The other wizard proposes to us: we accept.
-    w.apply(f4x_core::world::Command::Diplomacy(
+    w.command(f4x_core::world::Command::Diplomacy(
         f4x_core::diplomacy::DiplomacyCommand::Propose {
             from: other,
             to: HUMAN,
@@ -3049,7 +3049,7 @@ fn the_units_drained_to_death_join_the_winner_as_undead() {
     }
     w.battle.as_mut().expect("the value is there").battle.units[drained].damage_kinds = [1, 4, 0];
     let rival = PlayerId(1);
-    let r = w.apply(f4x_core::world::Command::Battle(BattleCommand::EndTurn));
+    let r = w.command(f4x_core::world::Command::Battle(BattleCommand::EndTurn));
     assert!(
         r.iter().any(
             |e| matches!(e, f4x_core::world::Event::UndeadRaised { player, units: 1, zombies: false, .. } if *player == rival)
@@ -3271,7 +3271,7 @@ fn recall_hero_takes_a_hero_off_the_field_to_the_summoning_circle() -> TestResul
         Status::Recalled
     );
     // The rest of the army gives up: the hero is not among those who flee and risk their lives.
-    w.apply(f4x_core::world::Command::Battle(
+    w.command(f4x_core::world::Command::Battle(
         f4x_battle::battle::BattleCommand::Flee,
     ));
     assert!(w.battle().is_none(), "the battle is over");
@@ -3377,7 +3377,7 @@ fn a_neutral_city_whose_garrison_is_gone_trains_a_new_one() {
     assert!(!cities.is_empty(), "a garrisoned city");
     for &(_, pos) in &cities {
         for u in w.units().units_at(pos) {
-            w.apply(f4x_core::world::Command::DismissUnit { unit: u });
+            w.command(f4x_core::world::Command::DismissUnit { unit: u });
         }
         assert!(w.units().units_at(pos).is_empty());
     }

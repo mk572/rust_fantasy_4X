@@ -295,11 +295,14 @@ impl App {
             return;
         }
         self.leave_name(ui);
-        let events = self.game.apply(Command::CraftItem {
-            player: HUMAN,
-            craft: ui.craft,
-            design: ui.design.clone(),
-        });
+        let events = self.game.apply(
+            HUMAN,
+            Command::CraftItem {
+                player: HUMAN,
+                craft: ui.craft,
+                design: ui.design.clone(),
+            },
+        );
         let refused = events.iter().find_map(|e| match e {
             Event::Rejected(why) => Some(self.text(why.key())),
             _ => None,

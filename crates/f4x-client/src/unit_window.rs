@@ -317,10 +317,13 @@ impl App {
 
     /// The Done and Patrol buttons: the units are skipped, and the next stack is picked.
     pub(crate) fn stand_by(&mut self, units: Vec<hecs::Entity>, standby: Standby) {
-        self.game.apply(Command::SetStandby {
-            units,
-            standby: Some(standby),
-        });
+        self.game.apply(
+            HUMAN,
+            Command::SetStandby {
+                units,
+                standby: Some(standby),
+            },
+        );
         self.select_next_idle(false);
     }
 

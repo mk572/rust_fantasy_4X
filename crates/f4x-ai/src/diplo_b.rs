@@ -411,7 +411,7 @@ mod tests {
 
     fn found(w: &mut Game, owner: PlayerId, x: u32, y: u32) {
         let race = w.content().rules.races.id_numbered(8);
-        w.apply(Command::FoundCity {
+        w.command(Command::FoundCity {
             owner,
             pos: at(x, y),
             name: format!("City{x}x{y}"),
@@ -442,7 +442,7 @@ mod tests {
         w.explore(P0, at(RIVAL.0, RIVAL.1), HalfInt::from_raw(3));
         w.explore(P1, at(COAST_CITY.0, COAST_CITY.1), HalfInt::from_raw(3));
         w.set_round(100);
-        let events = w.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+        let events = w.command(Command::Diplomacy(DiplomacyCommand::DeclareWar {
             player: P0,
             on: P1,
         }));
@@ -530,7 +530,7 @@ mod tests {
             "no war, no weariness"
         );
         w.set_round(170);
-        w.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+        w.command(Command::Diplomacy(DiplomacyCommand::DeclareWar {
             player: P0,
             on: P1,
         }));
@@ -670,7 +670,7 @@ mod tests {
 
     /// `asker` proposes peace to `judge`, who answers through the game's table; whether the war is over.
     fn asked_for_peace(w: &mut Game, asker: PlayerId, judge: PlayerId, table: &Diplomats) -> bool {
-        w.apply(Command::Diplomacy(DiplomacyCommand::Propose {
+        w.command(Command::Diplomacy(DiplomacyCommand::Propose {
             from: asker,
             to: judge,
             kind: ProposalKind::Peace,

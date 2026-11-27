@@ -62,7 +62,7 @@ fn a_stack_that_finds_its_way_full_goes_in_once_the_stack_on_it_has_gone_on() {
     let make = |w: &mut Game, at, n: usize| -> Vec<_> {
         (0..n)
             .map(|_| {
-                w.apply(Command::CreateUnit {
+                w.command(Command::CreateUnit {
                     owner: wizard,
                     pos: at,
                     unit,
@@ -80,7 +80,7 @@ fn a_stack_that_finds_its_way_full_goes_in_once_the_stack_on_it_has_gone_on() {
         w.scenario_set_moves_left(u, HalfInt::ZERO);
     }
     for (units, to) in [(rear.clone(), b), (head.clone(), c)] {
-        let events = w.apply(Command::GoTo { units, to });
+        let events = w.command(Command::GoTo { units, to });
         assert!(
             !events.iter().any(|e| matches!(e, Event::Rejected(_))),
             "{events:?}"
@@ -142,20 +142,20 @@ fn a_stack_that_stays_blocked_is_told_why() {
     let Some(b) = b else { return };
     let have = w.units().units_at(b).len();
     for _ in have..limit {
-        w.apply(Command::CreateUnit {
+        w.command(Command::CreateUnit {
             owner: wizard,
             pos: b,
             unit,
         });
     }
-    w.apply(Command::CreateUnit {
+    w.command(Command::CreateUnit {
         owner: wizard,
         pos: a,
         unit,
     });
     let walker = *w.units().all_units().last().expect("a unit");
     w.scenario_set_moves_left(walker, HalfInt::ZERO);
-    w.apply(Command::GoTo {
+    w.command(Command::GoTo {
         units: vec![walker],
         to: b,
     });

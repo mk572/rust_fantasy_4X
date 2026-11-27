@@ -12,7 +12,7 @@ use crate::city_screen::{CityPage, Layout};
 use crate::font::Ink;
 use crate::font_ramp;
 use crate::frame::{Align, Layout as FrameLayout};
-use crate::view::{App, Screen};
+use crate::view::{App, Screen, HUMAN};
 
 /// The plan being edited, and whether the city had one when the dialog opened.
 pub(crate) struct AutoDialog {
@@ -269,14 +269,19 @@ impl App {
         }
         match chosen {
             Some(0) => {
-                let events = self.game.apply(Command::SetAutoBuild {
-                    city,
-                    plan: Some(d.plan),
-                });
+                let events = self.game.apply(
+                    HUMAN,
+                    Command::SetAutoBuild {
+                        city,
+                        plan: Some(d.plan),
+                    },
+                );
                 self.note(events);
             }
             Some(1) => {
-                let events = self.game.apply(Command::SetAutoBuild { city, plan: None });
+                let events = self
+                    .game
+                    .apply(HUMAN, Command::SetAutoBuild { city, plan: None });
                 self.note(events);
             }
             Some(_) => {}

@@ -761,7 +761,13 @@ impl Ai {
         };
         let walk_command = matches!(command, Command::GoTo { .. } | Command::MoveStack { .. })
             .then(|| command.clone());
-        let out = game.apply(command);
+        // The battle AI plays both sides of an AI's battle, each side's orders under that
+        // side's name, until a defender gives its own (docs/turn-structure.md 10.4).
+        let sender = match command {
+            Command::Battle(_) => game.command_actor(&command).unwrap_or(self.player),
+            _ => self.player,
+        };
+        let out = game.apply(sender, command);
         // A refusal first; else an order that was taken and stopped on its first step.
         let refused = out
             .iter()

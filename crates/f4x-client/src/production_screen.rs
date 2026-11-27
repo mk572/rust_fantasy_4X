@@ -183,7 +183,9 @@ impl App {
 
     fn start_production(&mut self, city: hecs::Entity, item: Option<ProductionItem>) {
         if let Some(item) = item {
-            let events = self.game.apply(Command::SetProduction { city, item });
+            let events = self
+                .game
+                .apply(HUMAN, Command::SetProduction { city, item });
             self.note(events);
         }
         self.choosing = false;

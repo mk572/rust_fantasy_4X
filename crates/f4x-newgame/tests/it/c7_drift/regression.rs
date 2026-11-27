@@ -74,7 +74,7 @@ fn enchanted() -> Result<Game, String> {
             .id_numbered(id)
             .ok_or_else(|| format!("no spell {id}"))?;
         w.cheat_learn_spell(me, spell);
-        let events = w.apply(Command::CastSpell {
+        let events = w.command(Command::CastSpell {
             player: me,
             spell,
             target: None,

@@ -62,7 +62,7 @@ fn a_step_is_recorded_ends_the_undo_history_and_plays_again() {
             .iter()
             .filter_map(|e| match e {
                 Entry::Step(step) => Some(*step),
-                Entry::Command(_) => None,
+                Entry::Command(..) => None,
             })
             .collect();
         assert_eq!(

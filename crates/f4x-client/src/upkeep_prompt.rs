@@ -476,10 +476,13 @@ impl App {
                 HUMAN,
             );
         }
-        self.game.apply(Command::SetTaxRate {
-            player: HUMAN,
-            rate: 0,
-        });
+        self.game.apply(
+            HUMAN,
+            Command::SetTaxRate {
+                player: HUMAN,
+                rate: 0,
+            },
+        );
         self.request_end_turn();
     }
 
@@ -502,20 +505,26 @@ impl App {
     fn answer_upkeep(&mut self, prompt: &UpkeepPrompt) {
         let items = prompt.released_upkeep();
         if !items.is_empty() {
-            let events = self.game.apply(Command::ReleaseUpkeep {
-                player: HUMAN,
-                items,
-            });
+            let events = self.game.apply(
+                HUMAN,
+                Command::ReleaseUpkeep {
+                    player: HUMAN,
+                    items,
+                },
+            );
             self.note(events);
         }
         let units = prompt.released_units();
         let scrap = prompt.scrapped();
         if !units.is_empty() {
-            let events = self.game.apply(Command::ReleaseTroops {
-                player: HUMAN,
-                units,
-                scrap,
-            });
+            let events = self.game.apply(
+                HUMAN,
+                Command::ReleaseTroops {
+                    player: HUMAN,
+                    units,
+                    scrap,
+                },
+            );
             self.note(events);
         }
         self.finish_turn();

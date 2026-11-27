@@ -59,4 +59,6 @@
     "refuse_map.fortress_error_cannot_destroy_fortress": "A fortress city cannot be destroyed.",
     "refuse_map.game_over": "The game is over.",
     "refuse_map.no_such_player": "There is no such player in this game.",
+    "refuse_map.not_your_command": "That order is not yours to give.",
+    "refuse_map.setup_only": "No player can give that order.",
 }

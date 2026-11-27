@@ -244,7 +244,7 @@ impl App {
             SellPrompt::Refused(_) => None,
         };
         if let Some(command) = command.filter(|_| yes) {
-            let events = self.game.apply(command);
+            let events = self.game.apply(crate::view::HUMAN, command);
             self.note(events);
         }
         None

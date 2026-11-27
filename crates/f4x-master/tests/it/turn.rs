@@ -124,7 +124,7 @@ fn every_player_has_a_turn_of_its_own_started_and_ended_before_the_next_begins()
         .into_iter()
         .filter_map(|e| match e {
             Entry::Step(step) => Some(step),
-            Entry::Command(_) => None,
+            Entry::Command(..) => None,
         })
         .collect();
     let mut expected: Vec<Step> = order

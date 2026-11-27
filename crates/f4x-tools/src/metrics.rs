@@ -1817,7 +1817,7 @@ mod tests {
             .ok_or("no fortress")?;
         let mut made = Vec::new();
         for _ in 0..3 {
-            world.apply(f4x_core::world::Command::CreateUnit {
+            world.command(f4x_core::world::Command::CreateUnit {
                 owner: PlayerId(0),
                 pos: home,
                 unit: kind,
@@ -1910,7 +1910,7 @@ mod tests {
         );
         // A settler is no defender.
         let settler = kind_of(&|d| d.is_settler())?;
-        world.apply(f4x_core::world::Command::CreateUnit {
+        world.command(f4x_core::world::Command::CreateUnit {
             owner: PlayerId(0),
             pos: home,
             unit: settler,
@@ -1919,7 +1919,7 @@ mod tests {
         assert_eq!(tally.of(PlayerId(0)).undefended_cities, 2, "a settler only");
         // Nor is a ship.
         let ship = kind_of(&|d| is_ship(d))?;
-        world.apply(f4x_core::world::Command::CreateUnit {
+        world.command(f4x_core::world::Command::CreateUnit {
             owner: PlayerId(0),
             pos: home,
             unit: ship,
@@ -1928,7 +1928,7 @@ mod tests {
         assert_eq!(tally.of(PlayerId(0)).undefended_cities, 3, "a ship too");
         // A soldier is.
         let soldier = kind_of(&|d| d.is_fighter())?;
-        world.apply(f4x_core::world::Command::CreateUnit {
+        world.command(f4x_core::world::Command::CreateUnit {
             owner: PlayerId(0),
             pos: home,
             unit: soldier,

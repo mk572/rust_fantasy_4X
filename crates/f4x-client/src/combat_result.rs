@@ -445,10 +445,13 @@ impl App {
                 Some(true) => {
                     r.asking = false;
                     if let Some(city) = r.city {
-                        let events = self.game.apply(Command::RazeCity {
-                            player: HUMAN,
-                            city,
-                        });
+                        let events = self.game.apply(
+                            HUMAN,
+                            Command::RazeCity {
+                                player: HUMAN,
+                                city,
+                            },
+                        );
                         for e in &events {
                             if let Event::CityRazed {
                                 gold, fame_lost, ..

@@ -19,7 +19,7 @@ use crate::frame::Layout;
 use crate::unit_sheet::{
     hit_cells, special_picture, stat_cells, Cell, ItemIcon, Row, Sheet, Source,
 };
-use crate::view::{App, Screen};
+use crate::view::{App, Screen, HUMAN};
 
 /// The panel's top-left on the map and in battle.
 const MAP_AT: (f32, f32) = (31.0, 6.0);
@@ -609,7 +609,7 @@ impl SheetUi {
         match app.confirmation_box(lay, &text, input) {
             Some(true) => {
                 if let Source::Overland(unit) = sheet.source {
-                    let events = app.game.apply(Command::DismissUnit { unit });
+                    let events = app.game.apply(HUMAN, Command::DismissUnit { unit });
                     app.note(events);
                     app.selection.retain(|&u| u != unit);
                 }
@@ -639,11 +639,14 @@ impl SheetUi {
         }
         match app.confirmation_box(lay, &text, input) {
             Some(true) => {
-                let events = app.game.apply(Command::TurnOffUnitSpell {
-                    player: crate::view::HUMAN,
-                    unit,
-                    spell: ask.spell,
-                });
+                let events = app.game.apply(
+                    HUMAN,
+                    Command::TurnOffUnitSpell {
+                        player: crate::view::HUMAN,
+                        unit,
+                        spell: ask.spell,
+                    },
+                );
                 app.note(events);
                 self.panel.turn_off = None;
                 // The unit may be gone; otherwise the sheet is drawn again without the line.

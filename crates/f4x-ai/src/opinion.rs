@@ -762,7 +762,7 @@ mod tests {
     fn a_war_sets_the_feeling_low_and_peace_lifts_it_by_forty() {
         let mut w = pair(8, 8, 100);
         let mut m = mind(&w, 20);
-        let events = w.apply(Command::Diplomacy(
+        let events = w.command(Command::Diplomacy(
             f4x_core::diplomacy::DiplomacyCommand::DeclareWar { player: P1, on: P0 },
         ));
         for e in &events {

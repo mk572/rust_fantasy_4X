@@ -187,7 +187,7 @@ mod tests {
         let army = spawn(&mut w, P0, at(9, 6), 104 /* high_men_spearmen */, 8);
         w.treasury_mut(P0).ok_or("player 0 has a treasury")?.gold =
             f4x_def::half_int::HalfInt::from_int(3);
-        w.apply(Command::SetTaxRate {
+        w.command(Command::SetTaxRate {
             player: P0,
             rate: 0,
         });

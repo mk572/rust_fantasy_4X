@@ -155,7 +155,7 @@ fn play(w: Table, at: &str) {
     {
         let label: String = format!("{command:?}").chars().take(100).collect();
         let before = state(&w);
-        let events = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| w.apply(command)))
+        let events = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| w.command(command)))
             .unwrap_or_else(|_| panic!("{at}: {label} panicked"));
         if refused(&events) {
             let after = state(&w);

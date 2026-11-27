@@ -171,7 +171,7 @@ fn standby_done_lasts_the_turn_and_patrol_stays() {
             continue;
         }
         for (u, s) in [(done, Standby::Done), (patrol, Standby::Patrol)] {
-            w.apply(Command::SetStandby {
+            w.command(Command::SetStandby {
                 units: vec![u],
                 standby: Some(s),
             });
@@ -284,7 +284,7 @@ fn a_standing_order_does_not_move_a_unit_while_another_wizard_keeps_time_stop() 
                     && w.economy().city_at(q).is_none()
                     && w.economy().terrain_class_at(q) == Some(TerrainClass::Grassland)
             })?;
-            let events = w.apply(Command::GoTo { units: vec![u], to });
+            let events = w.command(Command::GoTo { units: vec![u], to });
             // The order takes its first step when it is given: the test starts from where that left the unit.
             let ordered = events.iter().all(|e| !matches!(e, Event::Rejected(_)));
             ordered.then(|| (u, w.units().unit_position(u).expect("a position"), to))
@@ -321,7 +321,7 @@ fn overloaded(w: &mut Game, p: PlayerId) -> Option<()> {
         if w.treasury_shortfall(p).is_some() {
             return Some(());
         }
-        let made = w.apply(Command::CreateUnit {
+        let made = w.command(Command::CreateUnit {
             owner: p,
             pos: at,
             unit: kind,
@@ -398,7 +398,7 @@ fn a_player_may_choose_who_goes_and_only_among_their_own_units() {
         tried += 1;
         let theirs = w.units().player_units(o)[0];
         let before = state(&w);
-        let events = w.apply(Command::ReleaseTroops {
+        let events = w.command(Command::ReleaseTroops {
             player: p,
             units: vec![theirs],
             scrap: Vec::new(),
@@ -417,7 +417,7 @@ fn a_player_may_choose_who_goes_and_only_among_their_own_units() {
         // The newest own unit, which the turn's end would let go of first, stays if the player says so.
         let own = w.units().player_units(p);
         let chosen = own[0];
-        let events = w.apply(Command::ReleaseTroops {
+        let events = w.command(Command::ReleaseTroops {
             player: p,
             units: vec![chosen],
             scrap: Vec::new(),

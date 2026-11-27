@@ -456,7 +456,7 @@ impl App {
             &mut name,
             input,
         ) {
-            let events = self.game.apply(Command::RenameCity { city, name });
+            let events = self.game.apply(HUMAN, Command::RenameCity { city, name });
             self.note(events);
         } else {
             page.naming = Some(name);
@@ -558,16 +558,22 @@ impl App {
                 if clicked && ui::hit(hit, true, input).hovered() && eco.figures > 0 {
                     match job {
                         0 => {
-                            self.game.apply(Command::SetFarmers {
-                                city,
-                                farmers: farmers.saturating_sub(1),
-                            });
+                            self.game.apply(
+                                HUMAN,
+                                Command::SetFarmers {
+                                    city,
+                                    farmers: farmers.saturating_sub(1),
+                                },
+                            );
                         }
                         1 => {
-                            self.game.apply(Command::SetFarmers {
-                                city,
-                                farmers: farmers + 1,
-                            });
+                            self.game.apply(
+                                HUMAN,
+                                Command::SetFarmers {
+                                    city,
+                                    farmers: farmers + 1,
+                                },
+                            );
                         }
                         _ => {}
                     }

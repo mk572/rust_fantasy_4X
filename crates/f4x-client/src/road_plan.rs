@@ -13,7 +13,7 @@ use macroquad::prelude::*;
 use crate::action_button_art::Action;
 use crate::frame::Layout;
 use crate::ui::{self, button, GOLD};
-use crate::view::App;
+use crate::view::{App, HUMAN};
 
 /// A road being planned.
 #[derive(Debug, Clone)]
@@ -115,10 +115,13 @@ impl App {
             return;
         }
         plan.path.truncate(sum.shown);
-        let events = self.game.apply(Command::BuildRoad {
-            units: plan.units,
-            path: plan.path,
-        });
+        let events = self.game.apply(
+            HUMAN,
+            Command::BuildRoad {
+                units: plan.units,
+                path: plan.path,
+            },
+        );
         self.note(events);
     }
 
@@ -380,10 +383,13 @@ mod tests {
                         .is_some_and(|m| !m.plane(p.plane).has_road(p.x as i32, p.y as i32))
             })
             .ok_or("no square beside the stack without a road")?;
-        app.game.apply(f4x_core::world::Command::MoveStack {
-            units: stack,
-            to: off,
-        });
+        app.game.apply(
+            HUMAN,
+            f4x_core::world::Command::MoveStack {
+                units: stack,
+                to: off,
+            },
+        );
         app.select_at(off);
         app.start_road_plan();
         let plan = app.road_plan.as_ref().ok_or("the mode did not open")?;

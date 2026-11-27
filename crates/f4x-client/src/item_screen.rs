@@ -201,12 +201,15 @@ impl ItemUi {
         // in the hand stays there while the swapped one is picked up in its place, which the core
         // does as a swap.
         let before = app.item_at(to);
-        let events = app.game.apply(Command::MoveItem {
-            player: HUMAN,
-            from,
-            to,
-            pay,
-        });
+        let events = app.game.apply(
+            HUMAN,
+            Command::MoveItem {
+                player: HUMAN,
+                from,
+                to,
+                pay,
+            },
+        );
         let error = events.iter().find_map(|e| match e {
             f4x_core::world::Event::Rejected(f4x_core::world::Rejection::Item(err)) => Some(*err),
             _ => None,
@@ -237,10 +240,13 @@ impl ItemUi {
             Some(ItemSpot::Award(i)) => Spot::Award(i),
             _ => return,
         };
-        let events = app.game.apply(Command::ScrapItem {
-            player: HUMAN,
-            from: spot,
-        });
+        let events = app.game.apply(
+            HUMAN,
+            Command::ScrapItem {
+                player: HUMAN,
+                from: spot,
+            },
+        );
         app.note(events);
         self.held = None;
         self.pick_up_award(app);
@@ -254,10 +260,13 @@ impl ItemUi {
             Some(ItemSpot::Award(i)) => Spot::Award(i),
             _ => return,
         };
-        let mut events = app.game.apply(Command::SellItem {
-            player: HUMAN,
-            from: spot,
-        });
+        let mut events = app.game.apply(
+            HUMAN,
+            Command::SellItem {
+                player: HUMAN,
+                from: spot,
+            },
+        );
         events.extend(f4x_ai::answer_resales(&mut app.game));
         app.note(events);
         self.held = None;

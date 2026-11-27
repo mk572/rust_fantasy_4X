@@ -22,7 +22,7 @@ pub fn taxes(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let mut best: Option<(HalfInt, u8)> = None;
     let mut chosen = None;
     for rate in 0..=MAX_RATE {
-        game.apply(Command::SetTaxRate { player: me, rate });
+        game.apply(me, Command::SetTaxRate { player: me, rate });
         let net = PlayerView::new(game, me).budget().net_gold();
         if best.is_none_or(|(n, _)| net > n) {
             best = Some((net, rate));
@@ -1103,7 +1103,7 @@ mod tests {
         );
         // An army that waits for orders is enough: the city builds no more soldiers.
         crate::testworld::spawn(&mut w, P0, crate::testworld::at(9, 9), 104, 4);
-        w.apply(Command::SetProduction {
+        w.command(Command::SetProduction {
             city,
             item: ProductionItem::TradeGoods,
         });

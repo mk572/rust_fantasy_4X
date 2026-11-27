@@ -268,7 +268,7 @@ mod tests {
     fn world() -> Result<Game, Box<dyn std::error::Error>> {
         let mut w = game(COAST_CITY, 8 /* high_men */);
         w.reveal_map(P0);
-        let events = w.apply(Command::PlaceFortress {
+        let events = w.command(Command::PlaceFortress {
             player: P0,
             pos: at(INLAND_CITY.0, INLAND_CITY.1),
             name: "Capital".into(),
@@ -316,14 +316,14 @@ mod tests {
     fn wide_world(population: u32) -> Result<Game, Box<dyn std::error::Error>> {
         let mut w = game(COAST_CITY, 8 /* high_men */);
         w.reveal_map(P0);
-        w.apply(Command::PlaceFortress {
+        w.command(Command::PlaceFortress {
             player: P0,
             pos: at(4, 4),
             name: "Capital".into(),
             race: w.content().rules.races.id_numbered(8),
             population: 4,
         });
-        w.apply(Command::FoundCity {
+        w.command(Command::FoundCity {
             owner: P0,
             pos: at(4, 9),
             name: "South".into(),

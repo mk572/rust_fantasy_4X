@@ -142,9 +142,9 @@ impl App {
                 self.pick_city(prompt, cities, move |app, city| {
                     match city.and_then(|c| app.circle_position(c)) {
                         Some(at) => {
-                            let events =
-                                app.game
-                                    .apply(raise_command(spell, resolve, hero, Some(at)));
+                            let events = app
+                                .game
+                                .apply(HUMAN, raise_command(spell, resolve, hero, Some(at)));
                             app.note(events);
                         }
                         None => app.log.push(app.text("log.cast_cancelled")),
@@ -153,7 +153,7 @@ impl App {
             }
             Step::Raise => {
                 let command = raise_command(spell, resolve, dead[pick], None);
-                let events = self.game.apply(command);
+                let events = self.game.apply(HUMAN, command);
                 self.note(events);
             }
             Step::Stay => {

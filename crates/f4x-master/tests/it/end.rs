@@ -90,7 +90,7 @@ fn a_human_who_has_fallen_has_lost_even_if_the_mastery_is_complete_too() {
 fn an_end_is_told_once_and_is_not_changed_by_what_happens_afterwards() {
     let (mut game, w) = three(false);
     game.set_undo(true);
-    game.apply(Command::SetTaxRate {
+    game.command(Command::SetTaxRate {
         player: w[0],
         rate: 1,
     });
@@ -116,7 +116,10 @@ fn a_game_that_is_over_takes_no_commands_and_no_turns() {
             Command::SetTaxRate { player, rate: 1 },
             Command::BalanceFarmers { player },
         ] {
-            assert_eq!(game.apply(command), [Event::Rejected(Rejection::GameOver)]);
+            assert_eq!(
+                game.command(command),
+                [Event::Rejected(Rejection::GameOver)]
+            );
         }
         assert_eq!(
             game.start_player_turn(player),

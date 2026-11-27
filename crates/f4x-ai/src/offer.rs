@@ -464,7 +464,7 @@ mod tests {
         let sell = |w: &mut Game| -> Result<Vec<Event>, &'static str> {
             let item = sword(w)?;
             w.give_item(seller, item);
-            let mut events = w.apply(Command::SellItem {
+            let mut events = w.command(Command::SellItem {
                 player: seller,
                 from: Spot::Vault(0),
             });

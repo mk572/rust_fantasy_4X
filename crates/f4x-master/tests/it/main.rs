@@ -6,6 +6,7 @@ mod convert;
 mod end;
 mod replay;
 mod save;
+mod sender;
 mod step;
 mod support;
 mod turn;
@@ -16,7 +17,7 @@ use std::rc::Rc;
 
 use f4x_core::player::PlayerId;
 use f4x_core::world::save::ContentCheck;
-use f4x_core::world::{Command, Event, World};
+use f4x_core::world::{Command, Event, Rejection, World};
 use f4x_master::{
     turn_players, Controller, Game, Master, Phase, Refused, SaveFile, Seat, Status, Stopped, Until,
 };
@@ -173,6 +174,7 @@ fn only_the_acting_player_may_command() {
             actor: ids[1]
         })
     );
+    // The turn is the actor's, but the command is not.
     assert_eq!(
         m.apply(
             &mut w,
@@ -182,10 +184,7 @@ fn only_the_acting_player_may_command() {
                 rate: 1
             }
         ),
-        Err(Refused::ForAnotherPlayer {
-            actor: ids[0],
-            named: ids[1]
-        })
+        Ok(vec![Event::Rejected(Rejection::NotYourCommand)])
     );
 }
 

@@ -434,7 +434,7 @@ mod tests {
                 // A rival's town that P0 knows and is at war with.
                 w.make_contact(P0, P1);
                 let town = at(4, 4);
-                w.apply(f4x_core::world::Command::FoundCity {
+                w.command(f4x_core::world::Command::FoundCity {
                     owner: P1,
                     pos: town,
                     name: "Town".into(),

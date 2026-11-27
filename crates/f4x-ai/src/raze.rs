@@ -297,7 +297,7 @@ mod tests {
             let mine = w.content().rules.races.id_numbered(8 /* high_men */);
             let race = w.content().rules.races.id_numbered(race);
             let at = at(square.0, square.1);
-            w.apply(Command::FoundCity {
+            w.command(Command::FoundCity {
                 owner: P1,
                 pos: at,
                 name: "Taken".into(),
@@ -367,7 +367,7 @@ mod tests {
         assert_eq!(lawful.case(), None);
         lawful
             .w
-            .apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+            .command(Command::Diplomacy(DiplomacyCommand::DeclareWar {
                 player: P0,
                 on: P1,
             }));

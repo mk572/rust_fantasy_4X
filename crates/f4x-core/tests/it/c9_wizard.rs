@@ -129,14 +129,14 @@ fn research_takes_a_spell_on_offer_once_and_costs_what_the_rules_list() {
 fn research_with_the_cost_nearly_paid_learns_the_spell_in_the_turn_and_frees_the_choice() {
     for (name, mut w) in games().into_iter().step_by(2) {
         let p = wizards(&w)[0];
-        w.apply(Command::SetPowerSplit {
+        w.command(Command::SetPowerSplit {
             player: p,
             mana: 0,
             research: 100,
             skill: 0,
         });
         let pick = w.wizard(p).expect("a wizard").candidates()[0];
-        w.apply(Command::SetResearch {
+        w.command(Command::SetResearch {
             player: p,
             spell: pick,
         });

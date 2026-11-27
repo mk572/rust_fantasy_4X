@@ -277,7 +277,7 @@ pub fn real_battle(
     };
     let attackers = spawn_all(P0, 4, ours);
     let defenders = spawn_all(P1, 5, theirs);
-    w.apply(Command::BeginBattle {
+    w.command(Command::BeginBattle {
         attackers,
         defenders,
     });
@@ -338,7 +338,7 @@ pub fn fill_west(w: &mut Game) {
     let race = w.content().rules.races.id_numbered(8);
     for x in 3..=10 {
         for y in 3..=10 {
-            w.apply(Command::FoundCity {
+            w.command(Command::FoundCity {
                 owner: P0,
                 pos: at(x, y),
                 name: format!("C{x}{y}"),

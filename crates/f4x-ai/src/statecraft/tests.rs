@@ -21,7 +21,7 @@ fn wizard(
 
 fn found(w: &mut Game, owner: PlayerId, x: u32, y: u32) {
     let race = w.content().rules.races.id_numbered(8);
-    let events = w.apply(Command::FoundCity {
+    let events = w.command(Command::FoundCity {
         owner,
         pos: at(x, y),
         name: format!("City{x}x{y}"),
@@ -91,19 +91,19 @@ fn the_factors_ease_a_treaty_a_little_and_a_broken_one_is_remembered() -> TestRe
     assert!(affinity(&w, &ai.minds(), P0, P1) < plain);
     wizard(&mut w, P1, &[(RealmId::new(3 /* life */), 3)], &[], None);
     // A treaty the other broke with it counts against it.
-    w.apply(Command::Diplomacy(DiplomacyCommand::Propose {
+    w.command(Command::Diplomacy(DiplomacyCommand::Propose {
         from: P0,
         to: P1,
         kind: ProposalKind::Pact,
     }));
-    w.apply(Command::Diplomacy(DiplomacyCommand::Answer {
+    w.command(Command::Diplomacy(DiplomacyCommand::Answer {
         player: P1,
         from: P0,
         accept: true,
     }));
     assert_eq!(w.treaty(P0, P1), Treaty::Pact);
     let before = affinity(&w, &ai.minds(), P0, P1);
-    let events = w.apply(Command::Diplomacy(DiplomacyCommand::BreakTreaty {
+    let events = w.command(Command::Diplomacy(DiplomacyCommand::BreakTreaty {
         player: P1,
         with: P0,
     }));
@@ -120,7 +120,7 @@ fn no_trade_arms_an_enemy() -> TestResult {
     let mut w = lopsided()?;
     wizard(&mut w, P0, &[(RealmId::new(3 /* life */), 5)], &[], None);
     // At war with it: nothing is traded.
-    w.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+    w.command(Command::Diplomacy(DiplomacyCommand::DeclareWar {
         player: P0,
         on: P1,
     }));

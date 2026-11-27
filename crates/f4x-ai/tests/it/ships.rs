@@ -199,7 +199,7 @@ fn troops_sail_a_galley_across_and_step_ashore() -> TestResult {
     let stack: Vec<_> = std::iter::once(galley)
         .chain(troops.iter().copied())
         .collect();
-    let events = w.apply(Command::GoTo {
+    let events = w.command(Command::GoTo {
         units: stack,
         to: far_sea(),
     });

@@ -922,7 +922,7 @@ mod tests {
             crate::testworld::ENEMY_CITY.0,
             crate::testworld::ENEMY_CITY.1,
         );
-        let events = w.apply(Command::FoundCity {
+        let events = w.command(Command::FoundCity {
             owner: P1,
             pos: at(seat.0, seat.1),
             name: "Seat".into(),
@@ -1089,7 +1089,7 @@ mod tests {
         let mut w = game(COAST_CITY, 8 /* high_men */);
         w.make_contact(P0, P1);
         let town = at(4, 4);
-        let events = w.apply(Command::FoundCity {
+        let events = w.command(Command::FoundCity {
             owner: P1,
             pos: town,
             name: "Town".into(),
@@ -1269,7 +1269,7 @@ mod tests {
             ..p
         };
         let far_city = on_myrror(at(28, 7));
-        w.apply(Command::FoundCity {
+        w.command(Command::FoundCity {
             owner: P1,
             pos: far_city,
             name: "Farport".into(),
@@ -1323,7 +1323,7 @@ mod tests {
             ..p
         };
         let far_city = on_myrror(at(28, 7));
-        w.apply(Command::FoundCity {
+        w.command(Command::FoundCity {
             owner: P1,
             pos: far_city,
             name: "Farport".into(),
@@ -1360,7 +1360,7 @@ mod tests {
             ..p
         };
         let far_city = on_myrror(at(28, 7));
-        w.apply(Command::FoundCity {
+        w.command(Command::FoundCity {
             owner: P1,
             pos: far_city,
             name: "Farport".into(),
@@ -1404,7 +1404,7 @@ mod tests {
             plane: Plane::Myrror,
             ..at(28, 7)
         };
-        w.apply(Command::FoundCity {
+        w.command(Command::FoundCity {
             owner: P1,
             pos: far_city,
             name: "Farport".into(),
@@ -1452,7 +1452,7 @@ mod tests {
             plane: Plane::Myrror,
             ..at(28, 7)
         };
-        w.apply(Command::FoundCity {
+        w.command(Command::FoundCity {
             owner: P1,
             pos: far_city,
             name: "Farport".into(),

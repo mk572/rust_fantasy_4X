@@ -946,7 +946,7 @@ mod tests {
         let theirs: Vec<_> = (0..foes)
             .map(|_| w.spawn_unit(P1, at(5, 4), walker))
             .collect();
-        w.apply(Command::BeginBattle {
+        w.command(Command::BeginBattle {
             attackers: vec![ours],
             defenders: theirs,
         });
@@ -1130,7 +1130,7 @@ mod tests {
         budget: Option<u32>,
     ) -> Result<i32, Box<dyn std::error::Error>> {
         let (mut w, ours, theirs) = strategic_setup(spells, mana)?;
-        w.apply(Command::AutoResolve {
+        w.command(Command::AutoResolve {
             attackers: ours,
             defenders: theirs,
             mana_budget: budget.map(|b| (P0, b)),
@@ -1207,7 +1207,7 @@ mod tests {
         let walker = rules.units.id_numbered(107).ok_or("no cavalry")?;
         let ours = w.spawn_unit(P0, at(4, 4), f4x_core::rules::UnitId::new(caster.num));
         let theirs = w.spawn_unit(P1, at(5, 4), walker);
-        w.apply(Command::BeginBattle {
+        w.command(Command::BeginBattle {
             attackers: vec![ours],
             defenders: vec![theirs],
         });
@@ -1253,7 +1253,7 @@ mod tests {
         let ours = w.spawn_unit(P0, at(4, 4), walker);
         let theirs = w.spawn_unit(P1, at(5, 4), foe);
         prepare(&mut w, ours, theirs);
-        w.apply(Command::BeginBattle {
+        w.command(Command::BeginBattle {
             attackers: vec![ours],
             defenders: vec![theirs],
         });
@@ -1570,7 +1570,7 @@ mod tests {
         let friend = w.spawn_unit(P0, at(4, 4), walker);
         w.scenario_set_hurt(friend, hurt);
         let foe = w.spawn_unit(P1, at(5, 4), walker);
-        w.apply(Command::BeginBattle {
+        w.command(Command::BeginBattle {
             attackers: vec![hero, friend],
             defenders: vec![foe],
         });
@@ -1878,7 +1878,7 @@ mod tests {
             };
             let ours = stack(&mut w, P0, at(4, 4));
             let theirs = stack(&mut w, P1, at(5, 4));
-            w.apply(Command::BeginBattle {
+            w.command(Command::BeginBattle {
                 attackers: ours,
                 defenders: theirs,
             });

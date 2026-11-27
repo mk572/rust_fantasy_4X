@@ -406,7 +406,7 @@ impl App {
                     target: Some(target),
                 }
             };
-            let events = self.game.apply(command);
+            let events = self.game.apply(HUMAN, command);
             self.note(events);
             return None;
         }

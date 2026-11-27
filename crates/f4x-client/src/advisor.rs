@@ -192,10 +192,13 @@ impl App {
             .player(HUMAN)
             .is_some_and(|p| p.has_grand_vizier());
         if on {
-            self.game.apply(Command::SetGrandVizier {
-                player: HUMAN,
-                on: false,
-            });
+            self.game.apply(
+                HUMAN,
+                Command::SetGrandVizier {
+                    player: HUMAN,
+                    on: false,
+                },
+            );
             self.log.push(self.text("advisor.vizier_off"));
         } else {
             self.modals.open(VizierAsk);
@@ -208,10 +211,13 @@ impl App {
         let text = self.text("advisor.vizier_question");
         match self.confirmation_box(&Layout::new(), &text, input) {
             Some(true) => {
-                self.game.apply(Command::SetGrandVizier {
-                    player: HUMAN,
-                    on: true,
-                });
+                self.game.apply(
+                    HUMAN,
+                    Command::SetGrandVizier {
+                        player: HUMAN,
+                        on: true,
+                    },
+                );
                 self.log.push(self.text("advisor.vizier_on"));
                 None
             }
@@ -373,10 +379,13 @@ impl App {
         match purpose {
             Purpose::Advisors => self.open_advisor(row),
             Purpose::Tax => {
-                self.game.apply(Command::SetTaxRate {
-                    player: HUMAN,
-                    rate: row as u8,
-                });
+                self.game.apply(
+                    HUMAN,
+                    Command::SetTaxRate {
+                        player: HUMAN,
+                        rate: row as u8,
+                    },
+                );
             }
         }
     }

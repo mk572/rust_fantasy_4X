@@ -160,8 +160,6 @@ pub enum Refused {
     NobodyActing,
     /// `actor` is not the player that is acting now.
     NotYourTurn { active: PlayerId, actor: PlayerId },
-    /// `actor` sent a command that acts for another player (that player's unit or city).
-    ForAnotherPlayer { actor: PlayerId, named: PlayerId },
 }
 
 /// What a step or a run came to.
@@ -284,8 +282,8 @@ impl<'a> Master<'a> {
         self.state.phase == Phase::Over
     }
 
-    /// Apply a command for `actor`: refused unless it is the actor's turn and the command acts
-    /// for the actor (a command naming another player's unit or city is refused).
+    /// Apply a command for `actor`: refused here unless it is the actor's turn; the game then
+    /// refuses what is not the actor's to give ([`Game::apply`]).
     pub fn apply(
         &self,
         game: &mut Game,
@@ -296,12 +294,7 @@ impl<'a> Master<'a> {
         if active != actor {
             return Err(Refused::NotYourTurn { active, actor });
         }
-        if let Some(named) = game.command_actor(&command) {
-            if named != actor {
-                return Err(Refused::ForAnotherPlayer { actor, named });
-            }
-        }
-        Ok(game.apply(command))
+        Ok(game.apply(actor, command))
     }
 
     /// The index of the seat that plays `player`'s turns: the wizard's own, or for a player

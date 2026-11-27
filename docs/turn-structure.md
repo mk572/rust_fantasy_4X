@@ -228,7 +228,7 @@ This document defines the lifecycle and design constraints, not a demand to rewr
 
 ## 10. Splitting the game from the world (task 822)
 
-**Built so far:** `f4x_master::Game` owns the world; the master drives it, and the AI, the console, the client and the tools hold it. It reads like a world, and a command goes through `Game::apply`; setup and cheats use `Game::world_mut`. Undo and the replay log are the game's (`game/undo.rs`, `game/replay.rs`). So is the turn order (`game/step.rs`): the lifecycle commands and `EndTurn` are gone, the game makes the steps (`Game::start_round` and the others, `Game::play_round`) through `World::advance`, `turn_players` is master's, and the replay log holds commands and steps. A command in the log still has no sender (10.4). The round counter, the phase and the end of the game are the game's (`GameState`, `game/end.rs`); the plans are the controllers'; the save file has the parts of 10.8, without the seats and the reactions, and older saves are converted (`convert.rs`, game version 0.0.8). Every player has a turn of its own (10.11). The world operations that need the round take it as an argument (`start_round`, `start_player_turn`, `score`, `cheat_offer`), and everyone outside the world asks `Game::round`. The random numbers are the game's too (10.10). Not yet built: commands with a sender and reactions (10.4).
+**Built so far:** `f4x_master::Game` owns the world; the master drives it, and the AI, the console, the client and the tools hold it. It reads like a world, and a command goes through `Game::apply`; setup and cheats use `Game::world_mut` and `Game::world_and_rng`. Undo and the replay log are the game's (`game/undo.rs`, `game/replay.rs`). So is the turn order (`game/step.rs`): the lifecycle commands and `EndTurn` are gone, the game makes the steps (`Game::start_round` and the others, `Game::play_round`) through `World::advance`, `turn_players` is master's, and the replay log holds commands and steps. A command in the log carries its sender. The round counter, the phase and the end of the game are the game's (`GameState`, `game/end.rs`); the plans are the controllers'; the save file has the parts of 10.8, without the seats and the reactions, and older saves are converted (`convert.rs`, game version 0.0.8). Every player has a turn of its own (10.11). The world operations that need the round take it as an argument (`start_round`, `start_player_turn`, `score`, `cheat_offer`), and everyone outside the world asks `Game::round`. The random numbers are the game's too (10.10). Every command has a sender (`Game::apply(player, command)`, 10.4). Not yet built: the game's own check of whose turn it is, and reactions (10.4).
 
 The **world** (`f4x-core`'s `World`, named `Game` until 26 November 2026) says what is in the world and what can be done in it. The **game** (`Game` in `f4x-master`) owns a `World` and advances time.
 
@@ -282,7 +282,7 @@ The last three run while a command is applied, so "pass it in" does not reach th
 
 ### 10.4 Commands and reactions (decided 26 November 2026)
 
-The human (through the client) and the AI players send every command through `Game::apply(player, command)`, and the game refuses the illegal ones. Setup, cheats and tests keep a separate way into the world; `CreateUnit`, which only cheats and tests send, is refused from a player. The AI gets the game to send commands and a read-only view of the world.
+The human (through the client) and the AI players send every command through `Game::apply(player, command)`, and the game refuses the illegal ones. Setup, cheats and tests keep a separate way into the world; the commands that make something out of nothing (`CreateUnit`, `FoundCity`, `PlaceFortress`: `Command::is_setup`), which only setup, cheats and tests send, are refused from a player. The AI gets the game to send commands and a read-only view of the world.
 
 **The rule:** on its own turn a player may do anything the world allows; on another player's turn it may only react to something that happened to it. After the end of the game everything is refused.
 
@@ -303,7 +303,9 @@ The game does not take a sender's word that something is a reaction. An event th
 - An attacker sends the attack on its own turn; the client does not start a battle on an AI's behalf.
 - A rival's unprompted offers and demands are no reactions: they are made in the rival's own turn (today `approach_human` runs at the start of the human's turn).
 - A reaction being allowed does not mean a front end or the AI uses it. A war question after a lost city, or an AI that strikes back at once, is new behaviour and not part of task 822.
-- `World::command_actor` has to name a player for diplomacy, battle and auto-resolve commands, which today name none.
+- `World::command_actor` names a player for every command: the speaker of a talk, the owner of the attacking stack of a fight, the side to play of a battle order. `World::may_command` also refuses a stack with another player's unit in it.
+
+**Until the reactions are built** (27 November 2026) a command is sometimes given in the name of a player other than the one whose code sends it: the battle AI of an attacking AI gives the orders of both sides, the client gives the orders of the other side in the human's battle and starts a rival's attack on the human, and the console in override mode sends a command in the name of whoever it acts for.
 
 ### 10.5 Game, master and the save (decided 26 November 2026)
 
@@ -354,7 +356,7 @@ No command takes a round.
 ### 10.9 Replays, undo and tests (decided 26 November 2026)
 
 - **Replays belong to the game**, since a log with turn and round steps cannot be played on a world alone. The log is the starting game followed by entries: a player's command with its sender, or a turn or round step. Playback goes through the `Game` and needs no controllers or AI. Writing units and cities as creation numbers stays in core. Cheats are not recorded, as today.
-- **Old replay files are refused**; the converter (10.8) is for saves.
+- **Old replay files are refused**; the converter (10.8) is for saves. A replay written by a 0.0.8 build from before the commands carried their sender is not read either.
 - **Undo belongs to the game** too: it restores the whole `Game`, open reactions included, and takes the command out of the replay log. What cannot be taken back stays as today (a command that explored, drew a random number or started a battle, and everything before it; the end of a turn); the game sees the draws itself, and the world tells it the other facts.
 - **Turn-order, replay and undo tests** move to `f4x-master`.
 - **Core tests that only need time to pass** call `Game::play_round`, with `f4x-master` as a dev-dependency of `f4x-core`, while the move is under way. Only the tests under `tests/` can use it, and `docs/design.md` section 2 records the exception. No test helper in core repeats the turn order.

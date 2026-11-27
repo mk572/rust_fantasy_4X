@@ -318,7 +318,7 @@ impl Modal for WizardPick {
                     extra: 0,
                 }
             };
-            let events = app.game.apply(command);
+            let events = app.game.apply(HUMAN, command);
             app.note(events);
             return None;
         }

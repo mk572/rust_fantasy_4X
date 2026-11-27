@@ -136,10 +136,13 @@ impl App {
                 .wizard(HUMAN)
                 .is_some_and(|m| m.candidates().contains(&spell))
             {
-                let events = self.game.apply(Command::SetResearch {
-                    player: HUMAN,
-                    spell,
-                });
+                let events = self.game.apply(
+                    HUMAN,
+                    Command::SetResearch {
+                        player: HUMAN,
+                        spell,
+                    },
+                );
                 self.note(events);
                 return;
             }
@@ -566,10 +569,13 @@ impl BigBookUi {
                     else {
                         continue;
                     };
-                    let events = app.game.apply(Command::SetResearch {
-                        player: HUMAN,
-                        spell,
-                    });
+                    let events = app.game.apply(
+                        HUMAN,
+                        Command::SetResearch {
+                            player: HUMAN,
+                            spell,
+                        },
+                    );
                     let ok = !events
                         .iter()
                         .any(|e| matches!(e, f4x_core::world::Event::Rejected(_)));

@@ -129,10 +129,13 @@ mod tests {
             app.game.spawn_unit(f4x_core::player::MONSTERS, pos, kind),
             app.game.spawn_unit(f4x_core::player::MONSTERS, pos, kind),
         ];
-        app.game.apply(Command::BeginBattle {
-            attackers,
-            defenders,
-        });
+        app.game.apply(
+            HUMAN,
+            Command::BeginBattle {
+                attackers,
+                defenders,
+            },
+        );
         let mut battle = app.game.battle().ok_or("no battle began")?.clone();
         let mine = |u: &BattleUnit| u.side == Side::Attacker;
         let ours = battle

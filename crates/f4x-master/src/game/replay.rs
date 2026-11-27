@@ -12,6 +12,7 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
+use f4x_core::player::PlayerId;
 use f4x_core::world::save::{check_versions, ContentCheck, LoadError, SAVE_VERSION};
 use f4x_core::world::{Command, Event};
 use f4x_def::content::Content;
@@ -33,8 +34,9 @@ pub struct Replay {
 /// One thing done to a game.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Entry {
-    /// A command, as text with creation numbers in place of entities.
-    Command(String),
+    /// A command with the player who sent it; the command as text with creation numbers in
+    /// place of entities.
+    Command(PlayerId, String),
     /// A step of the turn order.
     Step(Step),
 }
@@ -109,12 +111,12 @@ impl Game {
     }
 
     /// Write `command` down, before it runs (it names entities that may not survive it).
-    pub(super) fn record_command(&mut self, command: &Command) {
+    pub(super) fn record_command(&mut self, player: PlayerId, command: &Command) {
         let Some(recording) = self.recording.as_mut() else {
             return;
         };
         match self.world.command_to_text(command) {
-            Some(text) => recording.entries.push(Entry::Command(text)),
+            Some(text) => recording.entries.push(Entry::Command(player, text)),
             // A command that cannot be written (an entity without a number) breaks the record.
             None => self.recording = None,
         }
@@ -169,12 +171,12 @@ impl Replay {
         let mut all = Vec::new();
         for (i, entry) in self.entries.iter().take(count).enumerate() {
             all.push(match entry {
-                Entry::Command(text) => {
+                Entry::Command(player, text) => {
                     let command = game
                         .world
                         .command_from_text(text)
                         .ok_or(ReplayError::Unresolved(i))?;
-                    game.apply(command)
+                    game.apply(*player, command)
                 }
                 Entry::Step(step) => game.take(*step),
             });

@@ -330,6 +330,26 @@ impl Ctx<'_> {
         self.session.mode == Mode::Override
     }
 
+    /// Set the world up by hand with `command` ([`Command::is_setup`]), which no player may
+    /// send, and print what happened.
+    pub fn cheat(&mut self, command: Command) -> Result<(), ConsoleError> {
+        let (world, rng) = self.game.world_and_rng();
+        let events = world.apply(command, rng);
+        let mut refused = None;
+        for e in &events {
+            if let Event::Rejected(why) = e {
+                refused.get_or_insert_with(|| format!("{why:?}"));
+            }
+            let text = describe::event(self.game, e);
+            self.out.push(text);
+        }
+        self.events.extend(events);
+        match refused {
+            Some(why) => Err(ConsoleError::Refused(why)),
+            None => Ok(()),
+        }
+    }
+
     /// Carry out a game command as the console's player, print what happened and follow up
     /// the way the client does: an attack on a hostile stack starts a battle and a move onto
     /// a guarded site assaults it.
@@ -337,7 +357,13 @@ impl Ctx<'_> {
         let mut queue = vec![command];
         let mut refused = None;
         while let Some(cmd) = queue.pop() {
-            let events = self.game.apply(cmd);
+            // In override mode the order is given in the name of whoever it acts for.
+            let me = self.session.player;
+            let sender = match self.overriding() {
+                true => self.game.command_actor(&cmd).unwrap_or(me),
+                false => me,
+            };
+            let events = self.game.apply(sender, cmd);
             for e in &events {
                 match e {
                     Event::Rejected(why) => {

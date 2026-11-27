@@ -74,7 +74,7 @@ fn today() -> BTreeMap<String, String> {
         // Every command of the sweep, then three turns: what the commands changed, and what the turns made of it.
         let mut w = Game::from(fresh);
         for command in commands(&w) {
-            w.apply(command);
+            w.command(command);
         }
         out.insert(format!("{world} commands@all"), line(&w));
         for _ in 0..3 {

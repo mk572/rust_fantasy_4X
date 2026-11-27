@@ -248,33 +248,42 @@ impl App {
                     self.pick_city(prompt, cities, move |app, city| {
                         let at = city.and_then(|c| app.circle_position(c));
                         if at.is_some() {
-                            let events = app.game.apply(Command::AcceptOffer {
-                                player: HUMAN,
-                                index: 0,
-                                name,
-                                at,
-                            });
+                            let events = app.game.apply(
+                                HUMAN,
+                                Command::AcceptOffer {
+                                    player: HUMAN,
+                                    index: 0,
+                                    name,
+                                    at,
+                                },
+                            );
                             app.note(events);
                         }
                     });
                     return;
                 }
-                let events = self.game.apply(Command::AcceptOffer {
-                    player: HUMAN,
-                    index: 0,
-                    name,
-                    at: None,
-                });
+                let events = self.game.apply(
+                    HUMAN,
+                    Command::AcceptOffer {
+                        player: HUMAN,
+                        index: 0,
+                        name,
+                        at: None,
+                    },
+                );
                 self.note(events);
             }
         } else if reject {
             if self.offer_ui.naming {
                 self.offer_ui.naming = false;
             } else {
-                let mut events = self.game.apply(Command::RejectOffer {
-                    player: HUMAN,
-                    index: 0,
-                });
+                let mut events = self.game.apply(
+                    HUMAN,
+                    Command::RejectOffer {
+                        player: HUMAN,
+                        index: 0,
+                    },
+                );
                 // A resold item goes on to the next wizard, who may be a computer one.
                 events.extend(f4x_ai::answer_resales(&mut self.game));
                 self.note(events);

@@ -332,7 +332,12 @@ pub enum DiplomacyCommand {
 }
 
 impl DiplomacyCommand {
-    /// The two players the command is between.
+    /// The player who says it: the command is this player's to send.
+    pub fn speaker(&self) -> PlayerId {
+        self.parties()[0]
+    }
+
+    /// The two players the command is between, the speaker first.
     fn parties(&self) -> [PlayerId; 2] {
         match *self {
             DiplomacyCommand::Greeted { player, with }

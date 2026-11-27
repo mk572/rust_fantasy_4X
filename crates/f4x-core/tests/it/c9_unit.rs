@@ -230,7 +230,7 @@ fn a_unit_without_moves_cannot_step_and_a_new_turn_gives_them_back() {
         w.scenario_set_moves_left(u, HalfInt::ZERO);
         let to = around(&w, at).into_iter().next().expect("a neighbour");
         assert_eq!(
-            refusal(&w.apply(Command::MoveStack { units: vec![u], to })),
+            refusal(&w.command(Command::MoveStack { units: vec![u], to })),
             Some(Rejection::Move(MoveError::NoMovesLeft)),
             "{name}"
         );

@@ -352,7 +352,7 @@ mod tests {
 
     /// The ship steps to `post` along its own path (the test spawns it within its moves).
     fn sail(w: &mut Game, ship: hecs::Entity, post: Position) -> TestResult {
-        let _ = w.apply(Command::ClearOrders { units: vec![ship] });
+        let _ = w.command(Command::ClearOrders { units: vec![ship] });
         if PlayerView::new(w, P0).unit_position(ship) == Some(post) {
             return Ok(());
         }
@@ -450,7 +450,7 @@ mod tests {
         run(&mut ai, &mut w, &mut events);
         assert!(w.economy().is_bridge(ship));
         // The unit is gone: nobody asks any more.
-        w.apply(Command::DismissUnit { unit: walker });
+        w.command(Command::DismissUnit { unit: walker });
         w.set_round(w.round() + KEEP + 2);
         run(&mut ai, &mut w, &mut events);
         assert!(!ai.roles.is(ship_serial, Role::Bridge));

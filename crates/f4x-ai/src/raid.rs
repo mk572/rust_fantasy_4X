@@ -516,7 +516,7 @@ mod tests {
         let neutral = f4x_core::player::PlayerId(2);
         w.add_neutral_player(neutral);
         let east = at(33, 6);
-        w.apply(Command::FoundCity {
+        w.command(Command::FoundCity {
             owner: neutral,
             pos: east,
             name: "Greyhold".into(),
@@ -558,7 +558,7 @@ mod tests {
         let neutral = f4x_core::player::PlayerId(2);
         w.add_neutral_player(neutral);
         let east = at(33, 6);
-        let founded = w.apply(Command::FoundCity {
+        let founded = w.command(Command::FoundCity {
             owner: neutral,
             pos: east,
             name: "Greyhold".into(),

@@ -65,7 +65,7 @@ impl Dice for Game {
     }
 
     fn command(&mut self, command: Command) -> Vec<Event> {
-        self.apply(command)
+        self.command(command)
     }
 }
 
@@ -105,7 +105,7 @@ pub fn busy_round(w: &mut Game, limit: usize) -> Vec<Event> {
             continue;
         };
         for to in around(w, at) {
-            let out = w.apply(Command::MoveStack { units: vec![u], to });
+            let out = w.command(Command::MoveStack { units: vec![u], to });
             let refused = out.iter().any(|e| matches!(e, Event::Rejected(_)));
             events.extend(out);
             if !refused {

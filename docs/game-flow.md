@@ -37,10 +37,11 @@ draw, log, animate from events and queries
   log cannot be replayed across a load (the loaded entities have new ids).
 
 The core has per-player lifecycle operations (section 4) but does not decide who acts when:
-`f4x-master` runs the rounds and seats and checks a command against the active player
-(`World::command_actor`). A command called directly on the core does not carry an acting
-player, so **ownership is not checked** there: the caller is trusted. (Needed before any
-networked play.)
+`f4x-master` runs the rounds and seats. A player's command goes through
+`Game::apply(player, command)`, which refuses one that is not the sender's to give
+(`World::may_command`, `Rejection::NotYourCommand`) and one that only sets a world up
+(`Command::is_setup`, `Rejection::SetupOnly`). A command called directly on the core carries no
+sender, so **ownership is not checked** there: the caller is trusted.
 
 ## 2. Commands and their events
 

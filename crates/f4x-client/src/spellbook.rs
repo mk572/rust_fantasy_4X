@@ -360,12 +360,15 @@ impl App {
             return;
         }
         let extra = self.chosen_extra(spell);
-        let events = self.game.apply(Command::CastSpell {
-            extra,
-            player: HUMAN,
-            spell,
-            target: None,
-        });
+        let events = self.game.apply(
+            HUMAN,
+            Command::CastSpell {
+                extra,
+                player: HUMAN,
+                spell,
+                target: None,
+            },
+        );
         self.note(events);
         self.screen = Screen::Map;
     }
@@ -507,7 +510,7 @@ impl App {
                 target: Some(target),
             }
         };
-        let events = self.game.apply(cmd.clone());
+        let events = self.game.apply(HUMAN, cmd.clone());
         if Self::refused_as_pointless(&events) {
             // Nothing is shown of the refusal: the player is asked instead.
             self.ask_cast_anyway(cmd, t.spell, Some(t));
@@ -632,10 +635,13 @@ impl BookUi {
                                 &Args::new().term("spell", name_term.clone()),
                             ));
                         } else {
-                            let events = app.game.apply(Command::SetResearch {
-                                player: HUMAN,
-                                spell,
-                            });
+                            let events = app.game.apply(
+                                HUMAN,
+                                Command::SetResearch {
+                                    player: HUMAN,
+                                    spell,
+                                },
+                            );
                             app.note(events);
                         }
                     }
@@ -1024,7 +1030,7 @@ impl BookUi {
             match app.confirm_box(&question, input) {
                 Some(true) => {
                     self.replace = None;
-                    let events = app.game.apply(Command::CancelCast { player: HUMAN });
+                    let events = app.game.apply(HUMAN, Command::CancelCast { player: HUMAN });
                     app.note(events);
                     if !abort_only
                         && app

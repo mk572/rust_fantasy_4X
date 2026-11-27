@@ -110,19 +110,25 @@ fn yields_to_threat(
         let pay = (25 * (2 + r.fear / 25)).min(gold / 25 * 25);
         return pay <= 0
             || !game
-                .apply(Command::Diplomacy(DiplomacyCommand::GiveGold {
-                    from: judge,
-                    to: asker,
-                    amount: pay,
-                }))
+                .apply(
+                    judge,
+                    Command::Diplomacy(DiplomacyCommand::GiveGold {
+                        from: judge,
+                        to: asker,
+                        amount: pay,
+                    }),
+                )
                 .iter()
                 .any(|e| matches!(e, Event::Rejected(_)));
     }
     if army_strength(game, judge) * 80 > army_strength(game, asker) * 100 {
-        game.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
-            player: judge,
-            on: asker,
-        }));
+        game.apply(
+            judge,
+            Command::Diplomacy(DiplomacyCommand::DeclareWar {
+                player: judge,
+                on: asker,
+            }),
+        );
     }
     false
 }
