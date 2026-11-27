@@ -7,7 +7,7 @@
 //!
 //! Tests: in wizard/fortress/tests.rs.
 
-use crate::city::economy::{CityRace, Economy, Population};
+use crate::city::economy::{CityRace, Economy};
 use crate::city::FoundCityError;
 use crate::map::Position;
 use crate::player::PlayerId;
@@ -583,7 +583,7 @@ impl World {
 
     /// A city of `owner` turns neutral, a player of its own as the neutral cities are: the
     /// normal units garrisoned there stay with it, the heroes and conjured creatures are
-    /// dismissed.
+    /// dismissed (a hero is free again).
     pub(crate) fn make_city_neutral(&mut self, city: hecs::Entity, owner: PlayerId) {
         let Some(pos) = self.ecs.get::<&Position>(city).ok().map(|p| *p) else {
             return;
@@ -607,7 +607,7 @@ impl World {
             if normal {
                 self.set_owner(u, neutral);
             } else {
-                self.remove_unit(u, crate::hero::Fate::Gone);
+                self.remove_unit(u, crate::hero::Fate::Released);
             }
         }
         self.set_owner(city, neutral);
@@ -665,9 +665,7 @@ impl World {
             .city_owner(city)
             .ok_or(FortressError::NotYourCity)?;
         if self.economy().is_fortress_city(city) {
-            if let Ok(mut pop) = self.ecs.get::<&mut Population>(city) {
-                pop.figures = pop.figures.max(1);
-            }
+            self.change_population(city, |p| p.figures = p.figures.max(1));
             return Err(FortressError::CannotDestroyFortress);
         }
         // A city with no square cannot be reported or taken off the map by its square: refused

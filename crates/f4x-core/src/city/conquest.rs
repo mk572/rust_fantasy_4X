@@ -230,9 +230,7 @@ impl World {
             }
             gone
         });
-        if let Ok(mut pop) = self.ecs.get::<&mut Population>(city) {
-            pop.figures -= toll.citizens_lost;
-        }
+        self.change_population(city, |p| p.figures -= toll.citizens_lost);
 
         let mut events = vec![Event::CityLooted {
             city,

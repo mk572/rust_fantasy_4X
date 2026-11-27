@@ -6,10 +6,11 @@
 use f4x_core::city::production::{ProductionError, ProductionItem};
 use f4x_core::player::PlayerId;
 use f4x_core::rules::{BuildingId, UnitId};
+use f4x_core::world::save::Snapshot;
 use f4x_core::world::testutil::Table;
 use f4x_core::world::{Command, Event, Rejection, World};
 
-use crate::support::worlds;
+use crate::support::{content, worlds};
 use f4x_def::half_int::HalfInt;
 use f4x_def::rules::UnitKind;
 
@@ -524,6 +525,87 @@ fn a_city_grows_or_shrinks_by_what_its_economy_says_and_stays_within_one_and_the
 }
 
 // ---- farmers and names ----
+
+/// The game saves and loads: the loader refuses a city with more farmers than citizens.
+fn saves_and_loads(w: &Table, name: &str) {
+    let text = w.snapshot().to_text().expect("a save");
+    let back = Snapshot::from_text(&text).and_then(|s| s.restore(content()));
+    assert!(back.is_ok(), "{name}: {:?}", back.err());
+}
+
+#[test]
+fn a_change_of_citizens_up_or_down_readjusts_the_farmers() {
+    for (name, mut w) in worlds().into_iter().step_by(2) {
+        let p = wizards(&w)[0];
+        for city in cities_of(&w, p) {
+            let largest = u32::from(w.settings().rules.max_city_size);
+            // From the fewest and from all farming, to fewer citizens and to more.
+            for farm_all in [false, true] {
+                for (from, to) in [(largest, 1), (largest, largest / 2), (1, largest)] {
+                    assert!(w.cheat_set_citizens(city, from));
+                    w.apply(Command::SetFarmers {
+                        city,
+                        farmers: if farm_all { u32::MAX } else { 0 },
+                    });
+                    let before = w.city_farmers(city);
+                    assert!(w.cheat_set_citizens(city, to));
+                    let min = w.economy().city_min_farmers(city);
+                    assert_eq!(
+                        w.city_farmers(city),
+                        before.clamp(min, to),
+                        "{name}: {before} farmers, {from} citizens to {to}"
+                    );
+                    saves_and_loads(&w, &name);
+                }
+            }
+        }
+    }
+}
+
+/// A settler takes a citizen with it (task 841: the farmers stayed, and the save did not load).
+#[test]
+fn a_city_where_all_farm_loses_a_farmer_with_its_settler() {
+    for (name, mut w) in worlds().into_iter().step_by(2) {
+        let p = wizards(&w)[0];
+        let city = cities_of(&w, p)[0];
+        w.scenario_set_citizens(city, 3);
+        let settler = w
+            .content()
+            .rules
+            .units
+            .defs()
+            .iter()
+            .map(|d| UnitId::new(d.num))
+            .filter(|&u| w.economy().costs_a_citizen(u))
+            .find(|&u| may_build(&w, city, ProductionItem::Unit(u)).is_ok())
+            .expect("a settler the city builds");
+        w.apply(Command::SetProduction {
+            city,
+            item: ProductionItem::Unit(settler),
+        });
+        let mut turns = 0;
+        loop {
+            turns += 1;
+            assert!(turns < 400, "{name}: {settler:?} was never finished");
+            w.apply(Command::SetFarmers {
+                city,
+                farmers: u32::MAX,
+            });
+            let people = w.city_population(city).figures;
+            assert_eq!(w.city_farmers(city), people, "{name}: all farm");
+            let events = w.end_player_turn(p);
+            if events
+                .iter()
+                .any(|e| matches!(e, Event::ProductionCompleted { city: c, .. } if *c == city))
+            {
+                assert_eq!(w.city_population(city).figures, people - 1, "{name}");
+                assert_eq!(w.city_farmers(city), people - 1, "{name}");
+                break;
+            }
+        }
+        saves_and_loads(&w, &name);
+    }
+}
 
 #[test]
 fn farmers_are_kept_between_what_the_city_needs_and_its_people() {

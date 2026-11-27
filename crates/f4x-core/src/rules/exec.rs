@@ -6,7 +6,7 @@
 //! implement it over a tiny synthetic world. All randomness comes from the RNG
 //! passed in, so a run is reproducible.
 //!
-//! Tests: in rules/exec/tests.rs.
+//! Tests: `tests/it/c9_rules.rs`.
 
 use crate::rules::{Ability, UnitId};
 use rand::RngCore;

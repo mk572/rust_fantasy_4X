@@ -176,7 +176,7 @@ Phases (core operations, orchestrated by `f4x-master`): `start_round`, `start_pl
 | `process_stasis` | player | `start_player_turn(p)` | `p`'s units, before the moves refill |
 | moves refill, `Standby::Done` cleared | player | `start_player_turn(p)` | Time Stop: units of others get 0 |
 | `TurnStarted` event | round | `start_round` | once per round |
-| min farmers | player | `end_player_turn(p)` | `p`'s cities |
+| min farmers | player | `end_player_turn(p)` | `p`'s cities; a change of a city's citizens readjusts its farmers at once (`game-flow.md` 5) |
 | `settle_treasury` | player | `end_player_turn(p)` | skipped for the Time Stop wizard as today |
 | `process_events` (world events) | round | `start_round` | before any player acts (turn-structure section 4) |
 | outposts, production, growth, pestilence | player | production: `end_player_turn(p)`; outposts, growth, pestilence: `start_player_turn(p)` | `p`'s cities |

@@ -2,7 +2,7 @@
 //! commands (`docs/console.md`) and the debug screens call these; every console use is written to
 //! the game's override log, which is saved, so a game that was tampered with can be told apart.
 //!
-//! Tests: below.
+//! Tests: `tests/it/c9_world.rs`.
 
 use crate::map::{Plane, Position, TerrainId};
 use crate::player::PlayerId;
@@ -64,13 +64,7 @@ impl World {
 
     /// Set a city's citizens (the whole number; the fraction is kept).
     pub fn cheat_set_citizens(&mut self, city: hecs::Entity, citizens: u32) -> bool {
-        match self.ecs.get::<&mut crate::city::economy::Population>(city) {
-            Ok(mut p) => {
-                p.figures = citizens;
-                true
-            }
-            Err(_) => false,
-        }
+        self.change_population(city, |p| p.figures = citizens)
     }
 
     /// Heal a unit completely and give it all its moves back.

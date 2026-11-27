@@ -1844,7 +1844,7 @@ impl Snapshot {
         }
         let mut cities = self.cities;
         cities.sort_by_key(|c| c.serial);
-        for c in cities {
+        for mut c in cities {
             let serial = take(c.serial, "a city")?;
             if !in_map(&world, c.pos) {
                 return Err(LoadError::Inconsistent(format!(
@@ -1860,12 +1860,14 @@ impl Snapshot {
                     c.name
                 )));
             }
-            if c.farmers > c.figures || c.tens >= 100 {
+            if c.tens >= 100 {
                 return Err(LoadError::Inconsistent(format!(
                     "city {} has impossible population figures",
                     c.name
                 )));
             }
+            // Older saves can hold more farmers than citizens (task 841): every citizen farms.
+            c.farmers = c.farmers.min(c.figures);
             let rules = &world.content.rules;
             let buildings = c
                 .buildings

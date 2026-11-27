@@ -2,7 +2,7 @@
 //! player or owner it names, the owner of the units or the city it names, or the side to play
 //! in the battle). `f4x-master` uses it to refuse a command its sender may not give.
 //!
-//! Tests: in `f4x-master`, tests/it/sender.rs.
+//! Tests: `tests/it/c9_world.rs`, and `f4x-master`, `tests/it/sender.rs`.
 
 use crate::player::PlayerId;
 use crate::world::{Command, World};

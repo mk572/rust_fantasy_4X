@@ -2,7 +2,7 @@
 //! `Map_Square_Survey` in the original): why a city cannot be founded there, and what one
 //! would get from the land around it.
 //!
-//! Tests: in map/survey/tests.rs.
+//! Tests: `tests/it/c9_map.rs`.
 
 use crate::city::FoundCityError;
 use crate::map::terrain::TerrainClass;

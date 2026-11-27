@@ -3,7 +3,7 @@
 //!
 //! A corrupted square gives its city no food, no production bonus and no mineral bonus.
 //!
-//! Tests: in map/corruption/tests.rs.
+//! Tests: `tests/it/c9_map.rs`.
 
 use crate::map::terrain::TerrainClass;
 use crate::map::Position;

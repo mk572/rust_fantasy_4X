@@ -226,8 +226,6 @@ impl World {
         if figures == 0 {
             match self.grow_outpost(city, rng) {
                 crate::city::growth::OutpostTurn::BecameCity => {
-                    let farmers = self.economy().city_min_farmers(city);
-                    self.put(city, Farmers(farmers));
                     events.push(Event::CityGrew { city, figures: 1 });
                 }
                 crate::city::growth::OutpostTurn::Lost => {
@@ -248,11 +246,7 @@ impl World {
         {
             let dead = (1..after).filter(|_| rng.roll(10) == 1).count() as u32;
             after -= dead;
-            let pop = Population {
-                figures: after,
-                ..self.city_population(city)
-            };
-            self.put(city, pop);
+            self.change_population(city, |p| p.figures = after);
         }
         if after > before {
             events.push(Event::CityGrew {

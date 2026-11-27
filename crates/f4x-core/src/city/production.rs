@@ -607,14 +607,9 @@ impl World {
                     self.economy()
                         .new_unit_start(city, owner, self.settings.rules.adamant_alchemy);
                 if self.economy().costs_a_citizen(u) {
-                    let pop = self.city_population(city);
-                    self.put(
-                        city,
-                        super::economy::Population {
-                            figures: pop.figures.saturating_sub(1).max(1),
-                            ..pop
-                        },
-                    );
+                    self.change_population(city, |p| {
+                        p.figures = p.figures.saturating_sub(1).max(1)
+                    });
                 }
                 let unit = self.spawn_unit(owner, at, u);
                 self.doom_mastery_mutates(unit, owner, rng);

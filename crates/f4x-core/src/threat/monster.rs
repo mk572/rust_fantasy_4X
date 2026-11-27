@@ -6,7 +6,7 @@
 //! is wrecked, and with luck turns into a lair of its own (`Rampage_Combat_City`, `Combat.c`);
 //! the monsters that did it are gone from the map either way, into the ruins or the wilderness.
 //!
-//! Tests: in threat/tests.rs for the whole turn, below for the helpers that file cannot reach.
+//! Tests: `tests/it/c9_threat.rs`.
 
 use crate::feature::def::FeatureKind;
 use crate::feature::entity::Placement;
@@ -76,11 +76,9 @@ impl World {
         let near_players: Vec<_> = zones
             .into_iter()
             .filter(|l| {
-                let land = self.landmass_at(&lands, l.pos);
-                land != 0
-                    && cities
-                        .iter()
-                        .any(|&(_, p)| self.landmass_at(&lands, p) == land)
+                cities
+                    .iter()
+                    .any(|&(_, p)| self.same_land(&lands, l.pos, p))
             })
             .collect();
         if near_players.is_empty() {
@@ -96,9 +94,8 @@ impl World {
         let mut budget = ((rng.roll(d + 1) + rng.roll(d + 1)) * round / 5) as i32;
         // On a landmass that holds a computer wizard's cities and none of the human's the budget is
         // halved.
-        let land = self.landmass_at(&lands, zone.pos);
         let human = self.human();
-        let on_land = |p: Position| self.landmass_at(&lands, p) == land;
+        let on_land = |p: Position| self.same_land(&lands, zone.pos, p);
         let human_here = cities.iter().any(|&(o, p)| Some(o) == human && on_land(p));
         let ai_here = cities.iter().any(|&(o, p)| Some(o) != human && on_land(p));
         if ai_here && !human_here {
@@ -277,9 +274,7 @@ impl World {
                 .is_ok()
             },
         );
-        if let Ok(mut pop) = self.ecs.get::<&mut crate::city::economy::Population>(city) {
-            pop.figures -= toll.citizens_lost;
-        }
+        self.change_population(city, |p| p.figures -= toll.citizens_lost);
         let ruins = self.content.features.id_numbered(18) /* ruins */;
         let ruined = rng.roll(2) == 2 && !self.economy().is_fortress_city(city);
         let (Some(feature), true) = (ruins, ruined) else {

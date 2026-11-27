@@ -231,3 +231,15 @@ A new `Command` variant is not enough in `command.rs`, `actor.rs` and `World::ex
   `grant_ability`/`remove_ability` under `World::grant_temp_ability`/`remove_temp_ability` and
   `App::open_diplomacy` over `try_open_diplomacy`. The rule is in `docs/rust_coding_rules.md` (Layers of calls).
 - **A saved game taken in the middle of a battle before commit d13e885c does not load.** That commit made a battle unit keep only real state (the `Sheet` the game hands over, what it lost, spent and used) and work its numbers out when asked, so the old saved units have no sheet. Saves taken since load; `restore_battle` refuses a battle that disagrees with the world with a reason (`LoadError`), and `a_saved_battle_that_disagrees_with_the_world_is_refused_with_the_reason` covers each way. Saves taken between battles are not affected.
+- **A city's citizens change through `World::change_population` only** (`city/growth.rs`, task 841). It
+  readjusts the farmers; a direct write to `Population` left more farmers than citizens (a finished
+  settler was enough), which the game computes around (`min(farmers, citizens)`) but the loader then refused (it now lowers the farmers),
+  so the game saved and did not load. A rule the loader checks needs one writer that keeps it; the check
+  that finds a gap is to save and reload after every turn of a soak (a temporary line in `soak.rs`).
+- **A test that runs many rounds runs each through `World::advance`.** The steps (`start_round` and the
+  like) put units on squares without a limit ("units put on a square are never refused"); the limit of a
+  square is applied by `advance`, as after every command. Called bare, a long run piles up more units than
+  a game can hold and `world_problems` or a battle fails for it.
+- **Landmass numbers belong to a plane.** `World::landmasses(plane)` numbers each plane from 1, so two
+  numbers are comparable only together with their planes (the code of task 842 forgot; compare with `World::same_land`).
+

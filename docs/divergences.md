@@ -304,8 +304,8 @@ Where the item rules differ from the original's code or are read from ReMoM with
   moves once, and the soak numbers in `ai-design.md` were not regenerated.
 - **A hero that flees and is lost, or is killed by a spell, is `Dead`** and can be resurrected
   (the design doc's open question 4: whether the original makes the fled ones revivable is not
-  settled). Unpaid upkeep and dismissal make a hero `Free` (hireable again with its experience);
-  a defeated wizard's heroes are `Gone`.
+  settled). Unpaid upkeep and dismissal make a hero `Free` (hireable again with its experience),
+  as do a wizard's defeat and the loss of a city that turns neutral (task 844).
 - **No limit of six heroes.** The original lets a wizard serve six heroes at most. Ours has no
   limit: a wizard may serve all 35. The hero screen scrolls six at a time. The chance of a hero
   offer still falls with the number of heroes served.

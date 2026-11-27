@@ -10,7 +10,7 @@
 //! Called once for each plane after the neutral cities are made, when the setting
 //! `rules.roads_at_start` is on (`f4x_newgame::setup`).
 //!
-//! Tests: below.
+//! Tests: `tests/it/c9_map.rs`.
 
 use crate::map::terrain::TerrainClass;
 use crate::map::{Plane, Position};

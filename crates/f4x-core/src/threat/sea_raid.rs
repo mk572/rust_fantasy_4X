@@ -6,7 +6,7 @@
 //! free of upkeep and belongs to the neutral player of the race (made when the race has none);
 //! what it does then is the neutral AI's (`f4x_ai::NeutralAi`).
 //!
-//! Tests: in threat/tests.rs (`a_sea_raid_...`).
+//! Tests: `tests/it/c9_threat.rs`.
 
 use crate::map::terrain::TerrainClass;
 use crate::map::{Plane, Position};

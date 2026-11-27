@@ -5,7 +5,7 @@
 //! The draw picks a kind and a victim and vetoes what cannot happen; what it arms is played out
 //! at once, in the order of the table, together with the lasting events that were already going.
 //!
-//! Tests: in world_event/world/tests.rs.
+//! Tests: `tests/it/c9_event.rs`.
 
 use crate::city::conquest::city_size_class;
 use crate::city::economy::Population;
@@ -641,10 +641,6 @@ impl World {
     }
 
     fn set_figures(&mut self, city: hecs::Entity, figures: u32) {
-        let pop = Population {
-            figures,
-            ..self.city_population(city)
-        };
-        self.put(city, pop);
+        self.change_population(city, |p| p.figures = figures);
     }
 }

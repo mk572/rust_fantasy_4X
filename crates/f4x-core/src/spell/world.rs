@@ -254,9 +254,7 @@ impl World {
             }
         }
         if citizens_lost > 0 {
-            if let Ok(mut pop) = self.ecs.get::<&mut crate::city::economy::Population>(city) {
-                pop.figures -= citizens_lost;
-            }
+            self.change_population(city, |p| p.figures -= citizens_lost);
         }
         (units_lost, buildings_lost, citizens_lost)
     }

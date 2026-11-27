@@ -249,7 +249,6 @@ fn a_save_that_contradicts_itself_is_refused() {
         .to_string();
     let city_pos = value("cities: [(", 0, "pos: (plane");
     let unit_pos = value("units: [(", 0, "pos: (plane");
-    let farmers = value("cities: [(", 0, "farmers: ");
     let sea = {
         let (_, w) = worlds().remove(0);
         let map = w.map().expect("a map");
@@ -295,10 +294,6 @@ fn a_save_that_contradicts_itself_is_refused() {
         ),
         ("a city in the sea", in_list("cities: [(", &city_pos, &sea)),
         (
-            "more farmers than citizens",
-            in_list("cities: [(", &farmers, "farmers: 99,"),
-        ),
-        (
             "a hundred tens of people",
             in_list("cities: [(", "tens: 0,", "tens: 100,"),
         ),
@@ -314,7 +309,7 @@ fn a_save_that_contradicts_itself_is_refused() {
 #[test]
 fn a_refusal_says_what_is_wrong_in_words() {
     let full = saved();
-    let err = load(&full.replacen("farmers: ", "farmers: 99", 1), "farmers")
+    let err = load(&full.replacen("tens: 0,", "tens: 100,", 1), "tens")
         .err()
         .expect("refused");
     let said = err.to_string();
@@ -334,6 +329,18 @@ fn a_refusal_says_what_is_wrong_in_words() {
     let said = format!("{e:?}");
     assert!(said.contains("abcdef012345"), "{said}");
     assert!(!said.contains("abcdef0123456"), "{said}");
+}
+
+#[test]
+fn a_city_saved_with_more_farmers_than_citizens_loads_with_every_citizen_farming() {
+    let mut s = Snapshot::from_text(&saved()).expect("reads");
+    let citizens = s.cities[0].figures;
+    s.cities[0].farmers = citizens + 1;
+    let serial = s.cities[0].serial;
+    let back = s.restore(content()).expect("loads").snapshot();
+    let city = back.cities.iter().find(|c| c.serial == serial);
+    let city = city.expect("the city");
+    assert_eq!((city.figures, city.farmers), (citizens, citizens));
 }
 
 #[test]

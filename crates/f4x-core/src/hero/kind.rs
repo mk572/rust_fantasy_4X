@@ -2,6 +2,8 @@
 //! world: which unit a type is, its level and hire price, how a wizard's heroes are rolled when the
 //! game starts (`Init_Heroes`) and which one is offered or summoned (`Pick_Random_Hero`). The
 //! heroes themselves are entities (`hero/world.rs`).
+//!
+//! Tests: `tests/it/c9_hero.rs`.
 
 use crate::hero::{Hero, HeroAbilities, HeroState, Tier};
 use crate::rules::Ability;

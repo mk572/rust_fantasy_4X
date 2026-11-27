@@ -10,7 +10,7 @@
 //! The map keeps one index from a square to the feature entity on it (a tower is on both planes).
 //! It is rebuilt on load and never saved.
 //!
-//! Tests: in feature/lair/tests.rs and node.rs.
+//! Tests: `tests/it/c9_feature.rs`.
 
 use hecs::Entity;
 

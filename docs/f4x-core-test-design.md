@@ -220,6 +220,21 @@ Found by the rebuilt tests, each fixed in the code with the test that found it:
    `EarthGate`, `BuildRoad`) panicked in the path grid or the map (class 1 sweep). Refused with `MoveError::OffMap`.
 3. A refused lifecycle command (`StartPlayerTurn` for no player, `EndPlayerTurn` and so on) wiped the undo history
    although it changed nothing (class 1 with undo on).
+4. A cleared site with nothing left to give for its book or retort, and a full hoard of items, told the winner of
+   1000 mana alone although the treasure's own mana was paid too (class 9, feature): the message now holds both.
+
+Found by the rebuilt tests, each made a task for the user to decide (28 November 2026):
+
+5. Raiders and monsters compared landmass numbers without the plane, so a player on one plane counted on the other
+   (class 9, threat): fixed (task 842).
+6. A node or tower cleared by assault keeps its guard list, so it never counts as empty (class 9, threat): left to
+   task 829, with an ignored test.
+7. The documents and the code disagreed about the heroes of a defeated wizard and of a city that turns neutral
+   (class 9, hero): they are free (task 844).
+
+Seen, harmless in play and left alone: `World::cheat_add_building` accepts any entity that has an owner, a unit too
+(the console resolves a city first); the hook `disintegrate` is listed in `hook::CUSTOM_HOOKS` although no content
+carries it and no code acts on it.
 
 ## Open questions
 

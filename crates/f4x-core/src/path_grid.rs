@@ -3,7 +3,7 @@
 //! turns what a walker can do into a [`PathGrid`] (one grid for each kind of mover, and
 //! [`PathGrid::slowest`] for a group of them) and what stops it into a closure.
 //!
-//! Tests: random grids against a plain Dijkstra, at the bottom of this file.
+//! Tests: random grids against a plain Dijkstra, `tests/it/c9_path.rs`.
 
 use f4x_def::half_int::HalfInt;
 

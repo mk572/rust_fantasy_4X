@@ -4,7 +4,7 @@
 //! neutral player of the city's race, whose AI (`f4x_ai::NeutralAi`) decides what they do: this is
 //! the neutral players' advantage instead of a difficulty bonus.
 //!
-//! Tests: in threat/tests.rs (the raider tests and `the_party_is_...`, `a_party_on_myrror_...`, `the_raiders_are_as_experienced_...`).
+//! Tests: `tests/it/c9_threat.rs`.
 
 use crate::map::Position;
 use crate::player::{PlayerId, MONSTERS};
@@ -101,8 +101,8 @@ impl World {
             .map(|l| l.xp)
     }
 
-    /// The neutral cities that may raise a party: a player's city stands on their landmass, they
-    /// have troops of the kinds that raid and room for more in the city.
+    /// The neutral cities that may raise a party: a player's city stands on their landmass and
+    /// they have troops of the kinds that raid.
     fn raider_sources(&self) -> Vec<Source> {
         let lands = self.all_landmasses();
         let mut cities: Vec<(hecs::Entity, PlayerId, Position)> = self
@@ -118,8 +118,7 @@ impl World {
             if !self.is_raider_owner(owner) {
                 continue;
             }
-            let land = self.landmass_at(&lands, pos);
-            let on_land = |p: Position| land != 0 && self.landmass_at(&lands, p) == land;
+            let on_land = |p: Position| self.same_land(&lands, pos, p);
             if !cities
                 .iter()
                 .any(|&(_, o, p)| !self.is_neutral_player(o) && on_land(p))

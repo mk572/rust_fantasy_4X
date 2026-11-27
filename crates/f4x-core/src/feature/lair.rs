@@ -9,7 +9,7 @@
 //!
 //! Differences from the original are listed in `docs/lairs.md`.
 //!
-//! Tests: in feature/lair/tests.rs.
+//! Tests: `tests/it/c9_feature.rs`.
 
 use crate::world::rng::GameRng;
 use rand::Rng;
@@ -514,7 +514,7 @@ impl World {
                     &mut self.prefab_taken,
                 ));
             } else {
-                loot.mana = 1000;
+                loot.mana += 1000;
                 if let Some(t) = self.treasury_mut(player) {
                     t.mana += 1000;
                 }

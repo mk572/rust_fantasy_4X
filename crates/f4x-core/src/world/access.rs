@@ -7,7 +7,7 @@
 //! them, *played* through [`World::apply`], and *set up by hand* (a test, a scenario, a tool)
 //! through the setters at the end, which the rules never use.
 //!
-//! Tests: below.
+//! Tests: the other tests use it; it has none of its own.
 
 use crate::city::economy::{Buildings, CityRace, Farmers, Population};
 use crate::map::{Map, Position};
@@ -330,9 +330,7 @@ impl World {
 
     /// Set the number of citizens of a city, as a scenario sets it up.
     pub fn scenario_set_citizens(&mut self, city: hecs::Entity, figures: u32) {
-        if let Ok(mut p) = self.ecs.get::<&mut Population>(city) {
-            p.figures = figures;
-        }
+        self.change_population(city, |p| p.figures = figures);
     }
 
     /// Put a lasting spell on a unit, as a scenario sets it up (no cost, no upkeep paid).

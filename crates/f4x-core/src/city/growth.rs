@@ -100,12 +100,7 @@ impl World {
             delta_tens,
             u32::from(self.settings.rules.max_city_size),
         );
-        self.put(city, grown);
-        // A city that starved down cannot keep more farmers than it has people.
-        let farmers = self.ecs.get::<&Farmers>(city).map_or(0, |f| f.0);
-        if farmers > grown.figures {
-            self.put(city, Farmers(grown.figures));
-        }
+        self.change_population(city, |p| *p = grown);
         (pop.figures, grown.figures)
     }
 
@@ -122,7 +117,7 @@ impl World {
             .map(|p| *p)
             .unwrap_or_default();
         let pop = outpost_step(&self.content.rules.config.outpost, pop, grow, shrink, rng);
-        self.put(city, pop);
+        self.change_population(city, |p| *p = pop);
         if pop.figures > 0 {
             OutpostTurn::BecameCity
         } else if pop.tens == 0 {
@@ -130,6 +125,29 @@ impl World {
         } else {
             OutpostTurn::Stays
         }
+    }
+
+    /// Change a city's people: every change of them in a game goes through here. When the number
+    /// of citizens moves, up or down, the farmers are readjusted with it: no more than the
+    /// citizens and no fewer than it takes to feed them (`Economy::city_min_farmers`); a number
+    /// within those stays. False when `city` has no people to change.
+    pub(crate) fn change_population(
+        &mut self,
+        city: hecs::Entity,
+        change: impl FnOnce(&mut Population),
+    ) -> bool {
+        let Ok(mut pop) = self.ecs.get::<&Population>(city).map(|p| *p) else {
+            return false;
+        };
+        let before = pop.figures;
+        change(&mut pop);
+        self.put(city, pop);
+        if pop.figures != before {
+            let min = self.economy().city_min_farmers(city);
+            let farmers = self.ecs.get::<&Farmers>(city).map_or(0, |f| f.0);
+            self.put(city, Farmers(farmers.clamp(min, pop.figures)));
+        }
+        true
     }
 
     /// Found a city (or outpost, with no population) with all its economic components.

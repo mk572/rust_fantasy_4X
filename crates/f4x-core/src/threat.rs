@@ -7,7 +7,7 @@
 //!
 //! Differences from the original are in `docs/divergences.md`.
 //!
-//! Tests: in threat/tests.rs.
+//! Tests: `tests/it/c9_threat.rs`.
 
 mod monster;
 mod raider;
@@ -66,6 +66,12 @@ impl World {
             .get((at.y * width + at.x) as usize)
             .copied()
             .unwrap_or(0)
+    }
+
+    /// Whether two squares are on one landmass: each plane numbers its own, and the sea is none.
+    fn same_land(&self, lands: &[Vec<u32>; 2], a: Position, b: Position) -> bool {
+        let land = self.landmass_at(lands, a);
+        a.plane == b.plane && land != 0 && self.landmass_at(lands, b) == land
     }
 
     /// The first free land square round `at`, reading the three rows from the top (the

@@ -7,7 +7,7 @@
 //! through [`Events`], and what an event does to the world when it happens is done by
 //! `world_event/world.rs`, which draws one each turn and plays it out.
 //!
-//! Tests: in world_event/tests.rs.
+//! Tests: `tests/it/c9_event.rs`.
 
 pub(crate) mod world;
 

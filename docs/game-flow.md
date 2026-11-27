@@ -276,6 +276,11 @@ Mana and research are handled by `process_magic` (section 4.2). The command `Bal
 cities also feed the army; the AI sends it every turn, and the client when food is short at the end of a turn
 or when asked.
 
+**A change of a city's citizens, up or down, readjusts its farmers** at once (the user, 28 November 2026, task
+841): they become no more than the citizens and no fewer than it takes to feed them; a number within those
+stays. It holds for growth, starvation and pestilence, a settler, world events, spells, fighting in the city,
+rampaging monsters and cheats alike.
+
 ## 6. Healing
 
 Each damaged unit of a player heals at the start of the player's turn (`unit/healing.rs`), except

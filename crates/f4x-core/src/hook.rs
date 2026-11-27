@@ -2,7 +2,7 @@
 //! `.ron` file). The definitions know nothing of this code;
 //! the code lists what it implements and [`problems`] checks the loaded content against it.
 //!
-//! Tests: below, on the shipped content.
+//! Tests: `tests/it/c9_hook.rs`.
 
 use crate::rules::effects::{Effect, EffectRule};
 use crate::rules::Rules;

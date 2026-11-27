@@ -10,6 +10,8 @@
 //! be offered it), serving one wizard (then it also has `Owner` and the unit components, and no one
 //! else can hire it), dead (any wizard may raise it) or gone for good. When the body goes the unit
 //! components and the owner are removed and the entity stays (`release_body`).
+//!
+//! Tests: `tests/it/c9_hero.rs`.
 
 use crate::hero::kind::{self, Class, Standing};
 use crate::hero::Hero;

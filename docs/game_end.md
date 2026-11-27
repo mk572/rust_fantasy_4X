@@ -50,7 +50,8 @@ until they too have lost every city.
 - all the loser's units are dismissed (heroes, creatures and normal units). A defeated wizard
   has no city, so none of them is garrisoned. A wizard who resigns while banished still has
   cities: `cities_go_neutral` first turns each into a neutral city and hands it its garrisoned
-  normal units (heroes and conjured creatures are dismissed);
+  normal units (heroes and conjured creatures are dismissed; a dismissed hero is free to hire
+  again);
 - the loser's enchantments come off every city and every unit, their
   overland enchantments (`magic.global`) and the spell being cast are cleared;
 - their magic nodes become unowned (and lose any Guardian Spirit);

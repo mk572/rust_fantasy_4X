@@ -8,6 +8,8 @@
 //! which `unit/mod.rs` (the hero's own stats), `battle/field.rs` (Leadership, Prayermaster),
 //! `unit/mod.rs` (fame) and `wizard/magic_income.rs` (research) call. A hero's three items are the
 //! separate [`HeroItems`](crate::item::HeroItems) component.
+//!
+//! Tests: `tests/it/c9_hero.rs`.
 
 pub mod kind;
 pub(crate) mod world;

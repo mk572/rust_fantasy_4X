@@ -279,29 +279,29 @@ impl World {
                 units_lost += 1;
             }
         }
-        let mut population_lost = 0;
-        if let Ok(mut pop) = self.ecs.get::<&mut crate::city::economy::Population>(city) {
-            let dead = (0..pop.figures.saturating_sub(1))
-                .filter(|_| {
-                    rng.next_u32() % 100
-                        < self
-                            .content
-                            .rules
-                            .config
-                            .spell_effects
-                            .armageddon_city_percent
-                })
-                .count() as u32;
-            pop.figures -= dead;
-            population_lost = dead;
-        }
+        let citizens = self
+            .ecs
+            .get::<&crate::city::economy::Population>(city)
+            .map_or(0, |p| p.figures);
+        let dead = (0..citizens.saturating_sub(1))
+            .filter(|_| {
+                rng.next_u32() % 100
+                    < self
+                        .content
+                        .rules
+                        .config
+                        .spell_effects
+                        .armageddon_city_percent
+            })
+            .count() as u32;
+        self.change_population(city, |p| p.figures -= dead);
         let _ = caster;
         vec![Event::WorldSpellStruck {
             spell,
             victim,
             units_lost,
             buildings_lost,
-            population_lost,
+            population_lost: dead,
         }]
     }
 
