@@ -17,7 +17,7 @@
 //! its target, room for them), `TransportReady` when they fill it, and `Transporting` once it
 //! sails. [`voyages`] reads them back.
 
-use crate::roles::{Crossing, Role};
+use crate::roles::{Crossing, Registry, Role};
 use crate::view::is_ship;
 use crate::Ai;
 use f4x_core::map::terrain::TerrainClass;
@@ -136,21 +136,39 @@ fn same_landmass(view: &PlayerView, a: Position, b: Position) -> bool {
     false
 }
 
-/// A sea square beside `land` that nobody hostile holds.
+/// The square and the eight around it.
+fn around<'a>(view: &'a PlayerView, at: Position) -> impl Iterator<Item = Position> + 'a {
+    (-1i32..=1)
+        .flat_map(|dy| (-1i32..=1).map(move |dx| (dx, dy)))
+        .filter_map(move |(dx, dy)| view.shift(at, dx, dy))
+}
+
+/// The sea squares beside `land` that nobody hostile holds.
+fn seas_beside<'a>(view: &'a PlayerView, land: Position) -> impl Iterator<Item = Position> + 'a {
+    around(view, land).filter(|&sea| {
+        view.terrain_class(sea) == Some(TerrainClass::Ocean) && view.hostile_at(sea).is_none()
+    })
+}
+
+/// The first of [`seas_beside`].
 fn sea_beside(view: &PlayerView, land: Position) -> Option<Position> {
-    for dy in -1i32..=1 {
-        for dx in -1i32..=1 {
-            let Some(sea) = view.shift(land, dx, dy) else {
-                continue;
-            };
-            if view.terrain_class(sea) == Some(TerrainClass::Ocean)
-                && view.hostile_at(sea).is_none()
-            {
-                return Some(sea);
-            }
-        }
-    }
-    None
+    seas_beside(view, land).next()
+}
+
+/// A land square walkers can step onto: no guarded site and nobody hostile. A walk onto either
+/// moves nobody, and the order ends without a refusal.
+fn can_walk_onto(view: &PlayerView, p: Position) -> bool {
+    view.terrain_class(p)
+        .is_some_and(|t| t != TerrainClass::Ocean)
+        && !view.has_lair(p)
+        && view.hostile_at(p).is_none()
+}
+
+/// Where units aboard a ship at `sea` step ashore: the square beside it nearest to `dest`.
+fn shore_of(view: &PlayerView, sea: Position, dest: Position) -> Option<Position> {
+    around(view, sea)
+        .filter(|&p| can_walk_onto(view, p))
+        .min_by_key(|&p| (view.distance(p, dest).unwrap_or(u32::MAX), p.y, p.x))
 }
 
 /// Where a ship drops units bound for `dest`: the city itself when it is a port the ship can
@@ -163,8 +181,9 @@ fn drop_for(view: &PlayerView, ship: hecs::Entity, dest: Position) -> Option<Pos
     }
     // A destination inland (a tower, a far city) is reached from the nearest coast: the units
     // walk the rest.
-    let sea =
-        sea_beside(view, dest).or_else(|| crate::naval::landing(view, dest).map(|(_, sea)| sea))?;
+    let sea = seas_beside(view, dest)
+        .find(|&sea| shore_of(view, sea, dest).is_some())
+        .or_else(|| crate::naval::landing(view, dest).map(|(_, sea)| sea))?;
     (view.unit_position(ship) == Some(sea) || view.can_reach(&[ship], sea)).then_some(sea)
 }
 
@@ -195,12 +214,7 @@ fn candidates(view: &PlayerView, units: &[hecs::Entity]) -> Vec<Position> {
                 let Some(p) = view.shift(at, dx, dy) else {
                     continue;
                 };
-                if found.contains(&p)
-                    || !view
-                        .terrain_class(p)
-                        .is_some_and(|t| t != TerrainClass::Ocean)
-                    || sea_beside(view, p).is_none()
-                {
+                if found.contains(&p) || !can_walk_onto(view, p) || sea_beside(view, p).is_none() {
                     continue;
                 }
                 found.push(p);
@@ -360,13 +374,16 @@ fn needs_the_sea(world: &World, unit: hecs::Entity, to: Position) -> bool {
 ///
 /// **A unit booked on a ship** (a boarding tile and a ship) must also be where a passenger is:
 /// aboard that ship, or on its way to the boarding tile (standing on it, under an order, or
-/// waiting because the tile is full), and the ship must exist. One that is not is taken off the
-/// list but keeps its tag, if the tag survives, and is booked again.
+/// waiting for room there or on the way: [`places_at`], [`behind_full_squares`]), and the ship
+/// must exist. One that is not is taken off the list but keeps its tag, if the tag survives, and
+/// is booked again.
 ///
-/// An ended plan (no destination, no tag) is dropped without a word. Any other fault of a booked
-/// unit goes into the refused-order log (`BadPassenger`), so a soak shows the job that left a
-/// passenger behind (the strike that walked one into a city) instead of a ship that waits for it
-/// for hundreds of turns. Last, the ships that have nobody left to fetch are released.
+/// What the world changed is dropped without a word: an ended plan (no destination, no tag), a
+/// ship that is gone, a target that no longer needs the sea, a boarding tile that can no longer be
+/// walked onto. Any other fault of a booked unit goes into the refused-order log
+/// (`BadPassenger`), so a soak shows the job that left a passenger behind (the strike that walked
+/// one into a city) instead of a ship that waits for it for hundreds of turns. Last, the ships
+/// that have nobody left to fetch are released.
 pub(crate) fn tidy_unit_registry(ai: &mut Ai, game: &Game) {
     let world: &World = game;
     // (unit, whether to clear its sea tag, what to say about it)
@@ -393,10 +410,12 @@ pub(crate) fn tidy_unit_registry(ai: &mut Ai, game: &Game) {
             let walker = view.is_walker(u);
             let sea = on_ship || to.is_some_and(|t| needs_the_sea(world, u, t));
             let tag_dies = !tagged || !walker || !sea;
+            // Whether the booking is over for a reason that is the world's, not a job's.
+            let mut over = false;
             if !walker {
                 faults.push("it is no walker (it flies, walks on water or the like)".to_string());
             } else if !sea {
-                faults.push(format!("its target {to:?} needs no sea crossing"));
+                over = true;
             } else if !tagged {
                 faults.push("it has no sea tag".to_string());
             }
@@ -407,14 +426,19 @@ pub(crate) fn tidy_unit_registry(ai: &mut Ai, game: &Game) {
                     .copied()
                     .find(|&x| view.serial_of(x) == ship_serial)
                 {
-                    None => faults.push(format!("its ship {ship_serial:?} is gone")),
+                    None => over = true,
                     Some(ship) => {
                         let pos = view.unit_position(u);
                         let aboard = pos.is_some() && pos == view.unit_position(ship);
-                        let on_its_way = pos == Some(tile)
-                            || view.unit_has_order(u)
-                            || !Ai::room_at(world, tile, 1);
-                        if !aboard && !on_its_way {
+                        let on_its_way = || {
+                            pos == Some(tile)
+                                || view.unit_has_order(u)
+                                || places_at(&ai.roles, &view, world, tile) == 0
+                                || behind_full_squares(world, &[u], tile)
+                        };
+                        if !aboard && !can_walk_onto(&view, tile) {
+                            over = true;
+                        } else if !aboard && !on_its_way() {
                             faults.push(format!(
                                 "not aboard ship {ship_serial:?} and not on the way to its boarding tile {tile:?} (at {pos:?})"
                             ));
@@ -422,11 +446,11 @@ pub(crate) fn tidy_unit_registry(ai: &mut Ai, game: &Game) {
                     }
                 }
             }
-            if faults.is_empty() {
+            if faults.is_empty() && !over {
                 continue;
             }
             // Only a booked unit is reported: a tag that goes stale with the world is no news.
-            let said = booking.is_some().then(|| faults.join("; "));
+            let said = (booking.is_some() && !faults.is_empty()).then(|| faults.join("; "));
             broken.push((s, tag_dies, said));
         }
     }
@@ -454,6 +478,30 @@ pub(crate) fn tidy_unit_registry(ai: &mut Ai, game: &Game) {
     }
 }
 
+/// The places of a boarding tile still to give: the limit of a square less the units on it and
+/// the passengers walking to it under an order.
+fn places_at(roles: &Registry, view: &PlayerView, world: &World, tile: Position) -> usize {
+    let walking = view
+        .my_units()
+        .into_iter()
+        .filter(|&u| {
+            view.unit_has_order(u)
+                && view.unit_position(u) != Some(tile)
+                && roles.boarding_of(view.serial_of(u)) == Some(tile)
+        })
+        .count();
+    world
+        .max_tile()
+        .saturating_sub(world.economy().army_at(tile).len() + walking)
+}
+
+/// Whether the only ways to `tile` lead through full squares: the traffic moves on.
+fn behind_full_squares(world: &World, units: &[hecs::Entity], tile: Position) -> bool {
+    use f4x_core::unit::pathing::failure::NoPath;
+    world.find_path(units, tile).is_none()
+        && world.why_no_path(units, tile) == NoPath::OnlyThroughFullSquares
+}
+
 /// The units tied to a ship that stand elsewhere and have no order walk to their boarding tile.
 fn walk_to_shore(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
@@ -478,34 +526,50 @@ fn walk_to_shore(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         }
     }
     sends.sort_by_key(|(p, t, _)| (p.plane as u8, p.y, p.x, t.y, t.x));
-    for (_, tile, units) in sends {
-        // A boarding tile with no room for them is not asked: they wait where they are.
-        if !Ai::room_at(game, tile, units.len()) {
-            continue;
-        }
-        // No way to the tile. Through full squares only: the traffic moves on, they wait. Else the
-        // units were grouped by what one of them reaches and cannot walk there: they are let off
-        // the plan, which is made again, and the log says why.
-        if game.find_path(&units, tile).is_none() {
-            let why = game.why_no_path(&units, tile);
-            if why == f4x_core::unit::pathing::failure::NoPath::OnlyThroughFullSquares {
-                continue;
-            }
-            let serials: Vec<_> = {
-                let view = PlayerView::new(game, me);
-                units.iter().map(|&u| view.serial_of(u)).collect()
+    for (_, tile, mut waiting) in sends {
+        // The largest part of the stack that has room on the tile and a way to it goes, then the
+        // largest of the rest. Who is left waits for room, as `tidy_unit_registry` expects.
+        loop {
+            let free = places_at(&ai.roles, &PlayerView::new(game, me), game, tile);
+            let Some(count) = (1..=free.min(waiting.len()))
+                .rev()
+                .find(|&n| game.find_path(&waiting[..n], tile).is_some())
+            else {
+                break;
             };
-            ai.note_failure(
-                game,
-                format!("units {serials:?} cannot walk to their boarding tile {tile:?}"),
-                format!("NoPath({}){}{why}", why.name(), crate::DETAIL_SEPARATOR),
-            );
-            for s in serials {
-                ai.roles.unboard(s);
+            let units = waiting.drain(..count).collect();
+            if ai
+                .send(game, Command::GoTo { units, to: tile }, events)
+                .is_err()
+            {
+                break;
             }
+        }
+        let Some(&first) = waiting.first() else {
+            continue;
+        };
+        // No way to the tile, and not for full squares: the units were grouped by what one of them
+        // reaches and cannot walk there. They are let off the plan, which is made again, and the
+        // log says why.
+        if places_at(&ai.roles, &PlayerView::new(game, me), game, tile) == 0
+            || game.find_path(&[first], tile).is_some()
+            || behind_full_squares(game, &[first], tile)
+        {
             continue;
         }
-        let _ = ai.send(game, Command::GoTo { units, to: tile }, events);
+        let why = game.why_no_path(&waiting, tile);
+        let serials: Vec<_> = {
+            let view = PlayerView::new(game, me);
+            waiting.iter().map(|&u| view.serial_of(u)).collect()
+        };
+        ai.note_failure(
+            game,
+            format!("units {serials:?} cannot walk to their boarding tile {tile:?}"),
+            format!("NoPath({}){}{why}", why.name(), crate::DETAIL_SEPARATOR),
+        );
+        for s in serials {
+            ai.roles.unboard(s);
+        }
     }
 }
 
@@ -553,10 +617,7 @@ fn adopt_passengers(ai: &mut Ai, game: &mut Game) {
             }
             let Some(shore) = crate::military::neighbours(&view, at)
                 .into_iter()
-                .find(|&p| {
-                    view.terrain_class(p)
-                        .is_some_and(|t| t != TerrainClass::Ocean)
-                })
+                .find(|&p| can_walk_onto(&view, p))
             else {
                 continue;
             };
@@ -711,16 +772,7 @@ fn step_ashore(
             .into_iter()
             .filter(|&u| group.contains(&view.serial_of(u)) && view.unit_position(u) == Some(at))
             .collect();
-        let shore = (-1i32..=1)
-            .flat_map(|dy| (-1i32..=1).map(move |dx| (dx, dy)))
-            .filter_map(|(dx, dy)| view.shift(at, dx, dy))
-            .filter(|&p| {
-                view.terrain_class(p)
-                    .is_some_and(|t| t != TerrainClass::Ocean)
-                    && view.hostile_at(p).is_none()
-            })
-            .min_by_key(|&p| (view.distance(p, dest).unwrap_or(u32::MAX), p.y, p.x));
-        (units, shore)
+        (units, shore_of(&view, at, dest))
     };
     let Some(shore) = shore.filter(|_| !units.is_empty()) else {
         return false;
@@ -857,8 +909,9 @@ fn advance(ai: &mut Ai, game: &mut Game, pickup: &Pickup, events: &mut Vec<Event
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testworld::{at, game, spawn, COAST_CITY, ENEMY_CITY, P0};
+    use crate::testworld::{at, game, spawn, spawn_site, COAST_CITY, ENEMY_CITY, P0};
     use f4x_core::map::terrain::TerrainClass;
+    use f4x_def::rules::UnitId;
     use f4x_master::Game;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -1459,7 +1512,7 @@ mod tests {
     }
 
     /// A target a walker can reach on land needs no ship: the sea tag goes, with the place on the
-    /// passenger list.
+    /// passenger list, and nothing is logged.
     #[test]
     fn a_passenger_whose_target_needs_no_sea_crossing_loses_the_tag_and_the_booking() -> TestResult
     {
@@ -1477,11 +1530,7 @@ mod tests {
             .ok_or("another square on the island")?;
         ai.roles.set_target(s, Role::Reinforce, Some(near));
         tidy_unit_registry(&mut ai, &w);
-        let said = said(&ai);
-        assert!(
-            said.iter().any(|r| r.contains("needs no sea crossing")),
-            "{said:?}"
-        );
+        assert!(said(&ai).is_empty());
         assert_eq!(ai.roles.boarding_of(s), None);
         assert_eq!(ai.roles.crossing_of(s), None, "no tag");
         Ok(())
@@ -1555,6 +1604,193 @@ mod tests {
         let s = PlayerView::new(&w, P0).serial_of(flier);
         assert_eq!(ai.roles.boarding_of(s), None);
         assert_eq!(ai.roles.crossing_of(s), None, "a flier waits for no ship");
+        Ok(())
+    }
+
+    /// A ship that is gone (sunk, dismissed) is no fault of a job: the passenger waits for
+    /// another one and nothing is logged.
+    #[test]
+    fn a_passenger_whose_ship_is_gone_waits_for_another_without_a_word() -> TestResult {
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.reveal_map(P0);
+        let land = shore(&w)?;
+        let mut ai = Ai::new(P0);
+        ai.record_refusals(true);
+        let soldier = booked(&mut w, &mut ai, land, land);
+        let s = PlayerView::new(&w, P0).serial_of(soldier);
+        let ship = ai.roles.with_of(s).ok_or("a ship")?;
+        let ship = {
+            let view = PlayerView::new(&w, P0);
+            view.my_units()
+                .into_iter()
+                .find(|&u| view.serial_of(u) == ship)
+                .ok_or("the ship")?
+        };
+        w.apply(P0, Command::DismissUnit { unit: ship });
+        tidy_unit_registry(&mut ai, &w);
+        assert!(said(&ai).is_empty());
+        assert_eq!(ai.roles.boarding_of(s), None);
+        assert_eq!(ai.roles.crossing_of(s), Some(Crossing::Sea), "still waits");
+        Ok(())
+    }
+
+    /// A guarded site on a square the passenger was sent to: nobody can walk onto it, so the
+    /// passenger is let off the plan without a word.
+    #[test]
+    fn a_passenger_whose_boarding_square_gets_a_guarded_site_is_let_off() -> TestResult {
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.reveal_map(P0);
+        let land = shore(&w)?;
+        let mut ai = Ai::new(P0);
+        ai.record_refusals(true);
+        let soldier = booked(&mut w, &mut ai, land, land);
+        let s = PlayerView::new(&w, P0).serial_of(soldier);
+        let tile = island_squares(&w, soldier, land, 6)
+            .into_iter()
+            .last()
+            .ok_or("another square on the island")?;
+        spawn_site(
+            &mut w,
+            tile,
+            vec![(UnitId::new(174 /* zombies */), 1)],
+            Vec::new(),
+        )?;
+        let ship = ai.roles.with_of(s).ok_or("a ship")?;
+        ai.roles.board_at(s, ship, tile);
+        tidy_unit_registry(&mut ai, &w);
+        assert!(said(&ai).is_empty());
+        assert_eq!(ai.roles.boarding_of(s), None);
+        assert_eq!(ai.roles.crossing_of(s), Some(Crossing::Sea), "still waits");
+        Ok(())
+    }
+
+    /// A guarded site on the beach the units would board at: they board somewhere else and are
+    /// delivered (they were sent onto it turn after turn, and never moved).
+    #[test]
+    fn units_are_fetched_past_a_guarded_site_on_the_best_beach() -> TestResult {
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.reveal_map(P0);
+        let land = shore(&w)?;
+        let first = spawn(&mut w, P0, land, 104 /* spearmen */, 1)[0];
+        let start = island_squares(&w, first, land, 20)
+            .into_iter()
+            .last()
+            .ok_or("a square away from the shore")?;
+        let soldiers = spawn(&mut w, P0, start, 104 /* spearmen */, 2);
+        w.apply(P0, Command::DismissUnit { unit: first });
+        spawn(&mut w, P0, port(), 36 /* galley */, 1);
+        w.balance_farmers(P0);
+        // The beach the plan would take.
+        let best = {
+            let mut ai = Ai::new(P0);
+            strand(&mut ai, &w, &soldiers, port());
+            assign_ships(&mut ai, &mut w);
+            let s = PlayerView::new(&w, P0).serial_of(soldiers[0]);
+            ai.roles.boarding_of(s).ok_or("a tile was chosen")?
+        };
+        assert_ne!(best, start, "the units have to walk to the beach");
+        spawn_site(
+            &mut w,
+            best,
+            vec![(UnitId::new(174 /* zombies */), 1)],
+            Vec::new(),
+        )?;
+        let mut ai = Ai::new(P0);
+        strand(&mut ai, &w, &soldiers, port());
+        for _ in 0..60 {
+            run_turns(&mut ai, &mut w, 1);
+            let view = PlayerView::new(&w, P0);
+            if soldiers
+                .iter()
+                .all(|&u| view.unit_position(u) == Some(port()))
+            {
+                break;
+            }
+        }
+        let view = PlayerView::new(&w, P0);
+        for &u in &soldiers {
+            assert_eq!(view.unit_position(u), Some(port()), "{:?}", ai.roles);
+        }
+        Ok(())
+    }
+
+    /// Units that step ashore keep off a guarded site, also when it is where they are bound.
+    #[test]
+    fn units_step_ashore_beside_a_guarded_site() -> TestResult {
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.reveal_map(P0);
+        let land = shore(&w)?;
+        let soldiers = spawn(&mut w, P0, land, 104 /* spearmen */, 2);
+        let sea = {
+            let view = PlayerView::new(&w, P0);
+            sea_beside(&view, land).ok_or("a sea square beside the shore")?
+        };
+        spawn(&mut w, P0, sea, 36 /* galley */, 1);
+        w.move_stack(&soldiers, sea).map_err(|e| format!("{e:?}"))?;
+        w.balance_farmers(P0);
+        spawn_site(
+            &mut w,
+            land,
+            vec![(UnitId::new(174 /* zombies */), 1)],
+            Vec::new(),
+        )?;
+        let ai = Ai::new(P0);
+        let group: Vec<_> = {
+            let view = PlayerView::new(&w, P0);
+            soldiers.iter().map(|&u| view.serial_of(u)).collect()
+        };
+        assert!(step_ashore(&ai, &mut w, &group, sea, land, &mut Vec::new()));
+        // They used their moves going aboard: the order is followed next turn.
+        w.play_round();
+        let view = PlayerView::new(&w, P0);
+        for &u in &soldiers {
+            let at = view.unit_position(u).ok_or("a position")?;
+            assert_eq!(view.terrain_class(at), view.terrain_class(land), "ashore");
+            assert_ne!(at, land, "off the site");
+        }
+        Ok(())
+    }
+
+    /// A boarding tile with room for part of a stack gets that part; the rest wait for room and
+    /// stay booked (the whole stack stood still and was logged turn after turn).
+    #[test]
+    fn a_boarding_tile_with_little_room_takes_what_fits_and_the_rest_wait() -> TestResult {
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.reveal_map(P0);
+        let land = shore(&w)?;
+        let waiting = spawn(&mut w, P0, land, 104 /* spearmen */, 1)[0];
+        let start = island_squares(&w, waiting, land, 6)
+            .into_iter()
+            .last()
+            .ok_or("another square on the island")?;
+        let fill = w.max_tile() - 1 - w.economy().army_at(land).len();
+        spawn(&mut w, P0, land, 104, fill);
+        let ship = spawn(&mut w, P0, port(), 36 /* galley */, 1)[0];
+        let soldiers = spawn(&mut w, P0, start, 104, 3);
+        w.balance_farmers(P0);
+        let mut ai = Ai::new(P0);
+        ai.record_refusals(true);
+        strand(&mut ai, &w, &soldiers, port());
+        let serials: Vec<_> = {
+            let view = PlayerView::new(&w, P0);
+            soldiers.iter().map(|&u| view.serial_of(u)).collect()
+        };
+        let ship = PlayerView::new(&w, P0).serial_of(ship);
+        for &s in &serials {
+            ai.roles.board_at(s, ship, land);
+        }
+        walk_to_shore(&mut ai, &mut w, &mut Vec::new());
+        let view = PlayerView::new(&w, P0);
+        let sent = soldiers
+            .iter()
+            .filter(|&&u| view.unit_position(u) == Some(land) || view.unit_has_order(u))
+            .count();
+        assert_eq!(sent, 1, "the one place is taken");
+        tidy_unit_registry(&mut ai, &w);
+        assert!(said(&ai).is_empty());
+        for &s in &serials {
+            assert_eq!(ai.roles.boarding_of(s), Some(land), "still booked");
+        }
         Ok(())
     }
 }

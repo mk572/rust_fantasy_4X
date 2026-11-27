@@ -100,6 +100,13 @@ campaign has no ferry code of its own any more, and `Role::Voyage` and `Role::Co
 
 `Pickup` in the code is a read-back of the registry (`pickup::voyages`), not a store.
 
+**Where they board and land.** A boarding tile and a landing square hold no guarded site and nobody
+hostile in sight: a walk onto either moves nobody and is not refused. A tile with room for part of a
+stack gets that part; the rest wait, and stay booked while the tile or the way to it is full. A
+booking ends without a log line when the world ends it (the ship is gone, the target needs no sea
+crossing any more, the boarding tile can no longer be walked onto); `BadPassenger` is logged for the
+other faults.
+
 The three scouting roles (`Scout`, `PlanarScout`, `SeaParty`) count as "out scouting"
 (`is_scouting`, `scouting`), which the army and garrison use to leave those units alone.
 
