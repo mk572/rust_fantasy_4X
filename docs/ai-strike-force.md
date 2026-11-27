@@ -12,8 +12,8 @@ target: nine swordsmen beside a target town held by one spearman fought no battl
 
 The goal: the dispatcher only **builds up a force** that can take a target, and a separate logic
 **checks whether the force is enough and attacks**. The attack logic belongs to the AI only. The
-gathering orders are what can later move into `f4x-core` beside the other unit orders
-(`f4x-core/src/unit/handling`), so that there is one system of orders and not two.
+movement of the gathering is what moves into a helper in `f4x-core` (task 830), so that there is one
+system of unit movement.
 
 ## 2. Decisions taken
 

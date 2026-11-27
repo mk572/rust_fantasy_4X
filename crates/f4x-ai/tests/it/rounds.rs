@@ -102,6 +102,41 @@ fn a_game_loaded_with_the_ais_plans_plays_on_as_the_saved_one_would_have() {
 }
 
 #[test]
+fn a_replay_of_a_game_between_ais_writes_their_unit_tasks_again() {
+    let mut w = Game::from(
+        new_game(
+            f4x_def::testdir::shipped(),
+            &NewGame {
+                seed: 15,
+                all_ai: true,
+                ..NewGame::default()
+            },
+        )
+        .expect("a new game"),
+    );
+    let mut ais = vec![Ai::new(PlayerId(0)), Ai::new(PlayerId(1))];
+    w.start_recording();
+    for _ in 0..20 {
+        play_round(&mut w, &mut ais);
+    }
+    for player in [PlayerId(0), PlayerId(1)] {
+        assert!(
+            w.player_tasks(player).is_some(),
+            "{player:?} wrote its tasks into its ledger"
+        );
+    }
+    let replay = w.stop_recording().expect("a recording");
+    let (replayed, _) = replay
+        .play(w.content().clone(), usize::MAX)
+        .expect("the replay plays");
+    assert_eq!(
+        replayed.snapshot().to_text().ok(),
+        w.snapshot().to_text().ok(),
+        "the replayed game matches the one that was played"
+    );
+}
+
+#[test]
 fn the_master_collects_the_ais_plans_to_be_saved() {
     use f4x_ai::AiSeat;
     use f4x_master::{Master, Seat, Stopped, Until};

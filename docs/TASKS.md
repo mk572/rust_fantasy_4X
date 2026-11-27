@@ -912,18 +912,19 @@ situation is a target, not a need (Earth Lore and Raise Volcano nearly always ha
 
 **830. The computer player's unit tasks in the army ledger.** Asked for by the user, 27 November 2026, first as unit orders for players that use the computer player's unit automation. An order or task uses only what its owner knows and does only what the player could do by commands (`docs/design.md` section 8; path finding by the player's knowledge is task 649), and never changes diplomacy by itself.
 
-**Built (player orders):** the army ledger holds the orders (`unit/ledger.rs`), core walks them at the end of the turn, and the client's Order button offers Go to, Patrol, scout, meld, settle, build a road, escort, reinforce and Cancel orders (`docs/game-flow.md` 3.2). The computer player orders its own units again (commit `15352293`): of these it uses only Go to and road building. `f4x-core/src/unit/handling` is a copy of its unit handling that nothing calls.
+**Built (player orders):** the army ledger holds the orders (`unit/ledger.rs`), core walks them at the end of the turn, and the client's Order button offers Go to, Patrol, scout, meld, settle, build a road, escort, reinforce and Cancel orders (`docs/game-flow.md` 3.2). The computer player orders its own units itself: of these it uses only Go to and road building.
+
+**Built (stage 1, 27 November 2026):** the computer player's unit tasks and the squares of its gathering forces are in its army ledger (`unit/task.rs`, `Command::SetTasks`); it reads them as its turn begins and writes them near the end of it, and the unused copy of its unit handling is gone. It still moves each unit itself.
 
 **To be built** (the user's design, 27 November 2026; it covers the war tasks too):
-- The computer player registers its unit tasks, all of them, the war tasks and their target squares included, in the army ledger its player owns, and no longer orders each unit by itself. The tasks themselves are unchanged.
+- The computer player registers its unit tasks, all of them, the war tasks and their target squares included, in the army ledger its player owns (built), and no longer orders each unit by itself. The tasks themselves are unchanged.
 - It calls a helper in core that does the movement part of the tasks: the helper checks that the targets are legal, ends the orders that have no target any more, moves the units that can move, and loads units on ships or lands them ashore. It may return a unit with an invalid order to "awaiting orders"; it changes nothing else about a task, and it calls no attack.
 - The computer player calls the helper twice in its turn: at the start, and again after its jobs have given out tasks, so that a new task still moves its unit in the same turn.
 - Decisions stay with the computer player (targets, rally points, which ship takes whom, spells, war), as does what a unit does on arrival (meld, found a city, start a road).
 - The helper's logic is what the computer player does by itself today, moved as it is.
-- The copy in `unit/handling` goes.
 - The players' own orders are left as they are (task 838).
 
-Built in stages with a stop after each: (1) the task records move into the ledger, through commands, so that replays hold, older saves load, and the unused copy goes; (2) the helper checks the targets and walks, through towers and gates too; (3) the ships.
+Built in stages with a stop after each: (1, built) the task records move into the ledger, through commands, so that replays hold, older saves load, and the unused copy goes; (2) the helper checks the targets and walks, through towers and gates too; (3) the ships.
 
 Docs: `docs/ecs-structure.md`, `docs/ai-design.md`, `docs/ai-unit-registry.md`, `docs/turn-structure.md`. *Needs:* nothing.
 

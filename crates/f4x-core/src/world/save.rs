@@ -339,6 +339,9 @@ pub struct PlayerSave {
     /// The units that left the player's army, in the order they did (`unit::ledger`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub departed: Vec<DepartedSave>,
+    /// What the player has set its units to do (`unit::task`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tasks: Option<Box<crate::unit::task::Tasks>>,
 }
 
 /// One record of a unit that left an army.
@@ -1063,6 +1066,7 @@ impl World {
                 defeated: self.player(*id).is_some_and(|p| p.is_defeated()),
                 defeated_by: self.player(*id).and_then(|p| p.defeated_by()).map(|d| d.0),
                 departed: self.departed_saves(*id),
+                tasks: self.player_tasks(*id).map(Box::new),
             })
             .collect();
         let wizards = self
@@ -1463,6 +1467,8 @@ impl Snapshot {
             }
         }
         let mut departed: Vec<(PlayerId, Vec<DepartedSave>)> = Vec::new();
+        // The tasks go into the ledgers once the units are in them.
+        let mut tasks = Vec::new();
         for p in self.players {
             let id = PlayerId(p.id);
             departed.push((id, p.departed));
@@ -1501,6 +1507,7 @@ impl Snapshot {
                     Offers(p.offers),
                 ),
             );
+            tasks.push((entity, p.tasks));
             if let Some(w) = wizard {
                 let capital_race = w
                     .capital_race
@@ -1771,6 +1778,9 @@ impl Snapshot {
                     .collect();
                 crate::unit::ledger::give_order(&world.ecs, entity, order, &seen);
             }
+        }
+        for (player, tasks) in tasks {
+            crate::unit::ledger::set_tasks(&world.ecs, player, tasks);
         }
         for (player, records) in departed {
             for record in records {

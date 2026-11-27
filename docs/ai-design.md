@@ -670,8 +670,7 @@ unit tests in `wizardry.rs` and `f4x-ai/src/battle/order.rs`, `crates/f4x-learn/
   or planes; the soak cannot end those by conquest. A trireme (two land units, needs a Ship
   Wrights Guild) or a galley (five, needs a Ship Yard, which needs a Sawmill) is built in a
   coastal city; a stack of the ship and its passengers moves with one `GoTo`
-  (scouting ships, land scouts, settlers, spirits, reinforcements and escorts use the players'
-  standing orders, `ai-unit-registry.md` "Orders"); passengers land with
+  (as every walk of the AI does, `ai-unit-registry.md` "Orders"); passengers land with
   an ordinary move onto the land next to the target. What the AI would have to add: a port, the
   buildings, a gathering of nine or more units over several trips, and a landing area it holds
   until the force is whole. Built in `naval.rs` (port, ship, one landing at a time); a ship loaded for a rival's city declares war first; what stays open is a second ship, planes (a sea scout lands a fighter on empty land, a ship takes a party to a guarded tower, a scout changes plane on a cleared one; an army does not cross yet), and why seeds 2 and 8 make no landing on the other wizard (task 230).
@@ -837,8 +836,9 @@ of 42, within the noise of this sample.
 ## 13. Unit roles
 
 Every unit has exactly one role, and none has an empty one. The roles live in one place, the
-registry `Ai::roles` (`roles.rs`); the whole subsystem (data, groups, claim rules, the audit, how to
-add a role) is in [`ai-unit-registry.md`](ai-unit-registry.md).
+registry `Ai::roles` (`roles.rs`), which the player's army ledger keeps between turns; the whole
+subsystem (data, where it is kept, groups, claim rules, the audit, how to add a role) is in
+[`ai-unit-registry.md`](ai-unit-registry.md).
 
 **The units themselves.** The AI asks for its units with `PlayerView::my_units`, which reads the
 army ledger (`ecs-structure.md` 3.12): oldest first, at the cost of its own units, so it asks again

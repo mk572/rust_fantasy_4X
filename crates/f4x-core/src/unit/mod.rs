@@ -9,7 +9,6 @@
 //! `World` has thin methods that make a handle and ask it (`World::units`).
 
 pub mod experience;
-pub mod handling;
 pub(crate) mod healing;
 pub(crate) mod kept;
 pub mod ledger;
@@ -21,6 +20,7 @@ pub mod pathing;
 pub mod sanity;
 pub mod scouting;
 pub mod stasis;
+pub mod task;
 pub mod transport;
 pub mod undead;
 

@@ -365,6 +365,11 @@ impl<'a> PlayerView<'a> {
         self.world.wizard(self.me).and_then(|w| w.fortress())
     }
 
+    /// What the player has set its units to do (`Command::SetTasks`); `None` until it has.
+    pub fn my_tasks(&self) -> Option<crate::unit::task::Tasks> {
+        self.world.player_tasks(self.me)
+    }
+
     pub fn my_units(&self) -> Vec<hecs::Entity> {
         self.world.units().player_units(self.me)
     }

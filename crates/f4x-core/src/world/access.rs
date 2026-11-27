@@ -142,6 +142,16 @@ impl World {
         matches!(self.unit_order(unit), Some(Order::Road(_)))
     }
 
+    /// What `player` has set its units to do, as it last wrote it into its army ledger.
+    pub fn player_tasks(&self, player: PlayerId) -> Option<crate::unit::task::Tasks> {
+        let owner = self.player_entity(player)?;
+        let ledger = self
+            .ecs
+            .get::<&crate::unit::ledger::ArmyLedger>(owner)
+            .ok()?;
+        ledger.tasks().cloned()
+    }
+
     /// Is the unit waiting for orders: moves left, and neither on standby nor under an order?
     /// What the main screen cycles through.
     pub fn unit_is_idle(&self, unit: hecs::Entity) -> bool {

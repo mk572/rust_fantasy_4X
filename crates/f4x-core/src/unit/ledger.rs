@@ -1,5 +1,5 @@
-//! The army ledger: which units each player has, and their standing orders
-//! (`docs/ecs-structure.md` 3.12).
+//! The army ledger: which units each player has, their standing orders and the tasks the player
+//! has set them (`docs/ecs-structure.md` 3.12).
 //!
 //! Tests: in `tests/it/c9_ledger.rs`.
 
@@ -9,6 +9,7 @@ use crate::hero::{Fate, Hero};
 use crate::map::Position;
 use crate::player::{Owner, PlayerId, MONSTERS};
 use crate::rules::UnitId;
+use crate::unit::task::Tasks;
 use crate::unit::{Experience, Order, Unit};
 use crate::world::serial::Serial;
 
@@ -75,6 +76,8 @@ pub struct ArmyLedger {
     /// Of living units only: a unit that leaves or changes sides loses its order.
     orders: BTreeMap<Serial, Standing>,
     departed: Vec<DepartedUnit>,
+    /// What the player has set its units to do; `None` until it writes it.
+    tasks: Option<Box<Tasks>>,
 }
 
 impl ArmyLedger {
@@ -109,9 +112,28 @@ impl ArmyLedger {
         self.living.get(&serial).copied()
     }
 
+    /// What the player has set its units to do, as it last wrote it.
+    pub fn tasks(&self) -> Option<&Tasks> {
+        self.tasks.as_deref()
+    }
+
     /// The units that left, in the order they did.
     pub fn departed(&self) -> &[DepartedUnit] {
         &self.departed
+    }
+}
+
+/// Keep `tasks` in the ledger of the player entity `owner`, in place of what it held. What they
+/// say of units that are not in the army is left out.
+pub(crate) fn set_tasks(ecs: &hecs::World, owner: hecs::Entity, tasks: Option<Box<Tasks>>) {
+    let ledger = ecs.get::<&mut ArmyLedger>(owner);
+    debug_assert!(ledger.is_ok(), "every player has a ledger");
+    if let Ok(mut ledger) = ledger {
+        let ledger = &mut *ledger;
+        ledger.tasks = tasks.map(|mut tasks| {
+            tasks.roles.keep_living(|s| ledger.living.contains_key(&s));
+            tasks
+        });
     }
 }
 
@@ -150,6 +172,9 @@ pub(crate) fn strike(ecs: &hecs::World, thing: hecs::Entity) {
     if let Ok(mut ledger) = ecs.get::<&mut ArmyLedger>(owner) {
         ledger.living.remove(&serial);
         ledger.orders.remove(&serial);
+        if let Some(tasks) = &mut ledger.tasks {
+            tasks.roles.keep_living(|s| s != serial);
+        }
     }
 }
 

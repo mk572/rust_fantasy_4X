@@ -89,6 +89,16 @@ Non-obvious findings, one rule up front in bold. General lessons (shell, tools) 
 - **The speed guard's game is not the same game after an AI change.** The snapshots are fixed, but the AI plays other
   turns from them (more battles, more marches), so compare the profile by function, not only the ms a turn.
 
+## A new command (task 830)
+
+A new `Command` variant is not enough in `command.rs`, `actor.rs` and `World::execute_command`:
+
+- `VisionEffect::of` (`map/vision.rs`) ends in `_ => Recount`, so a command that moves nothing
+  compiles without being listed and silently costs a computer player a recount of its sight. List it.
+- The refusal sweep (`world/testutil/sweep.rs`) must make it, or `c1_refusal` fails.
+- What the ledger keeps of units is restored after the units are loaded (`save.rs`): set earlier,
+  it is filtered away, since the ledger takes nothing about a unit it does not list yet.
+
 ## Orders that stop (tasks 515, 555)
 
 - **A step that fails must be reported, not dropped.** `follow_orders` used to end a `GoTo` on any refused

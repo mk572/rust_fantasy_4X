@@ -201,6 +201,12 @@ pub enum Command {
         city: hecs::Entity,
         farmers: u32,
     },
+    /// Keep what the player has set its units to do in its army ledger, in place of what it
+    /// held (`unit::task`). It orders no unit about.
+    SetTasks {
+        player: player::PlayerId,
+        tasks: Box<unit::task::Tasks>,
+    },
     /// Put just enough citizens on farms in all the player's cities to feed its citizens and
     /// its army (`World::balance_farmers`).
     BalanceFarmers {

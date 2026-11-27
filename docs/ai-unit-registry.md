@@ -1,7 +1,8 @@
 # The AI unit registry
 
 How the scripted AI (`crates/f4x-ai`) keeps track of what each of its units is for. Part of the AI
-design ([`ai-design.md`](ai-design.md) section 13). Code: `crates/f4x-ai/src/roles.rs`; the
+design ([`ai-design.md`](ai-design.md) section 13). Code: the records are
+`crates/f4x-core/src/unit/task.rs`, the rules that fill them `crates/f4x-ai/src/roles.rs`; the
 routines that take and give roles are named below.
 
 ## 1. The rule
@@ -18,7 +19,11 @@ the registry who holds its role, and takes or gives roles through it.
 
 ## 2. What the registry holds
 
-A map from a unit's `Serial` to one `Assignment`, ordered by serial, saved with the AI:
+A map from a unit's `Serial` to one `Assignment`, ordered by serial. Its home is the player's army
+ledger (`ecs-structure.md` 3.12), with the squares of the gathering forces (`Tasks`): the AI reads
+them from there as its turn begins, works on its own copy, and writes it back with
+`Command::SetTasks` near the end of the turn, so the save and the replay have them. A save from
+before (task 830) has them in the AI's plans; they go into the ledger on the AI's first turn.
 
 | Field | Meaning |
 |---|---|
@@ -168,11 +173,11 @@ await orders like any other.
 
 A settler that leaves a city for its site (`expand.rs` calls `escort::walk`) is given the strongest
 free soldier the city can spare above `garrison_wanted`; a city with none sends its settler alone.
-The soldier gets an escort order (`Errand::Escort`) and the charge its own errand; the core walks
-the two as one stack, at the pace of the slower, and an escort that cannot cross what its charge
-crosses stays behind (`game-flow.md` 3.2). After the settlers have moved, `escort::run` frees the
-escorts whose charge is gone, ending their orders; `dispatch::repair_escorts` tells an escort that
-is apart from its charge to follow again. Settlers, spirits on their way to a node
+The two are sent to the site as one stack, with one `GoTo`, at the pace of the slower; a charge
+that can cross what its escort cannot goes alone, and with no escort and an enemy near it waits.
+After the settlers have moved, `escort::run` frees the escorts whose charge is gone and stops an
+unescorted settler or spirit when an enemy comes near; `dispatch::repair_escorts` sends an escort
+that is apart from its charge after it. Settlers, spirits on their way to a node
 (`escort::walk`), healers and weak heroes alone in the field (`escort::stragglers`) and engineers
 working within 8 squares of a rival's city (`escort::guard`, which takes the soldier from the
 nearest city that can spare one and sends it to the engineer, who waits for it) are escorted. Not
@@ -180,17 +185,12 @@ built: the charge waiting when its escort is lost and an enemy is near.
 
 ### Orders
 
-Scouts on foot and at sea, spirits bound for a node, settlers, reinforcements and escorts are given the same
-standing orders a player gives (`Command::GiveOrder`, `game-flow.md` 3.2); the core walks them, and
-ends them when they cannot be done, or (scout, meld, settle, road) when an enemy comes into sight.
-The registry still holds the role and the target: an ended order leaves the role, and the
-dispatcher's step 2 gives the order again or drops the mission. A scouting order picks its next
-patch itself, and step 2 copies it into the registry. A scouting ship shares the order with the
-party aboard (`SeaParty`), and `scout.rs` looks each turn whether one of them can step ashore on
-land nobody holds, the ship under way or not. The planar scout (a walk to a tower) and the war roles
-walk with `GoTo`. An order whose unit no longer holds its role is ended before the audit
-(`dispatch::drop_stray_orders`). The saved registry is as it was, so an older save loads: its
-units have a `GoTo` or no order, and are given their errand when the role next sends them.
+The AI moves its units itself, with `Command::GoTo` (road work with `Command::BuildRoad`), and ends a
+walk it no longer wants with `Command::ClearOrders`. It gives no other standing order of a player
+(`Command::GiveOrder`). The core walks a `GoTo` at once and at the end of each turn (section 5). The
+registry holds the role and the target, so a walk that ended short of it is sent again, or the
+mission dropped, by the dispatcher's step 2. Task 830 moves this movement into a helper in core that
+reads the tasks from the ledger (`docs/TASKS.md`).
 
 ### The road
 

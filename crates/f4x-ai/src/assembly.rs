@@ -22,19 +22,10 @@ use f4x_master::Game;
 use crate::roles::{MusterKind, Role};
 use crate::view::distance;
 use crate::{Ai, SendError};
+use f4x_core::unit::task::Assembly;
 
 /// The squares of a way, each with the turn the units stand on it.
 type Way = Vec<(Position, u32)>;
-
-/// What the AI keeps about the force gathering against one target.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub(crate) struct Assembly {
-    target: Position,
-    /// The square beside the target the force attacks from.
-    beside: Option<Position>,
-    /// Where the force gathers first.
-    rally: Option<Position>,
-}
 
 /// How a door is gone through.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

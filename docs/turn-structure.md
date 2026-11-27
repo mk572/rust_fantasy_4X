@@ -334,7 +334,7 @@ The game does not take a sender's word that something is a reaction. An event th
 | the random numbers (10.10) | |
 
 - `Master` drives a `&mut Game`: it asks the active seat's controller to play, and another seat's controller when a reaction waits for it. The `Game` does not own the controllers: they borrow the front end's state, cannot be saved, and need to change the game to send commands.
-- The save holds two parts side by side: the `Game`, and one block of plans per computer player. The `Game` does not know that AIs exist; a human or remote player has no block.
+- The save holds two parts side by side: the `Game`, and one block of plans per computer player. The `Game` does not know that AIs exist; a human or remote player has no block. The unit tasks of a computer player are not in its plans: it writes them into its army ledger, part of the world, with a command (task 830, `ecs-structure.md` 3.12).
 
 ### 10.6 Who knows the round (decided 26 November 2026)
 

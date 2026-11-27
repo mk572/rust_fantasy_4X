@@ -846,6 +846,13 @@ impl World {
                     .insert_one(city, city::economy::Farmers(farmers.clamp(min, figures)));
                 Vec::new()
             }
+            Command::SetTasks { player, tasks } => match self.player_entity(player) {
+                Some(owner) => {
+                    unit::ledger::set_tasks(&self.ecs, owner, Some(tasks));
+                    Vec::new()
+                }
+                None => vec![Event::Rejected(Rejection::NoSuchPlayer)],
+            },
             Command::BalanceFarmers { player } => {
                 self.balance_farmers(player);
                 Vec::new()

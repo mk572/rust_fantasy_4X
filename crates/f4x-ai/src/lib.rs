@@ -74,6 +74,7 @@ use std::collections::HashMap;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
+use f4x_core::unit::task::{Assembly, Tasks};
 use f4x_core::world::serial::Serial;
 use f4x_core::world::{Command, Event, World};
 use f4x_master::{Game, Plans};
@@ -123,6 +124,10 @@ fn step_detail(world: &World, event: &Event) -> Option<String> {
         Some(why) => format!("step ({x}, {y}): {why}"),
         None => format!("step ({x}, {y}): free now"),
     })
+}
+
+fn is_default<T: Default + PartialEq>(value: &T) -> bool {
+    *value == T::default()
 }
 
 /// What a command that moves or fights is aimed at, for the facts of its refusal.
@@ -284,9 +289,12 @@ pub struct Ai {
     #[serde(default)]
     crossing: Option<Position>,
     /// The gathering against each target: the square the force attacks from and its rally point
-    /// (`assembly.rs`).
-    #[serde(default)]
-    assemblies: Vec<assembly::Assembly>,
+    /// (`assembly.rs`). Kept in the army ledger with `roles`.
+    #[serde(skip)]
+    assemblies: Vec<Assembly>,
+    /// `assemblies` as the plans of an older save have them, until they go into the ledger.
+    #[serde(default, rename = "assemblies", skip_serializing_if = "Vec::is_empty")]
+    old_assemblies: Vec<Assembly>,
     /// Own cities the engineers found no road to build at, and how many cities there were then
     /// (`road.rs`).
     #[serde(default)]
@@ -338,9 +346,13 @@ pub struct Ai {
     #[serde(skip)]
     retrying: std::cell::Cell<bool>,
     /// The one place a unit's role lives (`roles.rs`). It holds each unit's role, its
-    /// target and, for a unit that cannot walk there, what it needs (`Crossing`).
-    #[serde(default)]
+    /// target and, for a unit that cannot walk there, what it needs (`Crossing`). Its home is
+    /// the army ledger: it is read from there as the turn begins and written back as it ends.
+    #[serde(skip)]
     roles: roles::Registry,
+    /// `roles` as the plans of an older save have them, until they go into the ledger.
+    #[serde(default, rename = "roles", skip_serializing_if = "is_default")]
+    old_roles: roles::Registry,
     /// When each plan began, for the time limit on all of them (`plan_clock.rs`).
     #[serde(default)]
     clock: plan_clock::PlanClock,
@@ -492,6 +504,7 @@ impl Ai {
             tower_blocked: Vec::new(),
             crossing: None,
             assemblies: Vec::new(),
+            old_assemblies: Vec::new(),
             site_losses: Vec::new(),
             road_checked: Vec::new(),
             road_cities: 0,
@@ -511,6 +524,7 @@ impl Ai {
             blocked: RefCell::new(Vec::new()),
             retrying: std::cell::Cell::new(false),
             roles: roles::Registry::default(),
+            old_roles: roles::Registry::default(),
             clock: plan_clock::PlanClock::default(),
             unmet_spells: RefCell::default(),
         }
@@ -600,6 +614,7 @@ impl Ai {
                 return events;
             }
         }
+        self.read_tasks(game);
         // Units built or hired since the last turn await orders from the first moment.
         roles::register(self, game, game.round());
         let planning = game.levers().planning;
@@ -653,10 +668,51 @@ impl Ai {
         economy::cities(self, game, &mut events);
         road::build_engineer(self, game, &mut events);
         shortfall::run(self, game, &mut events);
+        self.write_tasks(game, &mut events);
         // What it has to say to the human comes last: a war declared here leaves the human a
         // turn before the first attack, and the turn waits for the answer to a proposal.
         diplo_b_talk::approach_human(self, game, &mut events);
         events
+    }
+
+    /// Take up the unit tasks the army ledger holds. A save from before they were kept there
+    /// has them in the plans.
+    fn read_tasks(&mut self, world: &World) {
+        let old_roles = std::mem::take(&mut self.old_roles);
+        let old_assemblies = std::mem::take(&mut self.old_assemblies);
+        match PlayerView::new(world, self.player).my_tasks() {
+            Some(tasks) => {
+                self.roles = tasks.roles;
+                self.assemblies = tasks.assemblies;
+            }
+            None => {
+                if !is_default(&old_roles) {
+                    self.roles = old_roles;
+                }
+                if !old_assemblies.is_empty() {
+                    self.assemblies = old_assemblies;
+                }
+            }
+        }
+    }
+
+    /// Write the unit tasks into the army ledger, where the save and the replay have them.
+    fn write_tasks(&self, game: &mut Game, events: &mut Vec<Event>) {
+        if game.game_over().is_some() {
+            return;
+        }
+        let tasks = Tasks {
+            roles: self.roles.clone(),
+            assemblies: self.assemblies.clone(),
+        };
+        if PlayerView::new(game, self.player).my_tasks().as_ref() != Some(&tasks) {
+            // Not through `send`: it orders no unit, and the refused-order log would copy it.
+            let command = Command::SetTasks {
+                player: self.player,
+                tasks: Box::new(tasks),
+            };
+            events.extend(game.apply(self.player, command));
+        }
     }
 
     /// Keep a failure that is no refused command (a party that cannot be sent anywhere) in the
@@ -998,6 +1054,42 @@ mod send_tests {
             matches!(refused, Err(SendError::Rejected(_))),
             "{refused:?}"
         );
+    }
+
+    #[test]
+    fn the_tasks_in_the_plans_of_an_older_save_go_into_the_army_ledger() -> TestResult {
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let units = spawn(&mut w, P0, at(5, 8), 113 /* high_men_paladins */, 1);
+        let serial = PlayerView::new(&w, P0).serial_of(units[0]);
+        // An older save keeps the tasks in the plans.
+        let mut older = Ai::new(P0);
+        older
+            .old_roles
+            .claim(serial, roles::Role::Meld, 1, Some(at(5, 9)))
+            .expect("a free unit");
+        older.old_assemblies.push(Assembly {
+            target: at(5, 9),
+            beside: None,
+            rally: Some(at(5, 8)),
+        });
+        let expected = Tasks {
+            roles: older.old_roles.clone(),
+            assemblies: older.old_assemblies.clone(),
+        };
+
+        let mut loaded = Ai::from_text(&older.to_text()?)?;
+        let mut events = Vec::new();
+        loaded.read_tasks(&w);
+        loaded.write_tasks(&mut w, &mut events);
+        assert!(events.is_empty(), "{events:?}");
+        assert_eq!(w.player_tasks(P0), Some(expected.clone()));
+        // From then on the ledger is their home: the plans no longer carry them.
+        let mut next = Ai::from_text(&loaded.to_text()?)?;
+        assert!(next.old_roles == roles::Registry::default() && next.old_assemblies.is_empty());
+        next.read_tasks(&w);
+        assert_eq!(next.roles, expected.roles);
+        assert_eq!(next.assemblies, expected.assemblies);
+        Ok(())
     }
 
     #[test]
