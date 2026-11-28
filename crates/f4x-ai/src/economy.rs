@@ -75,8 +75,6 @@ struct Roster {
     free_places: usize,
     /// Units awaiting transport on a shore (not the settlers waiting in a port).
     waiting: usize,
-    /// Units out scouting.
-    scouts: usize,
 }
 
 impl Roster {
@@ -100,7 +98,6 @@ impl Roster {
                 .map(|&u| view.unit_stat(u, f4x_def::rules::Stat::Transport).max(0) as usize)
                 .sum(),
             waiting,
-            scouts: tasks.roles.scouting().len(),
         }
     }
 
@@ -215,8 +212,11 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     // Fewer scouts than a wizard that builds up wants (`scout::wanted`) and no soldier spare: one
     // city builds the unit that scouts (the first that is not full, so that the others go on with
     // their plans).
-    let scout_city = (roster.scouts
-        < crate::scout::wanted(&game.levers().scouting, mine.len(), true)
+    let scouts = {
+        let view = PlayerView::new(game, me);
+        crate::scout::search_scouts(ai, &view).len()
+    };
+    let scout_city = (scouts < crate::scout::wanted(&game.levers().scouting, mine.len(), true)
         && roster.idle_fighters == 0
         && !ai.frontier_closed
         && crate::phase::phase(&PlayerView::new(game, me), game.round())

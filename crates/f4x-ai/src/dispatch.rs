@@ -22,7 +22,8 @@
 //! 5. raiding parties for a lair, from the soldiers the war left over (646);
 //! 6. the other under-defended cities (646);
 //!
-//! Then come the ships and the colonies (task 647) and the audit that counts what is left.
+//! Then come the ships and the colonies (task 647), the scouting of the ships left with nothing to
+//! carry, and the audit that counts what is left.
 
 use crate::Ai;
 use f4x_core::player::view::PlayerView;
@@ -207,6 +208,8 @@ fn free_soldiers(ai: &Ai, world: &World) -> Vec<hecs::Entity> {
 
 /// One turn of the jobs, in the order of the checklist.
 pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+    // A spare ship a unit waits for stops scouting first, so it counts as free below.
+    crate::scout::recall_spare_ships(ai, game, events);
     crate::roles::register(ai, game);
     // The sweep of the ship ties (and the sanity check of the passengers), before any job moves
     // one of them.
@@ -244,6 +247,8 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     crate::bridge::run(ai, game, events);
     crate::naval::run(ai, game, events);
     crate::pickup::run(ai, game, events);
+    // What the ship jobs left free scouts.
+    crate::scout::spare_ships(ai, game, events);
     // The orders a full square stopped go again, now that the units that could move have moved.
     ai.retry_blocked(game, events);
     // And last, for the units that arrived with moves left.

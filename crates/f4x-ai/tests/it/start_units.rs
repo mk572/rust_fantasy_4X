@@ -1,6 +1,5 @@
 //! The AI with the extra starting units (settings `starting_units`): it founds a city with the
-//! settlers and sends the Magic Spirit away from home. The Trireme waits until the AI has a use
-//! for a ship, as one it built would.
+//! settlers and sends the Magic Spirit and the Trireme away from home.
 
 use f4x_ai::{play_round, Ai};
 use f4x_core::map::Position;
@@ -17,7 +16,10 @@ const TURNS: u32 = 12;
 #[test]
 fn the_ai_uses_its_starting_units() -> TestResult {
     let rules = &shipped().rules;
-    let spirit = rules.config.wizard.start_spirit;
+    let (spirit, ship) = (
+        rules.config.wizard.start_spirit,
+        rules.config.wizard.start_ship,
+    );
     let mut spec = NewGame {
         seed: 1,
         all_ai: true,
@@ -38,7 +40,7 @@ fn the_ai_uses_its_starting_units() -> TestResult {
             .into_iter()
             .filter_map(|u| {
                 let def = units.unit_def(u)?;
-                (def.num == spirit || def.is_settler()).then_some((
+                (def.num == spirit || def.num == ship || def.is_settler()).then_some((
                     def.num,
                     units.serial_of(u),
                     units.unit_position(u)?,

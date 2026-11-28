@@ -348,8 +348,8 @@ off by default.
   says so to the human in the message log.
 - The units are ordinary ones: they pay their normal upkeep from the first turn. A wizard whose mana share cannot pay
   for the Magic Spirit loses it, as with any upkeep (accepted, 16 October 2026).
-- The AI treats them as units it built: settlers found a city, the spirit scouts and melds, and the ship waits
-  until the AI has a use for one.
+- The AI treats them as units it built: settlers found a city, the spirit scouts and melds, and the ship
+  scouts while it has nothing to carry (`ai-unit-registry.md` "Ships").
 - The Custom screen has one row for each; the soak takes `--start-units settler,spirit,trireme`.
 
 Not built: a list of units with counts, a value of its own for the AI, and the creature of the first summoning spell.

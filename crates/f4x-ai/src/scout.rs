@@ -70,15 +70,8 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     ai.write(game).tidy_musters();
     let (scouts, cities, building) = {
         let view = PlayerView::new(game, me);
-        let tasks = view.tasks();
-        let mut scouts: Vec<hecs::Entity> = view
-            .my_units()
-            .into_iter()
-            .filter(|&u| tasks.roles.is_scouting(view.serial_of(u)))
-            .collect();
-        view.sort_by_serial(&mut scouts);
         (
-            scouts,
+            search_scouts(ai, &view),
             view.my_cities().len(),
             crate::phase::phase(&view, game.round()) == crate::phase::Phase::Build,
         )
@@ -91,17 +84,7 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 .claim(serial, crate::roles::Role::Scout, None);
         }
     }
-    let scouts: Vec<hecs::Entity> = {
-        let view = PlayerView::new(game, me);
-        let tasks = view.tasks();
-        let mut list: Vec<hecs::Entity> = view
-            .my_units()
-            .into_iter()
-            .filter(|&u| tasks.roles.is_scouting(view.serial_of(u)))
-            .collect();
-        view.sort_by_serial(&mut list);
-        list
-    };
+    let scouts = search_scouts(ai, &PlayerView::new(game, me));
     let ship_out = {
         let view = PlayerView::new(game, me);
         scouts.iter().any(|&u| is_ship(&view, u))
@@ -121,79 +104,7 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     };
     let mut found_any = scouts.is_empty();
     for unit in scouts {
-        let (serial, pos, idle) = {
-            let view = PlayerView::new(game, me);
-            let Some(pos) = view.unit_position(unit) else {
-                continue;
-            };
-            (view.serial_of(unit), pos, !view.unit_has_order(unit))
-        };
-        // A fighter riding on a sea scout waits to be put ashore.
-        let riding = {
-            let tasks = ai.tasks(game);
-            tasks.roles.is(serial, crate::roles::Role::SeaParty)
-                || tasks.roles.is(serial, crate::roles::Role::PlanarScout)
-        };
-        if riding {
-            found_any = true;
-            continue;
-        }
-        // A scout that has not moved for a few turns although it has an order is stuck: give
-        // its target up (a guarded or blocked patch) and choose another.
-        let stood = ai.write(game).track(serial, pos, !idle);
-        let stuck = stood >= game.levers().scouting.stuck_turns;
-        if stuck {
-            let bound_for = ai
-                .tasks(game)
-                .roles
-                .target_of(serial, crate::roles::Role::Scout);
-            if let Some(t) = bound_for {
-                ai.bad_scout_targets.push(t);
-                ai.write(game)
-                    .set_target(serial, crate::roles::Role::Scout, None);
-            }
-            ai.write(game).clear_track(serial);
-            ai.order(game, Command::ClearOrders { units: vec![unit] }, events);
-        } else if !idle {
-            found_any = true;
-            continue;
-        }
-        let is_sea_scout = is_ship(&PlayerView::new(game, me), unit);
-        if is_sea_scout && put_ashore(ai, game, pos, events) {
-            found_any = true;
-            continue;
-        }
-        let claimed: Vec<Position> = ai
-            .tasks(game)
-            .roles
-            .targeted(crate::roles::Role::Scout)
-            .into_iter()
-            .filter(|(s, _)| *s != serial)
-            .map(|(_, p)| p)
-            .chain(ai.bad_scout_targets.iter().copied())
-            .collect();
-        let target = {
-            let view = PlayerView::new(game, me);
-            best_target_with(&view, unit, pos, &claimed, &ai.war_plan.recon)
-        };
-        match target {
-            Some(to) => {
-                found_any = true;
-                ai.write(game)
-                    .set_target(serial, crate::roles::Role::Scout, Some(to));
-                let mut units = vec![unit];
-                if is_sea_scout {
-                    units.extend(board(ai, game, unit, pos));
-                }
-                // A refused walk is in the refused-order log; the scout tries again later.
-                let _ = ai.walk(game, units, events);
-            }
-            None => {
-                // Nothing left to explore that this unit can reach: its scouting is over and it
-                // awaits orders (the registry says so, `docs/ai-unit-registry.md`).
-                ai.write(game).release(serial, crate::roles::Role::Scout);
-            }
-        }
+        found_any |= send_on(ai, game, unit, events);
     }
     if ai.sea_scouting && !ship_out {
         // The ship is gone (sunk, or called back): the search by sea is over until another is
@@ -203,14 +114,210 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     if !found_any {
         // Nothing reachable shows anything new: the rest of the map needs ships or a gate.
         ai.frontier_closed = true;
+        // Listed before the search by sea is ended: its ships stop with it.
+        let over: Vec<Serial> = {
+            let view = PlayerView::new(game, me);
+            search_scouts(ai, &view)
+                .into_iter()
+                .map(|u| view.serial_of(u))
+                .collect()
+        };
         if ai.sea_scouting {
             // A ship lost on the way is built again; only a ship that found nothing ends it.
             ai.sea_done = ship_out;
             ai.sea_scouting = false;
         }
         // The scouting is over; the scout bound for a tower goes on.
-        ai.write(game).release_role(crate::roles::Role::Scout);
+        ai.write(game)
+            .release_many(&over, crate::roles::Role::Scout);
         ai.write(game).release_role(crate::roles::Role::SeaParty);
+    }
+}
+
+/// The units of the search for new ground: every unit scouting, but a ship only while the search
+/// by sea is on. At any other time a scouting ship is a spare one (`spare_ships`), which takes
+/// no scout's place and says nothing about whether the search is over.
+pub(crate) fn search_scouts(ai: &Ai, view: &PlayerView) -> Vec<hecs::Entity> {
+    let tasks = view.tasks();
+    let mut list: Vec<hecs::Entity> = view
+        .my_units()
+        .into_iter()
+        .filter(|&u| tasks.roles.is_scouting(view.serial_of(u)))
+        .filter(|&u| ai.sea_scouting || !is_ship(view, u))
+        .collect();
+    view.sort_by_serial(&mut list);
+    list
+}
+
+/// Where the scout would go from `pos`: the best new ground that no other scout is bound for.
+fn next_target(ai: &Ai, game: &Game, unit: hecs::Entity, pos: Position) -> Option<Position> {
+    let view = PlayerView::new(game, ai.player);
+    let serial = view.serial_of(unit);
+    let claimed: Vec<Position> = ai
+        .tasks(game)
+        .roles
+        .targeted(crate::roles::Role::Scout)
+        .into_iter()
+        .filter(|(s, _)| *s != serial)
+        .map(|(_, p)| p)
+        .chain(ai.bad_scout_targets.iter().copied())
+        .collect();
+    best_target_with(&view, unit, pos, &claimed, &ai.war_plan.recon)
+}
+
+/// One turn of one scout: it is left to its walk, gives up a target it makes no way to, or is
+/// sent to new ground. Whether it is still at work; one with nothing new in reach is released.
+fn send_on(ai: &mut Ai, game: &mut Game, unit: hecs::Entity, events: &mut Vec<Event>) -> bool {
+    let me = ai.player;
+    let (serial, pos, idle) = {
+        let view = PlayerView::new(game, me);
+        let Some(pos) = view.unit_position(unit) else {
+            return false;
+        };
+        (view.serial_of(unit), pos, !view.unit_has_order(unit))
+    };
+    // A fighter riding on a sea scout waits to be put ashore.
+    let riding = {
+        let tasks = ai.tasks(game);
+        tasks.roles.is(serial, crate::roles::Role::SeaParty)
+            || tasks.roles.is(serial, crate::roles::Role::PlanarScout)
+    };
+    if riding {
+        return true;
+    }
+    // A scout that has not moved for a few turns although it has an order is stuck: give
+    // its target up (a guarded or blocked patch) and choose another.
+    let stood = ai.write(game).track(serial, pos, !idle);
+    let stuck = stood >= game.levers().scouting.stuck_turns;
+    if stuck {
+        let bound_for = ai
+            .tasks(game)
+            .roles
+            .target_of(serial, crate::roles::Role::Scout);
+        if let Some(t) = bound_for {
+            ai.bad_scout_targets.push(t);
+            ai.write(game)
+                .set_target(serial, crate::roles::Role::Scout, None);
+        }
+        ai.write(game).clear_track(serial);
+        ai.order(game, Command::ClearOrders { units: vec![unit] }, events);
+    } else if !idle {
+        return true;
+    }
+    let is_sea_scout = is_ship(&PlayerView::new(game, me), unit);
+    if is_sea_scout && put_ashore(ai, game, pos, events) {
+        return true;
+    }
+    match next_target(ai, game, unit, pos) {
+        Some(to) => {
+            ai.write(game)
+                .set_target(serial, crate::roles::Role::Scout, Some(to));
+            let mut units = vec![unit];
+            // Only the search by sea takes a party along: a spare ship stays free to be
+            // called back.
+            if is_sea_scout && ai.sea_scouting {
+                units.extend(board(ai, game, unit, pos));
+            }
+            // A refused walk is in the refused-order log; the scout tries again later.
+            let _ = ai.walk(game, units, events);
+            true
+        }
+        None => {
+            // Nothing left to explore that this unit can reach: its scouting is over and it
+            // awaits orders (the registry says so, `docs/ai-unit-registry.md`).
+            ai.write(game).release(serial, crate::roles::Role::Scout);
+            false
+        }
+    }
+}
+
+/// Carrying comes before a spare ship's scouting: while a unit waits for a ship, every spare
+/// ship with nobody aboard stops. Called before the roles are looked over, so the ship is free
+/// for the ship jobs of the same turn.
+pub(crate) fn recall_spare_ships(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+    if ai.sea_scouting || ai.tasks(game).roles.waiting_for_ship().is_empty() {
+        return;
+    }
+    let (ships, serials): (Vec<hecs::Entity>, Vec<Serial>) = {
+        let view = PlayerView::new(game, ai.player);
+        let tasks = view.tasks();
+        view.my_units()
+            .into_iter()
+            .filter(|&u| {
+                is_ship(&view, u)
+                    && tasks.roles.is(view.serial_of(u), crate::roles::Role::Scout)
+                    && view.passengers_of(u).is_empty()
+            })
+            .map(|u| (u, view.serial_of(u)))
+            .unzip()
+    };
+    if ships.is_empty() {
+        return;
+    }
+    ai.write(game)
+        .release_many(&serials, crate::roles::Role::Scout);
+    ai.order(game, Command::ClearOrders { units: ships }, events);
+}
+
+/// A ship with nothing to carry scouts. Run after the ship jobs (bridge, landing, pickup), so
+/// that a ship still free has nothing else to do: while no unit waits for a ship and no landing
+/// is planned, a free ship with nobody aboard and new ground in reach is made a scout. The
+/// spare ships already out are sent on; while the search by sea is on, `scout` does that.
+pub(crate) fn spare_ships(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+    let me = ai.player;
+    if !ai.sea_scouting {
+        let out: Vec<hecs::Entity> = {
+            let view = PlayerView::new(game, me);
+            let tasks = view.tasks();
+            let mut out: Vec<hecs::Entity> = view
+                .my_units()
+                .into_iter()
+                .filter(|&u| {
+                    is_ship(&view, u)
+                        && tasks.roles.is(view.serial_of(u), crate::roles::Role::Scout)
+                })
+                .collect();
+            view.sort_by_serial(&mut out);
+            out
+        };
+        for ship in out {
+            send_on(ai, game, ship, events);
+        }
+    }
+    if ai.naval.is_some() || !ai.tasks(game).roles.waiting_for_ship().is_empty() {
+        return;
+    }
+    let free: Vec<(hecs::Entity, Position)> = {
+        let view = PlayerView::new(game, me);
+        let tasks = view.tasks();
+        let mut free: Vec<hecs::Entity> = view
+            .my_units()
+            .into_iter()
+            .filter(|&u| {
+                is_ship(&view, u)
+                    && !tasks.roles.has_role(view.serial_of(u))
+                    && !view.unit_has_order(u)
+                    && view.passengers_of(u).is_empty()
+            })
+            .collect();
+        view.sort_by_serial(&mut free);
+        free.into_iter()
+            .filter_map(|u| Some((u, view.unit_position(u)?)))
+            .collect()
+    };
+    for (ship, pos) in free {
+        // A ship with nothing new in reach (on a lake, or all is seen) stays free.
+        if next_target(ai, game, ship, pos).is_none() {
+            continue;
+        }
+        let serial = PlayerView::new(game, me).serial_of(ship);
+        if ai
+            .write(game)
+            .claim(serial, crate::roles::Role::Scout, None)
+            .is_ok()
+        {
+            send_on(ai, game, ship, events);
+        }
     }
 }
 
@@ -589,6 +696,89 @@ mod tests {
         assert_eq!(wanted(&levers().scouting, 3, false), 1);
         assert_eq!(wanted(&levers().scouting, 4, false), 2);
         assert_eq!(wanted(&levers().scouting, 12, false), 2);
+    }
+
+    /// A galley in the port city, and the AI that owns it.
+    fn idle_ship() -> (Game, Ai, hecs::Entity, Serial) {
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let ship = spawn(&mut w, P0, city(), 36 /* galley */, 1)[0];
+        let mut ai = Ai::new(P0);
+        crate::roles::register(&mut ai, &mut w);
+        let serial = PlayerView::new(&w, P0).serial_of(ship);
+        (w, ai, ship, serial)
+    }
+
+    /// A walker of the wizard's that waits for a ship.
+    fn waiting_walker(w: &mut Game, ai: &mut Ai) {
+        let walker = spawn(w, P0, at(5, 5), 111 /* high_men_settlers */, 1)[0];
+        let serial = PlayerView::new(w, P0).serial_of(walker);
+        let _ = ai
+            .write(w)
+            .claim(serial, crate::roles::Role::Settle, Some(at(30, 9)));
+        ai.write(w)
+            .set_crossing(serial, Some(crate::roles::Crossing::Sea));
+        assert!(!ai.tasks(w).roles.waiting_for_ship().is_empty());
+    }
+
+    #[test]
+    fn a_ship_with_nothing_to_carry_scouts_and_takes_nobody_along() {
+        let (mut w, mut ai, ship, serial) = idle_ship();
+        spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 3);
+        crate::roles::register(&mut ai, &mut w);
+        // The land search is over, which does not stop a spare ship.
+        ai.frontier_closed = true;
+        spare_ships(&mut ai, &mut w, &mut Vec::new());
+        assert!(ai.tasks(&w).roles.is(serial, crate::roles::Role::Scout));
+        assert_ne!(w.units().unit_position(ship), Some(city()));
+        assert!(w.economy().passengers_of(ship).is_empty());
+        assert!(ai
+            .tasks(&w)
+            .roles
+            .members(crate::roles::Role::SeaParty)
+            .is_empty());
+        assert!(ai.frontier_closed && !ai.sea_scouting);
+    }
+
+    #[test]
+    fn a_spare_ship_takes_no_scouts_place_in_the_search_by_land() {
+        let (mut w, mut ai, _, serial) = idle_ship();
+        spawn(&mut w, P0, city(), 104 /* high_men_spearmen */, 3);
+        spare_ships(&mut ai, &mut w, &mut Vec::new());
+        assert!(search_scouts(&ai, &PlayerView::new(&w, P0)).is_empty());
+        scout(&mut ai, &mut w, &mut Vec::new());
+        let by_land = search_scouts(&ai, &PlayerView::new(&w, P0));
+        assert!(!by_land.is_empty(), "a scout is recruited on land");
+        assert!(ai.tasks(&w).roles.is(serial, crate::roles::Role::Scout));
+    }
+
+    #[test]
+    fn a_ship_stays_free_while_a_unit_waits_for_one() {
+        let (mut w, mut ai, _, serial) = idle_ship();
+        waiting_walker(&mut w, &mut ai);
+        spare_ships(&mut ai, &mut w, &mut Vec::new());
+        assert!(!ai.tasks(&w).roles.is(serial, crate::roles::Role::Scout));
+    }
+
+    #[test]
+    fn a_spare_ship_stops_scouting_when_a_unit_waits_for_a_ship() {
+        let (mut w, mut ai, ship, serial) = idle_ship();
+        spare_ships(&mut ai, &mut w, &mut Vec::new());
+        // Nothing waits: it goes on.
+        recall_spare_ships(&mut ai, &mut w, &mut Vec::new());
+        assert!(ai.tasks(&w).roles.is(serial, crate::roles::Role::Scout));
+        waiting_walker(&mut w, &mut ai);
+        recall_spare_ships(&mut ai, &mut w, &mut Vec::new());
+        assert!(!ai.tasks(&w).roles.is(serial, crate::roles::Role::Scout));
+        assert!(!PlayerView::new(&w, P0).unit_has_order(ship));
+    }
+
+    #[test]
+    fn a_ship_with_nothing_new_in_reach_is_left_free() {
+        let (mut w, mut ai, ship, serial) = idle_ship();
+        w.reveal_map(P0);
+        spare_ships(&mut ai, &mut w, &mut Vec::new());
+        assert!(!ai.tasks(&w).roles.is(serial, crate::roles::Role::Scout));
+        assert_eq!(w.units().unit_position(ship), Some(city()));
     }
 
     #[test]

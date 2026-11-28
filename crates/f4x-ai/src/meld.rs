@@ -46,7 +46,7 @@ pub(crate) fn spirit_wanted(ai: &Ai, view: &PlayerView, round: u32) -> bool {
     // cross, and it is cheap (`scout.rs` recruits it).
     if crate::phase::phase(view, round) == crate::phase::Phase::Build
         && !ai.frontier_closed
-        && view.tasks().roles.scouting().is_empty()
+        && crate::scout::search_scouts(ai, view).is_empty()
     {
         return true;
     }

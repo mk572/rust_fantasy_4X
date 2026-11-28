@@ -128,6 +128,13 @@ other faults.
 The three scouting roles (`Scout`, `PlanarScout`, `SeaParty`) count as "out scouting"
 (`is_scouting`, `scouting`), which the army and garrison use to leave those units alone.
 
+**Spare ships** (`scout::spare_ships`). After the ship jobs of a turn, a ship that is still free, with
+nobody aboard and new ground in reach, takes `Scout` while no unit waits for a ship and no landing is
+planned. Outside the search by sea (`sea_scouting`) it is no scout of the search (`scout::search_scouts`):
+it takes no land scout's place, takes no party aboard and says nothing about whether the search is over.
+When a unit waits for a ship it is called back at the start of the dispatcher (`scout::recall_spare_ships`),
+and with nothing new in reach it is free again. While the search by sea is on, it joins that search.
+
 ## 4. Taking and giving a role
 
 - `claim(unit, role, turn, to)`: gives the unit the role. A unit that holds a role of **equal or
