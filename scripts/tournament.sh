@@ -22,6 +22,9 @@ Stages (the first two are skipped with --entries):
 A pair is one scenario played twice with the sides swapped; ties in a pair go to enemy units
 killed, own units left, hit points left, less mana spent; a level pair is a draw.
 
+It runs in tools/f4x-learn: relative paths given to the options (and in an entries file) are from
+there.
+
 Options:
   --name NAME           folder models-local/tournament-NAME (default YYYYmmdd-HHMM); an existing
                         folder is never overwritten, the script stops instead
@@ -44,7 +47,7 @@ Options:
   --step-limit N        commands after which a battle counts as having no winner (default 3000)
   --seed N              seed of the tournament (default 1)
   --bank FILE           scenario bank (default models-local/bank-final.ron; make a fresh one with
-                        `cargo run --release -p f4x-learn --example make_bank -- FILE 1200 80000000`)
+                        `cargo run --release --example make_bank -- FILE 1200 80000000`)
   --threads N           threads (default 4; the M4 has 10 cores)
   --detach              run in the background (nohup, and caffeinate so the Mac does not idle-sleep)
                         and return at once; follow it with the files below
@@ -76,7 +79,8 @@ USAGE
 main() {
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo="$(cd "$here/.." && pwd)"
-cd "$repo" || exit 2
+# The learning tool is a workspace of its own: its builds and models-local/ are in its folder.
+cd "$repo/tools/f4x-learn" || exit 2
 
 name="$(date +%Y%m%d-%H%M)"
 bank="models-local/bank-final.ron"
@@ -131,7 +135,7 @@ fi
 [ -f "$bank" ] || { echo "tournament.sh: no bank at $bank (see --help for how to make one)" >&2; exit 2; }
 
 if [ "$dry" = 1 ]; then
-    echo "folder:  $out"
+    echo "folder:  tools/f4x-learn/$out"
     if [ -n "$entries" ]; then
         echo "entries: $entries (stages 1 and 2 skipped)"
     else
@@ -174,14 +178,14 @@ trap 'finish interrupted; exit 130' INT TERM
 } >"$out/command.txt"
 status "running (build)"
 
-if ! scripts/cool_run.sh cargo build --release -p f4x-learn --features train \
+if ! "$repo/scripts/cool_run.sh" cargo build --release --features train \
         --example tournament --example make_variants >"$out/build.txt" 2>&1; then
     finish "failed (build; see $out/build.txt)"
     exit 1
 fi
 tour=target/release/examples/tournament
 mkv=target/release/examples/make_variants
-run_tool() { RAYON_NUM_THREADS="$threads" scripts/cool_run.sh "$@"; }
+run_tool() { RAYON_NUM_THREADS="$threads" "$repo/scripts/cool_run.sh" "$@"; }
 
 if [ -z "$entries" ] && [ -f "$out/variants/entries.txt" ]; then
     entries="$out/variants/entries.txt"   # resumed after stage 2

@@ -1,6 +1,6 @@
 //! Train the battle AI (task 170). Run through `scripts/cool_run.sh`:
 //!
-//! `RAYON_NUM_THREADS=4 scripts/cool_run.sh cargo run --release -p f4x-learn --features train --example train_battle -- OUT_DIR [--iters N] [--bc N] [--battles N] [--no-advice] [--seed N] [--until UNIX_SECONDS] [--resume CHECKPOINT] [--start-iter N]`
+//! `RAYON_NUM_THREADS=4 ../../scripts/cool_run.sh cargo run --release --features train --example train_battle -- OUT_DIR [--iters N] [--bc N] [--battles N] [--no-advice] [--seed N] [--until UNIX_SECONDS] [--resume CHECKPOINT] [--start-iter N]`
 //!
 //! It first clones the scripted AI on `--bc` scripted battles (a short warm start, skipped with
 //! 0), then trains with PPO on self-play and play against the scripted AI. It writes a

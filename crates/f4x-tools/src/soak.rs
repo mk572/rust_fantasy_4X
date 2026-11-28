@@ -27,7 +27,7 @@ use crate::metrics::{
 use crate::report::{self, Played};
 use f4x_master::{Game, GameOver};
 
-pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE | --no-refused-log] [--snapshots-every N] [--out DIR] [--jobs N] [--from SAVE] [--map WxH] [--land PERCENT] [--magic 0..2] [--difficulty 0..4] [--rules 1.31|1.6|mk] [--mastery all|human|off] [--return all|human|off] [--start-units settler,spirit,trireme]";
+pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--grant-mastery TURN] [--refused-log FILE | --no-refused-log] [--snapshots-every N] [--out DIR] [--jobs N] [--from SAVE] [--map WxH] [--land PERCENT] [--magic 0..2] [--difficulty 0..4] [--rules 1.31|1.6|mk] [--mastery all|human|off] [--return all|human|off] [--start-units settler,spirit,trireme]";
 
 /// The options `soak` and `soak-versus` share.
 pub struct Options {
@@ -42,7 +42,6 @@ pub struct Options {
     pub events: bool,
     /// Print how often each spell was cast, and the map spells nobody cast.
     pub grant_mastery: Option<u32>,
-    pub battle_ai: Option<PathBuf>,
     pub refused_log: Option<PathBuf>,
     /// `--no-refused-log`: write no refused-order log (the default is a file in `out`).
     pub no_refused_log: bool,
@@ -110,7 +109,6 @@ impl Options {
             detail: false,
             events: false,
             grant_mastery: None,
-            battle_ai: None,
             refused_log: None,
             no_refused_log: false,
             dir: f4x_def::SHIPPED_CONTENT.into(),
@@ -151,7 +149,6 @@ impl Options {
                 "--trace" => o.trace = value("--trace")?.parse().map_err(|_| "bad turns")?,
                 "--every" => o.every = value("--every")?.parse().map_err(|_| "bad interval")?,
                 "--content" => o.dir = value("--content")?.into(),
-                "--battle-ai" => o.battle_ai = Some(value("--battle-ai")?.into()),
                 "--refused-log" => o.refused_log = Some(value("--refused-log")?.into()),
                 "--no-refused-log" => o.no_refused_log = true,
                 "--snapshots-every" => {
@@ -510,19 +507,6 @@ pub fn game(
     } else {
         format!("seed {seed} [{label}]")
     };
-    if let Some(path) = &opts.battle_ai {
-        #[cfg(feature = "learned")]
-        for k in 0..players {
-            let brain = f4x_learn::brain::LearnedBrain::load(content, path)?;
-            game.world_mut()
-                .set_battle_brain(PlayerId(k), Some(Box::new(brain)));
-        }
-        #[cfg(not(feature = "learned"))]
-        return Err(format!(
-            "--battle-ai {} needs f4x-tools built with `--features learned`",
-            path.display()
-        ));
-    }
     let mut ais: Vec<Box<dyn Contestant>> = roster
         .versions
         .iter()

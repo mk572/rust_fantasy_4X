@@ -611,7 +611,7 @@ that does not improve the soak or the mirrored fights is reverted and noted in t
 
 Written after steps 0 to 7 and 9 to 11. Each finding below was found by looking at a soak game,
 not guessed; the fixes are small and each has a test (`crates/f4x-ai/tests/it/behaviour.rs`, the
-unit tests in `wizardry.rs` and `f4x-ai/src/battle/order.rs`, `crates/f4x-learn/tests/it/mirror.rs`).
+unit tests in `wizardry.rs` and `f4x-ai/src/battle/order.rs`, `tools/f4x-learn/tests/it/mirror.rs`).
 
 ### 11.1 Strategic AI
 
@@ -832,7 +832,7 @@ of 42, within the noise of this sample.
    neutral raiders and parties are refused a `GoTo` to a square they cannot reach (two or three a game),
    an `EnterSite` on an unguarded site is refused once before the fallback walk-in.
 8. **Trained AI.** Not retrained. The battle network `run-20261016-v3/best.bpk` still loads and plays;
-   `models-local/battle-v1.bpk` has no shape file and does not. The strategic learned AI is still only
+   `tools/f4x-learn/models-local/battle-v1.bpk` has no shape file and does not. The strategic learned AI is still only
    design.
 
 ## 13. Unit roles

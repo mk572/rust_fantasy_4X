@@ -1,7 +1,7 @@
 //! The framework spike of task 169: can Burn train a few-million parameter network on this Mac,
 //! and how fast, on the CPU and on the GPU?
 //!
-//! `scripts/cool_run.sh cargo run --release -p f4x-learn --features spike --example spike -- flex|metal [steps] [batch]`
+//! `../../scripts/cool_run.sh cargo run --release --features spike --example spike -- flex|metal [steps] [batch]`
 
 use std::time::Instant;
 

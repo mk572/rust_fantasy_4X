@@ -10,7 +10,7 @@ A fantasy 4X strategy game written in Rust. It starts from a Master of Magic-sty
 ## Run
 
 ```
-cargo test --workspace --exclude f4x-learn
+cargo test --workspace
 cargo run -p f4x-client            # uses assets-local/ (art, audio) if present
 ```
 

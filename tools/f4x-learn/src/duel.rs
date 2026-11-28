@@ -426,7 +426,7 @@ mod tests {
     fn a_network_plays_pairs_against_itself_and_the_records_repeat() {
         use rand::SeedableRng;
         let content =
-            f4x_def::load::load_content_layers(&[std::path::Path::new("../f4x-def/content")])
+            f4x_def::load::load_content_layers(&[std::path::Path::new(f4x_def::SHIPPED_CONTENT)])
                 .unwrap();
         let spec = ObsSpec::new(&content);
         let device = Device::flex();

@@ -18,6 +18,8 @@ Usage: train_battle.sh [--name NAME] [--iters N] [--bc N] [--battles N] [--seed 
 Train the battle AI (f4x-learn's train_battle example) from start to finish with nobody
 watching: build, train through scripts/cool_run.sh, choose the best checkpoint, write a summary.
 
+It runs in tools/f4x-learn: relative paths given to the options are from there.
+
 Options:
   --name NAME     run folder models-local/NAME (default run-YYYYmmdd-HHMM); an existing folder
                   is never overwritten, the script stops instead
@@ -56,7 +58,7 @@ Files in the run folder:
                   (with best.shape.ron), and summary.txt saying which and how it scored
 
 Needs: cargo, scripts/cool_run.sh (builds its thermal tool with swiftc when missing), and the
-bank (make one with `cargo run --release -p f4x-learn --example make_bank`).
+bank (make one with `cargo run --release --example make_bank`).
 Exit status: the trainer's; 2 for a usage error or a run folder that exists.
 USAGE
 }
@@ -66,7 +68,8 @@ USAGE
 main() {
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo="$(cd "$here/.." && pwd)"
-cd "$repo" || exit 2
+# The learning tool is a workspace of its own: its builds and models-local/ are in its folder.
+cd "$repo/tools/f4x-learn" || exit 2
 
 name="run-$(date +%Y%m%d-%H%M)"
 bank="models-local/bank-v2.ron"
@@ -119,9 +122,10 @@ fi
 
 trainer=(target/release/examples/train_battle "$out" ${train_opts[@]+"${train_opts[@]}"})
 if [ "$dry" = 1 ]; then
-    echo "run folder: $out"
-    echo "build:      scripts/cool_run.sh cargo build --release -p f4x-learn --features train --example train_battle"
-    echo "train:      RAYON_NUM_THREADS=$threads BANK=$bank scripts/cool_run.sh ${trainer[*]}"
+    echo "run folder: tools/f4x-learn/$out"
+    echo "in:         tools/f4x-learn"
+    echo "build:      ../../scripts/cool_run.sh cargo build --release --features train --example train_battle"
+    echo "train:      RAYON_NUM_THREADS=$threads BANK=$bank ../../scripts/cool_run.sh ${trainer[*]}"
     echo "detach:     $detach   notify: $notify   until: ${until:-(none)} ${until_epoch:+(epoch $until_epoch)}"
     exit 0
 fi
@@ -157,13 +161,13 @@ trap 'finish interrupted; exit 130' INT TERM
 } >"$out/command.txt"
 status running
 
-if ! scripts/cool_run.sh cargo build --release -p f4x-learn --features train --example train_battle \
+if ! "$repo/scripts/cool_run.sh" cargo build --release --features train --example train_battle \
         >"$out/build.txt" 2>&1; then
     finish "failed (build; see $out/build.txt)"
     exit 1
 fi
 
-RAYON_NUM_THREADS="$threads" BANK="$bank" scripts/cool_run.sh "${trainer[@]}" >"$out/stdout.txt" 2>&1
+RAYON_NUM_THREADS="$threads" BANK="$bank" "$repo/scripts/cool_run.sh" "${trainer[@]}" >"$out/stdout.txt" 2>&1
 code=$?
 
 # The best checkpoint: the highest held-out reward with the advice hidden (the network on its

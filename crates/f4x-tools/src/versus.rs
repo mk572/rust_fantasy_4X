@@ -79,7 +79,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
         .collect();
     let all = soak::in_parallel(opts.jobs(), &work, |&(seed, k)| {
         let v = &variants[k];
-        let cacheable = v.name == "ref-all" && !opts.no_cache && opts.battle_ai.is_none();
+        let cacheable = v.name == "ref-all" && !opts.no_cache;
         if cacheable {
             if let Some(kept) = cache::load(&out, &opts, seed) {
                 report::print_log(&kept);

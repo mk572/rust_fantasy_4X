@@ -27,4 +27,4 @@ case "${1:-}" in
     ;;
 esac
 export F4X_DEEP=1
-exec cargo nextest run --workspace --exclude f4x-learn --no-fail-fast "$@"
+exec cargo nextest run --workspace --no-fail-fast "$@"

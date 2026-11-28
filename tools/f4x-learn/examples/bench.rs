@@ -1,4 +1,4 @@
-//! How fast can battles be built and played? `cargo run --release -p f4x-learn --example bench [N]`
+//! How fast can battles be built and played? `cargo run --release --example bench [N]`
 //! (run it through `scripts/cool_run.sh`).
 
 use std::path::Path;

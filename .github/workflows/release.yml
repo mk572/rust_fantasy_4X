@@ -31,7 +31,7 @@ jobs:
             exit 1
           fi
       - name: Tests
-        run: cargo test --workspace --exclude f4x-learn --lib --bins --tests
+        run: cargo test --workspace --lib --bins --tests
       - name: Build the apps, the dmg and the zip
         run: scripts/make_app.sh --dist
       - uses: actions/upload-artifact@v4
@@ -63,7 +63,7 @@ jobs:
             exit 1
           fi
       - name: Tests
-        run: cargo test --workspace --exclude f4x-learn --lib --bins --tests
+        run: cargo test --workspace --lib --bins --tests
       - name: Build the package
         run: scripts/make_linux.sh
       - uses: actions/upload-artifact@v4

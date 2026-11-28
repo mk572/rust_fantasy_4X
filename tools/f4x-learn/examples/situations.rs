@@ -3,7 +3,7 @@
 //! with and without a hero carrying an item. Prints one line for each situation and flags the
 //! battles that were refused a command, panicked, stalled or hit the command limit.
 //!
-//! `cargo run --release -p f4x-learn --example situations -- [--seeds N] [--content DIR]`
+//! `cargo run --release --example situations -- [--seeds N] [--content DIR]`
 
 use f4x_core::battle::{BattleCommand, BattleEvent};
 use f4x_core::map::terrain::TerrainClass;

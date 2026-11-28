@@ -8,7 +8,7 @@ the scripted battle AI but is not clearly better than random orders, so it is **
 (section 7.8). Related tasks: 46 (battle AI), 64 to 67 (personalities, AI v1, spells, attack),
 77 (soak runs), 169 to 171 (done: phases 0 to 2), 172 (follow-ups).
 
-**Check after the entity rework (24 October 2026):** `cargo test -p f4x-learn --features train` passes
+**Check after the entity rework (24 October 2026):** `cargo test --features train` passes
 (26 unit tests, the mirror tests, `tests/it/situations.rs`); the checkpoint `models-local/run-20261016-v3/best.bpk`
 loads and plays whole soak games (`f4x-tools --features learned soak --battle-ai ...`, 3 seeds, 150 turns,
 no refused command, no battle left open). `models-local/battle-v1.bpk` has no shape record and does not load
@@ -95,8 +95,11 @@ f4x-ai           gains LearnedAi next to Ai: same entry point, loads a checkpoin
   learned player for the game). Burn is optional: the environment builds without it, and the
   networks need `--features train`.
 - Training is run from **examples of f4x-learn** (section 7.9), not from `f4x-tools train` and
-  `evaluate` subcommands. `f4x-tools` has only `soak --battle-ai CHECKPOINT` (feature
-  `learned`).
+  `evaluate` subcommands.
+- The crate is in `tools/f4x-learn/`, a workspace of its own, with `models-local/` inside it
+  (29 November 2026): it is a training tool, not a part of the game. `f4x-tools` no longer has
+  `soak --battle-ai CHECKPOINT`; a learned player in the shipped game would get a crate of its
+  own under `crates/` with only what it needs to run. It does not compile today (task 860).
 - There is no `LearnedAi` in `f4x-ai` (that is the strategic AI of phase 6). The battle AI
   plugs into the core through the `BattleBrain` hook (`World::set_battle_brain`), so the core
   stays free of ML.
@@ -135,7 +138,7 @@ time (4 jobs, release), and a debug build is slower to run, so training always r
 These are one short run each: the real network and batch will differ. The environment itself:
 a generated battle builds in about 19 ms and a random-play battle takes about 88 ms (250
 commands, 355 microseconds a command, most of it listing the legal casts), single thread.
-Reproduce with `cargo run --release -p f4x-learn --example bench` and
+Reproduce with `cargo run --release --example bench` and
 `... --features spike --example spike -- flex|metal`.
 
 Everything stays reproducible: the policy's sampling RNG is separate from the game's, and a
@@ -470,8 +473,8 @@ What `f4x-learn` does today (the numbers are in section 7.8):
   evaluations that left it out, and with units counted one each.
 - **In the game** (`brain.rs`): `LearnedBrain` plays a wizard's battles through the core's
   `BattleBrain` hook (`World::set_battle_brain`; auto-resolve and the battle screen's AI side
-  ask `World::next_battle_command`). `f4x-tools soak --battle-ai CHECKPOINT` (built with
-  `--features learned`) lets the AI wizards fight with a checkpoint; without one nothing changes.
+  ask `World::next_battle_command`). Until 29 November 2026 `f4x-tools soak --battle-ai
+  CHECKPOINT` let the AI wizards fight with a checkpoint; without one nothing changes.
   `World::set_battle_mana_budget` limits a wizard's mana in the battle in progress, in the
   mask and in the casting rules (`BattleCaster::budget`).
 
@@ -531,12 +534,13 @@ What this says, without dressing it up:
 ### 7.9 The harness and how to run it
 
 Everything long goes through `scripts/cool_run.sh` (section 3); the thread limit is
-`RAYON_NUM_THREADS=4`. Paths are relative to the repository, outputs go to `models-local/`
-(gitignored).
+`RAYON_NUM_THREADS=4`. The commands are run in `tools/f4x-learn/` (the two scripts of
+`scripts/` go there by themselves): paths are relative to it and outputs go to its
+`models-local/` (gitignored). `cool_run.sh` is `../../scripts/cool_run.sh` from there.
 
 | Step | Command | What it does |
 |---|---|---|
-| Speed | `cool_run.sh cargo run --release -p f4x-learn --example bench` | Battles built and played per second (section 3) |
+| Speed | `cool_run.sh cargo run --release --example bench` | Battles built and played per second (section 3) |
 | Framework | `... --features spike --example spike -- flex\|metal` | The Burn spike of task 169 |
 | Generator | `... --example calibrate [N]` | How well the generator's idea of odds predicts who wins |
 | Bank | `... --example make_bank models-local/bank.ron [count] [first_seed]` | 1200 scenarios with odds measured by the scripted AI, three threads |
@@ -546,7 +550,6 @@ Everything long goes through `scripts/cool_run.sh` (section 3); the thread limit
 | Variants | `... --features train --example make_variants OUT_DIR --parent NAME=CHECKPOINT ... [--auto N] [--recipes FILE]` | Parents and variants of them (nudged output biases, noise on the weights) as checkpoints, with an `entries.txt` of recipes |
 | Tournament | `scripts/tournament.sh --name NAME (--checkpoints LIST \| --entries FILE) [--detach]` | Neural against neural: round robin to pick parents, variants, a Swiss stage and a knockout (below) |
 | Tournament tool | `... --features train --example tournament rank\|run\|vs OUT_DIR --entries FILE ...` | The stages one at a time; `vs` plays every entry against one (to measure what a nudge does) |
-| In a game | `cargo run --release -p f4x-tools --features learned -- soak --battle-ai CHECKPOINT ...` | AI wizards fight their battles with the checkpoint |
 
 **Bank v2 (16 October).** `models-local/bank-v2.ron` was made on the current rules with the realm-limited wizards (1200 scenarios, 400 of each odds class, odds measured by the scripted AI); the old `bank.ron` is kept. No run has trained on it yet, and every old checkpoint is refused (their ability list and spell slots differ), so the next run starts from scratch with `BANK=models-local/bank-v2.ron`.
 

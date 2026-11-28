@@ -26,7 +26,6 @@ crates/f4x-newgame/  what runs once per game: map generator, placement of nodes,
 crates/f4x-lang/     the words of the game: messages by key, names, name lists (`text.md`)
 crates/f4x-ai/       the AI players: they see what a player sees and answer with `Command`s (`ai-design.md`)
 crates/f4x-master/   the game: it owns the world and advances time (rounds, a turn per player, its end), saves, undo and replays (`turn-structure.md`)
-crates/f4x-learn/    the learning environment of the AIs (`learning-ai.md`)
 crates/f4x-console/  the text console: every action as a line of text (`console.md`)
 crates/f4x-client/   rendering, input, UI (macroquad); `extract/` reads the original's art
 crates/f4x-setup/    the setup program: finds the player's copy of the original and extracts its pictures (later sound and music) into the data folder; depends on `f4x-extract` and `f4x-lang` only (`installer-design.md`)
@@ -35,6 +34,8 @@ crates/f4x-ai-ref/   a frozen copy of the AI, outside the workspace, for AI batt
 scripts/             helper scripts (table in `scripts.md`)
 docs/                design and reference documents
 ```
+
+`tools/f4x-learn/`, the learning environment of the battle AI (`learning-ai.md`), is a workspace of its own: a training tool, not a part of the game.
 Gitignored, local only: `assets-local/` (extracted art, screenshots), `content-local/` (the help text and the screen-to-topic map imported from the author's own copy of the original game, plus the preset wizards written from them), `reference/` (the original's files and the ReMoM clone).
 
 Dependencies point one way, `f4x-client` -> `f4x-master` -> `f4x-core` -> `f4x-battle` -> `f4x-def`, and nothing points up that line; `f4x-newgame` sits above core and uses only its public API. Each crate's `Cargo.toml` says what it uses, and a crate loads the data it holds. `f4x-core` must never depend on the client or on a crate above it; that keeps it testable and fast to iterate.

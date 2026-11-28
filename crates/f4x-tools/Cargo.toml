@@ -14,15 +14,12 @@ serde.workspace = true
 ron.workspace = true
 f4x-console.workspace = true
 f4x-ai.workspace = true
-f4x-learn = { workspace = true, optional = true, features = ["train"] }
 
 [features]
 # The frozen reference AI (`crates/f4x-ai-ref`, a local copy ignored by git) for `soak-versus` and
 # a reference roster in `soak`. Its dependency line is not here: `scripts/ai_battle.py` adds it
 # while it builds with this feature, and forks a stale copy first.
 reference = []
-# `soak --battle-ai CHECKPOINT`: the AI wizards fight their battles with a trained network.
-learned = ["dep:f4x-learn"]
 
 [dev-dependencies]
 f4x-master = { workspace = true, features = ["testutil"] }

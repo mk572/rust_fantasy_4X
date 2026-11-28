@@ -1,0 +1,82 @@
+# The learning environment of the battle AI: a training tool, not a part of the game. Its own
+# workspace and outside `crates/`, so the game builds, tests and locks its dependencies without it
+# (and without Burn). Build and run it from this folder; it keeps its checkpoints and scenario
+# banks in `models-local/` here (docs/learning-ai.md section 7.9).
+[workspace]
+
+[package]
+name = "f4x-learn"
+version = "0.1.0"
+edition = "2021"
+license = "CC0-1.0"
+publish = false
+
+[dependencies]
+f4x-ai = { path = "../../crates/f4x-ai" }
+f4x-core = { path = "../../crates/f4x-core" }
+f4x-newgame = { path = "../../crates/f4x-newgame" }
+f4x-def = { path = "../../crates/f4x-def" }
+# The versions of the game's workspace (`[workspace.dependencies]` in the root `Cargo.toml`).
+hecs = { version = "0.10", features = ["serde"] }
+rand = { version = "0.8", default-features = false }
+rand_pcg = "0.3"
+serde = { version = "1", features = ["derive"] }
+ron = "0.8"
+burn = { version = "0.22", optional = true, default-features = false, features = ["std", "optim", "flex", "simd", "rayon", "metal", "fusion", "autotune"] }
+
+[features]
+# The networks and training need the Burn framework; the environment itself does not.
+# `spike` is the framework spike of task 169 (`examples/spike.rs`).
+train = ["dep:burn"]
+spike = ["train"]
+
+[[example]]
+name = "spike"
+required-features = ["spike"]
+
+[[example]]
+name = "train_battle"
+required-features = ["train"]
+
+[[example]]
+name = "probe"
+required-features = ["train"]
+
+[[example]]
+name = "make_variants"
+required-features = ["train"]
+
+[[example]]
+name = "tournament"
+required-features = ["train"]
+
+[dev-dependencies]
+f4x-def = { path = "../../crates/f4x-def", features = ["testutil"] }
+f4x-core = { path = "../../crates/f4x-core", features = ["testutil"] }
+
+# Build profiles, as in the game's workspace (task 382). Release: link-time optimisation across the crates and one code
+# generation unit, slower to build and faster to run (the soak, the client). Debug and tests:
+# the workspace crates at level 1 and the dependencies (hecs, serde, ron, rand, macroquad) at
+# level 2, so that the tests and a debug client run several times faster than at level 0.
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+# Debuginfo is lean by default (faster compiles and links, far smaller target/): line tables for
+# the workspace crates, so panics and backtraces still show file and line, and none for the
+# dependencies. For hunting a bug that needs variables in a debugger, build with the full
+# profile: `cargo test --profile debug-full` (own directory, target/debug-full/).
+[profile.dev]
+opt-level = 1
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+opt-level = 2
+debug = false
+
+[profile.debug-full]
+inherits = "dev"
+debug = 2
+
+[profile.debug-full.package."*"]
+debug = 2

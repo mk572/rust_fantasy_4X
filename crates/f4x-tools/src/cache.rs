@@ -93,8 +93,7 @@ fn hash_options(opts: &Options, seed: u64, hasher: &mut DefaultHasher) {
         no_refused_log: _,
         out: _,
         jobs: _,
-        // A game with a network, or with no cache asked for, is never kept.
-        battle_ai: _,
+        // With no cache asked for, no game is kept.
         no_cache: _,
         // Their contents are hashed with the sources.
         dir: _,

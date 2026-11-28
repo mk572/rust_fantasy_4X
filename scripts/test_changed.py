@@ -12,7 +12,8 @@ What it does:
   * `--all` is the whole `cargo test --workspace` plus the slow tests: run it before a commit.
 The module graph of f4x-core is tightly connected (game, rules, map, unit, wizard, player and city
 are used nearly everywhere), so a change there still selects most of the core tests. The saving is
-mainly the slow tests of f4x-console and f4x-learn, and the crates the change cannot reach.
+mainly the slow tests of f4x-console, and the crates the change cannot reach. The tools under `tools/`
+are workspaces of their own and are not run.
 """
 
 import argparse
@@ -35,11 +36,6 @@ SLOW = {
         ("the_legal_casts_are_the_casts_the_game_accepts", {"spell", "wizard", "battle"}),
         ("rivals_without_ready_made_wizards_draw_a_name_from_their_list", {"wizard", "player"}),
         ("more_city_damage_means_more_lost_citizens_and_buildings", {"spell", "city"}),
-    ],
-    "f4x-learn": [
-        ("random_play_finishes_generated_battles_without_a_refused_command", {"battle", "spell", "unit", "hero", "item"}),
-        ("a_random_agent_playing_by_the_masks_is_never_refused", {"battle", "spell", "unit", "hero", "item"}),
-        ("fleeing_saves_only_the_units_that_survive_the_flight", {"battle", "unit"}),
     ],
 }
 
@@ -131,7 +127,7 @@ def plan(files, run_all, with_slow):
     graph = crate_graph()
     cmds = []
     if run_all or any(f.startswith(EVERYTHING) for f in files):
-        return [("everything", ["cargo", "test", "--workspace", "--exclude", "f4x-learn"])]
+        return [("everything", ["cargo", "test", "--workspace"])]
 
     crates, areas, core_mods = set(), set(), set()
     unmapped = False
