@@ -553,7 +553,10 @@ impl BattleUnit {
         Mover {
             flying: self.flag(UnitFlag::Flies),
             sails: self.sails,
-            swims: self.swims,
+            // Walking on water and passing through things take a unit over water as swimming does.
+            swims: self.swims
+                || self.flag(UnitFlag::WaterWalking)
+                || self.flag(UnitFlag::NonCorporeal),
             through_walls: self.flag(UnitFlag::Flies)
                 || self.moves_instantly()
                 || self.flag(UnitFlag::NonCorporeal),

@@ -57,6 +57,7 @@
     "refuse_map.raze_error_not_just_taken": "You did not take that city this turn.",
     "refuse_map.battle_start_error_in_progress": "A battle is already being fought.",
     "refuse_map.battle_start_error_bad_sides": "A side of that battle is empty, or is not one stack on one square.",
+    "refuse_map.battle_start_error_cannot_reach": "Not all of these units can move there to attack.",
     "refuse_map.battle_start_error_not_adjacent": "An attack must come from the next square.",
     "refuse_map.fortress_error_unknown_player": "There is no such wizard.",
     "refuse_map.fortress_error_not_allowed": "You have a fortress already, or were defeated.",

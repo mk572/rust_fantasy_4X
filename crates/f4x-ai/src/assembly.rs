@@ -10,7 +10,7 @@
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::unit::movement::MoveError;
-use f4x_core::unit::travel::{Travel, TravelError, Trip};
+use f4x_core::unit::travel::{Travel, Trip};
 use f4x_core::world::serial::Serial;
 use f4x_core::world::{Event, Rejection, World};
 use f4x_master::Game;
@@ -33,30 +33,23 @@ pub(crate) enum MarchError {
     Refused(MoveError),
 }
 
-/// Walk units, whose tasks send them to `square`, their next step there. Nothing is asked of the
-/// game when there is no way or the next square has no room for them.
+/// Walk units, whose tasks send them to `square`, their next step there. The movement helper
+/// finds the way, and refuses the walk when there is none or the next square has no room.
 pub(crate) fn send(
     ai: &Ai,
     game: &mut Game,
-    travel: &mut Travel,
     units: &[hecs::Entity],
     square: Position,
     events: &mut Vec<Event>,
 ) -> Result<(), MarchError> {
-    let step = travel
-        .step(&PlayerView::new(game, ai.player), units, square)
-        .map_err(|why| match why {
-            TravelError::NoUnits => MarchError::NoUnits,
-            TravelError::Unreachable => MarchError::Unreachable,
-        })?;
-    let Some(step) = step else {
+    let from = units
+        .first()
+        .and_then(|&u| PlayerView::new(game, ai.player).unit_position(u))
+        .ok_or(MarchError::NoUnits)?;
+    if from == square {
         return Ok(());
-    };
-    // A square with no room for the party is left alone (it may be free later).
-    if !Ai::room_at(game, step.to(), units.len()) {
-        return Err(MarchError::Refused(MoveError::StackFull));
     }
-    match ai.walk(game, units.to_vec(), events) {
+    match ai.try_walk(game, units.to_vec(), events) {
         Ok(()) => Ok(()),
         Err(SendError::Rejected(Rejection::Move(why)) | SendError::Stopped(why)) => {
             Err(MarchError::Refused(why))
@@ -325,7 +318,7 @@ pub(crate) fn march(
             sent = true;
             continue;
         }
-        match send(ai, game, &mut travel, &group, square, events) {
+        match send(ai, game, &group, square, events) {
             Ok(()) => sent = true,
             Err(why) => refused = refused.or(Some(why)),
         }
@@ -589,17 +582,8 @@ mod tests {
             "walked from the exit"
         );
         // Sent there, it steps through the gate.
-        let mut travel = Travel::new(&w, ai.player, ai.crossing);
         take(&ai, &mut w, Role::March, &[by_gate], square, target());
-        send(
-            &ai,
-            &mut w,
-            &mut travel,
-            &[by_gate],
-            square,
-            &mut Vec::new(),
-        )
-        .map_err(|e| format!("{e:?}"))?;
+        send(&ai, &mut w, &[by_gate], square, &mut Vec::new()).map_err(|e| format!("{e:?}"))?;
         assert_eq!(w.units().unit_position(by_gate), Some(seat));
         Ok(())
     }

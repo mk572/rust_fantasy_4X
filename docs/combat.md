@@ -347,6 +347,16 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
   sit the fight out and go down with their side if it loses (`ActiveBattle::left_out`); Wind
   Walking still carries a stack through the air. The decks are drawn as brown diamonds
   (`battle_ground.rs`) until a ship picture is used. Summoning onto the sea is not possible.
+  **Who can attack where** (`World::can_attack_onto`): an attack is a move onto the defenders'
+  square, as in the original (see ReMoM `Make_Move_Path`, `Army_Movement_Modes`). A sea square
+  is attacked only by a stack that can go there as a whole: every unit flies, swims, sails, walks
+  on water or is non-corporeal, is carried by a Wind Walker, or is aboard a ship of the stack or
+  has a place on one. A land square (a city too) is not attacked by a stack with a ship that
+  cannot go ashore (no Flight, Wraith Form or Wind Walker). So land units cannot attack a ship
+  from the shore, the passengers of a ship attack at sea only with it and the land only without
+  it. Water walkers and non-corporeal units fight on the sea and cross its water in battle as
+  swimmers do. The computer player and the monsters pick their attackers with the same check
+  (`World::attackers_reaching`).
   **A ship lost** in a fight, or removed or dispelled at any time, leaves its passengers at sea:
   beside free land each scrambles ashore on the fleeing odds (half of the troops, three in four of
   the heroes make it, `World::drown_stranded`), anywhere else they drown; fliers, swimmers and

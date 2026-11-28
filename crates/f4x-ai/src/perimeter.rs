@@ -142,6 +142,8 @@ pub fn run(
             }
             view.sort_by_serial(&mut pool);
             pool.dedup();
+            // Soldiers that cannot go where the enemy stands (at sea) are not gathered for it.
+            let pool = game.attackers_reaching(&pool, threat.square);
             (their, pool, view.levers().attack.attack_force)
         };
         if pool.is_empty() {

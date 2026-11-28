@@ -418,18 +418,11 @@ fn gather(
         };
         if at != Some(beside) && !ordered {
             // One that cannot get to the square attacks from where it is, when that is enough.
-            let _ = assembly::send(ai, game, &mut travel, &[u], beside, events);
+            let _ = assembly::send(ai, game, &[u], beside, events);
         }
     }
     for &u in &away {
-        muster_and_walk(
-            ai,
-            game,
-            &mut travel,
-            events,
-            u,
-            (target, point, &crossing_and_point),
-        );
+        muster_and_walk(ai, game, events, u, (target, point, &crossing_and_point));
     }
     assembly::campaign_muster(ai, game, target, point, &crossing_and_point, &[]);
     let ready: Vec<hecs::Entity> = {
@@ -482,7 +475,6 @@ fn set_out(
 fn muster_and_walk(
     ai: &mut Ai,
     game: &mut Game,
-    travel: &mut Travel,
     events: &mut Vec<Event>,
     unit: hecs::Entity,
     (target, rally, rallies): (Position, Position, &[Position]),
@@ -500,7 +492,7 @@ fn muster_and_walk(
     if at == Some(rally) || ordered || !ai.tasks(game).roles.is(serial, Role::Muster) {
         return None;
     }
-    let why = assembly::send(ai, game, travel, &[unit], rally, events).err()?;
+    let why = assembly::send(ai, game, &[unit], rally, events).err()?;
     if !member {
         ai.write(game).release(serial, Role::Muster);
     }
@@ -539,7 +531,6 @@ fn cross(
             })
             .collect()
     };
-    let mut travel = Travel::new(game, ai.player, ai.crossing);
     let side = game.max_battle_side();
     let mut there: Vec<hecs::Entity> = Vec::new();
     let mut members: Vec<Serial> = Vec::new();
@@ -573,7 +564,7 @@ fn cross(
             let point = assembly::rally_of(&ai.tasks(game), target);
             let rallies: Vec<Position> = [Some(square), point].into_iter().flatten().collect();
             let walk = (target, square, rallies.as_slice());
-            match muster_and_walk(ai, game, &mut travel, events, u, walk) {
+            match muster_and_walk(ai, game, events, u, walk) {
                 None => members.push(serial),
                 Some(why) => {
                     full = why
@@ -691,7 +682,7 @@ fn land_on(
         } else if !ordered {
             // A square that is full for now: the next turn tries again.
             if ai.tasks(game).roles.is(serial, Role::Muster) {
-                let _ = assembly::send(ai, game, &mut travel, &[u], land, events);
+                let _ = assembly::send(ai, game, &[u], land, events);
             }
         }
     }

@@ -74,6 +74,9 @@ pub enum BattleStartError {
     Treaty,
     /// No attack of those units waits for these defenders' answer.
     NoSuchAttack,
+    /// The attackers, or some of them, cannot move onto the defenders' square (land units onto
+    /// the sea, ships onto land).
+    CannotReach,
 }
 
 impl BattleStartError {
@@ -85,6 +88,7 @@ impl BattleStartError {
             Self::NotAdjacent => "refuse_map.battle_start_error_not_adjacent",
             Self::Treaty => "refuse_map.battle_start_error_treaty",
             Self::NoSuchAttack => "refuse_map.battle_start_error_no_such_attack",
+            Self::CannotReach => "refuse_map.battle_start_error_cannot_reach",
         }
     }
 }
@@ -473,8 +477,34 @@ impl World {
         }
     }
 
+    /// Whether `units` could go where they attack: onto the sea only a stack that can move there
+    /// as a whole (`Economy::can_all_go_to_sea`), onto land only one whose ships can go there
+    /// (`Economy::can_all_ships_go_ashore`).
+    pub fn can_attack_onto(&self, units: &[hecs::Entity], site: Position) -> bool {
+        let economy = self.economy();
+        if economy.terrain_class_at(site) == Some(crate::map::terrain::TerrainClass::Ocean) {
+            economy.can_all_go_to_sea(units, site)
+        } else {
+            economy.can_all_ships_go_ashore(units, site)
+        }
+    }
+
+    /// The units of `units` that can attack `site`: all of them when they can go there together
+    /// (a ship and its passengers, a Wind Walker's company), else those that can on their own.
+    pub fn attackers_reaching(&self, units: &[hecs::Entity], site: Position) -> Vec<hecs::Entity> {
+        if self.can_attack_onto(units, site) {
+            return units.to_vec();
+        }
+        units
+            .iter()
+            .copied()
+            .filter(|&u| self.can_attack_onto(&[u], site))
+            .collect()
+    }
+
     /// Who attacks whom and on which square, if the two stacks can fight: each one player's on
-    /// one square, the two players different and not bound by a treaty.
+    /// one square, the two players different and not bound by a treaty, and the attackers able
+    /// to go where the defenders stand.
     fn battle_sides(
         &self,
         attackers: &[hecs::Entity],
@@ -511,6 +541,9 @@ impl World {
         }
         if self.bound_by_treaty(a_owner, d_owner) {
             return Err(BattleStartError::Treaty);
+        }
+        if a_pos != site && !self.can_attack_onto(attackers, site) {
+            return Err(BattleStartError::CannotReach);
         }
         Ok((a_owner, d_owner, site))
     }
@@ -795,15 +828,21 @@ impl World {
             && !self.units().unit_has_flag(unit, UnitFlag::NonCorporeal)
     }
 
-    /// Whether a unit may fight on the sea: a ship (it carries others or sails), a flier or a
-    /// swimmer.
+    /// Whether a unit may fight on the sea: a ship (it carries others or sails), a flier, a
+    /// swimmer, a water walker or a non-corporeal unit.
     fn can_fight_at_sea(&self, unit: hecs::Entity) -> bool {
         self.units().unit_def(unit).is_some_and(|d| {
             matches!(
                 d.movement,
                 MovementType::Flying | MovementType::Sailing | MovementType::Swimming
             )
-        }) || self.units().unit_has_flag(unit, UnitFlag::Flies)
+        }) || [
+            UnitFlag::Flies,
+            UnitFlag::WaterWalking,
+            UnitFlag::NonCorporeal,
+        ]
+        .iter()
+        .any(|&f| self.units().unit_has_flag(unit, f))
             || self.units().unit_stat(unit, Stat::Transport) > 0
     }
 

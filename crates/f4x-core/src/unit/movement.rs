@@ -530,6 +530,47 @@ impl Economy<'_> {
         Ok((pos, owner))
     }
 
+    /// The free places on the ships of the stack.
+    fn room_of_ships(&self, units: &[hecs::Entity]) -> u32 {
+        units
+            .iter()
+            .filter(|&&u| self.is_ship(u))
+            .map(|&s| self.ship_room(s))
+            .sum()
+    }
+
+    /// Whether the whole stack could go onto the sea square `at`, where an enemy stands: every
+    /// unit crosses water by itself (it flies, swims, sails, walks on water or is
+    /// non-corporeal), is carried by a Wind Walker, or is aboard a ship of the stack or has a
+    /// place on one.
+    pub fn can_all_go_to_sea(&self, units: &[hecs::Entity], at: Position) -> bool {
+        let traits = self.stack_traits(units);
+        let enter = units.iter().all(|&u| {
+            self.step_profile(u)
+                .is_ok_and(|p| self.step_entry(&p, at, traits).is_ok())
+        });
+        let boarding = units
+            .iter()
+            .filter(|&&u| {
+                traits.sea_lift
+                    && self.needs_ship(u, traits.flies)
+                    && !self.carrier_of(u).is_some_and(|c| units.contains(&c))
+            })
+            .count() as u32;
+        enter && boarding <= self.room_of_ships(units)
+    }
+
+    /// Whether every ship of the stack could go onto the land square `at`: it flies, is
+    /// non-corporeal or is carried by a Wind Walker (or the square is a city of its owner).
+    pub fn can_all_ships_go_ashore(&self, units: &[hecs::Entity], at: Position) -> bool {
+        let traits = self.stack_traits(units);
+        units.iter().all(|&u| {
+            self.step_profile(u).is_ok_and(|p| {
+                p.def.movement != MovementType::Sailing || self.step_entry(&p, at, traits).is_ok()
+            })
+        })
+    }
+
     /// Check a one-tile move of a stack without doing it: the per-unit costs and
     /// what waits on the target tile.
     pub fn plan_step(
@@ -569,15 +610,8 @@ impl Economy<'_> {
             }
             costs.push(self.step_cost(u, from, to, flies)?);
         }
-        if boarding > 0 {
-            let room: u32 = units
-                .iter()
-                .filter(|&&u| self.is_ship(u))
-                .map(|&s| self.ship_room(s))
-                .sum();
-            if boarding > room {
-                return Err(MoveError::NoRoom);
-            }
+        if boarding > 0 && boarding > self.room_of_ships(units) {
+            return Err(MoveError::NoRoom);
         }
         // A land unit stepping onto a ship waiting at sea needs a place there.
         if to_sea && !flies.sea_lift {

@@ -1283,3 +1283,316 @@ fn all_the_drained_dead_rise_on_the_winners_square_however_full_it_is() {
     }
     assert!(tried > 0, "no world had room for a battle");
 }
+
+/// Two neighbouring empty squares of a world: one for which `first` holds and a sea square.
+fn beside_the_sea(
+    w: &World,
+    first: TerrainClass,
+) -> Option<(f4x_core::map::Position, f4x_core::map::Position)> {
+    let map = w.map()?;
+    let empty = |at: f4x_core::map::Position, class: TerrainClass| {
+        w.units().units_at(at).is_empty()
+            && w.economy().city_at(at).is_none()
+            && w.economy().lair_at(at).is_none()
+            && w.economy().terrain_class_at(at) == Some(class)
+    };
+    for y in 0..map.height() {
+        for x in 0..map.width() {
+            let from = f4x_core::map::Position {
+                x,
+                y,
+                plane: f4x_def::map::Plane::Arcanus,
+            };
+            if !empty(from, first) {
+                continue;
+            }
+            let to = around(w, from)
+                .into_iter()
+                .find(|&to| empty(to, TerrainClass::Ocean));
+            if let Some(to) = to {
+                return Some((from, to));
+            }
+        }
+    }
+    None
+}
+
+/// The units of a kind that moves so, with a melee attack, no places for passengers unless it
+/// sails, and no ability that takes it over water by itself.
+fn kind_moving(movement: f4x_def::rules::MovementType) -> f4x_def::rules::UnitId {
+    use f4x_def::rules::unit_flag::UnitFlag;
+    let content = crate::support::content();
+    let found = content
+        .rules
+        .units
+        .iter()
+        .find(|(_, d)| {
+            d.movement == movement
+                && d.stats
+                    .get(&Stat::Melee)
+                    .is_some_and(|m| *m > HalfInt::ZERO)
+                && !d.abilities.iter().any(|&a| {
+                    let flags = &content.rules.abilities.get(a).flags;
+                    [
+                        UnitFlag::Flies,
+                        UnitFlag::WaterWalking,
+                        UnitFlag::NonCorporeal,
+                        UnitFlag::WindWalking,
+                    ]
+                    .iter()
+                    .any(|f| flags.contains(f))
+                })
+        })
+        .map(|(id, _)| id);
+    found.expect("such a unit")
+}
+
+fn make(
+    w: &mut Table,
+    owner: PlayerId,
+    pos: f4x_core::map::Position,
+    unit: f4x_def::rules::UnitId,
+) -> hecs::Entity {
+    let before = w.units().units_at(pos);
+    let made = w.apply(Command::CreateUnit { owner, pos, unit });
+    assert!(
+        made.iter().all(|e| !matches!(e, Event::Rejected(_))),
+        "{made:?}"
+    );
+    w.units()
+        .units_at(pos)
+        .into_iter()
+        .find(|u| !before.contains(u))
+        .expect("the unit made")
+}
+
+/// Land units cannot attack a ship from the shore, alone or beside a flier: the attack is refused
+/// and nobody is lost. The flier attacks by itself.
+#[test]
+fn land_units_cannot_attack_onto_the_sea() {
+    use f4x_def::rules::MovementType;
+    let walker = kind_moving(MovementType::Walking);
+    let flier = kind_moving(MovementType::Flying);
+    let ship = kind_moving(MovementType::Sailing);
+    let mut tried = 0;
+    for (name, mut w) in worlds() {
+        let ids = w.wizards();
+        let (a, b) = (ids[0], ids[1]);
+        let Some((shore, sea)) = beside_the_sea(&w, TerrainClass::Grassland) else {
+            continue;
+        };
+        let target = make(&mut w, b, sea, ship);
+        let soldier = make(&mut w, a, shore, walker);
+        let wings = make(&mut w, a, shore, flier);
+        tried += 1;
+        for attackers in [vec![soldier], vec![soldier, wings]] {
+            let begun = w.apply(Command::BeginBattle {
+                attackers: attackers.clone(),
+                defenders: vec![target],
+            });
+            let resolved = w.apply(Command::AutoResolve {
+                attackers,
+                defenders: vec![target],
+                mana_budget: None,
+            });
+            for events in [begun, resolved] {
+                assert_eq!(
+                    refusal(&events),
+                    Some(BattleStartError::CannotReach),
+                    "{name}: {events:?}"
+                );
+            }
+            assert!(!w.in_battle(), "{name}");
+        }
+        let there = w.units().all_units();
+        for u in [soldier, wings, target] {
+            assert!(there.contains(&u), "{name}: a unit was lost");
+        }
+        assert_eq!(
+            w.attackers_reaching(&[soldier, wings], sea),
+            [wings],
+            "{name}"
+        );
+        let events = w.apply(Command::BeginBattle {
+            attackers: vec![wings],
+            defenders: vec![target],
+        });
+        assert_eq!(refusal(&events), None, "{name}: {events:?}");
+    }
+    assert!(tried > 0, "no world had a shore");
+}
+
+/// A walker that walks on water, or is made non-corporeal, attacks a ship from the shore, takes
+/// part in the fight and can move on the water there.
+#[test]
+fn water_walkers_and_wraiths_fight_on_the_sea() {
+    use f4x_def::rules::MovementType;
+    let content = crate::support::content();
+    let walker = kind_moving(MovementType::Walking);
+    let ship = kind_moving(MovementType::Sailing);
+    for spell in ["water_walking", "wraith_form"] {
+        let spell = content
+            .rules
+            .spells
+            .iter()
+            .find(|(_, d)| d.id == spell)
+            .map(|(id, _)| id)
+            .expect("the spell");
+        let mut tried = 0;
+        for (name, mut w) in worlds() {
+            let ids = w.wizards();
+            let (a, b) = (ids[0], ids[1]);
+            let Some((shore, sea)) = beside_the_sea(&w, TerrainClass::Grassland) else {
+                continue;
+            };
+            let target = make(&mut w, b, sea, ship);
+            let soldier = make(&mut w, a, shore, walker);
+            assert!(w.cheat_enchant_unit(soldier, spell, a), "{name}");
+            tried += 1;
+            let events = w.apply(Command::BeginBattle {
+                attackers: vec![soldier],
+                defenders: vec![target],
+            });
+            assert_eq!(refusal(&events), None, "{name}: {events:?}");
+            let battle = w.battle().expect("a battle");
+            assert_eq!(battle.winner, None, "{name}: settled at the start");
+            let fighter = battle
+                .units
+                .iter()
+                .find(|u| u.side == Side::Attacker && u.source.is_some())
+                .expect("the walker fights");
+            let (x, y) = fighter.cell;
+            assert!(
+                (-1..=1).any(|dy| (-1..=1).any(|dx| {
+                    (dx, dy) != (0, 0)
+                        && battle
+                            .map
+                            .enter_cost_as((x + dx, y + dy), fighter.mover())
+                            .is_some()
+                })),
+                "{name}: the walker cannot move on the sea"
+            );
+        }
+        assert!(tried > 0, "no world had a shore");
+    }
+}
+
+/// The units aboard a ship attack another at sea with their ship, not on their own.
+#[test]
+fn passengers_attack_at_sea_only_with_their_ship() {
+    use f4x_def::rules::MovementType;
+    let walker = kind_moving(MovementType::Walking);
+    let ship = kind_moving(MovementType::Sailing);
+    let mut tried = 0;
+    for (name, mut w) in worlds() {
+        let ids = w.wizards();
+        let (a, b) = (ids[0], ids[1]);
+        let Some((shore, from)) = beside_the_sea(&w, TerrainClass::Grassland) else {
+            continue;
+        };
+        let next = around(&w, from).into_iter().find(|&at| {
+            w.units().units_at(at).is_empty()
+                && w.economy().city_at(at).is_none()
+                && w.economy().terrain_class_at(at) == Some(TerrainClass::Ocean)
+        });
+        let Some(to) = next else { continue };
+        let target = make(&mut w, b, to, ship);
+        let own = make(&mut w, a, from, ship);
+        let soldier = make(&mut w, a, shore, walker);
+        let boarded = w.apply(Command::MoveStack {
+            units: vec![soldier],
+            to: from,
+        });
+        assert_eq!(
+            w.economy().carrier_of(soldier),
+            Some(own),
+            "{name}: {boarded:?}"
+        );
+        tried += 1;
+        let alone = w.apply(Command::BeginBattle {
+            attackers: vec![soldier],
+            defenders: vec![target],
+        });
+        assert_eq!(
+            refusal(&alone),
+            Some(BattleStartError::CannotReach),
+            "{name}: {alone:?}"
+        );
+        let together = w.apply(Command::BeginBattle {
+            attackers: vec![own, soldier],
+            defenders: vec![target],
+        });
+        assert_eq!(refusal(&together), None, "{name}: {together:?}");
+    }
+    assert!(tried > 0, "no world had two neighbouring sea squares");
+}
+
+/// A ship cannot attack the land, alone or with its passengers: the attack is refused and nobody
+/// is lost. The passengers attack by themselves, and a ship made non-corporeal attacks too.
+#[test]
+fn ships_cannot_attack_the_land() {
+    use f4x_def::rules::MovementType;
+    let content = crate::support::content();
+    let walker = kind_moving(MovementType::Walking);
+    let ship = kind_moving(MovementType::Sailing);
+    let wraith = content
+        .rules
+        .spells
+        .iter()
+        .find(|(_, d)| d.id == "wraith_form")
+        .map(|(id, _)| id)
+        .expect("the spell");
+    let mut tried = 0;
+    for (name, mut w) in worlds() {
+        let ids = w.wizards();
+        let (a, b) = (ids[0], ids[1]);
+        let Some((shore, sea)) = beside_the_sea(&w, TerrainClass::Grassland) else {
+            continue;
+        };
+        let inland = around(&w, sea).into_iter().find(|&at| {
+            at != shore
+                && w.units().units_at(at).is_empty()
+                && w.economy().city_at(at).is_none()
+                && w.economy().terrain_class_at(at) == Some(TerrainClass::Grassland)
+        });
+        let Some(start) = inland else { continue };
+        let target = make(&mut w, b, shore, walker);
+        let own = make(&mut w, a, sea, ship);
+        let soldier = make(&mut w, a, start, walker);
+        let boarded = w.apply(Command::MoveStack {
+            units: vec![soldier],
+            to: sea,
+        });
+        assert_eq!(
+            w.economy().carrier_of(soldier),
+            Some(own),
+            "{name}: {boarded:?}"
+        );
+        tried += 1;
+        for attackers in [vec![own], vec![own, soldier]] {
+            let events = w.apply(Command::AutoResolve {
+                attackers,
+                defenders: vec![target],
+                mana_budget: None,
+            });
+            assert_eq!(
+                refusal(&events),
+                Some(BattleStartError::CannotReach),
+                "{name}: {events:?}"
+            );
+        }
+        let there = w.units().all_units();
+        for u in [own, soldier, target] {
+            assert!(there.contains(&u), "{name}: a unit was lost");
+        }
+        assert_eq!(
+            w.attackers_reaching(&[own, soldier], shore),
+            [soldier],
+            "{name}"
+        );
+        assert_eq!(w.check_attack(&[soldier], &[target]), Ok(()), "{name}");
+        assert!(w.cheat_enchant_unit(own, wraith, a), "{name}");
+        assert_eq!(w.check_attack(&[own], &[target]), Ok(()), "{name}");
+    }
+    assert!(tried > 0, "no world had a coast with two land squares");
+}

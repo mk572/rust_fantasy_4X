@@ -448,9 +448,13 @@ fn fight(
                     && (lend || !tasks.roles.is(view.serial_of(u), Role::Garrison))
             })
             .collect();
-        let band = party(&view, &fit);
+        // Only those that can go where the defenders stand count: land units not onto the sea.
+        let band = party(&view, &game.attackers_reaching(&fit, target.square));
         let needed = theirs * view.levers().attack.attack_force;
-        if band.is_empty() || stack_strength(&view, &band) < needed {
+        if band.is_empty()
+            || !game.can_attack_onto(&band, target.square)
+            || stack_strength(&view, &band) < needed
+        {
             return false;
         }
         let lent: Vec<hecs::Entity> = band

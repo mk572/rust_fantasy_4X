@@ -728,7 +728,26 @@ impl Ai {
             units,
             door: self.crossing,
         };
-        self.submit(game, command, events, true)
+        self.submit(game, command, events, Keep::All)
+    }
+
+    /// [`Ai::walk`] for a walk that may go through doors, where the AI leaves it to the helper to
+    /// find out whether there is a way and room: those two refusals are its answers, not refused
+    /// orders. They are not in the refused-order log or the events (so no soak counts them), and
+    /// `retry_blocked` does not send the walk again.
+    #[track_caller]
+    fn try_walk(
+        &self,
+        game: &mut Game,
+        units: Vec<hecs::Entity>,
+        events: &mut Vec<Event>,
+    ) -> Result<(), SendError> {
+        let command = Command::WalkTasks {
+            player: self.player,
+            units,
+            door: self.crossing,
+        };
+        self.submit(game, command, events, Keep::AllButAnswers)
     }
 
     /// Send a command and keep its events.
@@ -739,7 +758,7 @@ impl Ai {
         command: Command,
         events: &mut Vec<Event>,
     ) -> Result<(), SendError> {
-        self.submit(game, command, events, true)
+        self.submit(game, command, events, Keep::All)
     }
 
     /// Send a command whose refusal changes nothing in the plan: the refusal is in the refused-order
@@ -747,7 +766,7 @@ impl Ai {
     /// are. For a command whose success the caller needs to know, use `send`.
     #[track_caller]
     fn order(&self, game: &mut Game, command: Command, events: &mut Vec<Event>) {
-        let _ = self.submit(game, command, events, true);
+        let _ = self.submit(game, command, events, Keep::All);
     }
 
     /// Send a command that the game may refuse as the AI expects (it cannot know, say, that a site
@@ -759,7 +778,7 @@ impl Ai {
         command: Command,
         events: &mut Vec<Event>,
     ) -> Result<(), SendError> {
-        self.submit(game, command, events, false)
+        self.submit(game, command, events, Keep::Nothing)
     }
 
     #[track_caller]
@@ -768,14 +787,14 @@ impl Ai {
         game: &mut Game,
         command: Command,
         events: &mut Vec<Event>,
-        keep_refusal: bool,
+        keep: Keep,
     ) -> Result<(), SendError> {
         if game.game_over().is_some() {
             // The other wizard's turn ended the game: nothing more can be ordered.
             return Err(SendError::GameOver);
         }
         let at = std::panic::Location::caller();
-        let kept = (self.record_refusals && keep_refusal).then(|| format!("{command:?}"));
+        let kept = (self.record_refusals && keep != Keep::Nothing).then(|| format!("{command:?}"));
         LAST_ORDER.with(|l| *l.borrow_mut() = Some(command.clone()));
         let target = match &command {
             Command::GoTo { units, to } | Command::MoveStack { units, to } => {
@@ -808,6 +827,18 @@ impl Ai {
             _ => self.player,
         };
         let out = game.apply(sender, command);
+        let answered = keep == Keep::AllButAnswers
+            && out.iter().any(|e| {
+                matches!(
+                    e,
+                    Event::Rejected(
+                        f4x_core::world::Rejection::NoPath(_)
+                            | f4x_core::world::Rejection::Move(
+                                f4x_core::unit::movement::MoveError::StackFull
+                            )
+                    )
+                )
+            });
         // A refusal first; else an order that was taken and stopped on its first step.
         let refused = out
             .iter()
@@ -823,7 +854,7 @@ impl Ai {
                     _ => None,
                 })
             });
-        if let Some(command) = kept {
+        if let Some(command) = kept.filter(|_| !answered) {
             for e in &out {
                 // A standing order that stopped on a refused step is a refusal too.
                 if let Event::OrderFailed { why, player, .. } = e {
@@ -859,8 +890,12 @@ impl Ai {
                 }
             }
         }
-        events.extend(out);
-        if let (Some(why), Some(Aim::Walk(..)), false) = (refused, &target, self.retrying.get()) {
+        events.extend(
+            out.into_iter()
+                .filter(|e| !(answered && matches!(e, Event::Rejected(_)))),
+        );
+        let retry = !answered && !self.retrying.get();
+        if let (Some(why), Some(Aim::Walk(..)), true) = (refused, &target, retry) {
             if why.is_no_room() {
                 self.blocked
                     .borrow_mut()
@@ -881,7 +916,7 @@ impl Ai {
             let mut still = Vec::new();
             let mut sent = false;
             for command in waiting {
-                match self.submit(game, command.clone(), events, false) {
+                match self.submit(game, command.clone(), events, Keep::Nothing) {
                     Err(why) if why.is_no_room() => still.push(command),
                     Ok(()) => sent = true,
                     // Refused for another reason (the units have no moves left, say): over.
@@ -895,6 +930,18 @@ impl Ai {
         }
         self.retrying.set(false);
     }
+}
+
+/// What the refused-order log keeps of a command the game refuses.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Keep {
+    /// Every refusal.
+    All,
+    /// Nothing: the refusal is expected.
+    Nothing,
+    /// Every refusal but "no way" and "no room", which the AI asks the movement helper to find
+    /// out (`Ai::try_walk`).
+    AllButAnswers,
 }
 
 /// Why a command the AI sent did not go through: the game was over already, a rule refused it

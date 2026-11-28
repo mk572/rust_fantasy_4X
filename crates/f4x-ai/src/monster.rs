@@ -99,10 +99,21 @@ fn act(
                     return;
                 }
             }
-            Some((defenders, theirs)) if mine >= theirs * game.levers().attack.monster_edge => {
-                let band = crate::view::party(&PlayerView::new(game, MONSTERS), &units);
-                engage(ai, game, band, defenders, events);
-                return;
+            Some((defenders, theirs)) => {
+                // Only those that can go there attack: land monsters not onto the sea.
+                let (band, strength) = {
+                    let view = PlayerView::new(game, MONSTERS);
+                    let band = crate::view::party(&view, &game.attackers_reaching(&units, n));
+                    let strength = stack_strength(&view, &band);
+                    (band, strength)
+                };
+                if !band.is_empty()
+                    && game.can_attack_onto(&band, n)
+                    && strength >= theirs * game.levers().attack.monster_edge
+                {
+                    engage(ai, game, band, defenders, events);
+                    return;
+                }
             }
             _ => {}
         }

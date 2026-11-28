@@ -57,6 +57,7 @@
     "refuse_map.raze_error_not_just_taken": "Du hast diese Stadt nicht in dieser Runde genommen.",
     "refuse_map.battle_start_error_in_progress": "Es wird bereits eine Schlacht geschlagen.",
     "refuse_map.battle_start_error_bad_sides": "Eine Seite dieser Schlacht ist leer oder nicht ein Stapel auf einem Feld.",
+    "refuse_map.battle_start_error_cannot_reach": "Nicht alle diese Einheiten können dorthin ziehen, um anzugreifen.",
     "refuse_map.battle_start_error_not_adjacent": "Ein Angriff muss vom Nachbarfeld kommen.",
     "refuse_map.fortress_error_unknown_player": "Es gibt keinen solchen Magier.",
     "refuse_map.fortress_error_not_allowed": "Du hast bereits eine Festung oder wurdest besiegt.",

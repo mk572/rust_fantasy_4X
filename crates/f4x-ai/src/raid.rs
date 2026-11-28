@@ -241,10 +241,9 @@ pub(crate) fn release(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 .filter(|&u| !view.unit_has_order(u) && view.unit_position(u) != Some(muster.rally))
                 .collect()
         };
-        let mut travel = Travel::new(game, ai.player, ai.crossing);
         for u in idle {
             // One that cannot go on now is tried again next turn, until the muster's time is up.
-            let _ = assembly::send(ai, game, &mut travel, &[u], muster.rally, events);
+            let _ = assembly::send(ai, game, &[u], muster.rally, events);
         }
     }
 }
@@ -363,7 +362,7 @@ pub(crate) fn gather(
         let at = PlayerView::new(game, me).unit_position(u);
         if at != Some(rally)
             && ai.tasks(game).roles.is(serial, crate::roles::Role::Muster)
-            && assembly::send(ai, game, &mut travel, &[u], rally, events).is_err()
+            && assembly::send(ai, game, &[u], rally, events).is_err()
         {
             stayed.push(serial);
         }
