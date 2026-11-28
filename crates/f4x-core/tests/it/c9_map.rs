@@ -19,21 +19,6 @@ use f4x_core::world::{Command, Event, Rejection, World};
 use f4x_def::half_int::HalfInt;
 use f4x_def::testdir::{deep, sample};
 
-const SPEARMEN: u16 = 104; // high_men_spearmen
-const ENGINEERS: u16 = 110; // high_men_engineers
-const SHAMAN: u16 = 43; // barbarian_shaman
-const NIGHTBLADES: u16 = 63; // dark_elf_nightblades
-const SKELETONS: u16 = 165; // skeletons
-const NATURES_EYE: u16 = 12; // natures_eye
-const GAIAS_BLESSING: u16 = 29; // gaias_blessing
-const NATURE_AWARENESS: u16 = 34; // nature_awareness
-const CORRUPTION: u16 = 85; // corruption
-const CONSECRATION: u16 = 155; // consecration
-const WARP_NODE: u16 = 186; // warp_node
-const MAGIC_SPIRIT: u16 = 154; // magic_spirit
-const ORACLE: u16 = 18; // oracle
-const CITY_WALLS: u16 = 35; // city_walls
-
 fn at(plane: Plane, x: u32, y: u32) -> Position {
     Position { x, y, plane }
 }
@@ -184,7 +169,7 @@ fn more_engineers_take_less_time_and_never_none() {
     for mut c in crews() {
         let here = c.way[0];
         let crew: Vec<hecs::Entity> = (0..8)
-            .map(|_| create(&mut c.w, c.p, here, ENGINEERS))
+            .map(|_| create(&mut c.w, c.p, here, 110 /* high_men_engineers */))
             .collect();
         let one = c.w.road_turns(&crew[..1], here).expect("land");
         let mut last = one;
@@ -208,9 +193,9 @@ fn more_engineers_take_less_time_and_never_none() {
 fn a_road_order_that_cannot_be_carried_out_changes_nothing() {
     for mut c in crews() {
         let (a, b, d) = (c.way[0], c.way[1], c.way[3]);
-        let engineer = create(&mut c.w, c.p, a, ENGINEERS);
-        let stray = create(&mut c.w, c.p, b, ENGINEERS);
-        let spearmen = create(&mut c.w, c.p, a, SPEARMEN);
+        let engineer = create(&mut c.w, c.p, a, 110 /* high_men_engineers */);
+        let stray = create(&mut c.w, c.p, b, 110 /* high_men_engineers */);
+        let spearmen = create(&mut c.w, c.p, a, 104 /* high_men_spearmen */);
         // Water beside the way's start.
         let water = around(&c.w, a)
             .into_iter()
@@ -248,7 +233,7 @@ fn a_road_order_that_cannot_be_carried_out_changes_nothing() {
 fn engineers_work_along_a_path_square_by_square_and_stop_at_its_end() {
     for mut c in crews() {
         let here = c.way[0];
-        let engineer = create(&mut c.w, c.p, here, ENGINEERS);
+        let engineer = create(&mut c.w, c.p, here, 110 /* high_men_engineers */);
         let events = c.w.apply(Command::BuildRoad {
             units: vec![engineer],
             path: c.way.clone(),
@@ -292,7 +277,7 @@ fn engineers_work_along_a_path_square_by_square_and_stop_at_its_end() {
 #[test]
 fn road_work_goes_on_the_same_after_a_save() -> Result<(), Box<dyn std::error::Error>> {
     for mut c in crews() {
-        let engineer = create(&mut c.w, c.p, c.way[0], ENGINEERS);
+        let engineer = create(&mut c.w, c.p, c.way[0], 110 /* high_men_engineers */);
         c.w.apply(Command::BuildRoad {
             units: vec![engineer],
             path: c.way.clone(),
@@ -323,7 +308,7 @@ fn road_work_goes_on_the_same_after_a_save() -> Result<(), Box<dyn std::error::E
 fn engineers_moved_away_give_the_road_up() {
     for mut c in crews() {
         let here = c.way[0];
-        let engineer = create(&mut c.w, c.p, here, ENGINEERS);
+        let engineer = create(&mut c.w, c.p, here, 110 /* high_men_engineers */);
         c.w.apply(Command::BuildRoad {
             units: vec![engineer],
             path: c.way.clone(),
@@ -347,7 +332,7 @@ fn a_road_finished_beside_a_town_gives_the_town_a_road() {
             .find(|&q| bare(&w, q))
             .unwrap_or_else(|| panic!("{name}: no bare square beside the town"));
         w.scenario_set_road(town, false);
-        let engineer = create(&mut w, p, here, ENGINEERS);
+        let engineer = create(&mut w, p, here, 110 /* high_men_engineers */);
         w.apply(Command::BuildRoad {
             units: vec![engineer],
             path: vec![here],
@@ -468,7 +453,7 @@ fn the_corruption_spell_spoils_land_and_the_city_gets_nothing_from_it() {
                 continue;
             }
             assert_eq!(w.check_corrupt(q), Ok(()), "{name}: {q:?}");
-            let events = cast(&mut w, p, CORRUPTION, Target::Tile(q));
+            let events = cast(&mut w, p, 85 /* corruption */, Target::Tile(q));
             assert_eq!(refusal(&events), None, "{name} {q:?}: {events:?}");
             assert!(w.is_corrupted(q), "{name}: {q:?}");
             assert_eq!(
@@ -513,7 +498,7 @@ fn water_and_magic_nodes_cannot_be_corrupted() {
             (node, TargetError::CorruptNode),
         ] {
             assert_eq!(w.check_corrupt(q), Err(why), "{name}");
-            let events = cast(&mut w, p, CORRUPTION, Target::Tile(q));
+            let events = cast(&mut w, p, 85 /* corruption */, Target::Tile(q));
             assert!(refusal(&events).is_some(), "{name}: {events:?}");
             assert!(!w.is_corrupted(q), "{name}");
         }
@@ -526,8 +511,8 @@ fn a_purifier_cleans_its_square_in_its_turns_and_gives_up_when_moved() {
         let p = w.wizards()[0];
         w.cheat_reveal(p);
         let (_, q) = field(&w, p);
-        let spearmen = create(&mut w, p, q, SPEARMEN);
-        let shaman = create(&mut w, p, q, SHAMAN);
+        let spearmen = create(&mut w, p, q, 104 /* high_men_spearmen */);
+        let shaman = create(&mut w, p, q, 43 /* barbarian_shaman */);
         let purify = |w: &mut Table, units: Vec<hecs::Entity>| w.apply(Command::Purify { units });
         for (units, why) in [
             (vec![], PurifyError::NoUnits),
@@ -543,7 +528,7 @@ fn a_purifier_cleans_its_square_in_its_turns_and_gives_up_when_moved() {
             );
             assert_eq!(state(&w), before, "{name}: {why:?}");
         }
-        cast(&mut w, p, CORRUPTION, Target::Tile(q));
+        cast(&mut w, p, 85 /* corruption */, Target::Tile(q));
         assert!(w.is_corrupted(q), "{name}");
         let events = purify(&mut w, vec![spearmen, shaman]);
         assert_eq!(refusal(&events), None, "{name}: {events:?}");
@@ -559,7 +544,7 @@ fn a_purifier_cleans_its_square_in_its_turns_and_gives_up_when_moved() {
         );
 
         // Moved away in the middle, the work is lost.
-        cast(&mut w, p, CORRUPTION, Target::Tile(q));
+        cast(&mut w, p, 85 /* corruption */, Target::Tile(q));
         purify(&mut w, vec![shaman]);
         let aside = around(&w, q)
             .into_iter()
@@ -584,7 +569,7 @@ fn corrupted_land_heals_by_itself_in_time() {
         let p = w.wizards()[0];
         w.cheat_reveal(p);
         let (_, q) = field(&w, p);
-        cast(&mut w, p, CORRUPTION, Target::Tile(q));
+        cast(&mut w, p, 85 /* corruption */, Target::Tile(q));
         assert!(w.is_corrupted(q), "{name}");
         let chance = w
             .content()
@@ -605,12 +590,15 @@ fn corrupted_land_heals_by_itself_in_time() {
 
 #[test]
 fn consecration_cleans_a_citys_land_at_once_and_gaias_blessing_in_time() {
-    for (spell, at_once) in [(CONSECRATION, true), (GAIAS_BLESSING, false)] {
+    for (spell, at_once) in [
+        (155 /* consecration */, true),
+        (29 /* gaias_blessing */, false),
+    ] {
         for (name, mut w) in worlds() {
             let p = w.wizards()[0];
             w.cheat_reveal(p);
             let (city, q) = field(&w, p);
-            cast(&mut w, p, CORRUPTION, Target::Tile(q));
+            cast(&mut w, p, 85 /* corruption */, Target::Tile(q));
             assert!(w.is_corrupted(q), "{name}");
             w.scenario_enchant_city(city, SpellId::new(spell), p);
             let mut turns = 0;
@@ -637,7 +625,7 @@ fn gaias_blessing_greens_the_deserts_of_its_city() {
             .and_then(|r| w.map()?.plane(r.plane).get(r.x as i32, r.y as i32))
             .unwrap_or_else(|| panic!("{name}: a world without desert"));
         w.scenario_set_terrain(q, sand);
-        w.scenario_enchant_city(city, SpellId::new(GAIAS_BLESSING), p);
+        w.scenario_enchant_city(city, SpellId::new(29 /* gaias_blessing */), p);
         let mut turns = 0;
         while desert(&w, q) {
             turns += 1;
@@ -669,7 +657,7 @@ fn a_warped_node_turns_against_its_owner() {
             Err(TargetError::NodeUnowned),
             "{name}"
         );
-        let spirit = create(&mut w, other, q, MAGIC_SPIRIT);
+        let spirit = create(&mut w, other, q, 154 /* magic_spirit */);
         w.apply(Command::Meld {
             units: vec![spirit],
         });
@@ -681,7 +669,7 @@ fn a_warped_node_turns_against_its_owner() {
         let paid = w.node_income(other);
         assert!(paid > 0, "{name}");
         assert_eq!(w.check_warp_node(q, p), Ok(()), "{name}");
-        let events = cast(&mut w, p, WARP_NODE, Target::Tile(q));
+        let events = cast(&mut w, p, 186 /* warp_node */, Target::Tile(q));
         assert_eq!(refusal(&events), None, "{name}: {events:?}");
         let warped = w.economy().node_at(q).expect("the node");
         assert!(warped.warped, "{name}");
@@ -733,7 +721,7 @@ fn what_a_player_sees_is_explored_and_stays_explored() {
         let p = w.wizards()[0];
         sight_holds(&w, &name);
         let (_, home) = w.economy().cities_of(p)[0];
-        let scout = create(&mut w, p, home, SPEARMEN);
+        let scout = create(&mut w, p, home, 104 /* high_men_spearmen */);
         let explored = |w: &Table| -> Vec<Position> {
             Plane::all()
                 .flat_map(|plane| squares(w, plane))
@@ -819,17 +807,17 @@ fn walls_an_oracle_and_natures_eye_make_a_city_see_further() {
     for (name, mut w) in worlds() {
         let p = w.wizards()[0];
         let (city, _) = w.economy().cities_of(p)[0];
-        w.scenario_set_building(city, BuildingId::new(CITY_WALLS), false);
-        w.scenario_set_building(city, BuildingId::new(ORACLE), false);
+        w.scenario_set_building(city, BuildingId::new(35 /* city_walls */), false);
+        w.scenario_set_building(city, BuildingId::new(18 /* oracle */), false);
         let sight = |w: &Table| w.economy().city_sight(city);
         let (plain, seen) = (sight(&w), in_view(&w, p));
-        for what in [CITY_WALLS, ORACLE] {
+        for what in [35 /* city_walls */, 18 /* oracle */] {
             w.scenario_set_building(city, BuildingId::new(what), true);
             assert!(sight(&w) > plain, "{name}: building {what}");
             w.scenario_set_building(city, BuildingId::new(what), false);
             assert_eq!(sight(&w), plain, "{name}: building {what} gone");
         }
-        w.scenario_enchant_city(city, SpellId::new(NATURES_EYE), p);
+        w.scenario_enchant_city(city, SpellId::new(12 /* natures_eye */), p);
         assert!(sight(&w) > plain, "{name}: Nature's Eye");
         assert!(in_view(&w, p) >= seen, "{name}");
     }
@@ -840,7 +828,7 @@ fn nature_awareness_shows_the_whole_world() {
     for (name, mut w) in worlds() {
         let (p, other) = (w.wizards()[0], w.wizards()[1]);
         let theirs = in_view(&w, other);
-        w.scenario_add_global(p, SpellId::new(NATURE_AWARENESS));
+        w.scenario_add_global(p, SpellId::new(34 /* nature_awareness */));
         let all: usize = Plane::all().map(|plane| squares(&w, plane).count()).sum();
         assert_eq!(in_view(&w, p), all, "{name}");
         assert_eq!(in_view(&w, other), theirs, "{name}");
@@ -858,17 +846,17 @@ fn an_invisible_unit_shows_only_to_who_sees_through_illusions_nearby() {
     {
         let other = w.wizards()[1];
         let (there, here) = (way[0], way[2]);
-        let hidden = create(&mut w, other, there, NIGHTBLADES);
+        let hidden = create(&mut w, other, there, 63 /* dark_elf_nightblades */);
         let shows = |w: &Table, to| w.economy().unit_visible_to(hidden, to);
         let told = |w: &Table| w.foreign_sightings(p).iter().any(|s| s.pos == there);
         assert!(shows(&w, other), "{name}: not to its own wizard");
         assert!(!shows(&w, p), "{name}");
         // Its square is in sight and still nothing is told of it.
-        let watcher = create(&mut w, p, way[1], SPEARMEN);
+        let watcher = create(&mut w, p, way[1], 104 /* high_men_spearmen */);
         assert!(w.economy().visibility(p, there.plane).iter().any(|&s| s));
         assert!(!shows(&w, p), "{name}: spearmen see through nothing");
         assert!(!told(&w), "{name}");
-        let seer = create(&mut w, p, here, SKELETONS);
+        let seer = create(&mut w, p, here, 165 /* skeletons */);
         assert!(!shows(&w, p), "{name}: skeletons two squares off");
         w.cheat_move_unit(seer, way[1]);
         assert!(shows(&w, p), "{name}: skeletons beside it");
@@ -876,7 +864,7 @@ fn an_invisible_unit_shows_only_to_who_sees_through_illusions_nearby() {
         w.cheat_remove_unit(seer);
         assert!(!shows(&w, p), "{name}: the seer is gone");
         w.cheat_remove_unit(watcher);
-        let plain = create(&mut w, other, there, SPEARMEN);
+        let plain = create(&mut w, other, there, 104 /* high_men_spearmen */);
         assert!(w.economy().unit_visible_to(plain, p), "{name}");
     }
 }
@@ -888,7 +876,9 @@ fn a_kept_sight_says_what_a_fresh_one_says() {
     for (name, mut w) in worlds() {
         let p = w.wizards()[0];
         let (city, home) = w.economy().cities_of(p)[0];
-        let scouts: Vec<hecs::Entity> = (0..3).map(|_| create(&mut w, p, home, SPEARMEN)).collect();
+        let scouts: Vec<hecs::Entity> = (0..3)
+            .map(|_| create(&mut w, p, home, 104 /* high_men_spearmen */))
+            .collect();
         w.keep_for_turn(p);
         let agrees = |w: &Table, after: &str| {
             let view = PlayerView::new(w, p);
@@ -922,7 +912,7 @@ fn a_kept_sight_says_what_a_fresh_one_says() {
             // Now and then something that is not a step.
             match step % 11 {
                 3 => {
-                    create(&mut w, p, home, SPEARMEN);
+                    create(&mut w, p, home, 104 /* high_men_spearmen */);
                     agrees(&w, "a new unit");
                 }
                 7 => {

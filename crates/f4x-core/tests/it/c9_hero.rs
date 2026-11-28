@@ -21,19 +21,6 @@ use f4x_def::half_int::HalfInt;
 use f4x_def::testdir::{deep, sample};
 use std::collections::BTreeSet;
 
-const SPEARMEN: u16 = 104; // high_men_spearmen
-const DEMON: u16 = 169; // demon
-const SAGE: usize = 2; // sage
-const PRIESTESS: usize = 27; // priestess
-const PALADIN: usize = 28; // paladin
-const BLACK_KNIGHT: usize = 29; // black_knight
-const NECROMANCER: usize = 32; // necromancer
-const LIFE: u16 = 3; // life
-const DEATH: u16 = 4; // death
-const CHARISMATIC: u16 = 16; // charismatic
-const NOBLE: u16 = 96; // noble
-const MAGIC_IMMUNITY: u16 = 40; // magic_immunity
-
 fn kinds(w: &World) -> std::ops::Range<usize> {
     0..w.content().rules.hero_templates.len()
 }
@@ -176,7 +163,10 @@ fn the_roll_spends_exactly_the_picks_of_the_template_on_what_the_hero_may_have()
                 PickType::Any => {}
             }
             let unit = rules.units.get(t.unit);
-            if unit.abilities.contains(&Ability::new(MAGIC_IMMUNITY)) {
+            if unit
+                .abilities
+                .contains(&Ability::new(40 /* magic_immunity */))
+            {
                 assert_eq!(hero.abilities.charmed, fixed.charmed, "{what}");
             }
             if !rules
@@ -239,8 +229,8 @@ fn a_cheat_rolls_a_heros_abilities_anew_and_keeps_its_name() {
 fn fame_books_and_state_decide_who_can_be_offered() {
     for (name, mut w) in worlds() {
         let p = w.wizards()[0];
-        w.cheat_set_books(p, RealmId::new(LIFE), 0);
-        w.cheat_set_books(p, RealmId::new(DEATH), 0);
+        w.cheat_set_books(p, RealmId::new(3 /* life */), 0);
+        w.cheat_set_books(p, RealmId::new(4 /* death */), 0);
         let picks = |w: &mut Table, fame: i32, free: bool, class: Class| {
             w.set_fame(p, fame);
             let mut seen = BTreeSet::new();
@@ -270,22 +260,27 @@ fn fame_books_and_state_decide_who_can_be_offered() {
             "{name}"
         );
         // The holy and the unholy ask for a book of their realm.
-        for k in [PRIESTESS, PALADIN, BLACK_KNIGHT, NECROMANCER] {
+        for k in [
+            27, /* priestess */
+            28, /* paladin */
+            29, /* black_knight */
+            32, /* necromancer */
+        ] {
             assert!(!famous.contains(&k), "{name}: {k}");
         }
         // A summoning asks for no fame.
         assert_eq!(picks(&mut w, 0, true, Class::Any), famous, "{name}");
-        w.cheat_set_books(p, RealmId::new(LIFE), 1);
+        w.cheat_set_books(p, RealmId::new(3 /* life */), 1);
         let life = picks(&mut w, 200, true, Class::Any);
         assert!(
-            life.contains(&PRIESTESS) && life.contains(&PALADIN),
+            life.contains(&27 /* priestess */) && life.contains(&28 /* paladin */),
             "{name}"
         );
-        assert!(!life.contains(&NECROMANCER), "{name}");
-        w.cheat_set_books(p, RealmId::new(DEATH), 1);
+        assert!(!life.contains(&32 /* necromancer */), "{name}");
+        w.cheat_set_books(p, RealmId::new(4 /* death */), 1);
         let both = picks(&mut w, 200, true, Class::Any);
         assert!(
-            both.contains(&BLACK_KNIGHT) && both.contains(&NECROMANCER),
+            both.contains(&29 /* black_knight */) && both.contains(&32 /* necromancer */),
             "{name}"
         );
         // Heroes and champions are drawn from their own halves.
@@ -330,10 +325,37 @@ fn fame_books_and_state_decide_who_can_be_offered() {
 }
 
 #[test]
+fn a_free_pick_finds_the_last_hero_left() {
+    let standing = Standing {
+        fame: 0,
+        life_books: 1,
+        death_books: 1,
+    };
+    for (name, w) in worlds() {
+        let rules = &w.content().rules;
+        let mut rng = GameRng::new(1);
+        // Every type but the last, who only a spell of its own brings.
+        for last in 0..rules.hero_templates.len() - 1 {
+            let mut states = vec![HeroState::Gone; rules.hero_templates.len()];
+            states[last] = HeroState::Free;
+            for class in [Class::Any, Class::Champion] {
+                for _ in 0..sample(100, 10) {
+                    assert_eq!(
+                        kind::pick(&mut rng, rules, &states, &standing, true, class),
+                        Some(last),
+                        "{name}: {class:?}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn the_price_grows_with_the_level_a_hero_kept_and_falls_for_a_charismatic_wizard() {
     for (name, mut w) in worlds() {
         let p = w.wizards()[0];
-        w.cheat_set_retort(p, Retort::new(CHARISMATIC), false);
+        w.cheat_set_retort(p, Retort::new(16 /* charismatic */), false);
         for k in kinds(&w) {
             let what = format!("{name}: {k}");
             let unit = kind::unit_of(&w.content().rules, k).expect("a unit");
@@ -366,10 +388,10 @@ fn the_price_grows_with_the_level_a_hero_kept_and_falls_for_a_charismatic_wizard
                 last = (level, price);
             }
             assert!(last.0 > 0, "{what}: no level gained");
-            w.cheat_set_retort(p, Retort::new(CHARISMATIC), true);
+            w.cheat_set_retort(p, Retort::new(16 /* charismatic */), true);
             let cheap = w.units().hero_hire_price(p, k).expect("a price");
             assert!(cheap < last.1, "{what}: {cheap} against {}", last.1);
-            w.cheat_set_retort(p, Retort::new(CHARISMATIC), false);
+            w.cheat_set_retort(p, Retort::new(16 /* charismatic */), false);
             w.scenario_set_experience(hero, 0);
         }
         assert_eq!(w.units().hero_hire_price(p, 999), None, "{name}");
@@ -450,7 +472,8 @@ fn a_noble_hero_costs_nothing_to_keep_and_brings_gold() {
         assert_eq!(w.budget(p).noble_gold, before.noble_gold, "{name}");
         let noble = changed_hero(&mut w, p, at, 1, |h| h.abilities.noble = true);
         assert!(
-            w.units().unit_has_ability(noble, Ability::new(NOBLE)),
+            w.units()
+                .unit_has_ability(noble, Ability::new(96 /* noble */)),
             "{name}"
         );
         assert_eq!(w.units().unit_gold_upkeep(noble), 0, "{name}");
@@ -466,7 +489,7 @@ fn a_heros_mana_comes_from_skill_level_and_items_and_helps_only_at_the_fortress(
         assert_eq!(w.hero_casting_skill(p), 0, "{name}");
         let none = changed_hero(&mut w, p, at, 0, |h| h.casting_skill = 0);
         assert_eq!(w.units().hero_mana(none), 0, "{name}");
-        let caster = changed_hero(&mut w, p, at, SAGE, |h| h.casting_skill = 3);
+        let caster = changed_hero(&mut w, p, at, 2 /* sage */, |h| h.casting_skill = 3);
         let young = w.units().hero_mana(caster);
         assert!(young > 0, "{name}");
         w.scenario_set_experience(caster, 100_000);
@@ -503,7 +526,7 @@ fn sage_and_legendary_heroes_add_research_and_fame_by_their_level() {
         let at = fortress(&w, p);
         let (research, fame) = (w.units().sage_research(p), w.fame(p));
         assert_eq!(research, 0, "{name}");
-        let hero = changed_hero(&mut w, p, at, SAGE, |h| {
+        let hero = changed_hero(&mut w, p, at, 2 /* sage */, |h| {
             h.abilities.sage = Tier::Normal;
             h.abilities.legendary = Tier::Super;
         });
@@ -675,9 +698,9 @@ fn lose_to(w: &mut Table, attacker: PlayerId, hero: hecs::Entity, name: &str) ->
         .unwrap_or_else(|| panic!("{name}: no room for a battle"));
     w.cheat_move_unit(hero, at);
     let kind = if attacker == MONSTERS {
-        DEMON
+        169 /* demon */
     } else {
-        SPEARMEN
+        104 /* high_men_spearmen */
     };
     w.apply(Command::CreateUnit {
         owner: attacker,

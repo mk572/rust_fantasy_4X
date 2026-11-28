@@ -10,15 +10,17 @@
 
 use crate::feature::def::FeatureKind;
 use crate::feature::entity::Placement;
-use crate::feature::lair::{candidates, Lair};
+use crate::feature::lair::{candidates, create, Lair};
 use crate::map::Position;
 use crate::player::MONSTERS;
 use crate::rules::{RealmId, UnitId};
 use crate::unit::Unit;
-use crate::world::rng::GameRng;
+use crate::world::rng::{GameRng, RngCore};
 use crate::world::{Event, World};
 use f4x_def::half_int::HalfInt;
 use f4x_def::settings::MONSTER_START_TURN;
+use rand::SeedableRng;
+use rand_pcg::Pcg64Mcg;
 
 // The realms that keep their monsters at home (`spared_realms`), the extra damage a rampage counts and the cheapest monster a budget buys are `threat` of `rules.ron`.
 
@@ -165,8 +167,13 @@ impl World {
     }
 
     /// A stack of the monsters has come to `to`: if nobody holds the stand there, they settle in
-    /// it (the units become its guards).
-    pub(crate) fn occupy_zone(&mut self, units: &[hecs::Entity], to: Position) -> Vec<Event> {
+    /// it (the units become its guards, with a new hoard).
+    pub(crate) fn occupy_zone(
+        &mut self,
+        units: &[hecs::Entity],
+        to: Position,
+        rng: &mut GameRng,
+    ) -> Vec<Event> {
         let Some(zone) = self.vacant_zone(to) else {
             return Vec::new();
         };
@@ -185,14 +192,24 @@ impl World {
         for &u in units {
             self.despawn_with_spells(u);
         }
+        let Some(kind) = self.content.features.get(site).map(create::site_type) else {
+            return Vec::new();
+        };
+        let style = self.lair_style();
+        let treasure = i32::from(self.settings.world.lair_treasure_percent.min(500));
         if let Ok(mut lair) = self.ecs.get::<&mut Lair>(zone) {
             lair.intact = true;
             lair.guards = tally(&guards);
-            lair.gold = 0;
-            lair.mana = 0;
-            lair.items.clear();
-            lair.prisoner = false;
-            lair.special = 0;
+            let mut rng = Pcg64Mcg::seed_from_u64(rng.next_u64());
+            create::restock(
+                &mut rng,
+                &self.content,
+                style,
+                &mut lair,
+                kind,
+                to.plane,
+                treasure,
+            );
             lair.fought_by.clear();
             lair.look(&self.content, to);
         }

@@ -32,13 +32,12 @@ fn refusal(events: &[Event]) -> Option<Rejection> {
 
 #[test]
 fn alchemy_turns_gold_into_mana_and_back_at_the_rate_of_the_wizard_and_refuses_what_is_not_there() {
-    let alchemy = Retort::new(0 /* alchemy */);
     for (name, mut w) in worlds().into_iter().step_by(2) {
         for p in wizards(&w) {
             // Half for any wizard, all of it for one with the Alchemy retort (`retorts.ron`).
-            let has = w
-                .wizard(p)
-                .is_some_and(|wizard| wizard.retorts().contains(&alchemy));
+            let has = w.wizard(p).is_some_and(|wizard| {
+                wizard.retorts().contains(&Retort::new(0 /* alchemy */))
+            });
             let percent = if has { 100 } else { 50 };
             let t = w.treasury_mut(p).expect("a treasury");
             t.gold = HalfInt::from_int(1000);

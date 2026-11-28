@@ -19,7 +19,7 @@ use f4x_core::map::{FeatureId, Plane, Position};
 use f4x_core::player::{PlayerId, MONSTERS};
 use f4x_core::rules::exec::Target;
 use f4x_core::rules::lair::LairStyle;
-use f4x_core::rules::{RealmId, SpellId, UnitId, UnitKind};
+use f4x_core::rules::{Rarity, RealmId, SpellId, UnitId, UnitKind};
 use f4x_core::wizard::magic::Retort;
 use f4x_core::world::testutil::{fresh, Table};
 use f4x_core::world::{Command, Event, Rejection, World};
@@ -27,16 +27,6 @@ use f4x_def::rules::Stat;
 use f4x_def::testdir::{deep, sample};
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
-
-const SPEARMEN: u16 = 104; // high_men_spearmen
-const MAGIC_SPIRIT: u16 = 154; // magic_spirit
-const GUARDIAN_SPIRIT: u16 = 176; // guardian_spirit
-const NATURE_AWARENESS: u16 = 34; // nature_awareness
-const NODE_MASTERY: u16 = 12; // node_mastery
-const RAISE_VOLCANO: u16 = 98; // raise_volcano
-const ARCANE: u16 = 5; // arcane
-const LIFE: u16 = 3; // life
-const DEATH: u16 = 4; // death
 
 /// A world with an empty field for a site and a square beside it for the army that goes there.
 struct Scene {
@@ -578,7 +568,7 @@ fn nature_awareness_shows_the_guards_of_every_site() {
     for mut s in scenes() {
         let feature = encounter(&s.w);
         let lair = put_lair(&mut s.w, s.site, feature, true);
-        let spell = SpellId::new(NATURE_AWARENESS);
+        let spell = SpellId::new(34 /* nature_awareness */);
         s.w.scenario_add_global(s.p, spell);
         assert_eq!(
             s.w.economy().lair_guards_known_to(s.site, s.p),
@@ -719,7 +709,7 @@ fn winning_pays_the_winner_what_the_event_tells_and_clears_the_site() {
             );
             let realm = s.w.content().rules.spells.get(spell).realm;
             assert!(
-                realm.num() == ARCANE || before.books[&realm] > 0,
+                realm.num() == 5 /* arcane */ || before.books[&realm] > 0,
                 "{name}: a spell of a realm without books"
             );
         }
@@ -737,10 +727,12 @@ fn winning_pays_the_winner_what_the_event_tells_and_clears_the_site() {
             assert!(loot.books.is_empty() && loot.retorts.is_empty(), "{name}");
         } else {
             let over = i32::from(lair.special) - spells_up_to;
-            assert!(loot.books.len() as i32 <= over, "{name}");
-            assert!(loot.retorts.len() <= 1, "{name}");
+            assert!(picks_paid(&s.w, &loot) <= over, "{name}: {loot:?}");
             let has = |num: u16| after.books[&RealmId::new(num)] > 0;
-            assert!(!(has(LIFE) && has(DEATH)), "{name}: life beside death");
+            assert!(
+                !(has(3 /* life */) && has(4 /* death */)),
+                "{name}: life beside death"
+            );
         }
         books += loot.books.len();
         retorts += loot.retorts.len();
@@ -764,6 +756,127 @@ fn winning_pays_the_winner_what_the_event_tells_and_clears_the_site() {
         spells > 0 && books > 0 && retorts > 0 && items > 0 && prisoners > 0,
         "spells {spells}, books {books}, retorts {retorts}, items {items}, prisoners {prisoners}"
     );
+}
+
+/// The picks of a hoard that went into books and retorts.
+fn picks_paid(w: &World, loot: &Loot) -> i32 {
+    let retorts = &w.content().rules.retorts;
+    let spent = loot.retorts.iter().map(|&r| i32::from(retorts.get(r).cost));
+    loot.books.len() as i32 + spent.sum::<i32>()
+}
+
+/// The `skip`s of the first `most` rich sites with guards whose `special` is wanted.
+fn rich_sites_with(most: usize, wanted: impl Fn(i32) -> bool) -> Vec<usize> {
+    // The sites one world draws one after the other are those of `rich_site(1)`, `rich_site(2)`
+    // and so on.
+    let (mut drawn, _) = rich_site(0, true);
+    let feature = encounter(&drawn.w);
+    let mut found = Vec::new();
+    for i in 1..20_000 {
+        let lair = put_lair(&mut drawn.w, drawn.site, feature, true);
+        if !lair.guards.is_empty() && wanted(i32::from(lair.special)) {
+            found.push(i);
+            if found.len() == most {
+                break;
+            }
+        }
+    }
+    assert!(!found.is_empty(), "no such site");
+    found
+}
+
+/// Whether the loot holds an item or mana the lair did not.
+fn paid_instead(lair: &LairInfo, loot: &Loot) -> bool {
+    loot.items.len() > lair.items.len() || loot.mana > lair.mana
+}
+
+#[test]
+fn a_two_pick_hoard_pays_books_and_retorts_in_every_mix() {
+    // (books, retorts) of the hoards that paid both picks.
+    let mut seen = BTreeSet::new();
+    let mixed = [(2, 0), (1, 1), (0, 1), (0, 2)];
+    let (w, _) = rich_site(0, true);
+    let both = w.w.content().rules.lairs.spell_total + 2;
+    for i in rich_sites_with(400, |special| special == both) {
+        let (mut s, lair) = rich_site(i, true);
+        let (_, events) = win(&mut s);
+        let name = format!("{}: {lair:?}", s.name);
+        let (_, loot) = cleared(&events).unwrap_or_else(|| panic!("{name}: {events:?}"));
+        let paid = picks_paid(&s.w, &loot);
+        assert!(paid <= 2, "{name}: {loot:?}");
+        if paid == 2 {
+            seen.insert((loot.books.len(), loot.retorts.len()));
+        } else {
+            assert!(paid_instead(&lair, &loot), "{name}: {loot:?}");
+        }
+        if mixed.iter().all(|m| seen.contains(m)) {
+            break;
+        }
+    }
+    assert!(mixed.iter().all(|m| seen.contains(m)), "{seen:?}");
+}
+
+#[test]
+fn a_second_book_over_the_limit_pays_other_treasure() {
+    let (w, _) = rich_site(0, true);
+    let both = w.w.content().rules.lairs.spell_total + 2;
+    for i in rich_sites_with(sample(8, 2), |special| special == both) {
+        let (mut s, lair) = rich_site(i, true);
+        let rules = &s.w.content().rules;
+        let most = rules.config.wizard.max_retorts;
+        let retorts: Vec<Retort> = rules.retorts.iter().map(|(r, _)| r).take(most).collect();
+        for r in retorts {
+            s.w.cheat_set_retort(s.p, r, true);
+        }
+        // As many books as still get one more from treasure, none of life or death.
+        let per_realm = s.w.settings().wizards.max_books_per_realm;
+        let mut left = s.w.settings().wizards.max_books_total;
+        for &realm in f4x_core::rules::BOOK_REALMS.iter() {
+            let opposed = [3 /* life */, 4 /* death */].contains(&realm.num());
+            let books = if opposed { 0 } else { per_realm.min(left) };
+            left -= books;
+            s.w.cheat_set_books(s.p, realm, books);
+        }
+        assert_eq!(left, 0, "{}: the realms hold all the books", s.name);
+        let (_, events) = win(&mut s);
+        let name = format!("{}: {lair:?}", s.name);
+        let (_, loot) = cleared(&events).unwrap_or_else(|| panic!("{name}: {events:?}"));
+        assert_eq!((loot.books.len(), loot.retorts.len()), (1, 0), "{name}");
+        assert!(paid_instead(&lair, &loot), "{name}: {loot:?}");
+    }
+}
+
+#[test]
+fn a_spell_reward_with_nothing_dear_enough_left_is_a_cheaper_spell() {
+    let level = |r: Rarity| match r {
+        Rarity::Common => 1,
+        Rarity::Uncommon => 2,
+        Rarity::Rare => 3,
+        _ => 4,
+    };
+    let (w, _) = rich_site(0, true);
+    let total = w.w.content().rules.lairs.spell_total;
+    for i in rich_sites_with(sample(12, 3), |special| (2..=total).contains(&special)) {
+        let (mut s, lair) = rich_site(i, true);
+        let rarity = i32::from(lair.special);
+        let dear: Vec<SpellId> =
+            s.w.content()
+                .rules
+                .spells
+                .iter()
+                .filter(|(_, d)| level(d.rarity) >= rarity)
+                .map(|(id, _)| id)
+                .collect();
+        for spell in dear {
+            s.w.cheat_learn_spell(s.p, spell);
+        }
+        let (_, events) = win(&mut s);
+        let name = format!("{}: {lair:?}", s.name);
+        let (_, loot) = cleared(&events).unwrap_or_else(|| panic!("{name}: {events:?}"));
+        let spell = loot.spell.unwrap_or_else(|| panic!("{name}: no spell"));
+        let got = level(s.w.content().rules.spells.get(spell).rarity);
+        assert!(got < rarity, "{name}: rarity {got}");
+    }
 }
 
 /// A wizard who can take neither a book nor a retort is paid something else for such a hoard: an
@@ -992,9 +1105,14 @@ fn meld(w: &mut Table, units: Vec<hecs::Entity>) -> Vec<Event> {
 fn a_meld_is_refused_without_a_spirit_or_a_node() {
     for mut s in scenes() {
         let node = free_node(&s.w);
-        let spirit = create_at(&mut s.w, s.p, node.pos, UnitId::new(MAGIC_SPIRIT));
-        let spearmen = create_at(&mut s.w, s.p, node.pos, UnitId::new(SPEARMEN));
-        let stray = create_at(&mut s.w, s.p, s.from, UnitId::new(MAGIC_SPIRIT));
+        let spirit = create_at(&mut s.w, s.p, node.pos, UnitId::new(154 /* magic_spirit */));
+        let spearmen = create_at(
+            &mut s.w,
+            s.p,
+            node.pos,
+            UnitId::new(104 /* high_men_spearmen */),
+        );
+        let stray = create_at(&mut s.w, s.p, s.from, UnitId::new(154 /* magic_spirit */));
         for (units, why) in [
             (vec![], MeldError::BadSelection),
             (vec![spirit, stray], MeldError::BadSelection),
@@ -1018,8 +1136,13 @@ fn a_meld_is_refused_without_a_spirit_or_a_node() {
 fn a_guardian_spirit_goes_before_a_magic_spirit_and_guards_the_node() {
     for mut s in scenes() {
         let node = free_node(&s.w);
-        let guardian = create_at(&mut s.w, s.p, node.pos, UnitId::new(GUARDIAN_SPIRIT));
-        let spirit = create_at(&mut s.w, s.p, node.pos, UnitId::new(MAGIC_SPIRIT));
+        let guardian = create_at(
+            &mut s.w,
+            s.p,
+            node.pos,
+            UnitId::new(176 /* guardian_spirit */),
+        );
+        let spirit = create_at(&mut s.w, s.p, node.pos, UnitId::new(154 /* magic_spirit */));
         let events = meld(&mut s.w, vec![spirit, guardian]);
         assert!(
             events
@@ -1054,13 +1177,13 @@ fn a_rivals_node_falls_to_a_spirit_unless_a_guardian_holds_it_off() {
             let mut s = scene_at(i);
             let node = free_node(&s.w);
             let first = if guarded {
-                GUARDIAN_SPIRIT
+                176 /* guardian_spirit */
             } else {
-                MAGIC_SPIRIT
+                154 /* magic_spirit */
             };
             let theirs = create_at(&mut s.w, s.other, node.pos, UnitId::new(first));
             meld(&mut s.w, vec![theirs]);
-            let mine = create_at(&mut s.w, s.p, node.pos, UnitId::new(MAGIC_SPIRIT));
+            let mine = create_at(&mut s.w, s.p, node.pos, UnitId::new(154 /* magic_spirit */));
             let events = meld(&mut s.w, vec![mine]);
             assert!(
                 s.w.units().units_at(node.pos).is_empty(),
@@ -1103,7 +1226,7 @@ fn a_node_pays_its_owner_more_with_stronger_magic_and_with_node_mastery() {
     for mut s in scenes() {
         let node = free_node(&s.w);
         assert_eq!(s.w.node_power(&node), 0, "{}: nobody's node", s.name);
-        let spirit = create_at(&mut s.w, s.p, node.pos, UnitId::new(MAGIC_SPIRIT));
+        let spirit = create_at(&mut s.w, s.p, node.pos, UnitId::new(154 /* magic_spirit */));
         meld(&mut s.w, vec![spirit]);
         let mine = |w: &World| w.economy().node_at(node.pos).expect("the node");
         let mut last = 0;
@@ -1116,7 +1239,7 @@ fn a_node_pays_its_owner_more_with_stronger_magic_and_with_node_mastery() {
             last = power;
         }
         assert!(
-            s.w.cheat_set_retort(s.p, Retort::new(NODE_MASTERY), true),
+            s.w.cheat_set_retort(s.p, Retort::new(12 /* node_mastery */), true),
             "{}",
             s.name
         );
@@ -1130,7 +1253,7 @@ fn a_node_pays_its_owner_more_with_stronger_magic_and_with_node_mastery() {
 fn a_raised_volcano_gives_its_wizard_power_until_it_goes_out() {
     for mut s in scenes() {
         s.w.cheat_reveal(s.p);
-        let spell = SpellId::new(RAISE_VOLCANO);
+        let spell = SpellId::new(98 /* raise_volcano */);
         s.w.cheat_learn_spell(s.p, spell);
         s.w.treasury_mut(s.p).expect("a treasury").mana =
             f4x_def::half_int::HalfInt::from_int(10_000);

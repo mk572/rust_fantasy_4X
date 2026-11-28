@@ -514,12 +514,15 @@ fn black_prayer_curses_the_enemy_and_warp_reality_every_unit_but_chaos() {
 /// and the rule `magic_immunity_exceptions` is on, and not otherwise.
 #[test]
 fn battlefield_enchantments_change_a_magic_immune_unit_as_the_exceptions_say() {
-    let paladins = 113; // high_men_paladins: magic immunity
+    // High Men paladins have magic immunity.
     for (field, exceptions) in [Field::BlackPrayer, Field::WarpReality]
         .into_iter()
         .flat_map(|f| [(f, false), (f, true)])
     {
-        let mut b = pair(105 /* high_men_swordsmen */, paladins);
+        let mut b = pair(
+            105, /* high_men_swordsmen */
+            113, /* high_men_paladins */
+        );
         b.magic_immunity_exceptions = exceptions;
         let marked = b
             .content
@@ -552,7 +555,10 @@ fn battlefield_enchantments_change_a_magic_immune_unit_as_the_exceptions_say() {
         );
     }
     // Entangle takes a move from it when the exceptions are on.
-    let mut b = pair(105 /* high_men_swordsmen */, paladins);
+    let mut b = pair(
+        105, /* high_men_swordsmen */
+        113, /* high_men_paladins */
+    );
     b.magic_immunity_exceptions = true;
     b.raise_field(Side::Attacker, Field::Entangle, spell_for(Field::Entangle));
     let moves = b.units[1].moves;

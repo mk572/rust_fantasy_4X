@@ -103,7 +103,6 @@ fn the_settings_cap_the_neutral_cities_of_each_plane() -> TestResult {
 fn a_myrran_wizard_that_fits_only_at_the_option_s_cost_needs_the_option_to_be_made() -> TestResult {
     use f4x_core::rules::RealmId as Realm;
     use f4x_core::wizard::magic::Retort;
-    let myrran = Retort::new(9 /* myrran */);
     let picks = NewGame::default().settings.wizards.picks.human;
     // The cost the option gives Myrran, read from a game made with it.
     let optional = {
@@ -113,9 +112,12 @@ fn a_myrran_wizard_that_fits_only_at_the_option_s_cost_needs_the_option_to_be_ma
             ..Default::default()
         };
         spec.settings.rules.two_pick_myrran = true;
-        f4x_core::wizard::retort_cost(&new_game(shipped(), &spec)?.0.content().rules, myrran)
+        f4x_core::wizard::retort_cost(
+            &new_game(shipped(), &spec)?.0.content().rules,
+            Retort::new(9 /* myrran */),
+        )
     };
-    let normal = f4x_core::wizard::retort_cost(&shipped().rules, myrran);
+    let normal = f4x_core::wizard::retort_cost(&shipped().rules, Retort::new(9 /* myrran */));
     assert!(optional < normal, "the option makes Myrran cheaper");
     // Books that use up the picks together with the cheaper Myrran, and overspend with the dearer.
     let books = picks - optional;
@@ -123,7 +125,7 @@ fn a_myrran_wizard_that_fits_only_at_the_option_s_cost_needs_the_option_to_be_ma
         let mut spec = NewGame {
             seed: 5,
             books: [(Realm::new(3 /* life */), books)].into(),
-            retorts: [myrran].into(),
+            retorts: [Retort::new(9 /* myrran */)].into(),
             ..Default::default()
         };
         spec.settings.rules.two_pick_myrran = two_pick;

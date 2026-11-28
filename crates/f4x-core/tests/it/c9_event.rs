@@ -17,10 +17,6 @@ use f4x_core::world_event::{
 use f4x_def::half_int::HalfInt;
 use f4x_def::testdir::{deep, sample};
 
-const SPEARMEN: u16 = 104; // high_men_spearmen
-const MAGIC_SPIRIT: u16 = 154; // magic_spirit
-const CRUSADE: u16 = 158; // crusade
-
 struct Game {
     name: String,
     w: Table,
@@ -302,7 +298,7 @@ fn the_gift_puts_an_item_in_the_wizards_armory() {
 fn a_disjunction_needs_a_global_spell_and_ends_every_one() {
     for mut g in games() {
         refused(&mut g.w, EventKind::Disjunction, g.p, &g.name);
-        let spell = SpellId::new(CRUSADE);
+        let spell = SpellId::new(158 /* crusade */);
         g.w.scenario_add_global(g.other, spell);
         g.w.scenario_add_global(g.p, spell);
         let told = happen(&mut g.w, EventKind::Disjunction, g.p);
@@ -383,7 +379,7 @@ fn a_marriage_gives_a_neutral_city_and_its_units_to_the_wizard() {
         for &city in &neutrals {
             let info = g.w.economy().cities().into_iter().find(|c| c.0 == city);
             let (_, info, at) = info.expect("a city");
-            create(&mut g.w, info.owner, at, SPEARMEN);
+            create(&mut g.w, info.owner, at, 104 /* high_men_spearmen */);
         }
         let told = happen(&mut g.w, EventKind::Marriage, g.p);
         let city = told.city.expect("the city");
@@ -423,8 +419,8 @@ fn a_rebel_city_goes_neutral_with_its_soldiers_and_dismisses_the_conjured() {
         // Only the fortress city: nothing can rise.
         refused(&mut g.w, EventKind::Rebellion, g.p, &g.name);
         let (city, at) = town(&mut g, 4);
-        let soldiers = [(); 2].map(|_| create(&mut g.w, g.p, at, SPEARMEN));
-        let spirit = create(&mut g.w, g.p, at, MAGIC_SPIRIT);
+        let soldiers = [(); 2].map(|_| create(&mut g.w, g.p, at, 104 /* high_men_spearmen */));
+        let spirit = create(&mut g.w, g.p, at, 154 /* magic_spirit */);
         // The draw picks one of the cities: the fortress city refuses, so try until it rises.
         let told = (0..200)
             .find_map(|_| g.w.cheat_event(EventKind::Rebellion, g.p).ok())
@@ -449,7 +445,7 @@ fn a_hero_or_a_conjured_majority_holds_a_city_back_from_rebelling() {
                 g.w.cheat_hire_hero(g.p, 0, Some(at))
                     .unwrap_or_else(|e| panic!("{}: {e}", g.name));
             } else {
-                create(&mut g.w, g.p, at, MAGIC_SPIRIT);
+                create(&mut g.w, g.p, at, 154 /* magic_spirit */);
             }
             for _ in 0..60 {
                 refused(&mut g.w, EventKind::Rebellion, g.p, &g.name);
@@ -470,7 +466,7 @@ fn a_meteor_and_an_earthquake_tell_what_the_city_lost() {
                 for &(city, at) in &cities {
                     g.w.scenario_set_citizens(city, 12);
                     for _ in g.w.units().units_at(at).len()..6 {
-                        create(&mut g.w, g.p, at, SPEARMEN);
+                        create(&mut g.w, g.p, at, 104 /* high_men_spearmen */);
                     }
                 }
                 let measure = |w: &Table, city, at| {
@@ -604,7 +600,7 @@ fn a_conjunction_doubles_its_own_nodes_and_halves_the_others() {
             // Every free node melded.
             for node in &nodes {
                 if g.w.units().units_at(node.pos).is_empty() {
-                    let spirit = create(&mut g.w, g.p, node.pos, MAGIC_SPIRIT);
+                    let spirit = create(&mut g.w, g.p, node.pos, 154 /* magic_spirit */);
                     g.w.apply(Command::Meld {
                         units: vec![spirit],
                     });

@@ -275,9 +275,9 @@ Where the item rules differ from the original's code or are read from ReMoM with
   valid when the wizard has *no* books in it (inverted: it also looks for a spell the wizard "knows", which
   only a realm with books has, so it rarely finds one) and its index arithmetic is muddled. **Ours:** a
   random realm the wizard has books in, or arcane; one book gives up to uncommon spells, two up to rare,
-  more up to very rare (the original's `Max_Rarity`), arcane up to rare; a spell not known yet, never the
-  Spell of Mastery or Return. A hoard with no such spell pays its value (rarity squared times 50) as gold
-  and mana.
+  more up to very rare (the original's `Max_Rarity`), arcane up to rare; a spell not known yet (the
+  rolled rarity, then dearer, then cheaper), never the Spell of Mastery or Return. A hoard with no such
+  spell pays its value (rarity squared times 50) as gold and mana.
 
 ## 11. Heroes (task 219)
 
@@ -309,6 +309,8 @@ Where the item rules differ from the original's code or are read from ReMoM with
 - **No limit of six heroes.** The original lets a wizard serve six heroes at most. Ours has no
   limit: a wizard may serve all 35. The hero screen scrolls six at a time. The chance of a hero
   offer still falls with the number of heroes served.
+- **Free heroes are picked among all who qualify** (summoning, a freed prisoner); the original rolls
+  up to 100 random types and may find nobody.
 - **Hero spells are refused before they are paid for.** The help says Summon Hero, Summon
   Champion and Resurrection "fail" with six heroes. Ours does not start the cast when the wizard
   has no summoning circle, or nobody who could come (and Incarnation when Torin is

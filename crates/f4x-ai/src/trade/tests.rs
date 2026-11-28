@@ -12,24 +12,23 @@ type TestResult = Result<(), Box<dyn std::error::Error>>;
 /// treasury of 1000 gold can buy and P1 no life spell at all; P1 has 1000 gold.
 fn world() -> Result<(Game, SpellId), Box<dyn std::error::Error>> {
     let mut w = game(COAST_CITY, 8 /* high_men */);
-    let life = RealmId::new(3 /* life */);
     let dear = w
         .content()
         .rules
         .spells
         .iter()
-        .filter(|(_, d)| d.realm == life && d.research_cost <= 600)
+        .filter(|(_, d)| d.realm == RealmId::new(3 /* life */) && d.research_cost <= 600)
         .max_by_key(|(_, d)| (d.research_cost, std::cmp::Reverse(d.num)))
         .map(|(id, _)| id)
         .ok_or("a life spell")?;
-    w.init_wizard(P0, &[(life, 5)], &[], Some(&[]))
+    w.init_wizard(P0, &[(RealmId::new(3 /* life */), 5)], &[], Some(&[]))
         .map_err(|e| format!("{e:?}"))?;
     w.wizard_mut(P0)
         .ok_or("a wizard")?
         .get_mut::<f4x_core::wizard::sheet::KnownSpells>()
         .known
         .insert(dear);
-    w.init_wizard(P1, &[(life, 5)], &[], Some(&[]))
+    w.init_wizard(P1, &[(RealmId::new(3 /* life */), 5)], &[], Some(&[]))
         .map_err(|e| format!("{e:?}"))?;
     w.make_contact(P0, P1);
     w.treasury_mut(P1).ok_or("treasury")?.gold = HalfInt::from_int(1000);

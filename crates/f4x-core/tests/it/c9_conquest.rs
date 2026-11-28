@@ -428,13 +428,10 @@ fn taking_the_fortress_of_a_wizard_that_cannot_pay_for_the_return_defeats_it() {
     assert!(defeated > 0, "no wizard was defeated in any world");
 }
 
-/// The spell that ends the game when its wizard finishes casting it (`spell_of_mastery`).
-const MASTERY: u16 = 213;
-
 #[test]
 fn starting_the_spell_of_mastery_is_told_to_all_and_listed_with_what_is_still_owed() {
     for mut f in falls() {
-        let spell = SpellId::new(MASTERY);
+        let spell = SpellId::new(213 /* spell_of_mastery */);
         f.w.cheat_learn_spell(f.a, spell);
         f.w.treasury_mut(f.a).expect("a treasury").mana = HalfInt::from_int(100_000);
         let events = f.w.apply(Command::CastSpell {
@@ -474,7 +471,7 @@ fn starting_the_spell_of_mastery_is_told_to_all_and_listed_with_what_is_still_ow
 #[test]
 fn finishing_the_spell_of_mastery_is_recorded_at_once_and_scores_it_for_the_caster_only() {
     for mut f in falls() {
-        let spell = SpellId::new(MASTERY);
+        let spell = SpellId::new(213 /* spell_of_mastery */);
         f.w.cheat_learn_spell(f.a, spell);
         f.w.scenario_casting(f.a, spell, 0);
         f.w.end_player_turn(f.a);

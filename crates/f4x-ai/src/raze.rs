@@ -391,8 +391,7 @@ mod tests {
         assert!(large < small, "{small} then {large}");
         // On a small city, so that the size has not reached the most it can say.
         t.w.scenario_set_citizens(t.city, 2);
-        let parthenon = BuildingId::new(24 /* parthenon */);
-        t.w.scenario_set_building(t.city, parthenon, true);
+        t.w.scenario_set_building(t.city, BuildingId::new(24 /* parthenon */), true);
         assert!(t.parts()?.size < small);
         Ok(())
     }

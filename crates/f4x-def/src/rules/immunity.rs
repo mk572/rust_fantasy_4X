@@ -219,10 +219,9 @@ mod tests {
     #[test]
     fn magic_immunity_adds_its_resistance_against_every_realm_once() {
         let rules = &crate::testdir::shipped().rules;
-        let magic = Ability::new(40 /* magic_immunity */);
         let bonus: i32 = rules
             .abilities
-            .get(magic)
+            .get(Ability::new(40 /* magic_immunity */))
             .defence
             .iter()
             .filter_map(|r| match r.effect {
@@ -232,7 +231,13 @@ mod tests {
             .sum();
         assert!(bonus > 0, "the content gives magic immunity resistance");
         // An ability held twice (the unit's own and an item's) counts once.
-        for held in [vec![magic], vec![magic, magic]] {
+        for held in [
+            vec![Ability::new(40 /* magic_immunity */)],
+            vec![
+                Ability::new(40 /* magic_immunity */),
+                Ability::new(40 /* magic_immunity */),
+            ],
+        ] {
             let unit = Immunities::of(&held, &[], rules);
             let realms: Vec<Realm> = (0..).map_while(Realm::from_num).collect();
             assert!(!realms.is_empty());

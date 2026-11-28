@@ -207,8 +207,9 @@ pub fn can_offer(rules: &Rules, states: &[HeroState], kind: usize, standing: &St
 }
 
 /// `Pick_Random_Hero`: a random hero type the wizard can be offered, or `None`. `zero_cost`
-/// (Summon Hero, Summon Champion, a freed prisoner) ignores the fame and tries up to 100
-/// times, otherwise 10. A champion pick that finds nobody goes on to pick from all.
+/// (Summon Hero, Summon Champion, a freed prisoner) ignores the fame and picks among all who
+/// qualify; an offer tries 10 random types and may find nobody. A champion pick that finds
+/// nobody goes on to pick from all.
 pub fn pick(
     rng: &mut GameRng,
     rules: &Rules,
@@ -217,12 +218,28 @@ pub fn pick(
     zero_cost: bool,
     class: Class,
 ) -> Option<usize> {
-    let max_attempts = if zero_cost { 100 } else { 10 };
     // The highest cost is 600, so a fame of 200 lets every hero through.
     let standing = &Standing {
         fame: if zero_cost { 200 } else { standing.fame },
         ..*standing
     };
+    if zero_cost {
+        let eligible = |class| -> Vec<usize> {
+            let range = match class {
+                Class::Any => 0..HEROES + CHAMPIONS,
+                Class::Hero => 0..HEROES,
+                Class::Champion => HEROES..HEROES + CHAMPIONS,
+            };
+            range
+                .filter(|&k| can_offer(rules, states, k, standing))
+                .collect()
+        };
+        let mut found = eligible(class);
+        if found.is_empty() && class == Class::Champion {
+            found = eligible(Class::Any);
+        }
+        return (!found.is_empty()).then(|| found[rng.roll(found.len() as u32) as usize - 1]);
+    }
     let mut class = class;
     let mut attempts = 0;
     loop {
@@ -237,7 +254,7 @@ pub fn pick(
             if can_offer(rules, states, kind, standing) {
                 return Some(kind);
             }
-            if attempts >= max_attempts {
+            if attempts >= 10 {
                 break;
             }
         }

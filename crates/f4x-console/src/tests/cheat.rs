@@ -707,7 +707,6 @@ fn spell_text(w: &World, num: u16) -> (f4x_core::rules::SpellId, String) {
 #[test]
 fn set_books_changes_the_books_and_the_casting_skill() {
     use f4x_core::rules::RealmId;
-    let nature = RealmId::new(0 /* nature */);
     let (mut w, mut c) = (game(), console());
     assert!(
         !c.execute(&mut w, "set books nature 4").ok,
@@ -717,19 +716,41 @@ fn set_books_changes_the_books_and_the_casting_skill() {
     let skill = |w: &World| w.wizard(HUMAN).expect("a wizard").skill_points();
     let before = skill(&w);
     assert!(c.execute(&mut w, "set books nature 4").ok);
-    assert_eq!(w.wizard(HUMAN).expect("a wizard").books_in(nature), 4);
+    assert_eq!(
+        w.wizard(HUMAN)
+            .expect("a wizard")
+            .books_in(RealmId::new(0 /* nature */)),
+        4
+    );
     assert!(skill(&w) > before, "{} after {before}", skill(&w));
     // Another wizard, by number; none takes the books away.
     assert!(c.execute(&mut w, "set books nature 3 1").ok);
-    assert_eq!(w.wizard(PlayerId(1)).expect("a wizard").books_in(nature), 3);
-    assert_eq!(w.wizard(HUMAN).expect("a wizard").books_in(nature), 4);
+    assert_eq!(
+        w.wizard(PlayerId(1))
+            .expect("a wizard")
+            .books_in(RealmId::new(0 /* nature */)),
+        3
+    );
+    assert_eq!(
+        w.wizard(HUMAN)
+            .expect("a wizard")
+            .books_in(RealmId::new(0 /* nature */)),
+        4
+    );
     assert!(c.execute(&mut w, "set books nature 0").ok);
-    assert_eq!(w.wizard(HUMAN).expect("a wizard").books_in(nature), 0);
+    assert_eq!(
+        w.wizard(HUMAN)
+            .expect("a wizard")
+            .books_in(RealmId::new(0 /* nature */)),
+        0
+    );
     assert_eq!(skill(&w), before);
     // More than the game allows is cut to the most.
     assert!(c.execute(&mut w, "set books nature 200").ok);
     assert_eq!(
-        w.wizard(HUMAN).expect("a wizard").books_in(nature),
+        w.wizard(HUMAN)
+            .expect("a wizard")
+            .books_in(RealmId::new(0 /* nature */)),
         i32::from(w.settings().wizards.max_books_per_realm)
     );
     for bad in [
@@ -745,20 +766,28 @@ fn set_books_changes_the_books_and_the_casting_skill() {
 #[test]
 fn a_retort_is_given_and_taken_away_and_the_skill_follows() {
     use f4x_core::wizard::magic::Retort;
-    let channeler = Retort::new(8 /* channeler */);
     let (mut w, mut c) = (game(), console());
     assert!(
         !c.execute(&mut w, "give retort channeler").ok,
         "needs override"
     );
     assert!(c.execute(&mut w, "mode override").ok);
-    assert!(!w.wizard(HUMAN).expect("a wizard").has(channeler));
+    assert!(!w
+        .wizard(HUMAN)
+        .expect("a wizard")
+        .has(Retort::new(8 /* channeler */)));
     assert!(c.execute(&mut w, "give retort channeler").ok);
-    assert!(w.wizard(HUMAN).expect("a wizard").has(channeler));
+    assert!(w
+        .wizard(HUMAN)
+        .expect("a wizard")
+        .has(Retort::new(8 /* channeler */)));
     // Giving it twice, or taking away one that is not there, says so.
     assert!(!c.execute(&mut w, "give retort channeler").ok);
     assert!(c.execute(&mut w, "remove retort channeler").ok);
-    assert!(!w.wizard(HUMAN).expect("a wizard").has(channeler));
+    assert!(!w
+        .wizard(HUMAN)
+        .expect("a wizard")
+        .has(Retort::new(8 /* channeler */)));
     assert!(!c.execute(&mut w, "remove retort channeler").ok);
     // A name with two words, and another wizard.
     assert!(c.execute(&mut w, "give retort chaos mastery 1").ok);

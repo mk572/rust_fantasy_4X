@@ -1064,10 +1064,13 @@ fn flame_blade_and_the_flaming_power_add_fire_dice() {
 /// unit's own level does, as in the original and on the wiki.
 #[test]
 fn an_item_gives_life_steal_no_extra_penalty() {
-    let life_steal = Ability::new(35 /* life_steal */);
     let level = 3;
-    let innate = SpecialAttacks::of_unit(&[life_steal], &[], level);
-    let given = SpecialAttacks::of_unit(&[life_steal], &[life_steal], level);
+    let innate = SpecialAttacks::of_unit(&[Ability::new(35 /* life_steal */)], &[], level);
+    let given = SpecialAttacks::of_unit(
+        &[Ability::new(35 /* life_steal */)],
+        &[Ability::new(35 /* life_steal */)],
+        level,
+    );
     assert_eq!(given.penalty, innate.penalty, "the same penalty");
     assert_eq!(given.penalty, level, "the unit's own level, nothing more");
 }

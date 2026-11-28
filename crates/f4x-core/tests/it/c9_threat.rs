@@ -5,6 +5,7 @@
 use crate::support::{around, content, text, worlds, WORLDS};
 use f4x_battle::battle::{BattleCommand, Side};
 use f4x_core::feature::def::FeatureKind;
+use f4x_core::feature::entity::LairInfo;
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::{PlayerId, MONSTERS};
@@ -15,12 +16,6 @@ use f4x_core::world::{Command, Event, World};
 use f4x_def::half_int::HalfInt;
 use f4x_def::testdir::{deep, sample};
 use std::collections::BTreeSet;
-
-const SPEARMEN: u16 = 104; // high_men_spearmen
-const SETTLERS: u16 = 44; // barbarian_settlers
-const GHOULS: u16 = 166; // ghouls
-const DEMON: u16 = 169; // demon
-const MAGIC_SPIRIT: u16 = 154; // magic_spirit
 
 /// A round starts as the game starts it: the world is tidied up after, as after a command.
 fn start_round(w: &mut Table, round: u32) -> Vec<Event> {
@@ -255,7 +250,7 @@ fn cities_with_nobody_fit_to_raid_raise_no_party_and_feed_the_monsters_clock() {
             for u in w.units().units_at(at) {
                 w.cheat_remove_unit(u);
             }
-            create(&mut w, owner, at, SETTLERS);
+            create(&mut w, owner, at, 44 /* barbarian_settlers */);
         }
         let start = w.threat().monster_clock;
         for round in 2..200 {
@@ -611,8 +606,16 @@ fn monsters_beside(w: &mut Table, to: Position, kinds: &[u16]) -> Option<Vec<hec
 
 /// The monsters walk onto `to`; what they settled there, if they did.
 fn walk_on(w: &mut Table, to: Position, name: &str) -> Option<u32> {
-    let monsters = monsters_beside(w, to, &[GHOULS, GHOULS, DEMON])
-        .unwrap_or_else(|| panic!("{name}: no room"));
+    let monsters = monsters_beside(
+        w,
+        to,
+        &[
+            166, /* ghouls */
+            166, /* ghouls */
+            169, /* demon */
+        ],
+    )
+    .unwrap_or_else(|| panic!("{name}: no room"));
     let events = w.apply(Command::MoveStack {
         units: monsters.clone(),
         to,
@@ -633,6 +636,10 @@ fn walk_on(w: &mut Table, to: Position, name: &str) -> Option<u32> {
         assert!(monsters.iter().all(|u| !all_units(w).contains(u)), "{name}");
     }
     settled
+}
+
+fn holds_treasure(lair: &LairInfo) -> bool {
+    lair.gold + lair.mana > 0 || !lair.items.is_empty() || lair.prisoner || lair.special > 0
 }
 
 #[test]
@@ -662,11 +669,7 @@ fn roaming_monsters_settle_in_a_lair_that_stands_empty() {
         assert_eq!(walk_on(&mut w, site, &name), Some(3), "{name}");
         let lair = w.economy().lair_at(site).expect("guards");
         assert_eq!(lair.guard_count(), 3, "{name}");
-        assert_eq!(
-            (lair.gold, lair.mana, lair.items.len(), lair.prisoner),
-            (0, 0, 0, false),
-            "{name}"
-        );
+        assert!(holds_treasure(&lair), "{name}: {lair:?}");
         assert_eq!(w.vacant_zone(site), None, "{name}: it is held now");
     }
 }
@@ -691,7 +694,7 @@ fn cleared_node(w: &mut Table, p: PlayerId, name: &str) -> Position {
         .into_iter()
         .find(|&q| open_land(w, q))
         .expect("open land");
-    let victor = create(w, p, beside, SPEARMEN);
+    let victor = create(w, p, beside, 104 /* high_men_spearmen */);
     let events = w.apply(Command::EnterSite {
         units: vec![victor],
         to: node,
@@ -710,7 +713,7 @@ fn monsters_do_not_settle_in_a_node_a_wizard_holds() {
     for (name, mut w) in quiet(false, false) {
         let p = w.wizards()[0];
         let node = cleared_node(&mut w, p, &name);
-        let spirit = create(&mut w, p, node, MAGIC_SPIRIT);
+        let spirit = create(&mut w, p, node, 154 /* magic_spirit */);
         w.apply(Command::Meld {
             units: vec![spirit],
         });
@@ -729,6 +732,8 @@ fn roaming_monsters_settle_in_a_cleared_node_nobody_holds() {
         let node = cleared_node(&mut w, p, &name);
         assert!(w.vacant_zone(node).is_some(), "{name}");
         assert_eq!(walk_on(&mut w, node, &name), Some(3), "{name}");
+        let lair = w.economy().lair_at(node).expect("guards");
+        assert!(lair.intact && holds_treasure(&lair), "{name}: {lair:?}");
     }
 }
 
@@ -750,7 +755,16 @@ fn sack(
             w.cheat_remove_unit(u);
         }
         w.scenario_set_citizens(city, 8);
-        if let Some(monsters) = monsters_beside(w, at, &[GHOULS, DEMON, DEMON, 165]) {
+        if let Some(monsters) = monsters_beside(
+            w,
+            at,
+            &[
+                166, /* ghouls */
+                169, /* demon */
+                169, /* demon */
+                165,
+            ],
+        ) {
             return (city, at, owner, monsters);
         }
     }
@@ -819,8 +833,8 @@ fn monsters_that_beat_the_defenders_sack_the_city() {
     for (name, mut w) in quiet(false, false) {
         let p = w.wizards()[0];
         let (city, at) = w.economy().cities_of(p)[0];
-        create(&mut w, p, at, SPEARMEN);
-        let monsters = monsters_beside(&mut w, at, &[DEMON, DEMON])
+        create(&mut w, p, at, 104 /* high_men_spearmen */);
+        let monsters = monsters_beside(&mut w, at, &[169 /* demon */, 169 /* demon */])
             .unwrap_or_else(|| panic!("{name}: no room"));
         let mut events = w.apply(Command::MoveStack {
             units: monsters.clone(),

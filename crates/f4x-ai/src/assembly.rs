@@ -438,9 +438,6 @@ mod tests {
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-    const PALADINS: u16 = 113; // high_men_paladins
-    const SPEARMEN: u16 = 104; // high_men_spearmen
-
     fn target() -> Position {
         at(4, 4)
     }
@@ -458,10 +455,9 @@ mod tests {
     }
 
     fn earth_gates(w: &mut World, at_squares: &[Position]) -> TestResult {
-        let gate = f4x_def::rules::SpellId::new(37 /* earth_gate */);
         for &p in at_squares {
             let city = w.economy().city_at(p).ok_or("a city")?;
-            w.scenario_enchant_city(city, gate, P0);
+            w.scenario_enchant_city(city, f4x_def::rules::SpellId::new(37 /* earth_gate */), P0);
         }
         Ok(())
     }
@@ -471,9 +467,15 @@ mod tests {
     #[test]
     fn the_rally_point_lies_on_the_way_of_the_last_to_arrive_and_is_no_city() -> TestResult {
         let mut w = world()?;
-        let far = spawn(&mut w, P0, at(10, 10), PALADINS, 1)[0];
-        let mut units = spawn(&mut w, P0, at(10, 3), PALADINS, 1);
-        units.extend(spawn(&mut w, P0, at(7, 9), PALADINS, 1));
+        let far = spawn(&mut w, P0, at(10, 10), 113 /* high_men_paladins */, 1)[0];
+        let mut units = spawn(&mut w, P0, at(10, 3), 113 /* high_men_paladins */, 1);
+        units.extend(spawn(
+            &mut w,
+            P0,
+            at(7, 9),
+            113, /* high_men_paladins */
+            1,
+        ));
         units.push(far);
         let mut ai = Ai::new(P0);
         let mut travel = Travel::new(&w, ai.player, ai.crossing);
@@ -503,7 +505,7 @@ mod tests {
         assert!(distance(&view, point, target()).is_some_and(|d| d > 1));
         assert_eq!(rally_of(&ai.tasks(&w), target()), Some(point), "it is kept");
         // Other units do not move it while it can be used.
-        let more = spawn(&mut w, P0, at(3, 9), PALADINS, 1);
+        let more = spawn(&mut w, P0, at(3, 9), 113 /* high_men_paladins */, 1);
         let mut travel = Travel::new(&w, ai.player, ai.crossing);
         assert_eq!(
             rally(&mut ai, &mut w, &mut travel, target(), square, &more),
@@ -511,7 +513,7 @@ mod tests {
         );
         // No room on it: another is chosen.
         let full = w.max_tile();
-        spawn(&mut w, P0, point, SPEARMEN, full);
+        spawn(&mut w, P0, point, 104 /* high_men_spearmen */, full);
         let mut travel = Travel::new(&w, ai.player, ai.crossing);
         assert_ne!(
             rally(&mut ai, &mut w, &mut travel, target(), square, &units),
@@ -525,8 +527,8 @@ mod tests {
     #[test]
     fn all_units_sent_against_a_target_use_one_square_until_it_is_blocked() -> TestResult {
         let mut w = world()?;
-        let south = spawn(&mut w, P0, at(4, 9), PALADINS, 2);
-        let east = spawn(&mut w, P0, at(9, 3), PALADINS, 2);
+        let south = spawn(&mut w, P0, at(4, 9), 113 /* high_men_paladins */, 2);
+        let east = spawn(&mut w, P0, at(9, 3), 113 /* high_men_paladins */, 2);
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();
         march(&mut ai, &mut w, Role::March, &south, target(), &mut events)
@@ -540,7 +542,7 @@ mod tests {
             Ok(first)
         );
         let full = w.max_tile();
-        spawn(&mut w, P0, first, SPEARMEN, full);
+        spawn(&mut w, P0, first, 104 /* high_men_spearmen */, full);
         let mut travel = Travel::new(&w, ai.player, ai.crossing);
         let next =
             beside(&mut ai, &mut w, &mut travel, target(), &east).map_err(|e| format!("{e:?}"))?;
@@ -564,8 +566,20 @@ mod tests {
             race: w.content().rules.races.id_numbered(8),
             population: 6,
         });
-        let by_gate = spawn(&mut w, P0, at(COAST_CITY.0, COAST_CITY.1), SPEARMEN, 1)[0];
-        let walker = spawn(&mut w, P0, at(INLAND_CITY.0, 10), SPEARMEN, 1)[0];
+        let by_gate = spawn(
+            &mut w,
+            P0,
+            at(COAST_CITY.0, COAST_CITY.1),
+            104, /* high_men_spearmen */
+            1,
+        )[0];
+        let walker = spawn(
+            &mut w,
+            P0,
+            at(INLAND_CITY.0, 10),
+            104, /* high_men_spearmen */
+            1,
+        )[0];
         let ai = Ai::new(P0);
         let square = at(4, 5);
         let walks = |w: &World, u| turns(&ai, w, u, square).ok_or("a way");
@@ -592,7 +606,7 @@ mod tests {
     #[test]
     fn units_beside_the_target_have_no_rally_point() -> TestResult {
         let mut w = world()?;
-        let units = spawn(&mut w, P0, at(5, 5), PALADINS, 3);
+        let units = spawn(&mut w, P0, at(5, 5), 113 /* high_men_paladins */, 3);
         let mut ai = Ai::new(P0);
         let mut travel = Travel::new(&w, ai.player, ai.crossing);
         let square =

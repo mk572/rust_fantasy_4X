@@ -21,6 +21,7 @@ use crate::feature::entity::LairInfo;
 use crate::item::make::{make_item, Grade};
 use crate::map::Position;
 use crate::player::{PlayerId, MONSTERS};
+use crate::rules::lair::LairStyle;
 use f4x_def::content::Content;
 
 use crate::rules::{Rarity, RealmId, SpellId, Stat, UnitId, UnitKind};
@@ -191,8 +192,8 @@ impl SiteError {
 /// wizard does not know yet; the wizard learns it. A realm with one book gives up to uncommon
 /// spells, two books up to rare, more up to very rare; arcane up to rare (ReMoM
 /// `WIZ_RollSpellReward`, whose realm test is inverted and whose index arithmetic is muddled:
-/// this follows its rarity caps and gives only spells the wizard can use). Dearer
-/// rarities are tried when the first has nothing new; none at all gives `None`.
+/// this follows its rarity caps and gives only spells the wizard can use). When the rarity has
+/// nothing new, dearer ones are tried, then cheaper ones; none at all gives `None`.
 pub(crate) fn award_spell(
     wizard: &mut crate::wizard::sheet::WizardMut<'_>,
     content: &Content,
@@ -214,8 +215,9 @@ pub(crate) fn award_spell(
             (_, 2) => 3,
             _ => 4,
         };
-        for step in 0..4 {
-            let level = match (rarity + step).min(cap) {
+        let first = rarity.min(cap);
+        for step in (first..=cap).chain((1..first).rev()) {
+            let level = match step {
                 1 => Rarity::Common,
                 2 => Rarity::Uncommon,
                 3 => Rarity::Rare,
@@ -243,21 +245,22 @@ pub(crate) fn award_spell(
     None
 }
 
-/// Spell book and retort treasure: three times in four a book of the site's realm (never life
-/// with death or the reverse, nor to a wizard with more than `books_limit` books already, `max_books_total`), otherwise a retort. A two-pick hoard
-/// gives a two-pick retort or two books. The original's version loops and awards oddly (its
-/// own comments call these bugs); this keeps the odds and the restrictions.
+/// Spell book and retort treasure, pick by pick: three times in four a book of the site's realm
+/// (never life with death or the reverse, nor to a wizard with more than `books_limit` books
+/// already, `max_books_total`), otherwise a retort. A two-pick retort needs both picks. The
+/// original's version loops and awards oddly (its own comments call these bugs). Returns the
+/// picks that gave nothing.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn award_special(
     rules: &crate::rules::Rules,
     wizard: &mut crate::wizard::sheet::WizardMut<'_>,
     rng: &mut crate::world::rng::GameRng,
     lair: &LairInfo,
-    picks: i32,
+    picks: u8,
     books_limit: i32,
     heroes: bool,
     loot: &mut Loot,
-) {
+) -> u8 {
     let (life, death) = (
         RealmId::new(3), /* life */
         RealmId::new(4), /* death */
@@ -266,40 +269,44 @@ pub(crate) fn award_special(
         Some(realm) => realm,
         None => crate::rules::BOOK_REALMS[rng.roll(5) as usize - 1],
     };
-    // Three times in four a book; it turns to the other kind when the wizard is at the limit of six
-    // retorts or more than twelve books.
-    let wants_retort = if wizard.view().retorts().len() >= rules.config.wizard.max_retorts {
-        false
-    } else if wizard.view().total_books() > books_limit {
-        true
-    } else {
-        rng.roll(100) > 75
-    };
-    if wants_retort {
-        let double = |r| retort_cost(rules, r) == 2;
-        let (view, books) = (wizard.view(), wizard.view().books());
-        let options: Vec<_> = all_retorts(rules)
-            .filter(|r| !view.has(*r) && retort_available(rules, *r, &books))
-            .filter(|&r| retort_in_game(rules, r, heroes))
-            .filter(
-                |r| *r != crate::wizard::magic::Retort::new(9), /* myrran */
-            )
-            .filter(|&r| if picks == 2 { double(r) } else { !double(r) })
-            .collect();
-        if !options.is_empty() {
-            let r = options[rng.roll(options.len() as u32) as usize - 1];
-            wizard
-                .get_mut::<crate::wizard::sheet::Retorts>()
-                .0
-                .insert(r);
-            loot.retorts.push(r);
-            return;
+    let mut left = picks;
+    let mut wasted = 0;
+    while left > 0 {
+        // A book turns to the other kind when the wizard is at the limit of six retorts or more
+        // than twelve books.
+        let wants_retort = if wizard.view().retorts().len() >= rules.config.wizard.max_retorts {
+            false
+        } else if wizard.view().total_books() > books_limit {
+            true
+        } else {
+            rng.roll(100) > 75
+        };
+        if wants_retort {
+            let (view, books) = (wizard.view(), wizard.view().books());
+            let options: Vec<_> = all_retorts(rules)
+                .filter(|r| !view.has(*r) && retort_available(rules, *r, &books))
+                .filter(|&r| retort_in_game(rules, r, heroes))
+                .filter(
+                    |r| *r != crate::wizard::magic::Retort::new(9), /* myrran */
+                )
+                .filter(|&r| retort_cost(rules, r) <= left)
+                .collect();
+            if !options.is_empty() {
+                let r = options[rng.roll(options.len() as u32) as usize - 1];
+                wizard
+                    .get_mut::<crate::wizard::sheet::Retorts>()
+                    .0
+                    .insert(r);
+                loot.retorts.push(r);
+                left -= retort_cost(rules, r);
+                continue;
+            }
         }
-    }
-    for _ in 0..picks {
+        left -= 1;
         let clash = (realm == life && wizard.view().books_in(death) > 0)
             || (realm == death && wizard.view().books_in(life) > 0);
         if clash || wizard.view().total_books() > books_limit {
+            wasted += 1;
             continue;
         }
         *wizard
@@ -309,6 +316,7 @@ pub(crate) fn award_special(
             .or_insert(0) += 1;
         loot.books.push(realm);
     }
+    wasted
 }
 
 impl World {
@@ -389,11 +397,20 @@ impl World {
             return Vec::new();
         };
         if owner == MONSTERS {
-            return self.occupy_zone(units, to);
+            return self.occupy_zone(units, to, rng);
         }
         match self.economy().lair_at(to) {
             Some(l) if l.guards.is_empty() => self.claim_lair(l.entity, owner, rng),
             _ => Vec::new(),
+        }
+    }
+
+    /// The lair rules this game's settings pick.
+    pub(crate) fn lair_style(&self) -> LairStyle {
+        LairStyle {
+            stronger: self.settings.rules.stronger_lairs,
+            treasure: self.settings.rules.treasure_patch_150,
+            no_heroes: !self.settings.world.heroes_enabled,
         }
     }
 
@@ -499,6 +516,7 @@ impl World {
             t.gold += lair.gold as i32;
             t.mana += lair.mana as i32;
         }
+        let mut wasted = 0;
         if let Some(mut w) = self
             .player_index
             .get(&player)
@@ -507,8 +525,8 @@ impl World {
         {
             match lair.special {
                 5 | 6 => {
-                    let picks = i32::from(lair.special) - 4;
-                    award_special(
+                    let picks = lair.special - 4;
+                    wasted = award_special(
                         &self.content.rules,
                         &mut w,
                         rng,
@@ -544,11 +562,10 @@ impl World {
         if !loot.books.is_empty() || !gifted.is_empty() {
             self.refill_research(player, rng);
         }
-        // A hoard of a book or a retort that gave nothing (nothing left to give) pays an item
-        // worth 1200 instead, or 1000 mana when the hoard already has three items (the original
-        // writes the item past the end of its list: ReMoM marks it a bug) or the game has no
-        // items.
-        if matches!(lair.special, 5 | 6) && loot.books.is_empty() && loot.retorts.is_empty() {
+        // A book or retort pick that gave nothing pays an item worth 1200 instead (one for the
+        // hoard), or 1000 mana when the hoard already has three items (the original writes the
+        // item past the end of its list: ReMoM marks it a bug) or the game has no items.
+        if wasted > 0 {
             if heroes && items.len() < 3 {
                 items.push(make_item(
                     rng,

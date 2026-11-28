@@ -87,9 +87,9 @@ fn magic_immunity_and_righteousness_turn_spells_away() {
         let nature = AttackNature::magical(realm, &[]);
         b.spell_damage(1, 10, &DamageTraits::default(), nature)
     };
-    let paladins = 113; // high_men_paladins: magic immunity
+    // High Men paladins have magic immunity.
     assert!(strike(104 /* high_men_spearmen */, false, Realm::Chaos).is_some());
-    assert!(strike(paladins, false, Realm::Chaos).is_none());
+    assert!(strike(113 /* high_men_paladins */, false, Realm::Chaos).is_none());
     assert!(strike(104 /* high_men_spearmen */, true, Realm::Death).is_none());
     assert!(
         strike(104 /* high_men_spearmen */, true, Realm::Nature).is_some(),

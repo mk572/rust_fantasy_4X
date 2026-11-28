@@ -151,16 +151,10 @@ fn ended(events: &[Event], unit: hecs::Entity) -> Option<OrderEnd> {
     })
 }
 
-const SETTLERS: u16 = 111; // high_men_settlers
-const SPEARMEN: u16 = 104; // high_men_spearmen
-const CAVALRY: u16 = 107; // high_men_cavalry
-const ENGINEERS: u16 = 110; // high_men_engineers
-const SPIRIT: u16 = 154; // magic_spirit
-
 #[test]
 fn a_settle_order_walks_to_the_square_and_founds_a_city_there() {
     for mut s in scenes() {
-        let settler = s.unit(s.p, s.home, SETTLERS);
+        let settler = s.unit(s.p, s.home, 111 /* high_men_settlers */);
         let site = s
             .open_squares(&[settler], 5)
             .into_iter()
@@ -195,7 +189,7 @@ fn a_settle_order_walks_to_the_square_and_founds_a_city_there() {
 #[test]
 fn an_order_that_ends_on_sight_ends_for_a_newly_seen_enemy_only() {
     for mut s in scenes() {
-        let settler = s.unit(s.p, s.home, SETTLERS);
+        let settler = s.unit(s.p, s.home, 111 /* high_men_settlers */);
         let site = s
             .open_squares(&[settler], 6)
             .into_iter()
@@ -204,7 +198,7 @@ fn an_order_that_ends_on_sight_ends_for_a_newly_seen_enemy_only() {
         s.spend(&[settler]);
         // One that is there already is known as the order is given.
         let first = s.beside(s.home);
-        s.unit(MONSTERS, first, SPEARMEN);
+        s.unit(MONSTERS, first, 104 /* high_men_spearmen */);
         s.give(
             &[settler],
             Errand::Settle {
@@ -219,7 +213,7 @@ fn an_order_that_ends_on_sight_ends_for_a_newly_seen_enemy_only() {
         let events = s.w.apply(Command::CreateUnit {
             owner: MONSTERS,
             pos: second,
-            unit: UnitId::new(SPEARMEN),
+            unit: UnitId::new(104 /* high_men_spearmen */),
         });
         assert!(!s.w.unit_has_order(settler), "{}", s.name);
         assert_eq!(
@@ -234,11 +228,11 @@ fn an_order_that_ends_on_sight_ends_for_a_newly_seen_enemy_only() {
 #[test]
 fn a_walk_a_reinforcement_and_an_escort_go_on_when_an_enemy_comes_into_sight() {
     for mut s in scenes() {
-        let walker = s.unit(s.p, s.home, SPEARMEN);
-        let guard = s.unit(s.p, s.home, SPEARMEN);
+        let walker = s.unit(s.p, s.home, 104 /* high_men_spearmen */);
+        let guard = s.unit(s.p, s.home, 104 /* high_men_spearmen */);
         let far = s.open_squares(&[walker], 6)[0];
         let start = s.open_squares(&[walker], 4)[0];
-        let reinforcement = s.unit(s.p, start, SPEARMEN);
+        let reinforcement = s.unit(s.p, start, 104 /* high_men_spearmen */);
         s.spend(&[walker, guard, reinforcement]);
         s.w.apply(Command::GoTo {
             units: vec![walker],
@@ -247,7 +241,7 @@ fn a_walk_a_reinforcement_and_an_escort_go_on_when_an_enemy_comes_into_sight() {
         s.give(&[guard], Errand::Escort { charge: walker });
         s.give(&[reinforcement], Errand::Reinforce { to: s.home });
         for at in [s.beside(s.home), s.beside(start)] {
-            s.unit(MONSTERS, at, SPEARMEN);
+            s.unit(MONSTERS, at, 104 /* high_men_spearmen */);
         }
         for u in [walker, guard, reinforcement] {
             assert!(s.w.unit_has_order(u), "{}: {:?}", s.name, s.w.unit_order(u));
@@ -265,7 +259,7 @@ fn another_players_unit_ends_an_order_only_at_war() {
         else {
             continue;
         };
-        let engineer = s.unit(s.p, s.home, ENGINEERS);
+        let engineer = s.unit(s.p, s.home, 110 /* high_men_engineers */);
         let to = s.open_squares(&[engineer], 4)[0];
         let path = s.w.find_path(&[engineer], to).expect("a way");
         s.w.apply(Command::BuildRoad {
@@ -274,7 +268,7 @@ fn another_players_unit_ends_an_order_only_at_war() {
         });
         assert!(s.w.unit_building_road(engineer), "{}", s.name);
         let first = s.beside(s.at(engineer));
-        s.unit(other, first, SPEARMEN);
+        s.unit(other, first, 104 /* high_men_spearmen */);
         assert!(s.w.unit_has_order(engineer), "{}: at peace", s.name);
         s.w.make_contact(s.p, other);
         s.w.declare_war(s.p, other);
@@ -289,7 +283,7 @@ fn another_players_unit_ends_an_order_only_at_war() {
 #[test]
 fn the_way_from_another_square_is_the_way_of_the_same_units_standing_there() {
     for mut s in scenes() {
-        let walker = s.unit(s.p, s.home, SPEARMEN);
+        let walker = s.unit(s.p, s.home, 104 /* high_men_spearmen */);
         let to = *s.open_squares(&[walker], 5).first().expect("a far square");
         let path = s.w.find_path(&[walker], to).expect("a way");
         let way = s.w.way(&[walker], s.home, to).expect("a way");
@@ -306,7 +300,7 @@ fn the_way_from_another_square_is_the_way_of_the_same_units_standing_there() {
         // From the first square of the way, without moving there.
         let from = path[0];
         let elsewhere = s.w.way(&[walker], from, to).expect("a way");
-        let twin = s.unit(s.p, from, SPEARMEN);
+        let twin = s.unit(s.p, from, 104 /* high_men_spearmen */);
         let twins = s.w.find_path(&[twin], to).expect("a way");
         assert_eq!(squares(&elsewhere), twins, "{}", s.name);
         assert_eq!(
@@ -332,7 +326,7 @@ fn the_way_from_another_square_is_the_way_of_the_same_units_standing_there() {
 #[test]
 fn a_scout_goes_from_patch_to_patch_until_nothing_is_left() {
     for mut s in scenes() {
-        let scout = s.unit(s.p, s.home, CAVALRY);
+        let scout = s.unit(s.p, s.home, 107 /* high_men_cavalry */);
         let events = s.give(
             &[scout],
             Errand::Scout {
@@ -359,7 +353,7 @@ fn a_scout_goes_from_patch_to_patch_until_nothing_is_left() {
         w.apply(Command::CreateUnit {
             owner: p,
             pos: home,
-            unit: UnitId::new(CAVALRY),
+            unit: UnitId::new(107 /* high_men_cavalry */),
         });
         let scout = *w.units().all_units().last().expect("the scout");
         w.apply(Command::GiveOrder {
@@ -386,7 +380,6 @@ fn a_scout_goes_from_patch_to_patch_until_nothing_is_left() {
 
 #[test]
 fn a_scouting_ship_carries_its_passenger_whose_spent_moves_do_not_hold_it_up() {
-    const GALLEY: u16 = 36; // galley
     let mut sailed = false;
     for (name, mut w) in worlds() {
         let p = w
@@ -417,8 +410,8 @@ fn a_scouting_ship_carries_its_passenger_whose_spent_moves_do_not_hold_it_up() {
             });
             *w.units().all_units().last().expect("the new unit")
         };
-        let ship = make(GALLEY);
-        let rider = make(SPEARMEN);
+        let ship = make(36 /* galley */);
+        let rider = make(104 /* high_men_spearmen */);
         w.scenario_set_moves_left(rider, HalfInt::ZERO);
         let events = w.apply(Command::GiveOrder {
             units: vec![ship, rider],
@@ -440,7 +433,7 @@ fn a_scouting_ship_carries_its_passenger_whose_spent_moves_do_not_hold_it_up() {
 #[test]
 fn a_meld_order_walks_to_the_node_and_melds() {
     for mut s in scenes() {
-        let spirit = s.unit(s.p, s.home, SPIRIT);
+        let spirit = s.unit(s.p, s.home, 154 /* magic_spirit */);
         let at = s.open_squares(&[spirit], 4)[0];
         let feature =
             s.w.content()
@@ -470,7 +463,7 @@ fn a_meld_order_walks_to_the_node_and_melds() {
         assert_eq!(owner, Some(s.p), "{}: melded", s.name);
         assert_eq!(s.w.units().unit_owner(spirit), None, "{}", s.name);
         // A second spirit has nothing to do there.
-        let second = s.unit(s.p, s.home, SPIRIT);
+        let second = s.unit(s.p, s.home, 154 /* magic_spirit */);
         let why = s.refused(&[second], Errand::Meld { to: at });
         assert!(matches!(why, Rejection::Meld(_)), "{}: {why:?}", s.name);
     }
@@ -480,12 +473,12 @@ fn a_meld_order_walks_to_the_node_and_melds() {
 fn a_reinforcement_ends_on_arrival_and_when_the_city_is_lost() {
     for mut s in scenes() {
         let start = {
-            let probe = s.unit(s.p, s.home, SPEARMEN);
+            let probe = s.unit(s.p, s.home, 104 /* high_men_spearmen */);
             let start = s.open_squares(&[probe], 4)[0];
             s.w.cheat_remove_unit(probe);
             start
         };
-        let unit = s.unit(s.p, start, SPEARMEN);
+        let unit = s.unit(s.p, start, 104 /* high_men_spearmen */);
         s.give(&[unit], Errand::Reinforce { to: s.home });
         for _ in 0..20 {
             if !s.w.unit_has_order(unit) {
@@ -496,7 +489,7 @@ fn a_reinforcement_ends_on_arrival_and_when_the_city_is_lost() {
         assert_eq!(s.at(unit), s.home, "{}", s.name);
         assert!(!s.w.unit_has_order(unit), "{}", s.name);
 
-        let late = s.unit(s.p, start, SPEARMEN);
+        let late = s.unit(s.p, start, 104 /* high_men_spearmen */);
         s.spend(&[late]);
         s.give(&[late], Errand::Reinforce { to: s.home });
         let city = s.w.economy().city_at(s.home).expect("the city");
@@ -517,8 +510,8 @@ fn a_reinforcement_ends_on_arrival_and_when_the_city_is_lost() {
 #[test]
 fn an_escort_walks_with_its_charge_as_one_and_follows_it() {
     for mut s in scenes() {
-        let settler = s.unit(s.p, s.home, SETTLERS);
-        let guard = s.unit(s.p, s.home, CAVALRY);
+        let settler = s.unit(s.p, s.home, 111 /* high_men_settlers */);
+        let guard = s.unit(s.p, s.home, 107 /* high_men_cavalry */);
         s.give(&[guard], Errand::Escort { charge: settler });
         let to = s.open_squares(&[settler], 5)[0];
         s.w.apply(Command::GoTo {
@@ -570,7 +563,7 @@ fn an_escort_walks_with_its_charge_as_one_and_follows_it() {
 #[test]
 fn an_order_that_cannot_be_given_changes_nothing() {
     for mut s in scenes() {
-        let soldier = s.unit(s.p, s.home, SPEARMEN);
+        let soldier = s.unit(s.p, s.home, 104 /* high_men_spearmen */);
         let empty = s.open_squares(&[soldier], 3)[0];
         let why = s.refused(
             &[soldier],
@@ -593,10 +586,10 @@ fn an_order_that_cannot_be_given_changes_nothing() {
 #[test]
 fn an_order_and_what_it_has_seen_are_saved_with_the_game() {
     for mut s in scenes() {
-        let engineer = s.unit(s.p, s.home, ENGINEERS);
+        let engineer = s.unit(s.p, s.home, 110 /* high_men_engineers */);
         let to = s.open_squares(&[engineer], 4)[0];
         let first = s.beside(s.home);
-        s.unit(MONSTERS, first, SPEARMEN);
+        s.unit(MONSTERS, first, 104 /* high_men_spearmen */);
         let path = s.w.find_path(&[engineer], to).expect("a way");
         s.w.apply(Command::BuildRoad {
             units: vec![engineer],

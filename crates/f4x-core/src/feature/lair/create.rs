@@ -345,6 +345,50 @@ fn fill_hoard_150(
     lair.special = special as u8;
 }
 
+/// What the patch makes a guard cost, if it changed it.
+fn patched_cost(rules: &LairRules, id: UnitId) -> Option<i32> {
+    let changed = rules.patch_150.costs.iter().find(|(n, _)| *n == id.num());
+    changed.map(|&(_, cost)| cost)
+}
+
+/// Replace the hoard of a lair whose guards were not bought from a budget (monsters that settle
+/// in a stand): the kind worth most counts as the first guards, the others as the second.
+pub(crate) fn restock(
+    rng: &mut Pcg64Mcg,
+    content: &Content,
+    style: LairStyle,
+    lair: &mut Lair,
+    site: SiteType,
+    plane: Plane,
+    treasure_percent: i32,
+) {
+    let rules = &content.rules.lairs;
+    let values = lair.guards.iter().map(|&(id, count)| {
+        let patched = style.stronger.then(|| patched_cost(rules, id)).flatten();
+        patched.unwrap_or(content.rules.units.get(id).cost as i32) * count as i32
+    });
+    let (first, total) = values.fold((0, 0), |(first, total), v| (v.max(first), total + v));
+    (lair.gold, lair.mana, lair.prisoner, lair.special) = (0, 0, false, 0);
+    lair.items.clear();
+    // A tower counts as Arcanus, as when the world is made.
+    let plane = if site == SiteType::Tower {
+        Plane::Arcanus
+    } else {
+        plane
+    };
+    fill_hoard(
+        rng,
+        rules,
+        style,
+        lair,
+        site,
+        plane,
+        first,
+        total - first,
+        treasure_percent,
+    );
+}
+
 /// Make one lair from its budget (the original's `Create_Lair`): the guards and the hoard.
 /// `guard_percent` and `treasure_percent` are the game's difficulty settings.
 #[allow(clippy::too_many_arguments)]
@@ -364,9 +408,7 @@ pub fn create(
         .map_or_else(Vec::new, |realm| super::candidates(content, realm));
     if style.stronger {
         for (id, cost) in &mut list {
-            if let Some(&(_, new)) = rules.patch_150.costs.iter().find(|(n, _)| *n == id.num()) {
-                *cost = new;
-            }
+            *cost = patched_cost(rules, *id).unwrap_or(*cost);
         }
     }
     let (guards, first, second) = pick_guards(rng, rules, style, &list, budget);

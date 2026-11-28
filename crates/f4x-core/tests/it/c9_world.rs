@@ -14,7 +14,6 @@ use f4x_core::world::testutil::Table;
 use f4x_core::world::{Command, Event, World};
 use f4x_def::half_int::HalfInt;
 
-const SPEARMEN: u16 = 104; // high_men_spearmen
 const NOBODY: PlayerId = PlayerId(250);
 
 fn create(w: &mut Table, owner: PlayerId, pos: Position) -> hecs::Entity {
@@ -22,7 +21,7 @@ fn create(w: &mut Table, owner: PlayerId, pos: Position) -> hecs::Entity {
     w.apply(Command::CreateUnit {
         owner,
         pos,
-        unit: UnitId::new(SPEARMEN),
+        unit: UnitId::new(104 /* high_men_spearmen */),
     });
     w.units()
         .units_at(pos)
@@ -396,14 +395,26 @@ fn spells_books_and_retorts_are_given_and_taken_from_a_wizard() {
         assert!(!w.cheat_learn_spell(neutral, spell), "{name}");
         assert!(!w.cheat_forget_spell(neutral, spell), "{name}");
 
-        let life = RealmId::new(3); // life
         let most = w.settings().wizards.max_books_per_realm;
-        assert!(w.cheat_set_books(p, life, u8::MAX), "{name}");
-        let books = |w: &World| w.wizard(p).expect("a wizard").books_in(life);
+        assert!(
+            w.cheat_set_books(p, RealmId::new(3 /* life */), u8::MAX),
+            "{name}"
+        );
+        let books = |w: &World| {
+            w.wizard(p)
+                .expect("a wizard")
+                .books_in(RealmId::new(3 /* life */))
+        };
         assert_eq!(books(&w), i32::from(most), "{name}");
-        assert!(w.cheat_set_books(p, life, 1), "{name}");
+        assert!(
+            w.cheat_set_books(p, RealmId::new(3 /* life */), 1),
+            "{name}"
+        );
         assert_eq!(books(&w), 1, "{name}");
-        assert!(!w.cheat_set_books(neutral, life, 1), "{name}");
+        assert!(
+            !w.cheat_set_books(neutral, RealmId::new(3 /* life */), 1),
+            "{name}"
+        );
 
         let retort = Retort::new(16); // charismatic
         w.cheat_set_retort(p, retort, false);
