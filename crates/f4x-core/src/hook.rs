@@ -146,7 +146,6 @@ pub const CUSTOM_HOOKS: &[Hook] = &[
     },
     plain(crate::spell::special::SPELL_OF_MASTERY),
     plain(crate::spell::special::SPELL_OF_RETURN),
-    plain(crate::battle::field::DISINTEGRATE),
     Hook {
         name: WALL,
         args: &["stone", "fire", "darkness"],

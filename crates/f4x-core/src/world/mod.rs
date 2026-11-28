@@ -491,27 +491,6 @@ impl World {
         }
     }
 
-    /// Who took the last city of a defeated player.
-    /// Has the player lost everything?
-    #[cfg(test)]
-    pub(crate) fn tr(&self, i: usize) -> player::Treasury {
-        self.player(self.player_ids()[i])
-            .expect("player succeeds")
-            .treasury()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn tr_mut(&mut self, i: usize) -> &mut player::Treasury {
-        let id = self.player_ids()[i];
-        self.treasury_mut(id).expect("treasury_mut succeeds")
-    }
-
-    #[cfg(test)]
-    pub(crate) fn wiz_mut(&mut self, i: usize) -> wizard::sheet::WizardMut<'_> {
-        let id = self.player_ids()[i];
-        self.wizard_mut(id).expect("wizard_mut succeeds")
-    }
-
     /// Every player's id: wizards and independent cities' players, ascending.
     pub fn player_ids(&self) -> Vec<player::PlayerId> {
         let mut ids: Vec<_> = self.player_index.keys().copied().collect();

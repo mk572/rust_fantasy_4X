@@ -807,12 +807,7 @@ impl App {
     }
 
     /// The title's size word: Outpost, Hamlet, Village, Town, City, or Capital for the
-    /// wizard's fortress.
-    pub(crate) fn city_size_name(&self, city: hecs::Entity) -> String {
-        self.city_size_term(city).text
-    }
-
-    /// The same as a term, for a message that needs a form of the word.
+    /// wizard's fortress, as a term for a message that needs a form of the word.
     pub(crate) fn city_size_term(&self, city: hecs::Entity) -> f4x_lang::text::Term {
         let figures = self
             .game
@@ -1923,31 +1918,34 @@ mod tests {
             .first()
             .map(|c| c.0)
             .ok_or("the new game has no city")?;
-        assert_eq!(app.city_size_name(capital), word(&app, words.len() - 1));
+        assert_eq!(
+            app.city_size_term(capital).text,
+            word(&app, words.len() - 1)
+        );
         let at = app.city_position(capital);
         let at = Position { x: at.x + 3, ..at };
         let city = app
             .game
             .scenario_found_city(HUMAN, at, "Testville", None, 0);
         app.game.scenario_set_citizens(city, 0);
-        assert_eq!(app.city_size_name(city), word(&app, 0), "an outpost");
+        assert_eq!(app.city_size_term(city).text, word(&app, 0), "an outpost");
         for (row, &figures) in from.iter().enumerate() {
             app.game.scenario_set_citizens(city, figures);
             assert_eq!(
-                app.city_size_name(city),
+                app.city_size_term(city).text,
                 word(&app, row + 1),
                 "{figures} figures"
             );
             app.game.scenario_set_citizens(city, figures - 1);
             assert_eq!(
-                app.city_size_name(city),
+                app.city_size_term(city).text,
                 word(&app, row),
                 "{figures} figures less one"
             );
         }
         let last = from.last().copied().ok_or("no size rows")?;
         app.game.scenario_set_citizens(city, last + 20);
-        assert_eq!(app.city_size_name(city), word(&app, words.len() - 1));
+        assert_eq!(app.city_size_term(city).text, word(&app, words.len() - 1));
         Ok(())
     }
 }

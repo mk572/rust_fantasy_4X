@@ -180,7 +180,6 @@
     "diplomacy.breaks_treaty": "{breaker} breaks a treaty with {victim}",
     "diplomacy.remark_dominant_war": "{wizard}: \"You are weak, and your cities are ripe. I will take them.\"",
     "diplomacy.remark_appeasing": "{wizard}: \"You are strong. Let us be friends, and let this be a token of it.\"",
-    "diplomacy.remark_coalition": "{wizard}: \"One of us grows too strong. Stand with me against them.\"",
     "diplomacy.remark_war_weary": "{wizard}: \"This war serves neither of us. Let us have peace.\"",
     "diplomacy.warns_you": "{wizard} warns you that its patience is running out",
     "diplomacy.trespass": "{wizard} warns you to keep your units away from its cities (warning {warning} of {limit})",

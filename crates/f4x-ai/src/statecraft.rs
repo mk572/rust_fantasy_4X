@@ -1,26 +1,10 @@
-//! The AI's statecraft (task 510): it weighs what it sees of the other players and plans its
-//! diplomacy, for the wizards and the neutral races alike (`PlayerView::is_diplomat`).
+//! What the AI's diplomacy stands on, for the wizards and the neutral races alike: what it sees of
+//! the other players (`Scene`, the leader), the goodwill and the refusal to arm an enemy that the
+//! trades weigh, and the proposals, gifts and remarks it sends. Who to fight and to befriend is in
+//! `diplo_b_stance.rs`, what it says and answers in `diplo_b_talk.rs` (`docs/ai-diplomacy-b.md`).
+//! The numbers are the `diplomacy` levers (`AIS_DIPLO_<NAME>`).
 //!
-//! Six parts, each a function of what a human could see (`docs/design.md` section 8: the army
-//! scores of the Astrologer, the cities seen, the treaties and the proposals):
-//!
-//! 1. [`dominant_war`]: war on a neighbour it is far ahead of, before the relation sours.
-//! 2. [`appease`]: a pact, a gift or a spell for a much stronger neighbour near it, and no war on
-//!    it until it has grown.
-//! 3. [`coalition`]: pacts and alliances with the other wizards against the one that leads.
-//! 4. [`wars`]: peace for a war that is lost, and for one of two fronts; [`peace_ok`] is the
-//!    other side of it, a peace not given to a wizard that is losing a war of its own making
-//!    before the gain is spent.
-//! 5. Trades are by worth (`crate::trade`); [`arms_enemy`]
-//!    refuses the ones that arm an enemy.
-//! 6. Remarks (`DiplomacyCommand::Remark`: the human is told why) and memory ([`affinity`]
-//!    counts a broken treaty against the wizard who broke it).
-//!
-//! **Factors and self-interest.** [`affinity`] is the modest bonus (fame, a Charismatic retort,
-//! the same race, shared books) that eases a pact, an alliance or a peace; it is balanced against
-//! the AI's own interest ([`self_interest`]: a friendly neighbour it is far ahead of is still a
-//! target, the leader is still left to the others). Every number is in the `diplomacy` levers and
-//! can be set from the environment for a soak (`AIS_DIPLO_<NAME>`, see `crate::lever`).
+//! Tests: in `statecraft/tests.rs`.
 
 use f4x_def::rules::ai_strategy::DiplomacyLevers;
 

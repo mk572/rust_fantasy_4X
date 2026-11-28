@@ -64,14 +64,6 @@ impl Turn {
         p
     }
 
-    /// The cell that the view draws at `p`, the other way round.
-    pub(crate) fn uncg(self, mut p: (i32, i32)) -> (i32, i32) {
-        for _ in 0..self.0 {
-            p = (p.1 - DIFF, SUM - p.0);
-        }
-        p
-    }
-
     /// Where the view draws the core's square (or a point between squares), as a cell of the
     /// original's frame.
     pub(crate) fn of_core(self, pos: (f32, f32)) -> (f32, f32) {
@@ -216,7 +208,6 @@ mod tests {
                     let turned = turn.cg((x, y));
                     assert!(field(turned), "{turned:?}");
                     assert!(seen.insert(turned));
-                    assert_eq!(turn.uncg(turned), (x, y));
                 }
             }
         }

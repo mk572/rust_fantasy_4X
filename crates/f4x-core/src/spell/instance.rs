@@ -430,14 +430,6 @@ impl World {
         true
     }
 
-    /// A city loses all its enchantments, for a test that starts again.
-    #[cfg(test)]
-    pub(crate) fn clear_city_enchantments(&mut self, city: hecs::Entity) {
-        for instance in self.spells().on(SpellTarget::City(city)) {
-            self.despawn_spell(instance);
-        }
-    }
-
     /// A wizard begins paying `owed` mana for `spell` over turns.
     pub(crate) fn begin_casting(&mut self, player: PlayerId, spell: SpellId, owed: i32) {
         self.begin_casting_with(player, spell, owed, 0);

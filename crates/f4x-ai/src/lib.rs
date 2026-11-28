@@ -424,8 +424,8 @@ impl Ai {
         self.diplomats = diplomats.clone();
     }
 
-    /// The diplomacy system and, for B, the main enemy and what it has seen of the others, for the soak's
-    /// detail lines.
+    /// The main enemy, the weariness, what it has seen of the others and how it regards them, for the
+    /// soak's detail lines.
     pub fn diplomacy_note(&self, world: &World, round: u32) -> String {
         let m = self.memory.get();
         let enemy = m.enemy.map_or("-".to_string(), |(p, since)| {
@@ -451,8 +451,7 @@ impl Ai {
             .filter(|d| world.treaty(self.player, d.with) == f4x_core::diplomacy::Treaty::War)
             .map(|d| format!("p{} {}", d.with.0, d.weary))
             .collect();
-        // How it regards each wizard it has met (task 784): the friendship (its feeling and the lasting
-        // regard), the fear and the strategic value, the three numbers its proposals and answers go by.
+        // The three numbers its proposals and answers go by.
         let scene = statecraft::Scene::new(world, self.player);
         let regard: Vec<String> = world
             .wizards()

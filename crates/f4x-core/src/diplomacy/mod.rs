@@ -446,12 +446,10 @@ impl DiplomacyCommand {
 /// Why an AI wizard did what it did to another (`DiplomacyCommand::Remark`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Remark {
-    /// It declared war because the other is much weaker.
+    /// It declared war on the wizard it chose as its enemy.
     DominantWar,
-    /// It gives a gift or offers a treaty because the other is much stronger.
+    /// It gives a gift to win the other over.
     Appeasing,
-    /// It asks for an alliance against the wizard that leads.
-    Coalition,
     /// It offers peace because the war goes badly or serves no purpose.
     WarWeary,
 }
@@ -462,7 +460,6 @@ impl Remark {
         match self {
             Remark::DominantWar => "diplomacy.remark_dominant_war",
             Remark::Appeasing => "diplomacy.remark_appeasing",
-            Remark::Coalition => "diplomacy.remark_coalition",
             Remark::WarWeary => "diplomacy.remark_war_weary",
         }
     }

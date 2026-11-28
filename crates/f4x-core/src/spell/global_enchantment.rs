@@ -54,16 +54,6 @@ impl World {
         }
     }
 
-    /// A wizard's lasting spells on the world all end, for a test that starts again.
-    #[cfg(test)]
-    pub(crate) fn clear_globals(&mut self, player: PlayerId) {
-        if let Some(caster) = self.wizard(player).map(|w| w.entity()) {
-            for instance in self.spells().globals_of(caster) {
-                self.despawn_spell(instance);
-            }
-        }
-    }
-
     /// Does `player` keep the global spell with this id going?
     pub fn has_global(&self, player: PlayerId, id: SpellId) -> bool {
         self.wizard(player)

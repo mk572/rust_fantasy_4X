@@ -178,7 +178,6 @@
     "diplomacy.breaks_treaty": "{breaker} bricht einen Vertrag mit {victim}",
     "diplomacy.remark_dominant_war": "{wizard}: „Du bist schwach, und deine Städte sind reif. Ich werde sie nehmen.“",
     "diplomacy.remark_appeasing": "{wizard}: „Du bist stark. Lass uns Freunde sein, und dies sei ein Zeichen davon.“",
-    "diplomacy.remark_coalition": "{wizard}: „Einer von uns wird zu stark. Steh mit mir gegen ihn.“",
     "diplomacy.remark_war_weary": "{wizard}: „Dieser Krieg dient keinem von uns. Lass uns Frieden haben.“",
     "diplomacy.warns_you": "{wizard} warnt dich, dass die Geduld zu Ende geht",
     "diplomacy.trespass": "{wizard} warnt dich, deine Einheiten von den Städten fernzuhalten (Warnung {warning} von {limit})",

@@ -201,12 +201,6 @@ impl World {
         }
     }
 
-    /// The definitions, for a test that changes one (a copy is made if a battle shares them).
-    #[cfg(test)]
-    pub(crate) fn content_mut(&mut self) -> &mut Content {
-        std::sync::Arc::make_mut(&mut self.content)
-    }
-
     /// The definitions of the game as the shared handle a battle keeps.
     pub fn content_arc(&self) -> std::sync::Arc<Content> {
         self.content.clone()

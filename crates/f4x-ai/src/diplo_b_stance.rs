@@ -1,7 +1,7 @@
-//! Diplomacy system B, part 2 (task 763, `docs/ai-diplomacy-b.md`): who to fight and who to befriend,
-//! from the three values of `diplo_b::Regard`. Every few turns each other wizard gets an **enemy value** and
+//! Who to fight and who to befriend (`docs/ai-diplomacy-b.md`), from the three values of
+//! `diplo_b::Regard`. Every few turns each other wizard gets an **enemy value** and
 //! a **friend value**; at most one is the **main enemy** (kept for a while, so the choice does not flip each
-//! turn) and the only target of a declaration of war; the rest are courted by their friend value: a pact,
+//! turn), which a war is declared on; the rest are courted by their friend value: a pact,
 //! an alliance, a gift.
 //!
 //! * **Enemy value**: a weak, reachable neighbour is prey (the more so the weaker); hostility (a negative
@@ -25,7 +25,7 @@ use crate::statecraft::{can_attack, leader_of, propose, remark, Power, Scene};
 use crate::Ai;
 use f4x_master::Game;
 
-/// What `me` makes of `other` (task 763).
+/// What `me` makes of `other`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Values {
     pub enemy: i32,
@@ -316,6 +316,7 @@ pub(crate) mod tests {
     use super::*;
     use crate::testworld::levers;
     use crate::testworld::{at, game, spawn, COAST_CITY, P0, P1};
+    use f4x_core::diplomacy::DiplomacyEvent;
     use f4x_core::rules::RealmId;
     use f4x_def::half_int::HalfInt;
     use f4x_master::Game;
@@ -378,8 +379,10 @@ pub(crate) mod tests {
         for treaty in [Treaty::Pact, Treaty::Alliance] {
             w.start_treaty(P0, P1, treaty);
             assert_eq!(enemy(&w, &Memory::default()), None, "{treaty:?}");
-            let mut kept = Memory::default();
-            kept.enemy = Some((P1, w.round()));
+            let kept = Memory {
+                enemy: Some((P1, w.round())),
+                ..Memory::default()
+            };
             assert_eq!(
                 enemy(&w, &kept),
                 None,
@@ -408,23 +411,380 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn a_treaty_spares_a_partner() {
-        use f4x_core::diplomacy::DiplomacyCommand::Propose;
+    fn a_treaty_spares_a_partner_and_an_alliance_more_than_a_pact() {
         let mut w = pair(30, 1, 100);
-        let free = value(&w, P0, P1, true).enemy;
-        w.command(Command::Diplomacy(Propose {
-            from: P0,
-            to: P1,
-            kind: ProposalKind::Pact,
-        }));
-        w.command(Command::Diplomacy(DiplomacyCommand::Answer {
+        let memory = feeling(&w, 0);
+        let free = seen(&w, P1, &memory).enemy;
+        w.start_treaty(P0, P1, Treaty::Pact);
+        let pact = seen(&w, P1, &memory).enemy;
+        w.start_treaty(P0, P1, Treaty::Alliance);
+        let ally = seen(&w, P1, &memory).enemy;
+        assert!(pact < free, "{pact} with a pact, {free} without");
+        assert!(ally < pact, "{ally} allied, {pact} with a pact");
+    }
+
+    /// A third player that `P0` and `P1` have met, with an army of this size and a city on the east
+    /// island that `P0` has not seen (so it is not near enough to be feared).
+    fn third(w: &mut Game, army: usize) -> PlayerId {
+        let race = w
+            .content()
+            .rules
+            .races
+            .id_numbered(3)
+            .expect("a third race");
+        let id = f4x_core::player::race_player::race_player_id(race);
+        w.add_neutral_player(id);
+        found(w, id, 32, 8);
+        w.make_contact(P0, id);
+        w.make_contact(P1, id);
+        spawn(w, id, at(32, 8), 95 /* high_elf_spearmen */, army);
+        id
+    }
+
+    /// `P0`'s memory with this feeling about `P1`, so that the ill will stays put while a test
+    /// changes the world.
+    fn feeling(w: &Game, friendship: i32) -> Memory {
+        let mut m = Memory::default();
+        m.set_friendship(w, P0, P1, friendship);
+        m
+    }
+
+    /// What `P0` makes of `other`, which an army can reach.
+    fn seen(w: &Game, other: PlayerId, memory: &Memory) -> Values {
+        let scene = Scene::new(w, P0);
+        values(w, P0, other, &scene, memory, true, w.round())
+    }
+
+    fn chosen(w: &Game, memory: &Memory) -> Option<(PlayerId, u32)> {
+        let scene = Scene::new(w, P0);
+        choose_enemy(w, P0, &scene, memory, &|_| true, w.round())
+    }
+
+    /// A feeling of `P0` about `P1`, no better than indifference, at which the enemy value is in
+    /// `range`.
+    fn ill_will_for(w: &Game, range: std::ops::Range<i32>) -> i32 {
+        (-100..=0)
+            .rev()
+            .find(|&f| range.contains(&seen(w, P1, &feeling(w, f)).enemy))
+            .unwrap_or_else(|| panic!("no feeling gives an enemy value in {range:?}"))
+    }
+
+    #[test]
+    fn ill_will_adds_to_the_enemy_value() {
+        let w = pair(8, 8, 100);
+        let calm = seen(&w, P1, &feeling(&w, 0)).enemy;
+        let hostile = seen(&w, P1, &feeling(&w, -100)).enemy;
+        assert_eq!(hostile - calm, levers().diplomacy_b.hostile_pct);
+    }
+
+    #[test]
+    fn a_hated_foe_out_of_reach_is_not_worth_choosing() {
+        let k = &levers().diplomacy_b;
+        let mut w = pair(8, 8, 100);
+        w.declare_war(P0, P1);
+        let memory = feeling(&w, -100);
+        let near = seen(&w, P1, &memory).enemy;
+        assert!(near >= k.enemy_min, "{near}");
+        let scene = Scene::new(&w, P0);
+        let far = values(&w, P0, P1, &scene, &memory, false, w.round()).enemy;
+        assert!(far < k.enemy_min, "{far}");
+    }
+
+    #[test]
+    fn a_chosen_enemy_is_held_for_a_while_and_then_let_go_if_not_worth_it() {
+        let k = &levers().diplomacy_b;
+        let mut w = pair(1, 30, 100);
+        let mut memory = feeling(&w, 0);
+        assert!(seen(&w, P1, &memory).enemy < k.keep, "not worth keeping");
+        let since = w.round();
+        memory.enemy = Some((P1, since));
+        w.set_round(since + k.hold - 1);
+        assert_eq!(chosen(&w, &memory), Some((P1, since)), "still held");
+        w.set_round(since + k.hold);
+        assert_eq!(chosen(&w, &memory), None, "the hold is over");
+    }
+
+    #[test]
+    fn an_enemy_still_worth_keeping_is_kept_after_the_hold_though_it_would_not_be_chosen() {
+        let k = &levers().diplomacy_b;
+        let mut w = pair(8, 8, 100);
+        let mut memory = feeling(&w, ill_will_for(&w, k.keep..k.enemy_min));
+        assert_eq!(chosen(&w, &memory), None, "too little to be chosen");
+        let since = w.round();
+        memory.enemy = Some((P1, since));
+        w.set_round(since + k.hold);
+        assert_eq!(chosen(&w, &memory), Some((P1, since)));
+    }
+
+    #[test]
+    fn the_one_already_fought_is_the_more_an_enemy() {
+        let mut w = pair(8, 8, 100);
+        let memory = feeling(&w, 0);
+        let before = seen(&w, P1, &memory).enemy;
+        w.declare_war(P0, P1);
+        assert_eq!(
+            seen(&w, P1, &memory).enemy - before,
+            levers().diplomacy_b.at_war
+        );
+    }
+
+    #[test]
+    fn the_leader_is_more_of_an_enemy_and_the_others_league_against_it() {
+        let k = &levers().diplomacy_b;
+        let mut w = pair(8, 60, 100);
+        let other = third(&mut w, 1);
+        let memory = feeling(&w, 0);
+        assert_eq!(leader_of(&w, P0), Some(P1), "the strong one leads");
+        let (leading, with_leader) = (seen(&w, P1, &memory), seen(&w, other, &memory));
+        // The third catches up, so nobody leads; what stands between `P0` and `P1` is unchanged.
+        spawn(
+            &mut w,
+            other,
+            at(32, 8),
+            95, /* high_elf_spearmen */
+            60,
+        );
+        assert_eq!(leader_of(&w, P0), None, "nobody leads");
+        let (level, without_leader) = (seen(&w, P1, &memory), seen(&w, other, &memory));
+        assert_eq!(leading.enemy - level.enemy, k.leader_enemy);
+        assert_eq!(level.friend - leading.friend, k.league, "not courted");
+        // The third is now strong too, but its cities are unseen: no fear to grovel by.
+        assert_eq!(with_leader.friend - without_leader.friend, k.league);
+    }
+
+    #[test]
+    fn the_caster_of_the_spell_of_mastery_is_the_more_an_enemy() {
+        let k = &levers().diplomacy_b;
+        let mut w = pair(8, 8, 100);
+        let memory = feeling(&w, 0);
+        let mastery = w
+            .content()
+            .rules
+            .spells
+            .id_numbered(213 /* spell_of_mastery */)
+            .expect("the spell is shipped");
+        assert_eq!(leader_of(&w, P0), None, "nobody leads yet");
+        let before = seen(&w, P1, &memory).enemy;
+        w.scenario_casting(P1, mastery, 5000);
+        // The caster counts as the leader too.
+        assert_eq!(
+            seen(&w, P1, &memory).enemy - before,
+            k.mastery_enemy + k.leader_enemy
+        );
+    }
+
+    #[test]
+    fn a_shared_enemy_makes_a_friend_whether_at_war_with_it_or_only_chosen() {
+        let k = &levers().diplomacy_b;
+        let mut w = pair(8, 8, 100);
+        let other = third(&mut w, 8);
+        let mut memory = feeling(&w, 0);
+        let before = seen(&w, other, &memory).friend;
+        w.declare_war(other, P1);
+        assert_eq!(seen(&w, other, &memory).friend, before, "its war alone");
+        memory.enemy = Some((P1, w.round()));
+        assert_eq!(seen(&w, other, &memory).friend - before, k.common_enemy);
+        memory.enemy = None;
+        w.declare_war(P0, P1);
+        assert_eq!(seen(&w, other, &memory).friend - before, k.common_enemy);
+    }
+
+    #[test]
+    fn the_chosen_enemy_is_not_courted() {
+        let w = pair(8, 8, 100);
+        let mut memory = feeling(&w, 0);
+        let before = seen(&w, P1, &memory).friend;
+        memory.enemy = Some((P1, w.round()));
+        assert_eq!(
+            before - seen(&w, P1, &memory).friend,
+            levers().diplomacy_b.league
+        );
+    }
+
+    #[test]
+    fn an_allys_war_is_joined() {
+        let mut w = pair(8, 8, 100);
+        let other = third(&mut w, 8);
+        let memory = feeling(&w, 0);
+        w.start_treaty(P0, other, Treaty::Alliance);
+        let before = seen(&w, P1, &memory).enemy;
+        w.declare_war(other, P1);
+        assert_eq!(
+            seen(&w, P1, &memory).enemy - before,
+            levers().diplomacy_b.ally_war
+        );
+    }
+
+    #[test]
+    fn a_feared_neighbour_that_is_no_stronger_is_struck_first() {
+        let k = &levers().diplomacy_b;
+        let mut w = pair(8, 8, 100);
+        // A city of P1 close by, so that what it does is felt.
+        found(&mut w, P1, 7, 10);
+        w.explore(P0, at(7, 10), HalfInt::from_raw(3));
+        let calm = feeling(&w, 0);
+        let mut afraid = calm.clone();
+        let razed = Event::CityRazed {
             player: P1,
-            from: P0,
-            accept: true,
-        }));
-        if w.treaty(P0, P1) == Treaty::Pact {
-            assert!(value(&w, P0, P1, true).enemy < free, "a pact spares it");
-        }
+            gold: 0,
+            fame_lost: 0,
+        };
+        let enough = vec![razed; (k.ruth_cap / k.ruth_raze + 1) as usize];
+        afraid.notice(P0, &w, w.round(), &enough);
+        // Only the memory of what it did differs, not the feeling.
+        afraid.opinions = calm.opinions.clone();
+        let scene = Scene::new(&w, P0);
+        let fear = |m: &Memory| regard(&w, P0, P1, &scene, m, w.round()).fear;
+        assert!(fear(&calm) < k.strike_fear, "{}", fear(&calm));
+        assert!(fear(&afraid) >= k.strike_fear, "{}", fear(&afraid));
+        assert_eq!(
+            seen(&w, P1, &afraid).enemy - seen(&w, P1, &calm).enemy,
+            fear(&afraid) / 2
+        );
+    }
+
+    #[test]
+    fn a_second_war_asks_for_more_than_a_first() {
+        let k = &levers().diplomacy_b;
+        let mut w = pair(8, 8, 100);
+        // So weak that the army is not busy with it.
+        let other = third(&mut w, 1);
+        let ai = Ai::new(P0);
+        let willing = ill_will_for(&w, k.declare..k.declare + k.war_damp);
+        ai.memory.put().set_friendship(&w, P0, P1, willing);
+        let open = |w: &Game, ai: &Ai| open_to_war(ai, w, &Scene::new(w, P0), P1, true);
+        assert!(open(&w, &ai), "enough for a first war");
+        w.declare_war(P0, other);
+        assert!(!open(&w, &ai), "not enough for a second");
+    }
+
+    #[test]
+    fn a_busy_army_takes_on_no_second_war() {
+        let k = &levers().diplomacy_b;
+        let open = |others_army: usize| {
+            let mut w = pair(30, 1, 100);
+            let other = third(&mut w, others_army);
+            w.declare_war(P0, other);
+            let ai = Ai::new(P0);
+            ai.memory.put().set_friendship(&w, P0, P1, -100);
+            let scene = Scene::new(&w, P0);
+            let value = values(&w, P0, P1, &scene, &ai.memory.get(), true, w.round()).enemy;
+            assert!(value - k.war_damp >= k.declare, "{value}");
+            let busy =
+                scene.power(&w, P0).army < k.busy_army_x * scene.power(&w, other).army.max(1);
+            (busy, open_to_war(&ai, &w, &scene, P1, true))
+        };
+        assert_eq!(open(1), (false, true), "a straggler does not hold it back");
+        assert_eq!(open(30), (true, false), "an equal army does");
+    }
+
+    #[test]
+    fn the_others_are_looked_at_only_now_and_then() {
+        let k = &levers().diplomacy_b;
+        let mut w = pair(30, 1, 100);
+        let mut ai = Ai::new(P0);
+        let looked = w.round();
+        ai.memory.put().reviewed = looked;
+        w.set_round(looked + k.review - 1);
+        let scene = Scene::new(&w, P0);
+        run(&mut ai, &mut w, &mut Vec::new(), &scene);
+        assert_eq!(ai.memory.get().enemy, None, "too soon to look again");
+        w.set_round(looked + k.review);
+        run(&mut ai, &mut w, &mut Vec::new(), &scene);
+        assert_eq!(ai.memory.get().enemy.map(|e| e.0), Some(P1));
+    }
+
+    /// The feeling that alone is worth this friend value.
+    fn friendship_worth(friend: i32) -> i32 {
+        let pct = levers().diplomacy_b.stance_friend_pct;
+        (friend * 100 + pct - 1) / pct
+    }
+
+    /// `P0` courts `P1`, with a full treasury: what was put to `P1` and whether gold was given.
+    fn courting(w: &mut Game, ai: &Ai) -> (bool, Vec<ProposalKind>, bool) {
+        let rich = w.levers().diplomacy.gift_least_gold;
+        w.treasury_mut(P0).expect("a treasury").gold = HalfInt::from_int(2 * rich);
+        let mut events = Vec::new();
+        let done = court(ai, w, &mut events, P1);
+        let asked = events
+            .iter()
+            .filter_map(|e| match e {
+                Event::Diplomacy(DiplomacyEvent::ProposalMade(p)) if p.from == P0 => Some(p.kind),
+                _ => None,
+            })
+            .collect();
+        let gave = events.iter().any(|e| {
+            matches!(
+                e,
+                Event::Diplomacy(DiplomacyEvent::GoldGiven { from: P0, .. })
+            )
+        });
+        (done, asked, gave)
+    }
+
+    #[test]
+    fn a_friend_is_asked_for_a_pact_and_not_before() {
+        let k = &levers().diplomacy_b;
+        let mut w = pair(8, 8, 100);
+        let ai = Ai::new(P0);
+        let short = friendship_worth(k.pact_min) - 100 / k.stance_friend_pct - 1;
+        ai.memory.put().set_friendship(&w, P0, P1, short);
+        let (done, asked, gave) = courting(&mut w, &ai);
+        assert_eq!((done, asked, gave), (false, vec![], false), "not yet");
+        let enough = friendship_worth(k.pact_min);
+        ai.memory.put().set_friendship(&w, P0, P1, enough);
+        let (done, asked, gave) = courting(&mut w, &ai);
+        assert_eq!((done, asked, gave), (true, vec![ProposalKind::Pact], false));
+    }
+
+    #[test]
+    fn a_close_enough_partner_is_asked_for_an_alliance() {
+        let k = &levers().diplomacy_b;
+        let mut w = pair(8, 8, 100);
+        let other = third(&mut w, 8);
+        w.start_treaty(P0, P1, Treaty::Pact);
+        w.declare_war(P0, other);
+        w.declare_war(P1, other);
+        let ai = Ai::new(P0);
+        let enough = friendship_worth(k.ally_min - k.common_enemy);
+        ai.memory.put().set_friendship(&w, P0, P1, enough);
+        let (done, asked, gave) = courting(&mut w, &ai);
+        assert_eq!(
+            (done, asked, gave),
+            (true, vec![ProposalKind::Alliance], false)
+        );
+    }
+
+    #[test]
+    fn a_wanted_friend_that_is_not_liked_enough_for_a_pact_is_given_gold() {
+        let k = &levers().diplomacy_b;
+        let mut w = pair(8, 8, 100);
+        let other = third(&mut w, 8);
+        w.declare_war(P0, other);
+        w.declare_war(P1, other);
+        let ai = Ai::new(P0);
+        let floor = w.content().rules.config.diplomacy.pact_relation;
+        ai.memory.put().set_friendship(&w, P0, P1, floor);
+        let friend = seen(&w, P1, &ai.memory.get()).friend;
+        assert!(friend >= k.gift_min, "{friend}");
+        let (done, asked, gave) = courting(&mut w, &ai);
+        assert_eq!((done, asked, gave), (true, vec![], true));
+    }
+
+    #[test]
+    fn a_wizard_is_courted_again_only_after_a_while() {
+        let k = &levers().diplomacy_b;
+        let mut w = pair(8, 8, 100);
+        let ai = Ai::new(P0);
+        ai.memory
+            .put()
+            .set_friendship(&w, P0, P1, friendship_worth(k.pact_min));
+        let last = w.round();
+        ai.memory.put().courted(P1, last);
+        w.set_round(last + k.court_cool - 1);
+        assert!(!courting(&mut w, &ai).0, "too soon");
+        w.set_round(last + k.court_cool);
+        assert!(courting(&mut w, &ai).0, "due again");
     }
 
     #[test]

@@ -1,12 +1,11 @@
-//! Diplomacy system B, part 1 (task 762, `docs/ai-diplomacy-b.md`): three values for each other wizard
-//! ([`Regard`]), the weariness of each war, and **one peace score** ([`peace_wish`]) that decides both
-//! when the wizard offers peace and whether it accepts one. System B is the AI's only diplomacy
-//! (task 779).
+//! The three values for each other wizard ([`Regard`], `docs/ai-diplomacy-b.md`), the weariness of
+//! each war, and **one peace score** ([`peace_wish`]) that decides both when the wizard offers peace
+//! and whether it accepts one.
 //!
-//! * **Friendship**: the relation and the hidden relation of the pair (the core's), which makes it overlook
-//!   faults.
-//! * **Fear**: how near and how strong the other is. It does not push one way: the one that is outclassed
-//!   begs, the stronger one finishes the other off.
+//! * **Friendship**: the wizard's own feeling and lasting regard for the other, which makes it
+//!   overlook faults.
+//! * **Fear**: how near, strong and ruthless the other is. It does not push one way: the one that is
+//!   outclassed begs, the stronger one finishes the other off.
 //! * **Strategic**: a weak, reachable neighbour is prey; the more dangerous of two fronts is worth a peace.
 //! * **Weariness** (`Memory`): up for a battle or a city lost, down for one won or taken, up a little every
 //!   turn without a clash, never below 0.
@@ -23,13 +22,12 @@ use crate::memory::Memory;
 use crate::statecraft::Scene;
 use crate::Ai;
 
-/// What a wizard feels about another (task 762).
+/// What a wizard feels about another.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Regard {
-    /// The relation and the hidden relation: how likeable the other is.
+    /// The feeling and the lasting regard: how likeable the other is.
     pub friendship: i32,
-    /// 0 to 100: near, and strong against us. (Its ruthlessness is added when the AI is told of
-    /// what a wizard does to the others.)
+    /// 0 to 100: near, and strong or ruthless against us.
     pub fear: i32,
     /// The power politics of the pair: prey is a minus, the more dangerous front a plus.
     pub strategic: i32,

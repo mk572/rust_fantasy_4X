@@ -20,7 +20,7 @@ So the method is a clean sweep, not a port:
 
 1. All 1165 tests were **removed** in one commit (22 November 2026). The old files are kept for reference, git-ignored,
    in `reference/f4x-core-before-test-rebuild/` (the whole `src` and `tests/it`). The test helpers stay
-   (`world/testutil.rs`, `feature/testutil.rs`, the `put_*` and `tr` methods): they show as unused until used again.
+   (`world/testutil.rs`).
 2. A test comes back **only for a need**: a way the crate can fail that this document names. The old names are the
    checklist of what the game once cared about, read for needs, not copied. Where several old tests say one thing
    they come back as one; where a test pins a rule it comes back reading that rule from the shipped content, or not
@@ -233,8 +233,7 @@ Found by the rebuilt tests, each made a task for the user to decide (28 November
    (class 9, hero): they are free (task 844).
 
 Seen, harmless in play and left alone: `World::cheat_add_building` accepts any entity that has an owner, a unit too
-(the console resolves a city first); the hook `disintegrate` is listed in `hook::CUSTOM_HOOKS` although no content
-carries it and no code acts on it.
+(the console resolves a city first).
 
 ## Open questions
 

@@ -1,12 +1,12 @@
 # Diplomacy system B (design, 21 November 2026)
 
-**System B is the AI's only diplomacy since 23 November 2026 (task 779).** System A, the AI's statecraft as it was before (`statecraft.rs`, `diplomacy.rs`: the original's rating `Diplomacy_Test` with its dice and patience, the dominant war, appeasing, the coalition, the hate rolls, three formulas for peace), was removed; it was too much the original's way of doing things. B has no dice: every answer and every offer follows from three values for each other player, and the numbers are levers (the `diplomacy_b` group of `ai_strategy.ron`, `AIS_DIPLO_B_<NAME>`). The human is treated like any wizard (`diplo_b_talk.rs`). The AI keeps its own opinion of every other player (`opinion.rs`, task 780): friendship, the lasting `hidden` regard, a broken-treaty flag, in its `Memory`, changed by `Memory::feel` from the core's events by the table of `diplomacy.md` section 5, with no dice (each `Random(n)` of the original is its average, `divergences.md`). The core's table still runs beside it until task 775 and seeds a first opinion (an old save carries over). The core's new fact events (task 782: `BattleLosses`, `AssaultFailed`, `FortressTaken`, `WizardDestroyed`, `EnchantmentCast`, `CitySpellCast`, `Subverted`) are weighed by the same table, except that a fortress taken or a wizard destroyed is judged by whom the AI likes (the original's flat -20 / -40 becomes `base * (friendship for the loser - friendship for the winner) / 100`, within +-base: a friend ridding it of an enemy pleases it) while the winner's ruthlessness, and so the fear of it, grows either way (`opinion.rs`: `enchantment_reaction`, `bad_city_spell`). The per-turn rules are the AI's own look (`Memory::look`, task 783, called once a turn from `play_kept`): a pact or alliance in force grows the friendship, the enchantments in force sour or sweeten it (a tenth of the cast's value), an army stronger than its own or too many cities, units next to its cities (a warning, a turn of grace, then the fine; the original's breaking of the treaty is left to the AI's own decision) and the drift back to the default. Each rule the original rolls a die for gives its average; a part of a point is added up from turn to turn (`Opinion::carry`). The client and the console read the AI's friendliness for the human through `Diplomats::feeling` (`set_feeling` for the demo screens, `refuses_audience` for "will not see you": a wizard at -90 or lower, not at war); the console's rivals do not play, so they show the feeling they start with. The soak's detail line of each wizard ends with its regard for every wizard it has met: friendship (feeling and lasting regard), fear and strategic value (`Ai::diplomacy_note`). The AI never attacks a pact or alliance partner (task 776): a partner is never chosen as the enemy (`choose_enemy`, `race::enemy`), `attack.rs` and `military::engage` send nothing against a partner's units, and the war plan aims at no partner's city (`attack::may_target`). Outside the talks, war is declared by the attack module before an attack on a player not at war: by the campaign on the owner of its target city, and by the perimeter on units near a city when the AI is open to war on them (`diplo_b_stance::open_to_war`, the test of the declaration below); never in a peace period (`ai-design.md`, "Attacks"). The soak counts the orders the game refused because of a treaty ("refused by a treaty", it stays at 0). The patience counters of the original have no place in B (its cooldowns are `Memory::due`); the client's "will not see you" rule is 784's.
+**System B is the AI's only diplomacy since 23 November 2026 (task 779).** System A, the AI's statecraft as it was before (`statecraft.rs`, `diplomacy.rs`: the original's rating `Diplomacy_Test` with its dice and patience, the dominant war, appeasing, the coalition, the hate rolls, three formulas for peace), was removed; it was too much the original's way of doing things. B has no dice: every answer and every offer follows from three values for each other player, and the numbers are levers (the `diplomacy_b` group of `ai_strategy.ron`, `AIS_DIPLO_B_<NAME>`). The human is treated like any wizard (`diplo_b_talk.rs`). The AI keeps its own opinion of every other player (`opinion.rs`, task 780): friendship, the lasting `hidden` regard, a broken-treaty flag, in its `Memory`, changed by `Memory::feel` from the core's events by the table of `diplomacy.md` section 5, with no dice (each `Random(n)` of the original is its average, `divergences.md`). A first opinion comes from the two wizards' books (`start_feeling`). The core's new fact events (task 782: `BattleLosses`, `AssaultFailed`, `FortressTaken`, `WizardDestroyed`, `EnchantmentCast`, `CitySpellCast`, `Subverted`) are weighed by the same table, except that a fortress taken or a wizard destroyed is judged by whom the AI likes (the original's flat -20 / -40 becomes `base * (friendship for the loser - friendship for the winner) / 100`, within +-base: a friend ridding it of an enemy pleases it) while the winner's ruthlessness, and so the fear of it, grows either way (`opinion.rs`: `enchantment_reaction`, `bad_city_spell`). The per-turn rules are the AI's own look (`Memory::look`, task 783, called once a turn from `play_kept`): a pact or alliance in force grows the friendship, the enchantments in force sour or sweeten it (a tenth of the cast's value), an army stronger than its own or too many cities, units next to its cities (a warning, a turn of grace, then the fine; the original's breaking of the treaty is left to the AI's own decision) and the drift back to the default. Each rule the original rolls a die for gives its average; a part of a point is added up from turn to turn (`Opinion::carry`). The client and the console read the AI's friendliness for the human through `Diplomats::feeling` (`set_feeling` for the demo screens, `refuses_audience` for "will not see you": a wizard at -90 or lower, not at war); the console's rivals do not play, so they show the feeling they start with. The soak's detail line of each wizard ends with its regard for every wizard it has met: friendship (feeling and lasting regard), fear and strategic value (`Ai::diplomacy_note`). The AI never attacks a pact or alliance partner (task 776): a partner is never chosen as the enemy (`choose_enemy`, `race::enemy`), `attack.rs` and `military::engage` send nothing against a partner's units, and the war plan aims at no partner's city (`attack::may_target`). Outside the talks, war is declared by the attack module before an attack on a player not at war: by the campaign on the owner of its target city, and by the perimeter on units near a city when the AI is open to war on them (`diplo_b_stance::open_to_war`, the test of the declaration below); never in a peace period (`ai-design.md`, "Attacks"). The soak counts the orders the game refused because of a treaty ("refused by a treaty", it stays at 0). The patience counters of the original have no place in B (its cooldowns are `Memory::due`).
 
 ## Three values for each other player (`Regard`)
 
-* **Friendship** (how likeable): the core's `relation` and `hidden` of the pair, plus `statecraft::affinity` (fame,
-  a Charismatic retort, the same race, shared books). Makes the wizard overlook faults and trade, make pacts,
-  ally and accept peace. No second number: whatever moves the relation already moves it.
+* **Friendship** (how likeable): the wizard's own opinion of the other, its feeling and its lasting regard
+  (`opinion.rs`). Makes the wizard overlook faults and trade, make pacts, ally and accept peace. (The trades
+  also weigh `statecraft::affinity`: fame, a Charismatic retort, the same race, shared books.)
 * **Fear** (how threatening): how near and how strong the other is (cities, army score, distance), and how
   ruthless: a slowly fading memory of what the wizard saw it do (cities razed, wars declared, treaties broken,
   the nasty spells), from events a human could see too. Fear does not push one way: it **makes the reaction
@@ -28,7 +28,7 @@ with time.
 Not in the core (it holds facts, never a decision, and has no room for a wizard's grudges), and not in a throwaway
 `Ai`: a proposal is answered by `diplomacy::rate(game, ..)`, which `answer_proposals` and `settle` call with a new
 empty `Ai`. A shared `Diplomats` table (task 760), made once for each game by the host and handed to every `Ai`
-and to those two functions, holds each wizard's memory (and its system, A or B), so the judge answers with what it
+and to those two functions, holds each wizard's memory, so the judge answers with what it
 remembers. The memory is saved with the AI's plans. The master tells every seat the events of the turns
 (`Controller::notice`), the same ones a human's client is shown, so a wizard hears of a battle it is dragged into on
 another wizard's turn.
@@ -39,8 +39,7 @@ another wizard's turn.
 the stronger finishes it), plus strategic (prey is a minus; a shared enemy elsewhere, a second front or a
 threat to its own cities a plus), with the personality's modifier. **It offers peace at `OFFER` and accepts at
 `ACCEPT`** (a little lower), from the same function, for the wizards among themselves and for the human's offers.
-A cool-down keeps it from asking every turn; the dice stay only as pacing, never as the decision. Replaces
-`wars`, the peace roll of `negotiate`, `peace_ok` and the peace formula of `approach_human` for a wizard of B.
+A cool-down keeps it from asking every turn. Nothing is rolled.
 
 ## What is built (task 762: the peace)
 
@@ -51,7 +50,7 @@ A cool-down keeps it from asking every turn; the dice stay only as pacing, never
 peace_wish = weariness
            + gap       (their power - ours) * GAP / max(theirs, ours)         GAP 50: losing is a plus, far ahead a minus
            + fear      FEAR_PCT % of fear if they are the stronger, minus half of it if we are  (FEAR_PCT 40)
-           + friendship  (relation + hidden relation) * FRIEND_PCT / 100      FRIEND_PCT 10
+           + friendship  (feeling + lasting regard) * FRIEND_PCT / 100        FRIEND_PCT 10
            + strategic   -PREY (30) for a prey (150 % weaker, within 30 squares), +TWO_FRONTS (25) for the more
                          dangerous of two fronts
            + mood / MOOD_DIV (3)                                              the personality's modifier
@@ -63,7 +62,7 @@ peace_wish = weariness
   or the start of the war: a war with nothing in it wears down at 0.7 a turn.
 * **Fear** = nearness (100 minus `NEAR_PER_SQUARE` (5) for each square between the nearest cities, from 0 to 100) times
   their might (their power as a percent of ours, less 50, from 0 to 100), divided by 100. Power is the army plus a
-  city's worth (`statecraft` `CITY_POWER`) for each city, as the observer sees it. Ruthlessness is added to it
+  city's worth (the `city_power` lever) for each city, as the observer sees it. Ruthlessness is added to it
   (times the nearness): the memory notes a razed city (`RUTH_RAZE` 15), a war declared (`RUTH_WAR` 6) and a treaty
   broken (`RUTH_BROKEN` 10), a fortress taken (`RUTH_FORTRESS` 10) or a wizard destroyed (`RUTH_DESTROYED` 20), the last two by every wizard that has met the winner, by a wizard it has met, fading by half every `RUTH_HALF` (150) turns, at most `RUTH_CAP`
   (60). The strategic term also has the Mastery caster (`MASTERY` -60) and the leader (`LEADER` -15 against the
@@ -76,7 +75,7 @@ peace_wish = weariness
 By arithmetic (not measured), a stalled war between equals with nothing in it reaches the accept mark after about
 a hundred quiet turns and the offer mark after about a hundred and twenty-five, moved by 10 or so either way by the
 friendship and the temper; a lost war reaches both much sooner. These are guesses to be read against a soak
-(task 761), not tuned values.
+(task 861), not tuned values.
 
 ## What is built (task 763: friends and enemies)
 
@@ -95,24 +94,15 @@ friendship and the temper; a lost war reaches both much sooner. These are guesse
 * The others are **courted** once per `COURT_COOL` (20) turns: a pact at friend `PACT_MIN` 30, an alliance at
   `ALLY_MIN` 55, a gift (A's gold gift) where the relation is too low for a pact and friend is at `GIFT_MIN` 25.
 
-All numbers are first guesses, to be tuned against the soak. The soak report ends its "By diplomacy system" table with "B minus A
- inside the same game": per row the mean difference over the games with both systems, its standard error, and a star past two
-standard errors (`report::print_paired`); read the tuning from that, not from the plain means. `soak --detail` prints a line per wizard: the system, and
-for B the main enemy, the weariness against each wizard at war and the ruthlessness seen (`Ai::diplomacy_note`).
+All numbers are first guesses, to be tuned against the soak (task 861). `soak --detail` prints a line per
+wizard: the main enemy, the weariness against each wizard at war, the ruthlessness seen and the regard for each
+wizard it has met (`Ai::diplomacy_note`).
 
 ## Friends and enemies
 
 Every few turns (with some hysteresis, so it does not flip each turn) each other wizard gets an enemy value and a
-friend value from the three numbers. At most one or two main enemies, the only targets of a declaration of war;
-the others are befriended by friendship and shared enemies; a war on someone else is ended by the peace score.
-Replaces `dominant_war`, `appease`, `coalition` and the hate rolls for a wizard of B.
-
-## The comparison
-
-A soak with the two systems in one game (task 761): wizards alternate between A and B, the order rotated by
-seed, so a seat is no advantage. It prints for each system the games, the wins, the mean survival turn and cities
-held at the end, the wars, the peace made and the stalled war turns. A system needs many games to be told from
-chance (24 seeds at 3 wizards, 400 turns, is the first run).
+friend value from the three numbers. At most one main enemy, which a war is declared on; the others are
+befriended by friendship and shared enemies; a war on someone else is ended by the peace score.
 
 ## Answering and talking (task 779, `diplo_b_talk.rs`)
 

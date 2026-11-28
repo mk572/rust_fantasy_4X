@@ -139,8 +139,7 @@ pub(crate) struct Memory {
 }
 
 impl Memory {
-    /// The dealings with `with`, if there were any. (Read by system B, task 762; until then the tests.)
-    #[cfg_attr(not(test), allow(dead_code))]
+    /// The dealings with `with`, if there were any.
     pub(crate) fn with(&self, with: PlayerId) -> Option<&Dealing> {
         self.dealings.iter().find(|d| d.with == with)
     }

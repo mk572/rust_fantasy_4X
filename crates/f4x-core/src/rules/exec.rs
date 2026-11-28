@@ -13,7 +13,7 @@ use rand::RngCore;
 
 use super::damage_type::DamageTypes;
 use super::effects::{Effect, EffectRule, TargetSel, Trigger};
-use super::stats::{ModOp, Modifier, Source, Stat};
+use super::stats::{Modifier, Source, Stat};
 use crate::map::Position;
 use crate::player::PlayerId;
 pub use f4x_def::rules::facts::{eval, Facts};
@@ -279,14 +279,4 @@ pub fn run_rules(
         }
     }
     out
-}
-
-/// Convenience for tests and tools: an `Add` modifier effect.
-pub fn add(stat: Stat, value: i32) -> Effect {
-    Effect::Modify {
-        stat,
-        op: ModOp::Add,
-        value: f4x_def::half_int::HalfInt::from_int(value),
-        types: Default::default(),
-    }
 }

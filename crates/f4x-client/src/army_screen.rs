@@ -102,13 +102,6 @@ impl App {
     }
 
     /// The unit's name; a race's unit has its race in the name ("Dwarven Swordsmen").
-    pub(crate) fn army_unit_term(&self, unit: hecs::Entity) -> f4x_lang::text::Term {
-        self.game
-            .units()
-            .unit_def(unit)
-            .map_or_else(Default::default, |def| self.names.unit_term(def.num))
-    }
-
     pub(crate) fn army_unit_name(&self, unit: hecs::Entity) -> String {
         self.game
             .units()

@@ -21,7 +21,6 @@ use crate::unit::{BattleUnit, Confusion, FieldBonus};
 
 /// Hooks the spell data names.
 pub const BATTLEFIELD: &str = "battlefield";
-pub const DISINTEGRATE: &str = "disintegrate";
 
 /// The battlefield enchantments.
 #[derive(

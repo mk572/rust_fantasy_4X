@@ -939,18 +939,6 @@ impl<'a> Economy<'a> {
         low
     }
 
-    /// The linear search `city_min_farmers` replaced, for the test.
-    #[cfg(test)]
-    pub(crate) fn city_min_farmers_linear(&self, city: hecs::Entity) -> u32 {
-        let figures = self.ecs.get::<&Population>(city).map_or(0, |p| p.figures);
-        (0..=figures)
-            .find(|&f| {
-                self.city_economy_with(city, f)
-                    .is_some_and(|e| e.food >= HalfInt::from_int(figures as i32))
-            })
-            .unwrap_or(figures)
-    }
-
     pub fn city_economy(&self, city: hecs::Entity) -> Option<CityEconomy> {
         let farmers = self.ecs.get::<&Farmers>(city).map_or(0, |f| f.0);
         self.city_economy_with(city, farmers)

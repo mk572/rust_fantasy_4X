@@ -161,16 +161,6 @@ impl World {
         self.ecs.spawn((item, by, serial))
     }
 
-    /// Put items in a hero's slots (for tests that build a hero already armed).
-    #[cfg(test)]
-    pub(crate) fn arm_hero(&mut self, hero: Entity, items: [Option<Item>; 3]) {
-        for (slot, item) in items.into_iter().enumerate() {
-            if let Some(item) = item {
-                self.spawn_item(item, HeldBy::Hero(hero, slot as u8));
-            }
-        }
-    }
-
     /// Hand an item to another holder.
     ///
     /// An item that joins the award list gets a new creation number, so that the list keeps the

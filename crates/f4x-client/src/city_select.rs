@@ -160,15 +160,6 @@ impl App {
         true
     }
 
-    /// Leave the picker without an answer.
-    pub(crate) fn city_select_cancel(&mut self) {
-        if let Some(mut sel) = self.city_select.take() {
-            if let Some(answer) = sel.answer.take() {
-                answer(self, None);
-            }
-        }
-    }
-
     /// The panel over the side column, and what the player does in it.
     pub(crate) fn city_select_bar(&mut self, input: &Input) {
         let Some(mut sel) = self.city_select.take() else {
@@ -273,6 +264,12 @@ impl App {
         } else {
             None
         };
+        self.city_select_answered(sel, answer);
+    }
+
+    /// Close the picker with the player's answer (`Some(None)`: cancelled), or keep it open while
+    /// there is none.
+    fn city_select_answered(&mut self, mut sel: CitySelect, answer: Option<Option<hecs::Entity>>) {
         match answer {
             Some(city) => {
                 if let Some(answer) = sel.answer.take() {
@@ -360,11 +357,13 @@ mod tests {
     fn cancel_answers_none_and_closes_the_picker() -> TestResult {
         let mut app = App::for_test();
         let (_, got) = opened(&mut app);
-        app.city_select_cancel();
+        let sel = app.city_select.take().ok_or("closed")?;
+        app.city_select_answered(sel, None);
+        assert!(got.borrow().is_empty(), "no answer yet");
+        let sel = app.city_select.take().ok_or("closed without an answer")?;
+        app.city_select_answered(sel, Some(None));
         assert!(app.city_select.is_none());
         assert_eq!(got.borrow().as_slice(), [None]);
-        app.city_select_cancel();
-        assert_eq!(got.borrow().len(), 1, "nothing to cancel the second time");
         Ok(())
     }
 

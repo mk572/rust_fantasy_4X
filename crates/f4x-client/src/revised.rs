@@ -34,8 +34,6 @@ impl<T> Revised<T> {
         }
     }
 
-    // Read by the caches of tasks 693-695; until they land only the tests ask.
-    #[cfg_attr(not(test), allow(dead_code))]
     /// The revision: differs from an earlier one if the value was borrowed mutably or replaced since.
     pub fn revision(&self) -> u64 {
         self.revision

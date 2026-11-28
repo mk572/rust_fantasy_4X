@@ -452,7 +452,7 @@ pub fn commands(w: &World) -> Vec<Command> {
                     D::Remark {
                         from: a,
                         to: b,
-                        why: Remark::Coalition,
+                        why: Remark::Appeasing,
                     },
                 ];
                 for amount in [0, 5, -5, i32::MAX, i32::MIN] {

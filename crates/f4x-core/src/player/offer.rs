@@ -501,10 +501,11 @@ impl World {
             } => Some(chosen),
             _ => at,
         };
-        if comes_to_a_circle && self.has_several_circles(player) {
-            if !at.is_some_and(|a| self.summon_circles(player).contains(&a)) {
-                return Err(OfferError::Circle);
-            }
+        if comes_to_a_circle
+            && self.has_several_circles(player)
+            && !at.is_some_and(|a| self.summon_circles(player).contains(&a))
+        {
+            return Err(OfferError::Circle);
         }
         let taken = offer.clone();
         let events = match offer {
