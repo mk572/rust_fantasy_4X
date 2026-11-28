@@ -51,6 +51,8 @@ pub struct LairStyle {
     pub stronger: bool,
     /// The patch's treasure: its budget, its table and its prices.
     pub treasure: bool,
+    /// A game without heroes and items: the hoard holds neither an item nor a prisoner.
+    pub no_heroes: bool,
 }
 
 /// What patch 1.50 changes in the lairs (`docs/lairs.md`, "Patch 1.50"). The ranges of the wiki's

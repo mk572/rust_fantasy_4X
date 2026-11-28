@@ -796,3 +796,16 @@ fn the_events_going_on_survive_a_save() -> Result<(), Box<dyn std::error::Error>
     }
     Ok(())
 }
+
+/// A gift is an item: without heroes and items it cannot happen.
+#[test]
+fn without_heroes_nobody_receives_a_gift() {
+    for (name, mut w) in worlds() {
+        let p = w.wizards()[0];
+        w.set_human(Some(p));
+        w.scenario_change_settings(|g| g.world.heroes_enabled = false);
+        refused(&mut w, EventKind::Gift, p, &name);
+        w.scenario_change_settings(|g| g.world.heroes_enabled = true);
+        happen(&mut w, EventKind::Gift, p);
+    }
+}

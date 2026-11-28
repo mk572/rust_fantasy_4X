@@ -310,6 +310,7 @@ fn a_node_is_guarded_by_its_own_realm_or_the_one_that_stands_in() {
     let style = LairStyle {
         stronger: false,
         treasure: false,
+        no_heroes: false,
     };
     let nodes: Vec<RealmId> = content
         .features
@@ -396,6 +397,7 @@ fn an_encounter_budget_stays_in_the_range_of_its_plane_and_strength() {
         let style = LairStyle {
             stronger,
             treasure: false,
+            no_heroes: false,
         };
         for plane in Plane::all() {
             for strong in [false, true] {
@@ -1241,4 +1243,81 @@ fn a_lair_looks_as_strong_as_its_guards_times_one_of_the_listed_percentages() {
         assert_eq!(again.apparent, Some(looks), "{}", s.name);
     }
     assert!(seen.len() > 3, "the sites look alike: {seen:?}");
+}
+
+// ---- without heroes and items ----
+
+/// A site made while the game had items and heroes pays their value in other treasure once the
+/// game is without them.
+#[test]
+fn without_heroes_no_site_pays_an_item_or_a_prisoner() {
+    let (mut items, mut prisoners) = (0, 0);
+    for i in 0..if deep() { 600 } else { 80 } {
+        let (mut s, lair) = rich_site(i, i % 2 == 1);
+        if lair.guards.is_empty() || (lair.items.is_empty() && !lair.prisoner) {
+            continue;
+        }
+        items += lair.items.len();
+        prisoners += usize::from(lair.prisoner);
+        s.w.scenario_change_settings(|g| g.world.heroes_enabled = false);
+        let (before, events) = win(&mut s);
+        let name = format!("{}: {lair:?}", s.name);
+        let (_, loot) = cleared(&events).unwrap_or_else(|| panic!("{name}: {events:?}"));
+        let after = holdings(&s.w, s.p);
+        assert!(loot.items.is_empty() && !loot.prisoner, "{name}: {loot:?}");
+        assert_eq!(
+            (after.items, after.heroes),
+            (before.items, before.heroes),
+            "{name}"
+        );
+        assert!(
+            loot.gold + loot.mana > lair.gold + lair.mana,
+            "{name}: nothing in their place, {loot:?}"
+        );
+        let rules = &s.w.content().rules;
+        assert!(
+            loot.retorts
+                .iter()
+                .all(|&r| !rules.retorts.get(r).needs_heroes),
+            "{name}: {loot:?}"
+        );
+    }
+    assert!(
+        items > 0 && prisoners > 0,
+        "{items} items, {prisoners} prisoners"
+    );
+}
+
+/// A site made in a game without heroes holds neither an item nor a prisoner, by either set of
+/// treasure rules.
+#[test]
+fn without_heroes_a_new_site_holds_no_item_and_no_prisoner() {
+    let draws = sample(400, 80);
+    let mut s = scene_at(0);
+    for patch in [false, true] {
+        s.w.scenario_change_settings(|g| {
+            g.rules.treasure_patch_150 = patch;
+            g.world.lair_treasure_percent = 500;
+            g.world.lair_guard_percent = 300;
+        });
+        for heroes in [true, false] {
+            s.w.scenario_change_settings(|g| g.world.heroes_enabled = heroes);
+            let (mut items, mut prisoners, mut treasure) = (0, 0, 0);
+            for feature in [encounter(&s.w), tower(&s.w)] {
+                for i in 0..draws {
+                    let lair = put_lair(&mut s.w, s.site, feature, i % 2 == 0);
+                    items += lair.items.len();
+                    prisoners += usize::from(lair.prisoner);
+                    treasure += lair.gold + lair.mana;
+                }
+            }
+            let what = format!("patch {patch}, heroes {heroes}: {items}, {prisoners}");
+            assert!(treasure > 0, "{what}");
+            if heroes {
+                assert!(items > 0 && prisoners > 0, "{what}");
+            } else {
+                assert!(items == 0 && prisoners == 0, "{what}");
+            }
+        }
+    }
 }

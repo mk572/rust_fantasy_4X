@@ -263,3 +263,9 @@ A new `Command` variant is not enough in `command.rs`, `actor.rs` and `World::ex
 - **Landmass numbers belong to a plane.** `World::landmasses(plane)` numbers each plane from 1, so two
   numbers are comparable only together with their planes (the code of task 842 forgot; compare with `World::same_land`).
 
+- **A game's content is its own changed copy; choices for the next game read `as_loaded()`.**
+  `World::apply_content_settings` writes settings into the world's content (retort costs, unit
+  capacities, `half_upkeep`, which also seeds a new game's default settings). `set_content` and
+  `new_game` take the loaded content back out of such a copy, so a new or loaded game starts clean.
+  Code that reads the content for a game that does not exist yet (the new-game screens, console
+  `new`) must call `content().as_loaded()` itself.

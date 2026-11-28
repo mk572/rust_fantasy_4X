@@ -278,7 +278,9 @@ impl World {
         );
         self.change_population(city, |p| p.figures -= toll.citizens_lost);
         let ruins = self.content.features.id_numbered(18) /* ruins */;
-        let ruined = rng.roll(2) == 2 && !self.economy().is_fortress_city(city);
+        let ruined = rng.roll(2) == 2
+            && !self.economy().is_fortress_city(city)
+            && self.settings.world.lairs_enabled;
         let (Some(feature), true) = (ruins, ruined) else {
             for &m in monsters {
                 self.despawn_with_spells(m);

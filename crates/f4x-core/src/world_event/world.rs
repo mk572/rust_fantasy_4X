@@ -125,6 +125,10 @@ impl World {
         if kind.is_world() && self.events.world_event().is_some() {
             return None;
         }
+        // A gift is an item.
+        if kind == EventKind::Gift && !self.settings.world.heroes_enabled {
+            return None;
+        }
         if kind == EventKind::Piracy
             && self
                 .player(victim)

@@ -82,6 +82,8 @@ fn hash_options(opts: &Options, seed: u64, hasher: &mut DefaultHasher) {
         spell_return,
         rules,
         starting_units,
+        no_heroes,
+        no_lairs,
         // The seed of this game comes in by itself.
         first: _,
         last: _,
@@ -103,6 +105,7 @@ fn hash_options(opts: &Options, seed: u64, hasher: &mut DefaultHasher) {
     (turns, players, events, grant_mastery, snapshots_every).hash(hasher);
     (map, land, magic, difficulty).hash(hasher);
     (mastery, spell_return, rules, starting_units).hash(hasher);
+    (no_heroes, no_lairs).hash(hasher);
 }
 
 fn file(out: &Path, opts: &Options, seed: u64) -> Option<PathBuf> {
@@ -177,6 +180,8 @@ mod tests {
             &["--mastery", "off"],
             &["--return", "off"],
             &["--start-units", "trireme"],
+            &["--no-heroes"],
+            &["--no-lairs"],
         ] {
             assert_ne!(plain, of(args)?, "{args:?}");
         }

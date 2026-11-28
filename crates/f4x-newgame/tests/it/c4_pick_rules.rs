@@ -147,7 +147,7 @@ fn most_picks() -> u8 {
 fn fewest_ready_made_picks() -> u8 {
     let rules = &shipped().rules;
     (rules.wizards.defs().iter())
-        .filter_map(|d| f4x_core::wizard::preset_build_of(rules.wizards.defs(), d.num))
+        .filter_map(|d| f4x_core::wizard::preset_build_of(rules.wizards.defs(), d.num, true))
         .map(|b| b.picks_spent(rules))
         .min()
         .expect("the content has ready-made wizards")

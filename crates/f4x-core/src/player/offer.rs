@@ -330,7 +330,11 @@ impl World {
         let fame = self.fame(player);
         let computer = self.human() != Some(player);
 
-        if rng.roll(100) as i32 <= item_chance(&self.content.rules.config.offer, fame, percent) {
+        // Without heroes and items only the mercenaries call.
+        let heroes_on = self.settings.world.heroes_enabled;
+        if heroes_on
+            && rng.roll(100) as i32 <= item_chance(&self.content.rules.config.offer, fame, percent)
+        {
             offers.extend(self.item_offer(player, rng));
         }
         if rng.roll(100) as i32
@@ -339,14 +343,15 @@ impl World {
             offers.extend(self.mercenary_offer(player, round, rng));
         }
         let heroes = self.units().hero_units(player).len();
-        if rng.roll(100) as i32
-            <= hero_chance(
-                &self.content.rules.config.offer,
-                fame,
-                percent,
-                computer,
-                heroes,
-            )
+        if heroes_on
+            && rng.roll(100) as i32
+                <= hero_chance(
+                    &self.content.rules.config.offer,
+                    fame,
+                    percent,
+                    computer,
+                    heroes,
+                )
         {
             offers.extend(self.hero_offer(player, rng));
         }

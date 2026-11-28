@@ -11,6 +11,7 @@
     "picks.too_many_retorts": "You may not select more than 6 special abilities",
     "picks.not_enough": "You don't have enough picks left to make this selection. You need {cost} picks",
     "picks.make_all": "You need to make all your picks before you can continue",
+    "picks.needs_heroes": "This game is played without heroes and items, so {retort} is of no use",
     "picks.left": (count: "n", one: "{n} pick", other: "{n} picks"),
     "picks.select_spells": "Select {realm} Spells",
     "picks.common": "Common",

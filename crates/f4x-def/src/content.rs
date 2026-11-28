@@ -19,4 +19,15 @@ pub struct Content {
     /// The fingerprint of the files this was loaded from (`content_hash::fingerprint_of`); empty for
     /// content that was not loaded from files. A save carries it.
     pub fingerprint: String,
+    /// The content as it was loaded, when this is a game's own copy with the game's settings
+    /// written into it; none for loaded content. Read it through [`Content::as_loaded`].
+    pub loaded: Option<std::sync::Arc<Content>>,
+}
+
+impl Content {
+    /// The content without any game's settings in it: what a new game starts from and what the
+    /// choices for it are made with.
+    pub fn as_loaded(&self) -> &Content {
+        self.loaded.as_deref().unwrap_or(self)
+    }
 }

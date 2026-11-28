@@ -16,7 +16,7 @@ use crate::rules::{Rarity, RealmId, Rules, SpellDef, SpellId, Stat};
 use crate::spell::instance::{Owed, Spells};
 use crate::wizard::entity::Wizard;
 use crate::wizard::magic::{
-    base_casting_skill, default_spells, pick_spells, skill_points_for, spells_of, CastStart,
+    base_casting_skill, default_spells, open_spells_of, pick_spells, skill_points_for, CastStart,
     Casting, MagicError, PowerShares, Retort,
 };
 use crate::wizard::retort;
@@ -596,7 +596,7 @@ impl<'a> WizardMut<'a> {
                 (Rarity::Rare, want.rare, open.rare),
                 (Rarity::VeryRare, want.very_rare, open.very_rare),
             ] {
-                let pool = spells_of(content, realm, rarity);
+                let pool = open_spells_of(content, realm, rarity);
                 let count = usize::from(count).min(pool.len());
                 let start: Vec<SpellId> = match start_spells {
                     Some(chosen) => {
@@ -606,7 +606,9 @@ impl<'a> WizardMut<'a> {
                             .filter(|s| pool.contains(s))
                             .take(count)
                             .collect();
-                        let defaults = default_spells(content, realm, rarity);
+                        let defaults = default_spells(content, realm, rarity)
+                            .into_iter()
+                            .filter(|s| pool.contains(s));
                         for s in defaults.into_iter().chain(pool.iter().copied()) {
                             if start.len() >= count {
                                 break;
@@ -633,7 +635,9 @@ impl<'a> WizardMut<'a> {
             .spells
             .iter()
             .filter(|&(id, d)| {
-                d.realm == (RealmId::new(5)/* arcane */) && !library.arcane_closed.contains(&id)
+                d.realm == (RealmId::new(5)/* arcane */)
+                    && !library.arcane_closed.contains(&id)
+                    && library.is_open(d)
             })
             .map(|(id, _)| id)
             .collect();
@@ -673,7 +677,7 @@ impl<'a> WizardMut<'a> {
             (Rarity::Rare, open.rare),
             (Rarity::VeryRare, open.very_rare),
         ] {
-            let pool = spells_of(content, realm, rarity);
+            let pool = open_spells_of(content, realm, rarity);
             let have = pool.iter().filter(|s| taken.contains(s)).count();
             let more = pick_spells(rng, &pool, &taken, usize::from(limit).saturating_sub(have));
             taken.extend(&more);

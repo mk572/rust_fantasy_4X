@@ -850,3 +850,50 @@ fn monsters_that_beat_the_defenders_sack_the_city() {
         );
     }
 }
+
+// ---- without lairs ----
+
+/// Without lairs no monsters roam, whatever their own setting says.
+#[test]
+fn without_lairs_no_monsters_leave_a_site() {
+    for (name, mut w) in quiet(false, true) {
+        w.scenario_change_settings(|g| g.world.lairs_enabled = false);
+        assert!(w.settings().world.monsters_enabled, "{name}");
+        let first = first_turn(&w);
+        for round in first..first + sample(2000, 600) as u32 {
+            let events = start_round(&mut w, round);
+            assert!(
+                !events
+                    .iter()
+                    .any(|e| matches!(e, Event::MonstersSettled { .. })),
+                "{name}: round {round}"
+            );
+        }
+        assert_eq!(w.threat().monster_clock, 0, "{name}");
+    }
+}
+
+#[test]
+fn without_lairs_a_sacked_city_leaves_no_ruins() {
+    for skip in 0..if deep() { 80 } else { 24 } {
+        let (wizards, seed) = WORLDS[0];
+        let mut w = fresh(wizards, seed).expect("a fresh game");
+        for _ in 0..skip {
+            w.next_u64();
+        }
+        w.scenario_change_settings(|g| g.world.lairs_enabled = false);
+        let name = format!("draw {skip}");
+        let (_, at, _, monsters) = sack(&mut w, false, &name);
+        let events = w.apply(Command::MoveStack {
+            units: monsters,
+            to: at,
+        });
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, Event::CityRampaged { ruined: false, .. })),
+            "{name}: {events:?}"
+        );
+        assert!(w.economy().lair_at(at).is_none(), "{name}");
+    }
+}

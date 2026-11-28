@@ -192,8 +192,10 @@ impl World {
     /// Replace the game's definitions. The game's settings become the level of the new-game
     /// choices of that content (so a modded content plays its own figures, not the shipped ones);
     /// a caller that wants others sets them after. Empty content (no levels) leaves them.
+    /// Another game's copy may be handed in: this game takes the content that copy was made from.
     pub fn set_content(&mut self, content: impl Into<std::sync::Arc<Content>>) {
-        self.content = content.into();
+        let content = content.into();
+        self.content = content.loaded.clone().unwrap_or(content);
         if let Some(settings) = self.content.settings.default_game() {
             self.settings = settings;
         }

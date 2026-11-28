@@ -395,6 +395,16 @@ pub struct WorldSettings {
     pub monsters_enabled: bool,
     /// How big a party is, as a percent of the troops in the city.
     pub raider_percent: u16,
+    /// Whether the game has heroes and magic items (task 586). Off: nobody is offered, hires,
+    /// summons or frees a hero; no item is sold, found, crafted or given; the spells and retorts
+    /// marked `needs_heroes` are not in the game.
+    #[serde(default = "fb_heroes_enabled")]
+    pub heroes_enabled: bool,
+    /// Whether the map has random encounter sites (ruins, caves and the rest; task 587). Off:
+    /// none are placed and no monsters roam ([`GameSettings::monsters_roam`]); towers and nodes
+    /// stay.
+    #[serde(default = "fb_lairs_enabled")]
+    pub lairs_enabled: bool,
     /// The turn from which monsters leave their lairs on Average and harder: 30, 40 or 50 (the
     /// original: 50; patch 1.40 sets 40). Intro and Easy stay at 50.
     #[serde(default = "default_monster_start")]
@@ -663,6 +673,14 @@ pub const MAX_SHIP_CAPACITY: u8 = 8;
 pub const MONSTER_START_TURN: u8 = 50;
 /// The earliest turn a game may be set to start the monsters.
 pub const MONSTER_START_EARLIEST: u8 = 30;
+
+fn fb_heroes_enabled() -> bool {
+    fallback("heroes_enabled", |g| g.world.heroes_enabled)
+}
+
+fn fb_lairs_enabled() -> bool {
+    fallback("lairs_enabled", |g| g.world.lairs_enabled)
+}
 
 fn default_monster_start() -> u8 {
     fallback("monster_start_turn", |g| g.world.monster_start_turn)
@@ -1164,6 +1182,10 @@ pub struct Rarities {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct SpellLibraryDef {
+    /// The game is played without heroes (`WorldSettings::heroes_enabled` off): the spells
+    /// marked `needs_heroes` are not in it. A game sets it in its own copy of the content.
+    #[serde(skip)]
+    pub heroes_off: bool,
     /// Spells of the realm the wizard knows at the start: the realm's chosen spells first, then
     /// its default list (`realms.ron`) in order.
     pub known: Vec<Rarities>,
@@ -1192,6 +1214,11 @@ pub struct SpellLibraryDef {
 }
 
 impl SpellLibraryDef {
+    /// Whether the spell is in this game at all.
+    pub fn is_open(&self, spell: &crate::rules::SpellDef) -> bool {
+        !(self.heroes_off && spell.needs_heroes)
+    }
+
     /// Most books in a realm; the tables have one row more.
     pub const MAX_BOOKS: usize = 11;
 
@@ -1364,16 +1391,29 @@ impl GameSettings {
         set.unwrap_or_else(|| self.scaled_to_map(per))
     }
 
-    /// The strong encounter sites of the map: the setting, or 25 for every 60 by 40 squares.
+    /// Whether monsters leave their lairs: their setting, and none without lairs.
+    pub fn monsters_roam(&self) -> bool {
+        self.world.lairs_enabled && self.world.monsters_enabled
+    }
+
+    /// The strong encounter sites of the map: the setting, or 25 for every 60 by 40 squares;
+    /// none without lairs.
     pub fn strong_site_count(&self) -> u32 {
+        if !self.world.lairs_enabled {
+            return 0;
+        }
         self.world.strong_sites.map_or_else(
             || self.scaled_to_map_u32(STRONG_SITES_PER_REFERENCE_AREA),
             u32::from,
         )
     }
 
-    /// The weak encounter sites of the map: the setting, or 32 for every 60 by 40 squares.
+    /// The weak encounter sites of the map: the setting, or 32 for every 60 by 40 squares;
+    /// none without lairs.
     pub fn weak_site_count(&self) -> u32 {
+        if !self.world.lairs_enabled {
+            return 0;
+        }
         self.world.weak_sites.map_or_else(
             || self.scaled_to_map_u32(WEAK_SITES_PER_REFERENCE_AREA),
             u32::from,

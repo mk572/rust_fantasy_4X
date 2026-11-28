@@ -69,6 +69,9 @@ pub struct Options {
     pub rules: f4x_def::settings::RuleSet,
     /// The units every wizard starts with on top of the race's army; none unless asked.
     pub starting_units: f4x_def::settings::StartingUnits,
+    /// Games without heroes and items, or without lairs and roaming monsters.
+    pub no_heroes: bool,
+    pub no_lairs: bool,
 }
 
 /// A comma-separated list of `settler`, `spirit` and `trireme`.
@@ -125,6 +128,8 @@ impl Options {
             spell_return: None,
             rules: Default::default(),
             starting_units: Default::default(),
+            no_heroes: false,
+            no_lairs: false,
         };
         let mut it = args.iter();
         while let Some(a) = it.next() {
@@ -192,6 +197,8 @@ impl Options {
                 "--mastery" => o.mastery = Some(spell_access(&value("--mastery")?)?),
                 "--return" => o.spell_return = Some(spell_access(&value("--return")?)?),
                 "--start-units" => o.starting_units = start_units(&value("--start-units")?)?,
+                "--no-heroes" => o.no_heroes = true,
+                "--no-lairs" => o.no_lairs = true,
                 other => return Err(format!("unknown option {other:?}\n{usage}")),
             }
         }
@@ -478,6 +485,8 @@ pub fn game(
             }
             spec.settings = opts.rules.applied(spec.settings, &content.settings);
             spec.settings.starting_units = opts.starting_units;
+            spec.settings.world.heroes_enabled &= !opts.no_heroes;
+            spec.settings.world.lairs_enabled &= !opts.no_lairs;
             if let Some(access) = opts.mastery {
                 spec.settings.rules.spell_of_mastery = access;
             }

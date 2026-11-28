@@ -73,6 +73,7 @@ fn wizard_def(num: u16, id: &str, books: &[(RealmId, u8)], retorts: &[Retort]) -
         gender: Default::default(),
         books: books.to_vec(),
         retorts: retorts.to_vec(),
+        without_heroes: None,
     }
 }
 

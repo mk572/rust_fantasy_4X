@@ -36,7 +36,7 @@ impl World {
         if self.settings.world.raiders_enabled {
             events.extend(self.make_raiders(round, rng));
         }
-        if self.settings.world.monsters_enabled {
+        if self.settings.monsters_roam() {
             events.extend(self.make_monsters(round, rng));
         }
         events

@@ -50,6 +50,8 @@ const USAGE: &str = "usage:
                                               soak-out/refused-TIME.tsv; --no-refused-log: none; TSV, with why
                                               in the last column; scripts/refused_summary.py groups it);
                                               --snapshots-every N --out DIR saves the game every N turns
+                                              (--no-heroes: without heroes and items; --no-lairs:
+                                              without lairs and roaming monsters)
   f4x-tools queries --from SAVE [--player N] [--repeat N]
                                               time the game queries the client asks for in every frame
                                               on a saved game (task 476)

@@ -9,6 +9,7 @@ use f4x_core::world::save::Snapshot;
 use f4x_core::world::testutil::Table;
 use f4x_core::world::{Command, Event, Rejection, World};
 use f4x_def::half_int::HalfInt;
+use f4x_def::testdir::sample;
 
 fn wizards(w: &World) -> Vec<PlayerId> {
     w.player_ids()
@@ -405,4 +406,41 @@ fn with_several_circles_resurrection_asks_for_the_circle_the_hero_comes_back_to(
     assert_eq!(refusal(&events), None, "{events:?}");
     let back = w.units().hero_entity(kind).expect("the hero");
     assert_eq!(w.units().unit_position(back), Some(at));
+}
+
+/// Without heroes and items the only offers are mercenaries.
+#[test]
+fn without_heroes_nobody_is_offered_a_hero_or_an_item() {
+    for heroes in [true, false] {
+        let (mut hired, mut items, mut mercenaries) = (0, 0, 0);
+        for (name, mut w) in worlds() {
+            w.scenario_change_settings(|g| g.world.heroes_enabled = heroes);
+            let wizards = w.wizards();
+            for &p in &wizards {
+                w.set_fame(p, 200);
+            }
+            for round in 100..100 + sample(1500, 300) as u32 {
+                for &p in &wizards {
+                    w.treasury_mut(p).expect("a treasury").gold = HalfInt::from_int(100_000);
+                    for event in w.start_player_turn(p, round) {
+                        if let Event::OfferMade { offer, .. } = event {
+                            match offer {
+                                Offer::Hero { .. } => hired += 1,
+                                Offer::Item { .. } => items += 1,
+                                Offer::Mercenaries { .. } => mercenaries += 1,
+                                _ => panic!("{name}: {offer:?}"),
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let what = format!("heroes {heroes}: {hired} heroes, {items} items, {mercenaries}");
+        assert!(mercenaries > 0, "{what}");
+        if heroes {
+            assert!(hired > 0 && items > 0, "{what}");
+        } else {
+            assert!(hired == 0 && items == 0, "{what}");
+        }
+    }
 }

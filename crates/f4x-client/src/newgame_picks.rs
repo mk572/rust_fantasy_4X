@@ -10,7 +10,7 @@ use crate::input::Input;
 use crate::text::{Args, Texts};
 use crate::ui;
 use f4x_core::wizard::magic::Retort;
-use f4x_core::wizard::{all_retorts, retort_available, retort_cost};
+use f4x_core::wizard::{all_retorts, retort_available, retort_cost, retort_in_game};
 use f4x_def::content::Content;
 use f4x_def::rules::{Rarity, RealmId};
 use macroquad::prelude::*;
@@ -106,7 +106,7 @@ impl App {
             }
             return;
         };
-        let def = self.game.content().rules.spells.get(id);
+        let def = self.game.content().as_loaded().rules.spells.get(id);
         let name = self.names.spell(def.num).to_string();
         let text = self
             .help
@@ -137,7 +137,9 @@ impl CreateState {
     fn set_books(&mut self, app: &mut App, realm: RealmId, wanted: u8) {
         let current = i32::from(self.build.books_in(realm));
         let left = i32::from(self.picks_left(app));
-        let chosen = app.options.settings(&app.game.content().settings);
+        let chosen = app
+            .options
+            .settings(&app.game.content().as_loaded().settings);
         let most = i32::from(chosen.wizards.max_books_per_realm);
         let n = i32::from(wanted).min(current + left).clamp(0, most) as u8;
         if n == self.build.books_in(realm) {
@@ -165,13 +167,13 @@ impl CreateState {
             .retorts
             .iter()
             .copied()
-            .filter(|&r| !retort_available(&app.game.content().rules, r, &books))
+            .filter(|&r| !retort_available(&app.game.content().as_loaded().rules, r, &books))
             .collect();
         for r in lost {
             self.build.retorts.remove(&r);
             let args = Args::new().term("retort", app.retort_term(r)).text(
                 "needs",
-                prerequisite_text(&app.names, app.game.content(), &app.texts, r),
+                prerequisite_text(&app.names, app.game.content().as_loaded(), &app.texts, r),
             );
             self.warn = Some(app.text_with("picks.to_select", &args));
         }
@@ -179,11 +181,14 @@ impl CreateState {
 
     /// What a retort costs in this game's settings: Alchemy is two picks with Adamant Alchemy,
     /// Myrran with 2-Pick Myrran.
-    /// The game that exists while the wizard is made has the default settings, so the costs of
-    /// the rules are corrected here, as `World::apply_content_settings` does for the real game.
+    /// The screens read the content as loaded, so the costs of the rules are corrected here, as
+    /// `World::apply_content_settings` does for the real game.
     fn retort_cost(&self, app: &App, retort: Retort) -> u8 {
-        let rules = &app.game.content().rules;
-        let chosen = app.options.settings(&app.game.content().settings).rules;
+        let rules = &app.game.content().as_loaded().rules;
+        let chosen = app
+            .options
+            .settings(&app.game.content().as_loaded().settings)
+            .rules;
         if (chosen.adamant_alchemy && retort == Retort::new(0 /* alchemy */))
             || (chosen.two_pick_myrran && retort == Retort::new(9 /* myrran */))
         {
@@ -192,9 +197,21 @@ impl CreateState {
         retort_cost(rules, retort)
     }
 
+    /// Whether the retort is in a game with the chosen settings.
+    fn retort_in_game(&self, app: &App, retort: Retort) -> bool {
+        let chosen = app
+            .options
+            .settings(&app.game.content().as_loaded().settings);
+        retort_in_game(
+            &app.game.content().as_loaded().rules,
+            retort,
+            chosen.world.heroes_enabled,
+        )
+    }
+
     /// Picks still to spend, with those costs.
     fn picks_left(&self, app: &App) -> i16 {
-        let rules = &app.game.content().rules;
+        let rules = &app.game.content().as_loaded().rules;
         let extra: i16 = self
             .build
             .retorts
@@ -211,14 +228,35 @@ impl CreateState {
         }
         let left = i32::from(self.picks_left(app));
         let cost = i32::from(self.retort_cost(app, retort));
-        let message = if left <= 0 {
+        let message = if !self.retort_in_game(app, retort) {
+            let args = Args::new().term("retort", app.retort_term(retort));
+            Some(app.text_with("picks.needs_heroes", &args))
+        } else if left <= 0 {
             Some(app.text("picks.all_made"))
-        } else if self.build.retorts.len() >= app.game.content().rules.config.wizard.max_retorts {
+        } else if self.build.retorts.len()
+            >= app
+                .game
+                .content()
+                .as_loaded()
+                .rules
+                .config
+                .wizard
+                .max_retorts
+        {
             Some(app.text("picks.too_many_retorts"))
-        } else if !retort_available(&app.game.content().rules, retort, &self.build.books) {
+        } else if !retort_available(
+            &app.game.content().as_loaded().rules,
+            retort,
+            &self.build.books,
+        ) {
             let args = Args::new().term("retort", app.retort_term(retort)).text(
                 "needs",
-                prerequisite_text(&app.names, app.game.content(), &app.texts, retort),
+                prerequisite_text(
+                    &app.names,
+                    app.game.content().as_loaded(),
+                    &app.texts,
+                    retort,
+                ),
             );
             Some(app.text_with("picks.to_select", &args))
         } else if cost > left {
@@ -278,14 +316,15 @@ impl CreateState {
 
         // The retorts: three columns of six.
         let mut clicked = None;
-        let all: Vec<Retort> = all_retorts(&app.game.content().rules).collect();
+        let all: Vec<Retort> = all_retorts(&app.game.content().as_loaded().rules).collect();
         for (i, &retort) in all.iter().enumerate() {
             let (col, row) = (i / 6, i % 6);
             let x = [171.0, 210.0, 260.0][col];
             let y = 5.0 + 7.0 * row as f32;
             let known = self.build.retorts.contains(&retort);
-            let rules = &app.game.content().rules;
-            let open = retort_available(rules, retort, &self.build.books)
+            let rules = &app.game.content().as_loaded().rules;
+            let open = self.retort_in_game(app, retort)
+                && retort_available(rules, retort, &self.build.books)
                 && left >= i16::from(self.retort_cost(app, retort))
                 && self.build.retorts.len() < rules.config.wizard.max_retorts;
             // `COL_NewG_Ret_Known` 178, `COL_Available_3` 50, `COL_NEWG_NA2` 22, the shadow 16.
@@ -339,7 +378,7 @@ impl CreateState {
         let build = &self.build;
         let mut out = Vec::new();
         let common = build.spell_choices_of(
-            &app.game.content().settings.spell_library,
+            &app.game.content().as_loaded().settings.spell_library,
             realm,
             Rarity::Common,
         );
@@ -347,8 +386,11 @@ impl CreateState {
             out.push((Rarity::Common, common));
         }
         for rarity in [Rarity::Uncommon, Rarity::Rare] {
-            let n =
-                build.spell_choices_of(&app.game.content().settings.spell_library, realm, rarity);
+            let n = build.spell_choices_of(
+                &app.game.content().as_loaded().settings.spell_library,
+                realm,
+                rarity,
+            );
             if n > 0 {
                 out.push((rarity, n));
             }
@@ -364,10 +406,13 @@ impl CreateState {
                 let sections = self.spell_sections(app, realm);
                 self.build
                     .spells
-                    .retain(|&s| app.game.content().rules.spells.get(s).realm != realm);
+                    .retain(|&s| app.game.content().as_loaded().rules.spells.get(s).realm != realm);
                 for (rarity, n) in sections {
-                    let defaults =
-                        f4x_core::wizard::magic::default_spells(app.game.content(), realm, rarity);
+                    let defaults = f4x_core::wizard::magic::default_spells(
+                        app.game.content().as_loaded(),
+                        realm,
+                        rarity,
+                    );
                     self.build.spells.extend(defaults.into_iter().take(n));
                 }
                 self.step = Step::Spells(i);
@@ -394,12 +439,13 @@ impl CreateState {
         let realm_name = app
             .game
             .content()
+            .as_loaded()
             .rules
             .realms
             .id_numbered(realm.num())
             .map_or_else(Default::default, |r| {
                 app.names
-                    .realm_term(app.game.content().rules.realms.get(r).num)
+                    .realm_term(app.game.content().as_loaded().rules.realms.get(r).num)
             });
         let ink = realm_colour(realm);
         let title = app.text_with(
@@ -444,10 +490,15 @@ impl CreateState {
                 26.0 + 51.0 * s as f32,
             );
             let pool = if rarity == Rarity::Common {
-                f4x_core::wizard::magic::default_spells(app.game.content(), realm, rarity)
+                f4x_core::wizard::magic::default_spells(
+                    app.game.content().as_loaded(),
+                    realm,
+                    rarity,
+                )
             } else {
-                f4x_core::wizard::magic::spells_of(app.game.content(), realm, rarity)
+                f4x_core::wizard::magic::spells_of(app.game.content().as_loaded(), realm, rarity)
             };
+            let pool = app.in_chosen_game(pool);
             let chosen = pool
                 .iter()
                 .filter(|id| self.build.spells.contains(id))
@@ -459,7 +510,7 @@ impl CreateState {
                 let y = top + 7.0 * row as f32 + 1.0;
                 let name = app
                     .names
-                    .spell(app.game.content().rules.spells.get(*id).num)
+                    .spell(app.game.content().as_loaded().rules.spells.get(*id).num)
                     .to_string();
                 let selected = self.build.spells.contains(id);
                 // `m_select_spells_*_colors`: 178 chosen, 50 not, the shadow 16 one pixel to the right.

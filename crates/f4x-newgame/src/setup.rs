@@ -99,6 +99,7 @@ pub fn gen_params(settings: &GameSettings) -> GenParams {
         lair_style: f4x_core::rules::lair::LairStyle {
             stronger: settings.rules.stronger_lairs,
             treasure: settings.rules.treasure_patch_150,
+            no_heroes: !settings.world.heroes_enabled,
         },
         ..GenParams::sized(
             u32::from(settings.basic.map_width),
@@ -124,6 +125,8 @@ pub fn gen_params(settings: &GameSettings) -> GenParams {
 /// A new game's world and the generator that made it, which the game goes on drawing from
 /// (`f4x_master::Game::new`).
 pub fn new_game(content: &Content, spec: &NewGame) -> Result<(World, GameRng), NewGameError> {
+    // The content may be that of the game being played, with its settings written into it.
+    let content = content.as_loaded();
     let problems = spec.settings.validate();
     if !problems.is_empty() {
         return Err(NewGameError::Settings(problems));

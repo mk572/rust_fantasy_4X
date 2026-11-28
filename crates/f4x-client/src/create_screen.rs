@@ -52,23 +52,39 @@ impl App {
         f4x_def::rules::BOOK_REALMS.to_vec()
     }
 }
+impl App {
+    /// The spells of a list that are in a game with the chosen settings: without heroes and
+    /// items, not those that need them.
+    pub(crate) fn in_chosen_game(&self, mut spells: Vec<SpellId>) -> Vec<SpellId> {
+        let content = self.game.content().as_loaded();
+        let chosen = self.options.settings(&content.settings);
+        if !chosen.world.heroes_enabled {
+            spells.retain(|&s| !content.rules.spells.get(s).needs_heroes);
+        }
+        spells
+    }
+}
+
 impl CreateState {
     pub(crate) fn pick_preset(&mut self, app: &mut App, index: Option<usize>) {
         match index {
             Some(i) => {
-                let num = app.game.content().rules.wizards.defs()[i].num;
-                if let Some(mut build) = app.game.preset_build(num) {
+                let num = app.game.content().as_loaded().rules.wizards.defs()[i].num;
+                // The wizard as the chosen settings have it: the game that exists meanwhile
+                // may have others.
+                let chosen = app
+                    .options
+                    .settings(&app.game.content().as_loaded().settings);
+                let defs = app.game.content().as_loaded().rules.wizards.defs();
+                let heroes = chosen.world.heroes_enabled;
+                if let Some(mut build) = f4x_core::wizard::preset_build_of(defs, num, heroes) {
                     // More books in a realm than the game allows: the surplus is taken off and
                     // the retorts the books no longer allow with it; the picks it frees are
                     // the player's to spend.
-                    let most = app
-                        .options
-                        .settings(&app.game.content().settings)
-                        .wizards
-                        .max_books_per_realm;
+                    let most = chosen.wizards.max_books_per_realm;
                     if build.trim_books(most) {
                         let books = build.books.clone();
-                        let rules = &app.game.content().rules;
+                        let rules = &app.game.content().as_loaded().rules;
                         build
                             .retorts
                             .retain(|&r| f4x_core::wizard::retort_available(rules, r, &books));
@@ -95,7 +111,7 @@ impl CreateState {
         for realm in &realms {
             for rarity in [Rarity::Common, Rarity::Uncommon, Rarity::Rare] {
                 let want = self.build.spell_choices_of(
-                    &app.game.content().settings.spell_library,
+                    &app.game.content().as_loaded().settings.spell_library,
                     *realm,
                     rarity,
                 );
@@ -105,19 +121,22 @@ impl CreateState {
                     .iter()
                     .copied()
                     .filter(|&s| {
-                        let d = app.game.content().rules.spells.get(s);
+                        let d = app.game.content().as_loaded().rules.spells.get(s);
                         d.realm == (*realm) && d.rarity == rarity
                     })
                     .collect();
                 chosen.truncate(want);
-                for s in f4x_core::wizard::magic::default_spells(app.game.content(), *realm, rarity)
-                    .into_iter()
-                    .chain(f4x_core::wizard::magic::spells_of(
-                        app.game.content(),
-                        *realm,
-                        rarity,
-                    ))
-                {
+                let defaults = f4x_core::wizard::magic::default_spells(
+                    app.game.content().as_loaded(),
+                    *realm,
+                    rarity,
+                );
+                let all = f4x_core::wizard::magic::spells_of(
+                    app.game.content().as_loaded(),
+                    *realm,
+                    rarity,
+                );
+                for s in app.in_chosen_game(defaults.into_iter().chain(all).collect()) {
                     if chosen.len() >= want {
                         break;
                     }
@@ -136,7 +155,15 @@ impl CreateState {
     pub(crate) fn default_name(&self, app: &App) -> String {
         self.build
             .portrait
-            .and_then(|p| app.game.content().rules.wizards.defs().get(usize::from(p)))
+            .and_then(|p| {
+                app.game
+                    .content()
+                    .as_loaded()
+                    .rules
+                    .wizards
+                    .defs()
+                    .get(usize::from(p))
+            })
             .map_or_else(
                 || app.text("create.default_name"),
                 |w| app.names.wizard(w.num).to_string(),

@@ -6,7 +6,9 @@
 
 use f4x_core::rules::{RealmId, Rules};
 use f4x_core::wizard::magic::Retort;
-use f4x_core::wizard::{all_retorts, preset_build_of, retort_available, retort_cost, WizardBuild};
+use f4x_core::wizard::{
+    all_retorts, preset_build_of, retort_available, retort_cost, retort_in_game, WizardBuild,
+};
 use f4x_core::world::rng::GameRng;
 use f4x_core::world::setting::GameSettings;
 use f4x_core::world::World;
@@ -119,7 +121,7 @@ pub(crate) fn make(
     let ban = settings.rules.ban_life_and_death;
     let ids: Vec<u16> = presets.iter().map(|w| w.num).collect();
     let myran = |id: u16| {
-        preset_build_of(presets, id)
+        preset_build_of(presets, id, settings.world.heroes_enabled)
             .is_some_and(|b| b.retorts.contains(&Retort::new(9) /* myrran */))
     };
 
@@ -139,7 +141,7 @@ pub(crate) fn make(
             continue;
         }
         let id = *free[rng.roll(free.len() as u32) as usize - 1];
-        let Some(build) = preset_build_of(presets, id) else {
+        let Some(build) = preset_build_of(presets, id, settings.world.heroes_enabled) else {
             builds.push(fallback(i));
             continue;
         };
@@ -373,6 +375,11 @@ fn add_retort(world: &mut World, b: &mut WizardBuild, picks: u8, rng: &mut GameR
         other => other,
     };
     if retort_available(&world.content().rules, retort, &b.books)
+        && retort_in_game(
+            &world.content().rules,
+            retort,
+            world.settings().world.heroes_enabled,
+        )
         && u16::from(used) + u16::from(retort_cost(&world.content().rules, retort))
             <= u16::from(picks)
     {

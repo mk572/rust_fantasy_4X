@@ -45,6 +45,8 @@ pub(crate) struct Field {
     pub kind: Kind,
     pub get: fn(&GameSettings) -> i32,
     pub set: fn(&mut GameSettings, i32),
+    /// Whether the row can be changed with these settings; if not it is shown grey.
+    pub open: fn(&GameSettings) -> bool,
 }
 
 /// A row of the list: a heading or a setting.
@@ -110,6 +112,7 @@ fn num(
         },
         get,
         set,
+        open: |_| true,
     })
 }
 
@@ -123,6 +126,7 @@ fn flag(
         kind: Kind::Flag,
         get,
         set,
+        open: |_| true,
     })
 }
 
@@ -137,7 +141,27 @@ fn choice(
         kind: Kind::Choice(words),
         get,
         set,
+        open: |_| true,
     })
+}
+
+/// The value a row shows: a switch that means nothing with these settings reads as off.
+fn shown(f: &Field, s: &GameSettings) -> i32 {
+    match f.kind {
+        Kind::Flag if !(f.open)(s) => 0,
+        _ => (f.get)(s),
+    }
+}
+
+/// A row that means something only with lairs: grey without them.
+fn with_lairs(row: Row) -> Row {
+    match row {
+        Row::Field(f) => Row::Field(Field {
+            open: |s| s.world.lairs_enabled,
+            ..f
+        }),
+        heading => heading,
+    }
 }
 
 /// Every gameplay setting, in the order the screen lists them. The difficulty is not here: it is
@@ -232,20 +256,20 @@ pub(crate) fn rows() -> Vec<Row> {
             |s| s.world.mineral_percent_myrror.into(),
             |s, v| s.world.mineral_percent_myrror = v as u8,
         ),
-        num(
+        with_lairs(num(
             "custom.strong_sites",
             span(&f4x_def::settings::SITES_RANGE),
             "",
             |s| s.strong_site_count() as i32,
             |s, v| s.world.strong_sites = Some(v as u8),
-        ),
-        num(
+        )),
+        with_lairs(num(
             "custom.weak_sites",
             span(&f4x_def::settings::SITES_RANGE),
             "",
             |s| s.weak_site_count() as i32,
             |s, v| s.world.weak_sites = Some(v as u8),
-        ),
+        )),
         choice(
             "custom.magic",
             MAGIC_WORDS,
@@ -275,6 +299,7 @@ pub(crate) fn rows() -> Vec<Row> {
             kind: Kind::Half { min: 0, max: 20 },
             get: |s| s.world.start_reveal_radius.raw(),
             set: |s, v| s.world.start_reveal_radius = HalfInt::from_raw(v),
+            open: |_| true,
         }),
         Heading("custom.h_wizards"),
         num(
@@ -450,6 +475,16 @@ pub(crate) fn rows() -> Vec<Row> {
             |s, v| s.ai.wizards.guaranteed_summoning_spell = v != 0,
         ),
         Heading("custom.h_world"),
+        flag(
+            "custom.heroes",
+            |s| s.world.heroes_enabled.into(),
+            |s, v| s.world.heroes_enabled = v != 0,
+        ),
+        flag(
+            "custom.lairs",
+            |s| s.world.lairs_enabled.into(),
+            |s, v| s.world.lairs_enabled = v != 0,
+        ),
         num(
             "custom.lair_guards",
             (0, 300, 5),
@@ -488,7 +523,7 @@ pub(crate) fn rows() -> Vec<Row> {
             |s| s.world.raider_percent.into(),
             |s, v| s.world.raider_percent = v as u16,
         ),
-        num(
+        with_lairs(num(
             "custom.monster_start",
             (
                 f4x_def::settings::MONSTER_START_EARLIEST.into(),
@@ -498,12 +533,12 @@ pub(crate) fn rows() -> Vec<Row> {
             "",
             |s| s.world.monster_start_turn.into(),
             |s, v| s.world.monster_start_turn = v as u8,
-        ),
-        flag(
+        )),
+        with_lairs(flag(
             "custom.monsters",
             |s| s.world.monsters_enabled.into(),
             |s, v| s.world.monsters_enabled = v != 0,
-        ),
+        )),
         Heading("custom.h_rules"),
         flag(
             "custom.flee_you",
@@ -575,12 +610,14 @@ pub(crate) fn rows() -> Vec<Row> {
             kind: Kind::Half { min: 0, max: 20 },
             get: |s| s.rules.farmer_food.raw(),
             set: |s, v| s.rules.farmer_food = HalfInt::from_raw(v),
+            open: |_| true,
         }),
         Row::Field(Field {
             label: "custom.worker_production",
             kind: Kind::Half { min: 0, max: 20 },
             get: |s| s.rules.worker_production.raw(),
             set: |s, v| s.rules.worker_production = HalfInt::from_raw(v),
+            open: |_| true,
         }),
         flag(
             "custom.roads_at_start",
@@ -854,7 +891,7 @@ pub(crate) fn lines(texts: &Texts, s: &GameSettings, def: &SettingsDef) -> Vec<(
     for row in rows() {
         out.push(match row {
             Row::Heading(key) => (word(key), String::new()),
-            Row::Field(f) => (word(f.label), value_text(texts, &f, (f.get)(s))),
+            Row::Field(f) => (word(f.label), value_text(texts, &f, shown(&f, s))),
         });
     }
     out
@@ -862,14 +899,14 @@ pub(crate) fn lines(texts: &Texts, s: &GameSettings, def: &SettingsDef) -> Vec<(
 
 impl App {
     pub fn open_custom(&mut self) {
-        let work = self
-            .options
-            .custom
-            .unwrap_or_else(|| self.options.settings(&self.game.content().settings));
+        let work = self.options.custom.unwrap_or_else(|| {
+            self.options
+                .settings(&self.game.content().as_loaded().settings)
+        });
         let preset = self.options.preset;
         // A rule set other than Fully customized is what the rows are compared with.
-        let reference =
-            (preset != Preset::Custom).then(|| preset.applied(work, &self.game.content().settings));
+        let reference = (preset != Preset::Custom)
+            .then(|| preset.applied(work, &self.game.content().as_loaded().settings));
         self.open_page(
             Screen::Options,
             CustomPage {
@@ -888,8 +925,8 @@ impl App {
     /// them for every new game, Back drops the changes.
     pub fn open_default_game(&mut self) {
         let (work, preset) = (self.default_game.settings, self.default_game.preset);
-        let reference =
-            (preset != Preset::Custom).then(|| preset.applied(work, &self.game.content().settings));
+        let reference = (preset != Preset::Custom)
+            .then(|| preset.applied(work, &self.game.content().as_loaded().settings));
         self.open_page(
             Screen::GameSettings,
             CustomPage {
@@ -998,7 +1035,8 @@ impl Page for CustomPage {
                 }
                 Row::Field(f) => {
                     let r = lay.rect((x + 6.0, y - 1.0, bw - 12.0, ROW));
-                    let hover = self.open.is_none() && ui::hit(r, true, input).hovered();
+                    let open = (f.open)(&self.work);
+                    let hover = open && self.open.is_none() && ui::hit(r, true, input).hovered();
                     if hover {
                         draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.5, 0.38, 0.26, 1.0));
                         if left || right {
@@ -1006,8 +1044,9 @@ impl Page for CustomPage {
                         }
                     }
                     let label = app.text(f.label);
-                    let value = value_text(app.texts(), f, (f.get)(&self.work));
+                    let value = value_text(app.texts(), f, shown(f, &self.work));
                     let (label_ink, value_ink) = match self.mark(f) {
+                        _ if !open => (Ink::Flat(GREY), Ink::Flat(GREY)),
                         Mark::Green => (Ink::Flat(GREEN), Ink::Flat(GREEN)),
                         Mark::Red => (Ink::Flat(RED), Ink::Flat(RED)),
                         Mark::None => (light, gold),
@@ -1066,7 +1105,7 @@ impl Page for CustomPage {
                 app.apply_default_game(rec);
                 app.open_settings();
             } else {
-                let settings = app.game.content().settings.clone();
+                let settings = app.game.content().as_loaded().settings.clone();
                 app.options.keep_custom(self.work, self.preset, &settings);
                 app.open_options();
             }
@@ -1098,6 +1137,7 @@ enum Mark {
 
 const GREEN: Color = rgb(110, 230, 110);
 const RED: Color = rgb(255, 96, 84);
+const GREY: Color = rgb(150, 140, 125);
 
 /// `fresh` (a new game at some difficulty) with what the default game settings `base` changed
 /// from their own level put on top: a rule switch, a capacity. `fresh`'s basic choices stay.
@@ -1262,7 +1302,7 @@ impl CustomPage {
             }
         }
         if let Some(i) = picked {
-            let def = app.game.content().settings.clone();
+            let def = app.game.content().as_loaded().settings.clone();
             match open {
                 Menu::Preset => self.choose(Preset::ALL[i], None, &def),
                 // The level's figures replace every rule, so a hand-made set is gone.
@@ -1354,6 +1394,38 @@ mod tests {
                     "{} at {v} is out of range",
                     f.label
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn without_lairs_their_rows_are_closed_and_the_monsters_read_as_off() {
+        let mut s = average();
+        let closed = |s: &GameSettings| -> Vec<&'static str> {
+            rows()
+                .into_iter()
+                .filter_map(|r| match r {
+                    Row::Field(f) if !(f.open)(s) => Some(f.label),
+                    _ => None,
+                })
+                .collect()
+        };
+        assert!(closed(&s).is_empty());
+        s.world.lairs_enabled = false;
+        assert_eq!(
+            closed(&s),
+            [
+                "custom.strong_sites",
+                "custom.weak_sites",
+                "custom.monster_start",
+                "custom.monsters"
+            ]
+        );
+        for row in rows() {
+            let Row::Field(f) = row else { continue };
+            if f.label == "custom.monsters" {
+                assert!(s.world.monsters_enabled, "the setting is kept");
+                assert_eq!(shown(&f, &s), 0);
             }
         }
     }

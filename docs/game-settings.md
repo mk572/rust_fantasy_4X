@@ -112,7 +112,6 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 | wizards | `starting_gold` | `Split`, 0..=2000 | 75 / 150 | `Player::new` (`gold: 100`) |
 | wizards | `starting_mana` | `Split`, 0..=2000 | 0 / 0 | `Player::new` (`mana: 0`) |
 | starting_units | `settler`, `magic_spirit`, `trireme` | bool each | off | built (tasks 581 to 583): `f4x-newgame/src/setup.rs::start_player`, `launch_start_ship` (4.2) |
-| ai | `apply_to_human` | bool | off | not built (a custom setting: the human gets the same multipliers) |
 | ai | `randomise_wizards` and the AI wizard rules | see 4.8 | original | `f4x-newgame/src/setup.rs` |
 | ai | `growth_percent` | 100..=800 | 150 | not built (original table) |
 | ai | `outpost_growth_percent` | 100..=800 | 150 | not built |
@@ -128,11 +127,12 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 | world | `strong_sites`, `weak_sites` | `Option<u8>`, 0..=100 | by area: 25 and 32 for a 60 by 40 map | built (18 November 2026): `GameSettings::strong_site_count`, `weak_site_count`, `f4x-newgame/src/setup.rs::gen_params` |
 | world | `nodes_arcanus`, `nodes_myrror` | `Option<u8>`, 0..=40 | by area: 16 and 14 for a 60 by 40 map | built (18 November 2026): `GameSettings::node_count`, `gen_params` |
 | world | `mineral_percent_arcanus`, `_myrror` | 0..=30 | 6, 10 | built (18 November 2026): `gen_params` |
-| world | `lairs_enabled`, `neutral_cities_enabled` | bool | on | always on |
+| world | `lairs_enabled` | bool | on | built (task 587): off, `GameSettings::strong_site_count` and `weak_site_count` are 0 (no encounter sites; towers and nodes stay, with guards and treasure), `monsters_roam` is false whatever `monsters_enabled` says, and a sacked city leaves no ruins (`threat/monster.rs` `rampage_city`). The Custom screen greys the site counts and the monster rows. Soak `--no-lairs` |
+| world | `neutral_cities_enabled` | bool | on | always on |
 | world | `raiders_enabled`, `monsters_enabled` | bool | on (off in `flat`) | `threat.rs` (task 376) |
 | world | `sea_raids` | bool | off | `threat/sea_raid.rs` (task 683): a raid is a landing from the sea in `threat.sea_raid.chance_percent` (25) of the cases |
 | world | `myrror_enabled` | bool | on | always two planes (stage 4, 4.9) |
-| world | `heroes_enabled` | bool | on | heroes are not built yet (tasks 218, 219); read when they are |
+| world | `heroes_enabled` | bool | on | built (task 586), "Heroes and items". Off: no hero or item offers (`player/offer.rs`; mercenaries stay), no item or prisoner in a hoard (`lair/create.rs` `hoard_table`, `claim_lair`: what a site holds already pays out as other treasure), no Gift event, and the spells and retorts marked `needs_heroes` (`spells.ron`: Summon Hero, Summon Champion, Resurrection, Incarnation, Enchant Item, Create Artifact; `retorts.ron`: Artificer) are not in the game. A ready-made wizard takes its `without_heroes` loadout (`wizards.ron`: Kali a sixth sorcery book). Console cheats still make heroes. Soak `--no-heroes` |
 | world | `lair_guard_percent` | 0..=300 | from preset | `feature/lair.rs`: `budget * (d + 1) / 4` |
 | world | `lair_treasure_percent` | 0..=500 | from preset | `feature/lair.rs`: `loot * 4 / (d + 1)` |
 | world | `neutral_city_size_bonus` | -2..=6 | from preset | `f4x-newgame/src/neutral.rs`, `city/neutral.rs`: `(d + 1) / 3` terms |
@@ -181,8 +181,9 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 What is split and what is not: anything a wizard **owns or starts with** (picks, gold, mana,
 erasure) is split; anything about **the world's rules** (stack limit, city limits, events, Mastery,
 Return) is one value, because a rule that differs by wizard stops being a rule. The AI multipliers
-in the `ai` group are AI-only by nature, as in the original; a custom switch, `ai.apply_to_human`
-(off by default), gives the human the same multipliers.
+in the `ai` group are AI-only by nature, as in the original. There is no switch that gives them to
+the human (task 593, closed): what the human starts with is set by its own half of the split
+settings.
 
 `rules.ron` keeps the base values as the defaults of the ruleset; the settings **override** them
 (`max_city_size` and `min_city_distance` are read through `world.settings()` instead of
@@ -211,7 +212,7 @@ over those settings. `basic.difficulty` keeps the level the game was based on (s
 (based on Hard)"); the AI's play strength (task 148) and the score label read it.
 
 Everything else is an **extra** and never changes the dropdown: starting mana, books per realm,
-starting units, `ai.apply_to_human`, event frequency, the Spell of Mastery and Spell of Return
+starting units, event frequency, the Spell of Mastery and Spell of Return
 switches, heroes, lairs and neutral cities on or off, the stack limit, city limits, map size,
 no Myrror and hardcore. A Hard game with settlers added is still honestly "Hard".
 
@@ -682,7 +683,7 @@ Rules for the screen:
    community patch's rule changes (task 787: each patch rule is a setting, default original);
    the undo setting (task 90); stack limits above nine ([`large-stacks.md`](archive/large-stacks.md)); a
    raised city size cap (stage 4).
-4. **The human's multipliers** are the `ai.apply_to_human` switch, off by default.
+4. **The human's multipliers**: none; the AI group is for computer wizards only (task 593, closed).
 
 ## 7. Validation
 
@@ -746,7 +747,7 @@ the same spirit as `game.magic_strength = self.magic_strength.min(2)` today.
    the Intro switch-off (with task 68). The soak changes once; `flat` stays for the soak.
 3. **Advanced settings that are easy to build.** The advanced screen with the dropdown and Custom,
    and the **Advanced settings...** button. Rows: starting gold, mana and picks (human and AI),
-   the AI multipliers and `apply_to_human`, the AI wizard block, starting units (4.2), the switches (Spell of Mastery, Spell of
+   the AI multipliers, the AI wizard block, starting units (4.2), the switches (Spell of Mastery, Spell of
    Return, heroes, lairs, neutral cities, raiders, random events and their frequency, fleeing),
    the lowered stack limit and city size cap, city distance, map size and counts, score scale.
 4. **Hard settings.** **No Myrror** (4.9) and **hardcore mode** (4.10), larger stacks ([`large-stacks.md`](archive/large-stacks.md)), a raised city size cap

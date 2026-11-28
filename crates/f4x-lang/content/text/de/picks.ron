@@ -11,6 +11,7 @@
     "picks.too_many_retorts": "Du darfst nicht mehr als 6 besondere Fähigkeiten wählen",
     "picks.not_enough": "Du hast nicht genug Wahlpunkte übrig für diese Wahl. Du brauchst {cost} Wahlpunkte",
     "picks.make_all": "Du musst alle deine Wahlpunkte vergeben, bevor du weitermachen kannst",
+    "picks.needs_heroes": "Dieses Spiel hat weder Helden noch Gegenstände, {retort} nützt also nichts",
     "picks.left": (count: "n", one: "{n} Wahlpunkt", other: "{n} Wahlpunkte"),
     "picks.select_spells": "Zauber wählen: {realm}",
     "picks.common": "Gewöhnlich",

@@ -1,4 +1,4 @@
-// f4x save, version 5, game 0.0.8, checksum d853fbae25a3bb9d
+// f4x save, version 5, game 0.0.8, checksum 9765462d7e25d124
 (
     version: 5,
     game_version: "0.0.8",
@@ -7,13 +7,13 @@
         basic: (difficulty: 2, opponents: 2, land_percent: 30, magic_strength: 1, map_width: 60, map_height: 40, towers: None, neutral_cities: None, diagonal_extra_cost: false, original_map_generator: false),
         wizards: (starting_gold: (human: 75, ai: 150), starting_mana: (human: 0, ai: 0), picks: (human: 11, ai: 11), max_books_per_realm: 11, max_books_total: 12),
         ai: (growth_percent: 150, outpost_growth_percent: 150, production_percent: 150, gold_percent: 150, mana_percent: 150, food_percent: 150, research_percent: 100, maintenance_percent: 75, unit_upkeep_percent: 100, wizards: (randomise: true, consolidate_percent: 0, erasure_dice: (1, 3), myrran_rule: false, guaranteed_summoning_spell: true)),
-        world: (lair_guard_percent: 75, lair_treasure_percent: 133, neutral_city_size_bonus: 1, raiders_enabled: true, sea_raids: false, nodes_arcanus: None, nodes_myrror: None, mineral_percent_arcanus: 6, mineral_percent_myrror: 10, strong_sites: None, weak_sites: None, monsters_enabled: true, raider_percent: 33, monster_start_turn: 50, start_reveal_radius: 2.5),
+        world: (lair_guard_percent: 75, lair_treasure_percent: 133, neutral_city_size_bonus: 1, raiders_enabled: true, sea_raids: false, nodes_arcanus: None, nodes_myrror: None, mineral_percent_arcanus: 6, mineral_percent_myrror: 10, strong_sites: None, weak_sites: None, monsters_enabled: true, raider_percent: 33, heroes_enabled: true, lairs_enabled: true, monster_start_turn: 50, start_reveal_radius: 2.5),
         rules: (safe_flee: (human: false, ai: false), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 9, max_city_size: 25, min_city_distance: 4, max_battle_side: 9, half_upkeep: false, combat_forecast: false, arcane_candidate_cap: 0, trireme_capacity: 2, galley_capacity: 5, walls_cover_city: false, original_battlefield: false, death_immunity_exceptions: false, magic_immunity_exceptions: false, illusion_immunity_protects: true, farmer_food: 2, worker_production: 2, miners_guild_half_ore: false, spell_binding_always_succeeds: false, roads_at_start: true, river_roads: false, defeat_loot: true, color_wheel_relations: false, adamant_alchemy: false, mix_neutral_races: false, extend_tiny_islands: false, two_pick_myrran: false, stronger_lairs: false, treasure_patch_150: false, suppress_spares_return: false, allied_trespass_penalty: false, expanded_diplomacy: false, limit_ai_races: false, ban_life_and_death: true, lair_full_heal: true, cavalry_halberdier_abilities: false, spell_of_mastery: all, spell_of_return: all, multiple_summoning_circles: false),
         events: (random_events: true, pressure_percent: 75, frequency: Normal, start_turn: 6),
         scoring: (score_percent: 100),
         starting_units: (settler: false, magic_spirit: false, trireme: false),
     ),
-    content: "809a1df5825753c426735f511559fac21ad008ad6f3903e2cde7d7af6190effb",
+    content: "8c7f8f6abffb38a50e9c8f659ececf5ad94a187a0c230dcfb9b33664cea90526",
     human: None,
     diplomacy: (
         pairs: [],

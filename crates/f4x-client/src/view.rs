@@ -462,6 +462,8 @@ impl App {
         race: usize,
         random_events: bool,
     ) -> Result<(World, GameRng), f4x_newgame::error::NewGameError> {
+        // The content may be that of the game being played: its settings are not the defaults.
+        let content = content.as_loaded();
         let (human, preset) = human.map_or((None, None), |(b, p)| (Some(b), p));
         let preset = human
             .filter(|b| b.preset)

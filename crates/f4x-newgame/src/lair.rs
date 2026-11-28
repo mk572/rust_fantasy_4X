@@ -297,6 +297,7 @@ mod tests {
             LairStyle {
                 stronger: true,
                 treasure: false,
+                no_heroes: false,
             },
             25,
             100,
@@ -310,7 +311,8 @@ mod tests {
             make(
                 LairStyle {
                     stronger: true,
-                    treasure: false
+                    treasure: false,
+                    no_heroes: false,
                 },
                 300,
                 100
@@ -321,6 +323,7 @@ mod tests {
             LairStyle {
                 stronger: false,
                 treasure: true,
+                no_heroes: false,
             },
             100,
             100,
@@ -330,7 +333,8 @@ mod tests {
             make(
                 LairStyle {
                     stronger: false,
-                    treasure: true
+                    treasure: true,
+                    no_heroes: false,
                 },
                 100,
                 400

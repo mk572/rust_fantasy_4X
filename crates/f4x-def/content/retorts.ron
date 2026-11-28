@@ -32,5 +32,5 @@
     (num: 14, id: "runemaster", help: Some(703), cost: 1, requires: [Realms(3, 2)], effects: [(condition: RealmIs(5), effect: Modify(stat: SpellCostPercent, op: Add, value: -25)), (condition: RealmIs(5), effect: Modify(stat: ResearchIncome, op: Percent, value: 25)), (effect: Modify(stat: DispelPower, op: Add, value: 1))]),
     (num: 15, id: "conjurer", help: Some(698), cost: 1, requires: [], effects: [(condition: SpellIs(Summoning), effect: Modify(stat: SpellCostPercent, op: Add, value: -25)), (condition: SpellIs(Summoning), effect: Modify(stat: ResearchIncome, op: Percent, value: 25)), (effect: Modify(stat: UnitManaUpkeepPercent, op: Percent, value: -25))]),
     (num: 16, id: "charismatic", help: Some(704), cost: 1, requires: [], effects: [(effect: Modify(stat: DiplomacyGainPercent, op: Percent, value: 100)), (effect: Modify(stat: DiplomacyLossPercent, op: Percent, value: -50)), (effect: Modify(stat: HireCostPercent, op: Percent, value: -50))]),
-    (num: 17, id: "artificer", help: Some(697), cost: 1, requires: [], effects: [(condition: SpellIs(Crafting), effect: Modify(stat: SpellCostPercent, op: Add, value: -50))]),
+    (num: 17, id: "artificer", help: Some(697), cost: 1, needs_heroes: true, requires: [], effects: [(condition: SpellIs(Crafting), effect: Modify(stat: SpellCostPercent, op: Add, value: -50))]),
 ]

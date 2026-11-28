@@ -93,7 +93,7 @@ concerns them; world events go to everyone).
 | Event | What happens |
 |---|---|
 | Great Meteor | If the city still belongs to the victim: the effect of Call the Void on that city (buildings, population and units lost; the owner is told what). Status back to 0. |
-| Gift | The victim gets an item made by `Make_Item(2, <the victim's books>, 0)` through the item screen. Back to 0. |
+| Gift | The victim gets an item made by `Make_Item(2, <the victim's books>, 0)` through the item screen. Back to 0. Cannot happen with heroes and items off (`heroes_enabled`). |
 | Disjunction | Every wizard loses all 24 overland enchantments. Back to 0. |
 | Marriage | The neutral city and its units go to the victim, producing Trade Goods; the area around it is explored. Back to 0. |
 | Earthquake | The Earthquake spell's effect on the city; reported only if something was lost. Back to 0. |

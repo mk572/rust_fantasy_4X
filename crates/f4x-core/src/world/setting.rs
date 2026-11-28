@@ -11,13 +11,17 @@ use f4x_def::half_int::HalfInt;
 impl crate::world::World {
     /// Copy the settings that the rules read from the content (half upkeep, the arcane spell
     /// cap) into this game's own copy of the content, so a game keeps the choices it was made or
-    /// saved with. Called when a game is made and when one is loaded.
+    /// saved with. The copy remembers the content it came from (`Content::as_loaded`). Called
+    /// when a game is made and when one is loaded, after `set_content`.
     pub(crate) fn apply_content_settings(&mut self) {
         let rules = self.settings.rules;
+        let loaded = std::sync::Arc::clone(&self.content);
         let content = std::sync::Arc::make_mut(&mut self.content);
+        content.loaded = Some(loaded);
         let targets = content.rules.config.targets.clone();
         content.settings.half_upkeep.enabled = rules.half_upkeep;
         content.settings.spell_library.arcane_candidate_cap = rules.arcane_candidate_cap;
+        content.settings.spell_library.heroes_off = !self.settings.world.heroes_enabled;
         // Adamant Alchemy: the retort costs two picks, for the creation screen, the computer
         // wizards and the treasure alike (they all read the cost from the rules).
         if rules.adamant_alchemy {

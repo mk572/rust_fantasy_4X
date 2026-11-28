@@ -88,6 +88,11 @@ pub fn all_retorts(rules: &Rules) -> impl Iterator<Item = Retort> + '_ {
     rules.retorts.iter().map(|(id, _)| id)
 }
 
+/// Whether the retort is in a game with heroes and items, or without them (`heroes`).
+pub fn retort_in_game(rules: &Rules, retort: Retort, heroes: bool) -> bool {
+    heroes || !rules.retorts.get(retort).needs_heroes
+}
+
 /// The books a retort needs before it may be picked (its `requires` in `retorts.ron`: the
 /// original's `wsa_picklist_start` and the unlocks in its pick screen).
 pub fn retort_available(rules: &Rules, retort: Retort, books: &BTreeMap<RealmId, u8>) -> bool {
@@ -173,7 +178,9 @@ impl World {
             return Err(BuildError::TooManyRetorts);
         }
         for &r in &build.retorts {
-            if !retort_available(&self.content.rules, r, &build.books) {
+            if !retort_available(&self.content.rules, r, &build.books)
+                || !retort_in_game(&self.content.rules, r, self.settings.world.heroes_enabled)
+            {
                 return Err(BuildError::RetortNotAvailable(r));
             }
         }
@@ -239,20 +246,26 @@ impl World {
 
     /// A ready-made wizard from the rules as a build.
     pub fn preset_build(&self, num: u16) -> Option<WizardBuild> {
-        preset_build_of(self.content.rules.wizards.defs(), num)
+        let heroes = self.settings.world.heroes_enabled;
+        preset_build_of(self.content.rules.wizards.defs(), num, heroes)
     }
 }
 
-/// The ready-made wizard `num` of a list of them, as a build. The portrait is its place in the list.
-pub fn preset_build_of(defs: &[crate::rules::WizardDef], num: u16) -> Option<WizardBuild> {
+/// The ready-made wizard `num` of a list of them, as a build for a game with heroes and items
+/// or without them (`heroes`). The portrait is its place in the list.
+pub fn preset_build_of(
+    defs: &[crate::rules::WizardDef],
+    num: u16,
+    heroes: bool,
+) -> Option<WizardBuild> {
     let place = defs.iter().position(|w| w.num == num)?;
     let def = &defs[place];
-    let retorts = def.retorts.iter().copied().collect();
+    let (books, retorts) = def.loadout(heroes);
     Some(WizardBuild {
         name: String::new(),
         gender: def.gender,
-        books: def.books.iter().copied().collect(),
-        retorts,
+        books: books.iter().copied().collect(),
+        retorts: retorts.iter().copied().collect(),
         spells: Vec::new(),
         banner: None,
         portrait: u8::try_from(place)

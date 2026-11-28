@@ -524,6 +524,9 @@ pub enum RetortNeed {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RetortDef {
+    /// Of no use without heroes and items: not in a game with them off.
+    #[serde(default)]
+    pub needs_heroes: bool,
     /// The retort's place in the wizard record, the id the game passes around and the saved game
     /// writes.
     pub num: u16,
@@ -573,6 +576,30 @@ pub struct WizardDef {
     pub books: Vec<(Id<RealmDef>, u8)>,
     /// The retorts the wizard starts with.
     pub retorts: Vec<Id<RetortDef>>,
+    /// What the wizard has instead in a game without heroes and items; none: the same.
+    #[serde(default)]
+    pub without_heroes: Option<WizardLoadout>,
+}
+
+/// Spell books as `(realm id, count)`.
+pub type Books = [(Id<RealmDef>, u8)];
+
+/// The books and retorts of a ready-made wizard.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WizardLoadout {
+    pub books: Vec<(Id<RealmDef>, u8)>,
+    pub retorts: Vec<Id<RetortDef>>,
+}
+
+impl WizardDef {
+    /// The books and retorts the wizard starts a game with, with heroes or without.
+    pub fn loadout(&self, heroes: bool) -> (&Books, &[Id<RetortDef>]) {
+        match &self.without_heroes {
+            Some(other) if !heroes => (&other.books, &other.retorts),
+            _ => (&self.books, &self.retorts),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -627,6 +654,9 @@ pub enum UnitOnly {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SpellDef {
+    /// Brings a hero or makes an item: not in a game with heroes and items off.
+    #[serde(default)]
+    pub needs_heroes: bool,
     /// The original's spell number (`SPELLDAT.LBX` record), the id the game passes around.
     pub num: u16,
     /// The alias for human editing.

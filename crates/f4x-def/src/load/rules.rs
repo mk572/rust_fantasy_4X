@@ -1240,29 +1240,49 @@ fn check_wizards(r: &Rules, p: &mut Issues) {
     const F: &str = "wizards.ron";
     for w in r.wizards.defs() {
         p.row(Some(w.num));
-        let at = format!("wizard {:?}", w.id);
-        let mut picks: u32 = 0;
-        for (realm, n) in &w.books {
-            if r.realms.try_get(*realm).is_none() {
-                p.dangling(F, &at, "books", "realm", realm.num());
+        for heroes in [true, false] {
+            if !heroes && w.without_heroes.is_none() {
+                // The same loadout serves both: it may then hold nothing that needs heroes.
+                for &retort in &w.retorts {
+                    if r.retorts.try_get(retort).is_some_and(|d| d.needs_heroes) {
+                        p.missing(F, format!("wizard {:?}", w.id), "without_heroes");
+                    }
+                }
+                continue;
             }
-            picks += u32::from(*n);
-        }
-        for &retort in &w.retorts {
-            match r.retorts.try_get(retort) {
-                Some(def) => picks += u32::from(def.cost),
-                None => p.dangling(F, &at, "retorts", "retort", retort.num()),
+            let at = match heroes {
+                true => format!("wizard {:?}", w.id),
+                false => format!("wizard {:?} without heroes", w.id),
+            };
+            let (books, retorts) = w.loadout(heroes);
+            let mut picks: u32 = 0;
+            for (realm, n) in books {
+                if r.realms.try_get(*realm).is_none() {
+                    p.dangling(F, &at, "books", "realm", realm.num());
+                }
+                picks += u32::from(*n);
             }
-        }
-        let budget = u32::from(crate::settings::PICKS);
-        if picks != budget {
-            p.out_of_range(
-                F,
-                &at,
-                "picks spent on books and retorts",
-                picks,
-                format!("exactly {budget}"),
-            );
+            for &retort in retorts {
+                match r.retorts.try_get(retort) {
+                    Some(def) => {
+                        picks += u32::from(def.cost);
+                        if !heroes && def.needs_heroes {
+                            p.conflict(F, &at, "it has a retort that needs heroes");
+                        }
+                    }
+                    None => p.dangling(F, &at, "retorts", "retort", retort.num()),
+                }
+            }
+            let budget = u32::from(crate::settings::PICKS);
+            if picks != budget {
+                p.out_of_range(
+                    F,
+                    &at,
+                    "picks spent on books and retorts",
+                    picks,
+                    format!("exactly {budget}"),
+                );
+            }
         }
     }
     p.row(None);

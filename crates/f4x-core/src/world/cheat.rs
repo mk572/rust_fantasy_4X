@@ -386,6 +386,7 @@ impl World {
         let style = crate::rules::lair::LairStyle {
             stronger: self.settings.rules.stronger_lairs,
             treasure: self.settings.rules.treasure_patch_150,
+            no_heroes: !self.settings.world.heroes_enabled,
         };
         let guards = if style.stronger {
             let table = &self.content.rules.lairs.patch_150.guard_percent;

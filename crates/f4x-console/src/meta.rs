@@ -482,7 +482,7 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
                 let level = parse_choice(v, "difficulty", DIFFICULTY, 0, 5)?;
                 let basic = spec.settings.basic;
                 spec.settings = f4x_core::world::setting::GameSettings::for_difficulty(
-                    &ctx.game.content().settings,
+                    &ctx.game.content().as_loaded().settings,
                     level,
                 );
                 spec.settings.basic = f4x_core::world::setting::BasicSettings {

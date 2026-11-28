@@ -26,7 +26,7 @@ use f4x_def::content::Content;
 use crate::rules::{Rarity, RealmId, SpellId, Stat, UnitId, UnitKind};
 use crate::unit::movement::MoveError;
 
-use crate::wizard::{all_retorts, retort_available, retort_cost};
+use crate::wizard::{all_retorts, retort_available, retort_cost, retort_in_game};
 use crate::world::{Event, World};
 
 /// Units that can guard a site of `realm`: summoned creatures of that realm that are not
@@ -221,7 +221,7 @@ pub(crate) fn award_spell(
                 3 => Rarity::Rare,
                 _ => Rarity::VeryRare,
             };
-            let pool: Vec<SpellId> = crate::wizard::magic::spells_of(content, realm, level)
+            let pool: Vec<SpellId> = crate::wizard::magic::open_spells_of(content, realm, level)
                 .into_iter()
                 .filter(|s| !wizard.view().knows(*s))
                 .filter(|s| {
@@ -247,6 +247,7 @@ pub(crate) fn award_spell(
 /// with death or the reverse, nor to a wizard with more than `books_limit` books already, `max_books_total`), otherwise a retort. A two-pick hoard
 /// gives a two-pick retort or two books. The original's version loops and awards oddly (its
 /// own comments call these bugs); this keeps the odds and the restrictions.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn award_special(
     rules: &crate::rules::Rules,
     wizard: &mut crate::wizard::sheet::WizardMut<'_>,
@@ -254,6 +255,7 @@ pub(crate) fn award_special(
     lair: &LairInfo,
     picks: i32,
     books_limit: i32,
+    heroes: bool,
     loot: &mut Loot,
 ) {
     let (life, death) = (
@@ -278,6 +280,7 @@ pub(crate) fn award_special(
         let (view, books) = (wizard.view(), wizard.view().books());
         let options: Vec<_> = all_retorts(rules)
             .filter(|r| !view.has(*r) && retort_available(rules, *r, &books))
+            .filter(|&r| retort_in_game(rules, r, heroes))
             .filter(
                 |r| *r != crate::wizard::magic::Retort::new(9), /* myrran */
             )
@@ -413,8 +416,10 @@ impl World {
     /// Whether a prisoner of the lair can be freed for `player`: a hero is left to free (every one
     /// serves, or is gone for good). Otherwise the prisoner is rerolled into the hoard.
     fn can_free_prisoner(&self, player: PlayerId) -> bool {
-        self.units()
-            .hero_summonable(player, crate::hero::kind::Class::Any)
+        self.settings.world.heroes_enabled
+            && self
+                .units()
+                .hero_summonable(player, crate::hero::kind::Class::Any)
     }
 
     /// Clear a lair and give `player` its treasure. What the winner cannot use is rerolled from
@@ -455,7 +460,10 @@ impl World {
             }
             lair.special = 0;
         }
-        let has_hero = wizard || prisoner || !self.units().hero_units(player).is_empty();
+        // Nobody to carry an item, or no items in this game: the item's value pays out otherwise.
+        let heroes = self.settings.world.heroes_enabled;
+        let has_hero =
+            heroes && (wizard || prisoner || !self.units().hero_units(player).is_empty());
         if !has_hero {
             unused += lair.items.iter().map(|&v| v as i32).sum::<i32>();
             lair.items.clear();
@@ -507,6 +515,7 @@ impl World {
                         &lair,
                         picks,
                         i32::from(self.settings.wizards.max_books_total),
+                        self.settings.world.heroes_enabled,
                         &mut loot,
                     );
                     // A book found opens more of its realm's spells to research.
@@ -537,9 +546,10 @@ impl World {
         }
         // A hoard of a book or a retort that gave nothing (nothing left to give) pays an item
         // worth 1200 instead, or 1000 mana when the hoard already has three items (the original
-        // writes the item past the end of its list: ReMoM marks it a bug).
+        // writes the item past the end of its list: ReMoM marks it a bug) or the game has no
+        // items.
         if matches!(lair.special, 5 | 6) && loot.books.is_empty() && loot.retorts.is_empty() {
-            if items.len() < 3 {
+            if heroes && items.len() < 3 {
                 items.push(make_item(
                     rng,
                     &self.content.rules,

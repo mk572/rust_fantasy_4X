@@ -132,6 +132,16 @@ fn pick_guards(
     (guards, first_value, second_value)
 }
 
+/// The weights of a hoard table in this game: without heroes and items, those two kinds are gone
+/// and the others share every roll.
+fn hoard_table(table: &[(HoardKind, u32)], style: LairStyle) -> Vec<(HoardKind, u32)> {
+    table
+        .iter()
+        .copied()
+        .filter(|(k, _)| !(style.no_heroes && matches!(k, HoardKind::Item | HoardKind::Prisoner)))
+        .collect()
+}
+
 /// Fill a lair's hoard from its guards' value (`Create_Lair` after the guards are chosen).
 #[allow(clippy::too_many_arguments)]
 fn fill_hoard(
@@ -149,6 +159,7 @@ fn fill_hoard(
         fill_hoard_150(
             rng,
             rules,
+            style,
             lair,
             site,
             plane,
@@ -168,7 +179,8 @@ fn fill_hoard(
         loot -= rarity * rarity * rules.spell_cost - rules.tower_spell_refund;
         special = rarity;
     }
-    let total: i32 = rules.hoard.iter().map(|(_, w)| *w as i32).sum();
+    let table = hoard_table(&rules.hoard, style);
+    let total: i32 = table.iter().map(|(_, w)| *w as i32).sum();
     let coin = |rng: &mut Pcg64Mcg, loot: i32| {
         (random(rng, rules.coin_rolls) * rules.coin_step).min(loot) / 10 * 10
     };
@@ -176,8 +188,7 @@ fn fill_hoard(
     while loot >= rules.min_loot && guard < 2000 {
         guard += 1;
         let mut slot = random(rng, total);
-        let kind = rules
-            .hoard
+        let kind = table
             .iter()
             .find(|(_, w)| {
                 slot -= *w as i32;
@@ -248,6 +259,7 @@ fn fill_hoard(
 fn fill_hoard_150(
     rng: &mut Pcg64Mcg,
     rules: &LairRules,
+    style: LairStyle,
     lair: &mut Lair,
     site: SiteType,
     plane: Plane,
@@ -267,7 +279,8 @@ fn fill_hoard_150(
             special = rarity;
         }
     }
-    let total: i32 = p.hoard.iter().map(|(_, w)| *w as i32).sum();
+    let table = hoard_table(&p.hoard, style);
+    let total: i32 = table.iter().map(|(_, w)| *w as i32).sum();
     // An amount of `step * Random(coin_rolls)`, at most what is left, whole tens.
     let coin = |rng: &mut Pcg64Mcg, step: i32, loot: i32| {
         (random(rng, p.coin_rolls) * step).min(loot) / 10 * 10
@@ -276,8 +289,7 @@ fn fill_hoard_150(
     while loot >= rules.min_loot && guard < 2000 {
         guard += 1;
         let mut slot = random(rng, total);
-        let kind = p
-            .hoard
+        let kind = table
             .iter()
             .find(|(_, w)| {
                 slot -= *w as i32;

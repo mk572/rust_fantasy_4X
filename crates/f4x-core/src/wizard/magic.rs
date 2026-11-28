@@ -142,6 +142,15 @@ pub fn spells_of(content: &Content, realm: RealmId, rarity: Rarity) -> Vec<Spell
         .collect()
 }
 
+/// [`spells_of`] that are in this game (`SpellLibraryDef::is_open`).
+pub(crate) fn open_spells_of(content: &Content, realm: RealmId, rarity: Rarity) -> Vec<SpellId> {
+    let library = &content.settings.spell_library;
+    spells_of(content, realm, rarity)
+        .into_iter()
+        .filter(|&s| library.is_open(content.rules.spells.get(s)))
+        .collect()
+}
+
 /// The realm's default starting spells of one rarity, in the order of the realm's default list
 /// (`realms.ron`).
 pub fn default_spells(content: &Content, realm: RealmId, rarity: Rarity) -> Vec<SpellId> {
