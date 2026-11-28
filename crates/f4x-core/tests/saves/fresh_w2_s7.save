@@ -1,4 +1,4 @@
-// f4x save, version 5, game 0.0.8, checksum a16d5b8444571b30
+// f4x save, version 5, game 0.0.8, checksum d88fca88824b8656
 (
     version: 5,
     game_version: "0.0.8",
@@ -11,8 +11,9 @@
         rules: (safe_flee: (human: false, ai: false), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 9, max_city_size: 25, min_city_distance: 4, max_battle_side: 9, half_upkeep: false, combat_forecast: false, arcane_candidate_cap: 0, trireme_capacity: 2, galley_capacity: 5, walls_cover_city: false, original_battlefield: false, death_immunity_exceptions: false, magic_immunity_exceptions: false, illusion_immunity_protects: true, farmer_food: 2, worker_production: 2, miners_guild_half_ore: false, spell_binding_always_succeeds: false, roads_at_start: true, river_roads: false, defeat_loot: true, color_wheel_relations: false, adamant_alchemy: false, mix_neutral_races: false, extend_tiny_islands: false, two_pick_myrran: false, stronger_lairs: false, treasure_patch_150: false, suppress_spares_return: false, allied_trespass_penalty: false, expanded_diplomacy: false, limit_ai_races: false, ban_life_and_death: true, lair_full_heal: true, cavalry_halberdier_abilities: false, spell_of_mastery: all, spell_of_return: all, multiple_summoning_circles: false),
         events: (random_events: true, pressure_percent: 75, frequency: Normal, start_turn: 6),
         scoring: (score_percent: 100),
+        starting_units: (settler: false, magic_spirit: false, trireme: false),
     ),
-    content: "ce48877efdc27d68ecb010e247a3929fef2451b9cad23306dc82849bf93e0d62",
+    content: "809a1df5825753c426735f511559fac21ad008ad6f3903e2cde7d7af6190effb",
     human: None,
     diplomacy: (
         pairs: [],

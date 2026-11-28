@@ -27,7 +27,7 @@ use crate::metrics::{
 use crate::report::{self, Played};
 use f4x_master::{Game, GameOver};
 
-pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE | --no-refused-log] [--snapshots-every N] [--out DIR] [--jobs N] [--from SAVE] [--map WxH] [--land PERCENT] [--magic 0..2] [--difficulty 0..4] [--rules 1.31|1.6|mk] [--mastery all|human|off] [--return all|human|off]";
+pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE | --no-refused-log] [--snapshots-every N] [--out DIR] [--jobs N] [--from SAVE] [--map WxH] [--land PERCENT] [--magic 0..2] [--difficulty 0..4] [--rules 1.31|1.6|mk] [--mastery all|human|off] [--return all|human|off] [--start-units settler,spirit,trireme]";
 
 /// The options `soak` and `soak-versus` share.
 pub struct Options {
@@ -68,6 +68,22 @@ pub struct Options {
     pub spell_return: Option<f4x_def::settings::SpellAccess>,
     /// The rules the games are played with; 1.31 unless asked otherwise.
     pub rules: f4x_def::settings::RuleSet,
+    /// The units every wizard starts with on top of the race's army; none unless asked.
+    pub starting_units: f4x_def::settings::StartingUnits,
+}
+
+/// A comma-separated list of `settler`, `spirit` and `trireme`.
+fn start_units(text: &str) -> Result<f4x_def::settings::StartingUnits, String> {
+    let mut units = f4x_def::settings::StartingUnits::default();
+    for word in text.split(',') {
+        match word {
+            "settler" => units.settler = true,
+            "spirit" => units.magic_spirit = true,
+            "trireme" => units.trireme = true,
+            other => return Err(format!("{other:?} is not settler, spirit or trireme")),
+        }
+    }
+    Ok(units)
 }
 
 /// `all`, `human` or `off`: who a special spell is open to.
@@ -110,6 +126,7 @@ impl Options {
             mastery: None,
             spell_return: None,
             rules: Default::default(),
+            starting_units: Default::default(),
         };
         let mut it = args.iter();
         while let Some(a) = it.next() {
@@ -177,6 +194,7 @@ impl Options {
                 }
                 "--mastery" => o.mastery = Some(spell_access(&value("--mastery")?)?),
                 "--return" => o.spell_return = Some(spell_access(&value("--return")?)?),
+                "--start-units" => o.starting_units = start_units(&value("--start-units")?)?,
                 other => return Err(format!("unknown option {other:?}\n{usage}")),
             }
         }
@@ -462,6 +480,7 @@ pub fn game(
                 spec.settings.basic.opponents = opponents;
             }
             spec.settings = opts.rules.applied(spec.settings, &content.settings);
+            spec.settings.starting_units = opts.starting_units;
             if let Some(access) = opts.mastery {
                 spec.settings.rules.spell_of_mastery = access;
             }
@@ -1769,6 +1788,21 @@ mod tests {
         assert_eq!(parse(&["--rules", "1.6"])?.rules, RuleSet::V160);
         assert_eq!(parse(&["--rules", "mk"])?.rules, RuleSet::MkMod);
         assert!(parse(&["--rules", "2.0"]).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn the_starting_units_are_read_from_a_list() -> TestResult {
+        let none = parse(&[])?.starting_units;
+        assert_eq!(none, Default::default());
+        let two = parse(&["--start-units", "trireme,settler"])?.starting_units;
+        assert!(two.trireme && two.settler && !two.magic_spirit);
+        assert!(
+            parse(&["--start-units", "spirit"])?
+                .starting_units
+                .magic_spirit
+        );
+        assert!(parse(&["--start-units", "galley"]).is_err());
         Ok(())
     }
 

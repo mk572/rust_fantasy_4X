@@ -51,9 +51,26 @@ fn is_water(map: &Map, content: &Content, plane: Plane, x: i32, y: i32) -> Optio
 /// The squares of the land mass that `at` is on (walking squares touch at a corner too), at most
 /// `limit` of them: a mass of `limit` squares is big enough and the count stops there.
 pub fn land_mass(map: &Map, content: &Content, at: Position, limit: usize) -> HashSet<(u32, u32)> {
+    mass(map, content, at, false, limit)
+}
+
+/// The squares of the body of water that `at` is on (squares touching at a corner are one body,
+/// as a ship sails).
+pub fn water_body(map: &Map, content: &Content, at: Position) -> HashSet<(u32, u32)> {
+    mass(map, content, at, true, usize::MAX)
+}
+
+/// The joined squares of land, or of water, that `at` is one of, at most `limit` of them.
+fn mass(
+    map: &Map,
+    content: &Content,
+    at: Position,
+    water: bool,
+    limit: usize,
+) -> HashSet<(u32, u32)> {
     let grid = map.plane(at.plane);
     let mut seen: HashSet<(u32, u32)> = HashSet::new();
-    if is_water(map, content, at.plane, at.x as i32, at.y as i32) != Some(false) {
+    if is_water(map, content, at.plane, at.x as i32, at.y as i32) != Some(water) {
         return seen;
     }
     let mut todo = vec![(at.x, at.y)];
@@ -64,7 +81,7 @@ pub fn land_mass(map: &Map, content: &Content, at: Position, limit: usize) -> Ha
         }
         for (dx, dy) in AROUND {
             let (nx, ny) = (x as i32 + dx, y as i32 + dy);
-            if is_water(map, content, at.plane, nx, ny) != Some(false) {
+            if is_water(map, content, at.plane, nx, ny) != Some(water) {
                 continue;
             }
             let key = (grid.wrap_x(nx), ny as u32);

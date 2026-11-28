@@ -64,6 +64,7 @@ fn key(opts: &Options, seed: u64) -> Option<String> {
         opts.players,
         opts.grant_mastery,
         opts.snapshots_every,
+        opts.starting_units,
     )
         .hash(&mut hasher);
     Some(format!("{:016x}", hasher.finish()))

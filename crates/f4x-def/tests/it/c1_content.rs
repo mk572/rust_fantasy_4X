@@ -1074,6 +1074,12 @@ fn the_numbers_rules_ron_keeps_for_rows_of_other_files_must_name_rows() {
     refused_as::<RulesConfig>("rules.ron", IssueKind::Dangling, Some("race"), |c| {
         c.limited_ai_races.push(NOWHERE)
     });
+    refused_as::<RulesConfig>("rules.ron", IssueKind::Dangling, Some("unit"), |c| {
+        c.wizard.start_spirit = NOWHERE
+    });
+    refused_as::<RulesConfig>("rules.ron", IssueKind::Dangling, Some("unit"), |c| {
+        c.wizard.start_ship = NOWHERE
+    });
     refused_as::<RulesConfig>("rules.ron", IssueKind::Dangling, Some("feature"), |c| {
         c.event_ores.push(NOWHERE)
     });

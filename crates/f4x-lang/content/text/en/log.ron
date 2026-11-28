@@ -131,6 +131,7 @@
     "log.turn": "Turn {turn}",
     "log.new_map": "New map, seed {seed}",
     "log.crowded": "Only {n} squares for each wizard: there may not be room to expand.",
+    "log.no_start_ship": "Your capital is not on the coast: you start without a Trireme.",
     "log.map_failed": "Map generation failed: {why}",
     "log.cast_cancelled": "Cast cancelled",
     "log.resign_question": "There are at least {turns} turns remaining until you may return. Do you wish to resign?",

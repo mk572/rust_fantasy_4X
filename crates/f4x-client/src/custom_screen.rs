@@ -333,6 +333,21 @@ pub(crate) fn rows() -> Vec<Row> {
             |s| s.wizards.max_books_total.into(),
             |s, v| s.wizards.max_books_total = v as u8,
         ),
+        flag(
+            "custom.start_settler",
+            |s| s.starting_units.settler.into(),
+            |s, v| s.starting_units.settler = v != 0,
+        ),
+        flag(
+            "custom.start_magic_spirit",
+            |s| s.starting_units.magic_spirit.into(),
+            |s, v| s.starting_units.magic_spirit = v != 0,
+        ),
+        flag(
+            "custom.start_trireme",
+            |s| s.starting_units.trireme.into(),
+            |s, v| s.starting_units.trireme = v != 0,
+        ),
         Heading("custom.h_ai_cities"),
         num(
             "custom.ai_growth",
@@ -1437,6 +1452,32 @@ mod tests {
         assert_eq!(mark_of(&p, "custom.half_upkeep"), Mark::Green);
         assert_eq!(mark_of(&p, "custom.score"), Mark::None);
         assert_eq!(p.work.wizards.starting_gold.human, 75);
+    }
+
+    /// The starting units are a choice of their own: no rule set and no difficulty touches
+    /// them, they never make a level "custom", and a default game that has them keeps them when
+    /// another level is chosen.
+    #[test]
+    fn rule_sets_and_levels_leave_the_starting_units_alone() {
+        let def = crate::test_app::shipped::settings();
+        let mut p = page(def);
+        p.work.starting_units.settler = true;
+        p.work.starting_units.trireme = true;
+        let chosen = p.work.starting_units;
+        assert!(p.work.is_level(def));
+        for preset in Preset::ALL {
+            p.choose(preset, Some(5), def);
+            assert_eq!(p.work.starting_units, chosen, "{preset:?}");
+        }
+        let base = f4x_def::settings::DefaultGame {
+            preset: Preset::V131,
+            settings: GameSettings {
+                starting_units: chosen,
+                ..GameSettings::for_difficulty(def, 2)
+            },
+        };
+        let merged = on_level(&base, GameSettings::for_difficulty(def, 4), def);
+        assert_eq!(merged.starting_units, chosen);
     }
 
     #[test]

@@ -407,6 +407,10 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<(World, GameRng), N
         if settings.rules.extend_tiny_islands {
             build_out_start_island(&mut world, PlayerId(k), &mut rng);
         }
+        // After the island is built out: that can turn the water next to a capital into land.
+        if settings.starting_units.trireme {
+            launch_start_ship(&mut world, PlayerId(k), &mut rng);
+        }
         reveal_start(&mut world, PlayerId(k), settings.world.start_reveal_radius);
     }
     // Independent cities on both planes, once the wizards' fortresses are down.
@@ -545,6 +549,60 @@ fn reveal_start(world: &mut World, player: PlayerId, radius: HalfInt) {
     world.restrict_view(player, fortress, radius);
 }
 
+/// The setting `starting_units.trireme`: the ship on a water square next to the wizard's
+/// fortress, the one on the largest body of water, free of other players' units and of lairs.
+/// A fortress with no such square (it is not on the coast) gets no ship.
+fn launch_start_ship(world: &mut World, player: PlayerId, rng: &mut GameRng) {
+    let Some(at) = world.wizard(player).and_then(|w| w.fortress()) else {
+        return;
+    };
+    let Some(map) = world.map() else {
+        return;
+    };
+    let grid = map.plane(at.plane);
+    let mut best: Option<(usize, Position)> = None;
+    for dy in -1i32..=1 {
+        for dx in -1i32..=1 {
+            let y = at.y as i32 + dy;
+            if y < 0 || y >= grid.height() as i32 {
+                continue;
+            }
+            let pos = Position {
+                plane: at.plane,
+                x: grid.wrap_x(at.x as i32 + dx),
+                y: y as u32,
+            };
+            let taken = world.economy().lair_at(pos).is_some()
+                || world
+                    .units()
+                    .units_at(pos)
+                    .into_iter()
+                    .any(|u| world.units().unit_owner(u) != Some(player));
+            if taken {
+                continue;
+            }
+            // A land square has no body of water.
+            let size = crate::island::water_body(map, world.content(), pos).len();
+            if size > best.map_or(0, |(most, _)| most) {
+                best = Some((size, pos));
+            }
+        }
+    }
+    let rules = &world.content().rules;
+    let ship = rules.units.id_numbered(rules.config.wizard.start_ship);
+    if let (Some((_, pos)), Some(unit)) = (best, ship) {
+        world.apply(
+            Command::CreateUnit {
+                owner: player,
+                pos,
+                unit,
+            },
+            FIRST_ROUND,
+            rng,
+        );
+    }
+}
+
 /// Found a wizard's fortress near their start point, as the original's `Generate_Home_Cities`
 /// does: a capital of four with the race's spearmen and swordsmen (two swordsmen for a race
 /// without spearmen), a smithy, barracks and builders hall, and three citizens on the farms.
@@ -574,7 +632,20 @@ fn start_player(
         .ok_or(NewGameError::NoRace { race })?;
     let race_id = rules.races.id_numbered(race_def.num);
     let name = world.names().city(race_def.num, &race_def.id, 0);
-    let army = race_def.start_army.clone();
+    let mut army = race_def.start_army.clone();
+    let extra = world.settings().starting_units;
+    if extra.settler {
+        army.extend(
+            race_def
+                .units
+                .iter()
+                .copied()
+                .find(|&u| rules.units.get(u).is_settler()),
+        );
+    }
+    if extra.magic_spirit {
+        army.extend(rules.units.id_numbered(rules.config.wizard.start_spirit));
+    }
     let buildings: Vec<_> = world
         .content()
         .rules

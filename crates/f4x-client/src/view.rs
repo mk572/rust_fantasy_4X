@@ -1671,6 +1671,9 @@ impl App {
                     self.log
                         .push(self.text_with("log.crowded", &Args::new().count("n", each)));
                 }
+                if self.game.settings().starting_units.trireme && !self.has_coastal_fortress() {
+                    self.log.push(self.text("log.no_start_ship"));
+                }
             }
             Err(e) => {
                 // The reason in the player's language, then the line that says the map failed.
@@ -1683,6 +1686,17 @@ impl App {
                 self.log.push(self.text_with("log.map_failed", &args));
             }
         }
+    }
+
+    /// Whether the human's fortress is on a coast: the starting Trireme needs one.
+    fn has_coastal_fortress(&self) -> bool {
+        let Some(at) = self.game.wizard(HUMAN).and_then(|w| w.fortress()) else {
+            return false;
+        };
+        let economy = self.game.economy();
+        economy
+            .city_at(at)
+            .is_some_and(|city| economy.city_is_coastal(city))
     }
 
     /// Explore every square on both planes (for screenshots and tests).

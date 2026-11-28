@@ -122,6 +122,7 @@
     "log.turn": "Runde {turn}",
     "log.new_map": "Neue Karte, Startwert {seed}",
     "log.crowded": "Nur {n} Felder für jeden Magier: Vielleicht ist kein Platz zum Ausbreiten.",
+    "log.no_start_ship": "Deine Hauptstadt liegt nicht an der Küste: Du startest ohne Trireme.",
     "log.map_failed": "Kartenerzeugung fehlgeschlagen: {why}",
     "log.cast_cancelled": "Zauber abgebrochen",
     "log.resign_question": "Es dauert noch mindestens {turns} Runden, bis du zurückkehren darfst. Willst du aufgeben?",

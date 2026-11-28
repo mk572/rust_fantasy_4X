@@ -542,6 +542,14 @@ fn check_config(r: &Rules, p: &mut Issues) {
             p.dangling(F, "", "starting_buildings", "building", b.num());
         }
     }
+    for (what, u) in [
+        ("start_spirit", c.wizard.start_spirit),
+        ("start_ship", c.wizard.start_ship),
+    ] {
+        if r.units.id_numbered(u).is_none() {
+            p.dangling(F, "", what, "unit", u);
+        }
+    }
     for &n in &c.limited_ai_races {
         if r.races.by_num(n).is_none() {
             p.dangling(F, "", "limited_ai_races", "race", n);

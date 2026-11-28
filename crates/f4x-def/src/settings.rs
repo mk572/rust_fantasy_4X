@@ -917,6 +917,21 @@ pub struct ScoreSettings {
     pub score_percent: u16,
 }
 
+/// The units each wizard starts with on top of the race's starting army, human and computer
+/// wizards alike. All off by default. No difficulty level and no rule set fills these in. Which
+/// units the spirit and the ship are is `start_spirit` and `start_ship` of `rules.ron`; they pay
+/// their upkeep like any other unit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct StartingUnits {
+    /// The race's settlers, in the capital.
+    pub settler: bool,
+    /// A Magic Spirit, in the capital.
+    pub magic_spirit: bool,
+    /// A Trireme on the water next to the capital; none for a capital that is not on the coast.
+    pub trireme: bool,
+}
+
 /// Everything a game is played with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GameSettings {
@@ -927,6 +942,8 @@ pub struct GameSettings {
     pub rules: RuleSettings,
     pub events: EventSettings,
     pub scoring: ScoreSettings,
+    #[serde(default)]
+    pub starting_units: StartingUnits,
 }
 
 /// Where the player's default game settings are kept.
@@ -1014,7 +1031,8 @@ impl RuleSet {
     ];
 
     /// `work` with this rule set's rules: the difficulty level's figures for everything but the
-    /// basic choices (the map, the opponents), which stay. `Custom` changes nothing.
+    /// basic choices (the map, the opponents) and the starting units, which stay. `Custom`
+    /// changes nothing.
     pub fn applied(self, work: GameSettings, def: &SettingsDef) -> GameSettings {
         let level = GameSettings::for_difficulty(def, work.basic.difficulty);
         let base = GameSettings {
@@ -1022,6 +1040,7 @@ impl RuleSet {
                 diagonal_extra_cost: level.basic.diagonal_extra_cost,
                 ..work.basic
             },
+            starting_units: work.starting_units,
             ..level
         };
         // The patch's changes, as far as they are defined (task 530, from IW018 on still to
@@ -1404,6 +1423,7 @@ impl GameSettings {
             },
             events: level.events,
             scoring: level.scoring,
+            starting_units: StartingUnits::default(),
         }
     }
 

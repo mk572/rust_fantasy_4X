@@ -1408,6 +1408,10 @@ pub struct WizardRules {
     pub capital_figures: u32,
     pub capital_farmers: u32,
     pub capital_buildings: Vec<Id<BuildingDef>>,
+    /// The Magic Spirit and the ship a wizard starts with when the game's `starting_units`
+    /// settings ask for them.
+    pub start_spirit: u16,
+    pub start_ship: u16,
     /// The most retorts a wizard has, and how many spells are offered for research at once.
     pub max_retorts: usize,
     pub research_slots: usize,

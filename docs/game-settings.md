@@ -111,7 +111,7 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 | wizards | `max_books_total` | 12..=65 | 12 | `f4x-core/src/feature/lair.rs` `award_special` (the original's `Book_Count > 12` in `Lair.c`: a wizard with more books than this finds no book in treasure, the reward turns into a retort, so a wizard reaches one over it), `f4x-newgame/src/computer_wizard.rs` `refill` (the original's `(Trait_Value + Book_Count) > 12` in `INITGAME.c`: the fill-up stops at it), `World::check_wizard_build` (`TooManyBooksInAll`). One value for every wizard; 65 is five realms of 13. The original has no separate figure for the human: its 11 picks are the limit |
 | wizards | `starting_gold` | `Split`, 0..=2000 | 75 / 150 | `Player::new` (`gold: 100`) |
 | wizards | `starting_mana` | `Split`, 0..=2000 | 0 / 0 | `Player::new` (`mana: 0`) |
-| wizards | `starting_units` | `Split<Vec<StartUnit>>`, at most 12 entries, 20 units | Spearmen, Swordsmen | `f4x-newgame/src/setup.rs::start_player` |
+| starting_units | `settler`, `magic_spirit`, `trireme` | bool each | off | built (tasks 581 to 583): `f4x-newgame/src/setup.rs::start_player`, `launch_start_ship` (4.2) |
 | ai | `apply_to_human` | bool | off | not built (a custom setting: the human gets the same multipliers) |
 | ai | `randomise_wizards` and the AI wizard rules | see 4.8 | original | `f4x-newgame/src/setup.rs` |
 | ai | `growth_percent` | 100..=800 | 150 | not built (original table) |
@@ -331,69 +331,28 @@ Today the values travel in separate places: `setup::NewGame` (difficulty, magic,
 
 ### 4.2 Starting units and other start values
 
-Today `f4x-newgame/src/setup.rs::start_player` gives each wizard a capital of four citizens (three farming), the
-race's spearmen and swordsmen (two swordsmen for a race without spearmen), and three buildings.
-The unit list becomes a setting, **split human and AI** like gold:
+`f4x-newgame/src/setup.rs::start_player` gives each wizard a capital of four citizens (three farming), the
+race's starting army (`start_army` in `races.ron`: spearmen and swordsmen, two swordsmen for a race without
+spearmen) and three buildings. Three switches add units to that start (built, tasks 581 to 583, 29 November 2026). They are
+a group of their own in the record, `GameSettings::starting_units`: **no difficulty level and no rule set fills them
+in**, so they never make a level "Custom". Each applies to every wizard, human and computer alike, and all are
+off by default.
 
-```rust
-pub struct StartUnit { pub kind: StartUnitKind, pub count: u8 }
+| Switch | What each wizard gets | Where |
+|---|---|---|
+| `settler` | the race's own settlers (a Myrran race's on Myrror) | the capital |
+| `magic_spirit` | a Magic Spirit (`rules.ron` `wizard.start_spirit`) | the capital |
+| `trireme` | a Trireme (`rules.ron` `wizard.start_ship`), whether or not the race could build one | a water square next to the capital, on the largest body of water |
 
-pub enum StartUnitKind {
-    RaceUnit(String),   // by the race's own unit name: "Spearmen", "Swordsmen", "Settlers"
-    Settlers,           // the race's settler unit
-    FirstSummon,        // the creature of the first summoning spell the wizard starts with
-    Scout,              // a free Magic Spirit (`magic_spirit`), given to the wizard
-    Ship,               // the race's basic boat, put on water next to the capital
-    Unit(String),       // any unit by id, for tests and mods
-}
+- A capital that is not on a coast gets **no Trireme**; the capital's site is chosen as without the switch. The client
+  says so to the human in the message log.
+- The units are ordinary ones: they pay their normal upkeep from the first turn. A wizard whose mana share cannot pay
+  for the Magic Spirit loses it, as with any upkeep (accepted, 16 October 2026).
+- The AI treats them as units it built: settlers found a city, the spirit scouts and melds, and the ship waits
+  until the AI has a use for one.
+- The Custom screen has one row for each; the soak takes `--start-units settler,spirit,trireme`.
 
-// WizardSettings
-pub starting_units: Split<Vec<StartUnit>>,   // default: Spearmen x1, Swordsmen x1 for both
-```
-
-The default list is today's start, so nothing changes unless the player edits it. Resolution rules:
-
-- **Race units** fall back as today: no spearmen means the swordsmen again. A name the race lacks
-  is skipped, and the start reports it.
-- **FirstSummon** is the creature of the **first summoning spell among the wizard's starting
-  spells**, the ones the books bought (the common spells chosen at creation, section 4.1 of
-  `wizard/mod.rs`'s rules). A summoning spell is one whose cast effect is `Summon(unit, count)` in
-  `spells.ron` (War Bears, Sprites and the like), so no new data is needed. "First" is the order the
-  starting spells are listed in when the wizard is made; **I have not checked that order** (it
-  may be by realm, or the order of choice), and it must be fixed and tested. A wizard with no
-  summoning spell among the starters gets nothing and the start reports it.
-- **Scout** is a **free starting Magic Spirit** (`magic_spirit` in `units.ron`), the same for every
-  race and wizard. It is not a Summon spell cast: the unit is simply given at the start. Its data
-  gives it an upkeep of 1 mana a turn (`upkeep: (mana: 1)`), so the wizard must really get at
-  least one mana a turn. **What the code does today** (`wizard/magic_world.rs::process_magic`,
-  `wizard/magic.rs::upkeep_plan`, `wizard/magic_income.rs`):
-  1. Each turn the mana share of the power is added to the reserve first, then the upkeep is
-     paid from the reserve. If the reserve cannot pay, **the newest upkeep items are given up**,
-     so a spirit with no mana is lost at the first turn change.
-  2. The default split is 33 mana, 34 research, 33 skill, and the mana share is
-     `(power * 33 + 50) / 100`: **one mana only when the power base is at least 2**, two at 5.
-     The power base at the start is the books (a point each, five more on Myrror) plus what the
-     capital makes. Nothing requires two books, and the lowered `picks` of 4.1 makes few books
-     possible, so a wizard can start with a mana share of **0**.
-  3. A human who sets the mana slider to 0 loses the spirit too, as with any upkeep item. That
-     stays the rule. The AI already sizes its split to cover its upkeep (`wizardry.rs::split`:
-     mana share minus upkeep at least 2, or 0 with a reserve over 400).
-  4. A Channeler pays half of the total, rounded down (`sum / 2`), so one spirit alone costs a
-     Channeler nothing.
-  **Proposed rule:** when the start list has mana upkeep, `start_player` sets the wizard's slider
-  to the smallest mana share, in whole percents from the default upward (research gives way, since it takes
-  the remainder in `split_power`), that makes mana income cover the upkeep. If even all of the power cannot
-  (power base 0), the spirit is not given and the start reports it. `starting_mana` is not used for
-  this: it only delays the loss. Tests: one book, two books, a Channeler, Myrror, and a human who
-  then sets mana to 0 (the spirit goes at the first turn change).
-- **Ship** is placed on a water square next to the capital if there is one; a wizard whose capital
-  is inland gets none and the start reports it. A ship in a port is not a stack member of the
-  capital's square, so it does not use the stack limit there.
-- **The stack limit** (4.3) applies: units beyond `max_stack` on the capital square are put on the
-  nearest free adjacent square, and the screen warns when the list is longer than the limit.
-- Units cost no gold and no upkeep exemption: the normal upkeep applies from turn 1, so a long
-  list is a real cost. The advanced screen shows the upkeep of the list.
-- The list is limited to 12 entries and 20 units in all by `validate`.
+Not built: a list of units with counts, a value of its own for the AI, and the creature of the first summoning spell.
 
 Other start values that stay hardcoded for now and have a place in `WizardSettings` when asked:
 the capital's size (four citizens), starting fame (10 for Famous), the starting buildings
@@ -688,8 +647,7 @@ dropdown**.
    Books per realm, most          < 11 >
    Human gets the computer wizards' bonuses   [ ]
    Event frequency                < Half | [Normal] | Double >
-   Starting units                 You [Spearmen x1] [Swordsmen x1] [+]   AI [same as you]
-                                  kinds: race unit, Settlers, first summon, Scout, Ship
+   Settlers [ ]       Magic Spirit [ ]       Trireme [ ]       (starting units, 4.2)
    Spell of Mastery wins          [x]
    Spell of Return                < All wizards | Human only | Off >
    Heroes                         [x]        Lairs  [x]    Neutral cities  [x]
@@ -788,8 +746,7 @@ the same spirit as `game.magic_strength = self.magic_strength.min(2)` today.
    the Intro switch-off (with task 68). The soak changes once; `flat` stays for the soak.
 3. **Advanced settings that are easy to build.** The advanced screen with the dropdown and Custom,
    and the **Advanced settings...** button. Rows: starting gold, mana and picks (human and AI),
-   the AI multipliers and `apply_to_human`, the AI wizard block, starting units (including
-   settlers, scouts, ships and the first summon), the switches (Spell of Mastery, Spell of
+   the AI multipliers and `apply_to_human`, the AI wizard block, starting units (4.2), the switches (Spell of Mastery, Spell of
    Return, heroes, lairs, neutral cities, raiders, random events and their frequency, fleeing),
    the lowered stack limit and city size cap, city distance, map size and counts, score scale.
 4. **Hard settings.** **No Myrror** (4.9) and **hardcore mode** (4.10), larger stacks ([`large-stacks.md`](large-stacks.md)), a raised city size cap
@@ -819,12 +776,9 @@ Still open:
    is not. Remove books by the same rule run backwards (the realm with most books loses one, a coin
    flip on ties, then retorts), or refuse such a count for ready-made wizards and offer the custom
    screen only?
-3. **The free spirit's mana.** (Decided 16 October: the zero-power edge case, a wizard with no
-   mana share who loses the spirit, is accepted for now.) Adopt the slider rule proposed in 4.2 (raise the mana share at the
-   start so the upkeep is covered), or give the starting spirit no upkeep (a flag on the starting
-   unit)?
-4. **Order of the starting spells** (4.2): "first" summoning spell needs the order the starting
-   spells are given in, which I have not checked.
+3. **The free spirit's mana.** Settled 29 November 2026: the starting spirit is an ordinary unit that pays its
+   upkeep (4.2).
+4. **Order of the starting spells.** No longer open: the first summoning spell's creature is not built (4.2).
 5. **Which three books** go to a new Myrran AI wizard (4.8): random, weighted by books, keeping at
    least one book, is a proposal.
 
