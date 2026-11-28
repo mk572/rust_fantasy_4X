@@ -345,6 +345,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 363 | Tools | (done) Render the original's XMI music as the Roland MT-32 played it, with `mt32-rs` and the user's ROMs |
 | 364 | Client | The scenes with music that the client lacks: the summon scene, the city-spell scroll and the Force of Nature scene (done) |
 | 366 | AI | Objectives, step 3: building weights by category and casting as weighted categories (done) |
+| 367 | AI | ~~Research by what the enemy casts (the rest of the old "overland spells never cast" list is settled or in task 641)~~ (skipped) |
 | 368 | Diplomacy | Human-only branches in the diplomacy rules: decide each (move to the AI or keep as a rule) (done) |
 | 369 | AI | The AI hardly fights and stops expanding (wars that end, marches, the city target) (done) |
 | 371 | AI | The AI plays to win: more wars, cities, casting, items and heroes, measured by the soak (done) |
@@ -520,6 +521,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 568 | AI | Scouts and sea scouting still hit their time limit in many games (scout: 1 to 3 a player in most games; sea scout: 3 games of 8): find out whether the walks are too long, the limit too short, or a bug (from task 567) (done) |
 | 570 | Client | Wizard gems: a face and a diamond frame drawn apart and put together at run time, for custom wizard pictures (done) |
 | 575 | Client | Open the city screen at the start of the human's turn for a city that finished building (done) |
+| 579 | Console | Console commands for lairs and map features (done) |
 | 580 | Core | Trade pact and research pact (done) |
 | 584 | Rules | (done) Spell of Mastery setting: on, human only, off |
 | 585 | Rules | (done) Spell of Return setting: on, human only, off |
@@ -679,6 +681,8 @@ original task numbers. Newest work is merged in ascending order by number.
 
 ## Descriptions
 
+**367. ~~Research by what the enemy casts~~ (skipped).** Skipped on 29 November 2026 at the user's word: won't implement, too complex for the purpose (the AI player does not need to analyse the spells its opponents cast to decide its own research). The one part left of the old "overland spells the AI never casts" task (cut down on 18 November 2026 after the soak of 17 November, `docs/soak-results-2026-11-17.md`). The AI picks its research without looking at what its enemies cast: a wizard under Death Magic attacks, or one that casts curses on its cities, changes nothing in what it learns next (the protection spells, Dispel Magic and the like). Choose research by what the enemies of the wizard cast, as a function of what the AI sees (`docs/design.md` section 8: the spells cast at its own cities and stacks, and in battles it fights, not the enemy's spellbook); a test on the shipped spells for each rule and a soak line. The rest of the old list is settled or lives elsewhere: curses, attacks, Disenchant, Disjunction, world spells, Spell Blast and Stasis are built (task 228); Transmute is left uncast on purpose (task 434, skipped); Spell of Return (known 677, cast 17: the game begins it when a wizard is banished), Enchant Item and Create Artifact (cast 160 and 759) are cast; the wards for the own cities (`spell_ward`, known 40, cast 0) are in task 641; Word of Recall is not in the soak report and is read from the per-spell output of the next soak (the casts per spell are printed by every soak since 18 November 2026). Heroes and items are task 474. *Needs:* nothing.
+
 **373. (done) Ship graphics for sea battles.** Task 233 draws each ship's deck as plain brown diamonds
 (`battle_ground.rs`, `SHIP_DECK`) with the deck shapes from `ship_shape` (pointed ends; trireme 3 by 7,
 galley 4 by 8, warship 5 by 9, Floating Island 5 by 5, in `units.ron`). Give them real pictures: a
@@ -690,6 +694,8 @@ deck. The LPC ship pack ("[LPC] Ship" by bluecarrot16, OGA-BY 3.0+ or CC-BY 3.0+
 settle: draw our own pixel art, reproject the pack's tiles to the diamond grid, or find an isometric
 set (check its licence and credit it in a `CREDITS.md` that is in the repository once art is used). Keep the deck cells as the rules' truth; only
 the drawing changes. *Needs:* nothing.
+
+**579. Console commands for lairs and map features. (done)** Asked for by the user, 14 November 2026; closed 29 November 2026. Built: the override commands `lair`, `unlair` and `feature` (`docs/console.md`); `lair` and `feature` refuse a terrain that does not allow the feature (`FeatureDef::stands_on`, a tower on both planes); the query `lairinfo` shows the monsters and, in override mode only, the treasure of a site; tests in `crates/f4x-console/src/tests/cheat.rs`. Fixed on the way: a tower put over a feature on the other plane left that feature behind. Left out, at the user's word: choosing the guards of a new lair, `clearlair` (`unlair` is enough), the list queries `lairs` and `features` (`lairinfo` looks at one site) and any note in `docs/lairs.md`.
 
 **580. Trade pact and research pact (done).** Asked for by the user, 14 November 2026, with the other offers now in tasks 845 and 846; the figures were set by the user on 28 November 2026. Both are offered under `expanded_diplomacy` to partners of a wizard pact or an alliance, the trade pact to a neutral race too, and end with that treaty. The rules as built: `diplomacy.md`, "Expanded diplomacy options".
 

@@ -809,8 +809,9 @@ of 42, within the noise of this sample.
    left free. Housing does nothing in an outpost (it makes no production).
 3. **Overland magic is thin** (as of the first baseline; since then the AI casts curses and attacks on
    cities and stacks, Spell of Return, item crafting and the enchanting spells, `docs/soak-results-2026-11-17.md`).
-   Still open: city protection (`spell_ward`, task 641) and research chosen by what its enemies cast
-   (task 367); the 17 November soak left 145 known spells never cast on the map (tasks 641 and 642).
+   Still open: city protection (`spell_ward`, task 641); the 17 November soak left 145 known spells
+   never cast on the map (tasks 641 and 642). Research chosen by what its enemies cast is not built, on
+   purpose (task 367, skipped).
 4. **Heroes and items are used little.** The AI hires the heroes it can pay for, but heroes march with
    the army as ordinary units, are not kept out of lair fights, and the AI never crafts items.
    Items (task 504, `offer.rs`): the merchant's item is bought when it is worth its price to the wizard

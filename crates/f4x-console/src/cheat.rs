@@ -35,9 +35,9 @@ pub const TABLE: &[CommandDef] = &[
     cheat!("newcity", "newcity <x,y[,plane]> <name> [player] [race=<id>] [pop=<n>]", "Found a city anywhere the map allows, at no cost.", newcity),
     cheat!("build", "build <city> <building>", "Give a city a building, ignoring its requirements and cost.", build),
     cheat!("terrain", "terrain <x,y[,plane]> <terrain-id>", "Change a square's terrain.", terrain),
-    cheat!("lair", "lair <feature> <x,y[,plane]> [strong]", "Put an encounter site or a tower on a square with guards and treasure made as a new world makes them (a strong or, by default, a weak site), replacing what stands there.", lair),
+    cheat!("lair", "lair <feature> <x,y[,plane]> [strong]", "Put an encounter site or a tower on a square with guards and treasure made as a new world makes them (a strong or, by default, a weak site), replacing what stands there. The terrain must allow the feature.", lair),
     cheat!("unlair", "unlair <x,y[,plane]>", "Remove the site with a lair from a square, guards and treasure with it.", unlair),
-    cheat!("feature", "feature <x,y[,plane]> <feature|none>", "Put a terrain feature (a mineral, a tower, a node, an encounter site, with no guards, treasure or aura) on a square, or with `none` take the feature off.", feature),
+    cheat!("feature", "feature <x,y[,plane]> <feature|none>", "Put a terrain feature (a mineral, a tower, a node, an encounter site, with no guards, treasure or aura) on a square whose terrain allows it, or with `none` take the feature off.", feature),
     cheat!("hire", "hire <hero> [player] [x,y[,plane]]", "Hire a hero for nothing: it appears on any square of the map you give, else on the wizard's fortress (or in a city). The hero must be free or dead.", hire),
     cheat!("dismiss", "dismiss <hero>", "Let a hero in service go; it is free to be hired again and its items go to the armory.", dismiss),
     cheat!("reroll", "reroll <hero>", "Roll a hero's abilities and spells anew; its name, level and items stay.", reroll),
@@ -632,6 +632,9 @@ fn lair(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             )))
         }
     };
+    ctx.game
+        .cheat_feature_fits(pos, id)
+        .map_err(ConsoleError::Failed)?;
     let (world, rng) = ctx.game.world_and_rng();
     world
         .cheat_add_lair(pos, id, strong, rng)
@@ -658,6 +661,11 @@ fn feature(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         "none" => None,
         other => Some(feature_id(ctx, other)?),
     };
+    if let Some(id) = id {
+        ctx.game
+            .cheat_feature_fits(pos, id)
+            .map_err(ConsoleError::Failed)?;
+    }
     if !ctx.game.world_mut().cheat_set_feature(pos, id) {
         return Err(ConsoleError::Failed("that square is off the map".into()));
     }

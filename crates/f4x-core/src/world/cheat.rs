@@ -126,8 +126,43 @@ impl World {
         true
     }
 
-    /// Put a feature (or none) on a square: a mineral goes in the map layer, a tower, node or
-    /// encounter site becomes an entity (with no guards or treasure, and a node with no aura).
+    /// Whether the terrain of a square allows a feature (`FeatureDef::stands_on`); a tower needs
+    /// it on both planes. The error says what is in the way.
+    pub fn cheat_feature_fits(
+        &self,
+        pos: Position,
+        feature: crate::map::FeatureId,
+    ) -> Result<(), String> {
+        let def = self
+            .content
+            .features
+            .get(feature)
+            .ok_or("no such feature")?;
+        let map = self.map.as_ref().ok_or("there is no map")?;
+        let planes: Vec<Plane> = if def.kind == crate::feature::def::FeatureKind::Tower {
+            Plane::all().collect()
+        } else {
+            vec![pos.plane]
+        };
+        for plane in planes {
+            let terrain = map
+                .plane(plane)
+                .get(pos.x as i32, pos.y as i32)
+                .and_then(|t| self.content.terrains.get(t))
+                .ok_or("that square is off the map")?;
+            if !def.stands_on(terrain.class, plane) {
+                return Err(format!(
+                    "{} cannot stand on {} ({plane:?})",
+                    def.id, terrain.id
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// Put a feature (or none) on a square, whatever its terrain: a mineral goes in the map layer,
+    /// a tower, node or encounter site becomes an entity (with no guards or treasure, and a node
+    /// with no aura). A tower takes the square of both planes.
     pub fn cheat_set_feature(
         &mut self,
         pos: Position,
@@ -140,14 +175,11 @@ impl World {
         if pos.x >= grid.width() || pos.y >= grid.height() {
             return false;
         }
-        grid.set_mineral(pos.x, pos.y, None);
-        if let Some(old) = map.feature_entity(pos) {
-            self.despawn_feature(old);
-        }
+        let kind = feature.and_then(|id| self.content.features.get(id).map(|d| d.kind));
+        self.clear_for(pos, kind);
         let Some(id) = feature else {
             return true;
         };
-        let kind = self.content.features.get(id).map(|d| d.kind);
         if kind == Some(crate::feature::def::FeatureKind::Mineral) {
             if let Some(map) = self.map.as_mut() {
                 map.plane_mut(pos.plane).set_mineral(pos.x, pos.y, Some(id));
@@ -161,6 +193,24 @@ impl World {
             });
         }
         true
+    }
+
+    /// Make room on a square for a feature of `kind`: take off its mineral and feature entity,
+    /// for a tower on both planes.
+    fn clear_for(&mut self, pos: Position, kind: Option<crate::feature::def::FeatureKind>) {
+        let tower = kind == Some(crate::feature::def::FeatureKind::Tower);
+        for at in [Some(pos), tower.then(|| pos.on_other_plane())]
+            .into_iter()
+            .flatten()
+        {
+            let Some(map) = self.map.as_mut() else {
+                return;
+            };
+            map.plane_mut(at.plane).set_mineral(at.x, at.y, None);
+            if let Some(old) = map.feature_entity(at) {
+                self.despawn_feature(old);
+            }
+        }
     }
 
     /// Give a city a building at no cost and without its requirements.
@@ -365,7 +415,7 @@ impl World {
             treasure,
             style,
         );
-        self.cheat_set_feature(pos, None);
+        self.clear_for(pos, Some(kind));
         self.spawn_feature(crate::feature::entity::Placement {
             at: pos,
             feature,

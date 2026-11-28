@@ -1,7 +1,8 @@
 //! Terrain feature definitions: what a feature is, where it may spawn and what it gives a city
 //! that works its tile. Loading and validation from files is `load`.
 //!
-//! Tests: none, because it only declares the feature definitions; `load` loads and validates them.
+//! Tests: where a feature may stand, through the console (`f4x-console`, `src/tests/cheat.rs`);
+//! `load` loads and validates the definitions.
 
 use crate::half_int::HalfInt;
 use serde::{Deserialize, Serialize};
@@ -73,6 +74,29 @@ pub struct FeatureDef {
     /// Empty for towers, which are placed by dedicated rules.
     #[serde(default)]
     pub spawn: Vec<SpawnRule>,
+}
+
+impl FeatureDef {
+    /// Whether the feature may stand on terrain of `class` on `plane`: never on the sea; a tower on
+    /// any land; the others where their spawn rules say, and a node also on the terrain a node of
+    /// its realm has under it.
+    pub fn stands_on(&self, class: TerrainClass, plane: Plane) -> bool {
+        if class == TerrainClass::Ocean {
+            return false;
+        }
+        match self.kind {
+            FeatureKind::Tower => true,
+            FeatureKind::Node
+                if self.realm.and_then(TerrainClass::of_node_realm) == Some(class) =>
+            {
+                true
+            }
+            FeatureKind::Node | FeatureKind::Mineral | FeatureKind::Encounter => self
+                .spawn
+                .iter()
+                .any(|r| r.weight > 0 && r.terrain.contains(&class) && r.planes.contains(&plane)),
+        }
+    }
 }
 
 /// The loaded feature table, sorted by number; a [`FeatureId`] is a definition's number.

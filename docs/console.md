@@ -78,6 +78,7 @@ A line is split on spaces; double quotes keep a name together. Battle squares ar
 | `units [mine\|all\|x,y]`, `unit N` | units, one unit's statistics and abilities |
 | `cities [all]`, `city N`, `options N` | cities, one city in full, what it can build |
 | `tile x,y`, `map [x,y] [radius]` | a square, a text map (`#` unexplored, `~` water, `.` land, `^` hills, `C` city, `u` unit, `*` yours) |
+| `lairinfo x,y` | the monsters of the site on a square, if you know them (you fought for it, or a spell shows them); never its treasure. In override mode the monsters and the treasure |
 | `spells` | known and researchable spells |
 | `diplomacy [wizard]` | the wizards met: relation word and number, treaty, what may be proposed, proposals waiting |
 | `battle` | the battle being fought: units, squares, figures, moves |
@@ -128,7 +129,7 @@ adds nothing to the undo history.
 | A wizard's fortress | `fortress <x,y[,plane]> [name] [race=<id>] [player=<n>]` |
 | Terrain, spells, fog | `terrain <x,y[,plane]> <terrain-id>`, `learn <spell> [player]`, `reveal [player]` |
 | A wizard's sheet: books, retorts, spells | `set books <realm> <n> [player]` (at most the game's most for a realm; 0 takes them away), `give retort <retort> [player]`, `remove retort <retort> [player]`, `give spell <spell> [player]` (the same as `learn`), `remove spell <spell> [player]` (a known spell goes back to the researchable ones when the books allow it). The casting skill is worked out again from the books and retorts; the spell library, fame and power split stay as they are. |
-| Sites and features | `lair <feature> <x,y[,plane]> [strong\|weak]` (an encounter site or tower with guards and treasure made as a new world makes them), `unlair <x,y[,plane]>`, `feature <x,y[,plane]> <feature\|none>` (a mineral, tower, node or encounter site with no guards, treasure or aura, or take the feature off) |
+| Sites and features | `lair <feature> <x,y[,plane]> [strong\|weak]` (an encounter site or tower with guards and treasure made as a new world makes them), `unlair <x,y[,plane]>`, `feature <x,y[,plane]> <feature\|none>` (a mineral, tower, node or encounter site with no guards, treasure or aura, or take the feature off). `lair` and `feature` refuse a terrain that does not allow the feature: no site stands on the sea, a mineral, node or encounter site stands where its spawn rules say (a node also on the node terrain of its realm), and a tower needs land on both planes, whose squares it takes. `lairinfo` (a query) shows the guards and treasure. |
 | Heroes | `hire <hero> [player]` (free, on the fortress or in a city; the hero must be free or dead), `dismiss <hero>`, `reroll <hero>` (abilities and spells anew; name, level and items stay). `<hero>` is the unit's id or number |
 | A wizard's treasury | `treasury [player]` (gold with its net income, mana, fame); `give` changes it |
 | Events, offers, meeting wizards | `event <name> [player]`, `offer <kind>`, `contact [player]` (meet one wizard, or all) |

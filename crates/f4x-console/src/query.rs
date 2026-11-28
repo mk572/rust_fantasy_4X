@@ -4,7 +4,8 @@
 
 use f4x_core::map::{Plane, Position};
 
-use f4x_def::rules::Stat;
+use f4x_core::feature::entity::LairInfo;
+use f4x_def::rules::{Stat, UnitId};
 
 use crate::args::{city_by_serial, parse_pos, unit_by_serial, Args};
 use crate::describe;
@@ -66,6 +67,13 @@ pub const TABLE: &[CommandDef] = &[
         usage: "tile <x,y[,plane]>",
         help: "Terrain, feature and what stands on a square.",
         run: tile,
+    },
+    CommandDef {
+        name: "lairinfo",
+        kind: Kind::Query,
+        usage: "lairinfo <x,y[,plane]>",
+        help: "The monsters and treasure of the site on a square. In legal mode only the monsters you know of, never the treasure.",
+        run: lairinfo,
     },
     CommandDef {
         name: "map",
@@ -567,6 +575,90 @@ fn tile(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         }
     }
     Ok(())
+}
+
+fn lairinfo(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let p = parse_pos(a.need(0, "position")?, Plane::Arcanus)?;
+    if !ctx.explored(p) {
+        ctx.say(format!("{} is unexplored", describe::pos(p)));
+        return Ok(());
+    }
+    let economy = ctx.game.economy();
+    let lair = economy
+        .feature_entity_at(p)
+        .and_then(|e| economy.lair_of(e))
+        .ok_or_else(|| ConsoleError::Failed("there is no lair on that square".into()))?;
+    let site = ctx
+        .game
+        .content()
+        .features
+        .get(lair.site)
+        .map_or("site", |d| d.id.as_str());
+    let head = format!("{}: {site}", describe::pos(p));
+    let me = ctx.session.player;
+    let known = if ctx.overriding() {
+        Some(lair.guards.clone())
+    } else {
+        economy.lair_guards_known_to(p, me)
+    };
+    let mut lines = vec![head];
+    if !lair.intact && (ctx.overriding() || lair.fought_by.contains(&me)) {
+        lines.push("  cleared".to_string());
+    } else if let Some(guards) = known {
+        lines.push(format!("  guards: {}", guard_list(ctx, &guards)));
+        if ctx.overriding() {
+            lines.push(format!("  treasure: {}", treasure_list(&lair)));
+        }
+    } else {
+        lines.push("  what guards it is not known".to_string());
+    }
+    for line in lines {
+        ctx.say(line);
+    }
+    Ok(())
+}
+
+fn guard_list(ctx: &Ctx, guards: &[(UnitId, u32)]) -> String {
+    if guards.is_empty() {
+        return "none".into();
+    }
+    let units = &ctx.game.content().rules.units;
+    guards
+        .iter()
+        .map(|&(id, n)| format!("{n} x {}", units.get(id).id))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn treasure_list(lair: &LairInfo) -> String {
+    let mut parts = Vec::new();
+    if lair.gold > 0 {
+        parts.push(format!("{} gold", lair.gold));
+    }
+    if lair.mana > 0 {
+        parts.push(format!("{} mana", lair.mana));
+    }
+    if !lair.items.is_empty() {
+        let values: Vec<String> = lair.items.iter().map(u32::to_string).collect();
+        parts.push(format!("items worth {}", values.join(", ")));
+    }
+    if lair.prisoner {
+        parts.push("a prisoner hero".into());
+    }
+    // The meaning of the number: `Lair::special`.
+    match lair.special {
+        1 => parts.push("a common spell".into()),
+        2 => parts.push("an uncommon spell".into()),
+        3 => parts.push("a rare spell".into()),
+        4 => parts.push("a very rare spell".into()),
+        5 => parts.push("a spell book or a retort".into()),
+        6 => parts.push("a spell book or retort worth two picks".into()),
+        _ => {}
+    }
+    if parts.is_empty() {
+        return "none".into();
+    }
+    parts.join(", ")
 }
 
 fn map(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
