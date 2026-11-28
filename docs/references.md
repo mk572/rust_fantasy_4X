@@ -30,7 +30,7 @@ elsewhere is in `reference/CREDITS.md`.
 
 The Master of Magic Wiki pages on the Community Patch, the Unofficial Patch 1.50, the Insecticide patch, the
 Consolidation Patch (v1.31c) and the races, and the Caster of Magic page, are saved in `reference/` as HTML
-files. They tell what the patches changed and what the original's bugs are (`docs/help-vs-implementation-conflicts.md`).
+files. They tell what the patches changed and what the original's bugs are (`docs/archive/help-vs-implementation-conflicts.md`).
 
 **Getting a wiki page:** `scripts/fetch_wiki.sh "Melee Attack"` saves the page into `reference/` through Safari
 (`--text` prints its text). Fandom answers curl and the fetch tools with HTTP 402, so the script drives Safari with

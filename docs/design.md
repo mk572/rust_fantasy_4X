@@ -1,7 +1,7 @@
 # High-level design: a Master of Magic-style 4X in Rust with ECS
 
 Status: living document. Scope: gameplay-faithful reimagining, not a port of the original code, data or art.
-Related documents: [`rules-framework.md`](rules-framework.md) (the rules layer), [`map-layers.md`](map-layers.md) (map layers and generation), [`game-flow.md`](game-flow.md) (commands, turn, movement, production, treasury), [`ecs-structure.md`](ecs-structure.md) (how state is stored and how it differs from the original), [`architecture-plan.md`](archive/architecture-plan.md) (the audit of `World` and the plan for self-contained domains), [`mechanics-gaps.md`](archive/mechanics-gaps.md) (what the original does that we have not built), [`help-vs-implementation-conflicts.md`](help-vs-implementation-conflicts.md) (resolved and open source conflicts), [`local-assets.md`](local-assets.md) (local-only original art and data), [`sound.md`](sound.md) (every music track and sound effect of the original and when it plays).
+Related documents: [`rules-framework.md`](rules-framework.md) (the rules layer), [`map-layers.md`](map-layers.md) (map layers and generation), [`game-flow.md`](game-flow.md) (commands, turn, movement, production, treasury), [`ecs-structure.md`](ecs-structure.md) (how state is stored and how it differs from the original), [`architecture-plan.md`](archive/architecture-plan.md) (the audit of `World` and the plan for self-contained domains), [`mechanics-gaps.md`](archive/mechanics-gaps.md) (what the original does that we have not built), [`help-vs-implementation-conflicts.md`](archive/help-vs-implementation-conflicts.md) (resolved and open source conflicts), [`local-assets.md`](local-assets.md) (local-only original art and data), [`sound.md`](sound.md) (every music track and sound effect of the original and when it plays).
 
 ## 1. Goals and constraints
 - Replicate MoM's *gameplay*: two planes (Arcanus/Myrror), wizard-led spell-casting, cities and unit production, hero units, tactical battles, and five magic realms.
@@ -245,7 +245,7 @@ Rules and data
 - Half-units are explicit where the original uses them: every amount counted in halves is a `HalfInt` (food, production, gold, mana, moves, sight; `crates/f4x-def/src/half_int.rs`), written in files as the amount (`1`, `0.5`, `1.5`) and shown with the ½ glyph. A bare `i32` beside a `HalfInt` means whole units. The one finer count is the land's food of a city, a `QuarterInt` (`crates/f4x-def/src/quarter_int.rs`, steps of 0.25) because a shared tile gives half of a half; the quarters of the area are added up first and rounded down to a half (the city's food) or a whole number (the size the land allows) only at the end.
 - Population is kept in citizens (1000 people each) plus tens of people; growth is in tens. Surplus tens carry over instead of being discarded.
 
-Resolving differences between sources (full list in `help-vs-implementation-conflicts.md`)
+Resolving differences between sources (full list in `archive/help-vs-implementation-conflicts.md`)
 1. Anything the ReMoM clone marks as a bug in the original game: use ReMoM's fix.
 2. Anything ReMoM marks as to-do or not implemented: use the original game's behaviour.
 3. Where the in-game help disagrees with the original's code or data: decide by the priorities above. Where the game does not follow the help, the imported help is rewritten to say what the game does (the reason is in the importer's report, not in the text the player reads); the game's own help is `crates/f4x-lang/content/text/en/help/help.ron`.

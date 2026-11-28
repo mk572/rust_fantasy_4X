@@ -31,7 +31,7 @@ Deliberate departures from a rule the original *has* (a different number, a diff
 | 7 | **Game settings and the levels' difficulty extras as data** | `world/setting.rs`, `game-settings.md` | new game, options | The original hard-codes the difficulty extras | Keep: decided with task 247 |
 | 8 | **The AI**: wizard objectives acted on, battle AI, the neutral AI, the learned AI | `f4x-ai`, `f4x-learn`, `f4x-newgame/src/computer_wizard.rs`, `f4x-ai/src/battle/order.rs`, `f4x-ai/src/battle/cast.rs` | the computer wizards | Not a port; the original's own AI code is not used | Keep: this is the project's own part |
 | 9 | **Our map generator** | `f4x-newgame/src/mapgen/` | new game | `map-layers.md` section "generator": our own design, not a port | Keep |
-| 10 | **Dispellable enchanted roads** | `spell/world.rs` (Enchant Road) | Enchant Road, Disenchant Area | `help-conflicts-checklist.md` item 55: the original's cannot be dispelled | Keep: divergence 27 |
+| 10 | **Dispellable enchanted roads** | `spell/world.rs` (Enchant Road) | Enchant Road, Disenchant Area | `archive/help-conflicts-checklist.md` item 55: the original's cannot be dispelled | Keep: divergence 27 |
 | 11 | **Depletion and New Minerals** by our own rule | `spell/terraform.rs` | those two spells | ReMoM stubs both (`divergences.md` section on mineral spells) | Keep |
 | 12 | **Sounds and tracks the original has not** (life and death node music and others) | `docs/sound.md` section 5.3 | the client | Not a rule | Keep |
 | 13 | **Spell fields `not_with`, `already_able`, `dispel_difficulty`, `save`** | `rules/defs.rs` `SpellDef` | the casting and dispel checks | The original has these rules, but in code (a spell's legality in `Spells*.c`); ours is data. Not an invention | Keep |

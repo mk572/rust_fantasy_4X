@@ -3,7 +3,7 @@
 //! hook the spell runs (`spell/cast.rs`); the targets they accept are checked by `check_target`.
 //!
 //! Where the original's help and code disagree the code is followed, except Subversion (see
-//! `docs/help-vs-implementation-conflicts.md`, rows B30 to B33).
+//! `docs/archive/help-vs-implementation-conflicts.md`, rows B30 to B33).
 //!
 //! Tests: in spell/wizard/tests.rs.
 

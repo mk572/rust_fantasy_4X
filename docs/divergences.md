@@ -8,7 +8,7 @@ back or wonder whether it was an oversight.
 
 Not in this file: places where we simply have not got to the original's rule yet (those are
 tasks in `TASKS.md`), conflicts between the original's help and its code (see
-`help-vs-implementation-conflicts.md`), and the original's own bugs (resolved by the rules in
+`archive/help-vs-implementation-conflicts.md`), and the original's own bugs (resolved by the rules in
 `design.md` section 11).
 
 **Entry format:** what the original does, what we do, why, when decided, where it lives.
@@ -467,7 +467,7 @@ Decided 16 October 2026, from ReMoM's `AdvsrScr.c`, `Surveyor.c`, `REPORT.c`, `S
 
 - **Our own rule, decided by the user on 16 October 2026.** The original scales only ships (the
   owner's Wind Mastery gives x1.5, each rival's halves; see B37 in
-  `help-vs-implementation-conflicts.md`). Here a wizard with Wind Mastery gets x1.5 movement for all
+  `archive/help-vs-implementation-conflicts.md`). Here a wizard with Wind Mastery gets x1.5 movement for all
   their ships and flying units, overland and in battle (`unit_max_moves`). While any wizard holds the
   spell, every wizard without it gets x0.5 for ships and fliers. Nothing stacks: two holders both get
   the bonus and no one is halved.
@@ -599,7 +599,7 @@ The original's Lo Pan has five sorcery and five chaos books and the Channeler re
   (`Economy::square_food`, `square_production`): river squares, shore water, lakes and river mouths,
   and magic nodes (whose square has a base terrain of its own, section 33) give the original's food; Gaia's Blessing doubles
   forests and nature nodes. A river square gives no production bonus, as in the original, where a
-  river replaces the land. Details in `help-vs-implementation-conflicts.md`.
+  river replaces the land. Details in `archive/help-vs-implementation-conflicts.md`.
 - **Blur** is a flat -1 to the attacker's chance to hit (none for an attacker immune to illusions), not the original's 10% miss for each point of damage.
 - **Invisibility in battle** (`Battle::seen_by`): as in the original, an invisible unit is hidden from
   the enemy (not drawn, not clickable, no ranged cursor) until an enemy unit is next to it or the
@@ -796,7 +796,7 @@ immunity** protects against Terror. The other differences listed there are kept 
 - **No limit on the number of units** (decided by the user, 24 October 2026, task 144): the
   original's unit table holds `MAX_UNIT_COUNT` entries, so production stops and says "Maximum number
   of units exceeded" (`NEXTTURN.c`, message 66) when it is full. Ours has no such table: the only
-  limit is nine units on a square (`large-stacks.md`). The warning and every check for it are not
+  limit is nine units on a square (`archive/large-stacks.md`). The warning and every check for it are not
   built and will not be.
 - **Raiders and rampaging monsters** (task 376, `threat.rs`; the owner's design, 24 October 2026): the
   original's raiders are copies of a neutral city's garrison that walk out beside the city, with a

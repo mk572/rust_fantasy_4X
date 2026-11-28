@@ -329,7 +329,7 @@ impl<'a> UnitView<'a> {
     /// experience gives, raised to Elite by Heroism, then by one each for its owner's Warlord
     /// retort and Crusade spell (which leave the undead and creatures alone). Battles use the
     /// same level as the map (the original's battle code ignores Warlord, Crusade and xp when
-    /// Heroism is on: B9 in `help-vs-implementation-conflicts.md`, we follow the help).
+    /// Heroism is on: B9 in `docs/archive/help-vs-implementation-conflicts.md`, we follow the help).
     pub fn unit_level(&self, unit: hecs::Entity) -> usize {
         if self.unit_level_path(unit).is_none() {
             return 0;

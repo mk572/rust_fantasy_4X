@@ -6,7 +6,7 @@
 //! - is a creature of the Death realm and counts as fantastic in battle;
 //! - has the immunities of the Death creatures: death, cold, poison and illusion. The original
 //!   forgot the last three for raised units (`COMBINIT.c`, "OGBUG"); the help gives them, and
-//!   so does the game (`help-vs-implementation-conflicts.md` B10);
+//!   so does the game (`docs/archive/help-vs-implementation-conflicts.md` B10);
 //! - is not healed: not in the field or a city, not by a healer, Stream of Life or Herb
 //!   Mastery, and not by the Healing spell. (Death creatures that are born so, such as
 //!   skeletons and ghouls, are not healed either.)

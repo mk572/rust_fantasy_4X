@@ -809,7 +809,7 @@ of 42, within the noise of this sample.
    (the planned item 21 was dropped). With `WANTED_CITIES` met, a wizard stops settling. Land is often
    left free. Housing does nothing in an outpost (it makes no production).
 3. **Overland magic is thin** (as of the first baseline; since then the AI casts curses and attacks on
-   cities and stacks, Spell of Return, item crafting and the enchanting spells, `docs/soak-results-2026-11-17.md`).
+   cities and stacks, Spell of Return, item crafting and the enchanting spells, `docs/archive/soak-results-2026-11-17.md`).
    Still open: city protection (`spell_ward`, task 641); the 17 November soak left 145 known spells
    never cast on the map (tasks 641 and 642). Research chosen by what its enemies cast is not built, on
    purpose (task 367, skipped).

@@ -2,7 +2,7 @@
 
 Each marker is a place where the original code departs from what the manual or the
 author's intent describes, so the index is a worklist for deciding which behaviour
-the new game follows (see docs/help-vs-implementation-conflicts.md). The index
+the new game follows (see docs/archive/help-vs-implementation-conflicts.md). The index
 repeats ReMoM's comment text, so it is written to the gitignored `reference/content-local-archive/`.
 
 Usage:

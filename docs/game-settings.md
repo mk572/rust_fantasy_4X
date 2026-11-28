@@ -4,7 +4,7 @@ Status: **draft, decisions of 16 October folded in**, nothing built. It turns ta
 parts of 148, 155, 68, 69, 82 and former planned items 2, 3 and 8, now task 790 for hardcore) into one plan: a per-game
 settings record that is saved with the game, the base settings screen of task 94 on top of it, and
 an advanced screen, opened from a button on the base screen, for the numbers the original never
-lets the player touch. Larger stacks have their own design, [`large-stacks.md`](large-stacks.md),
+lets the player touch. Larger stacks have their own design, [`large-stacks.md`](archive/large-stacks.md),
 for later.
 
 **Built so far (16 October 2026):** stage 1 (task 246) and stage 2 (task 247, with the
@@ -366,7 +366,7 @@ is a second copy of the same 9, and `battle/world.rs` caps the raised dead by `M
 
 - `max_stack` replaces both constants, and **lowering it (1 to 8) is a stage 3 setting**: it only
   makes the existing code stricter.
-- **Raising it above nine is a stage 4 setting with its own design, [`large-stacks.md`](large-stacks.md),
+- **Raising it above nine is a stage 4 setting with its own design, [`large-stacks.md`](archive/large-stacks.md),
   for later.** Until then the range is 1..=9 and a larger value in a hand-edited save is clamped.
 - `MAX_SIDE_UNITS` follows `max_stack`. A raised-dead or summoned unit is refused when the side is
   full, as now. The generator caps neutral garrisons and lairs at `max_stack`.
@@ -651,7 +651,7 @@ dropdown**.
    Spell of Mastery wins          [x]
    Spell of Return                < All wizards | Human only | Off >
    Heroes                         [x]        Lairs  [x]    Neutral cities  [x]
-   Units in a stack, most         < 9 >      (1 to 9; more: see large-stacks.md)
+   Units in a stack, most         < 9 >      (1 to 9; more: see archive/large-stacks.md)
    City size, largest             < 25 >     Distance between cities < 4 >
    Hardcore                       [ ]       (stage 4)
    No Myrror                      [ ]       (stage 4)
@@ -680,7 +680,7 @@ Rules for the screen:
 3. **Candidates already named** in other docs: more than four opponents (done, task P3 in `TASKS-DONE.md`); starting
    fame and the capital's size (4.2); per-event on/off (4.5); ruleset switches such as the
    community patch's rule changes (task 787: each patch rule is a setting, default original);
-   the undo setting (task 90); stack limits above nine ([`large-stacks.md`](large-stacks.md)); a
+   the undo setting (task 90); stack limits above nine ([`large-stacks.md`](archive/large-stacks.md)); a
    raised city size cap (stage 4).
 4. **The human's multipliers** are the `ai.apply_to_human` switch, off by default.
 
@@ -749,7 +749,7 @@ the same spirit as `game.magic_strength = self.magic_strength.min(2)` today.
    the AI multipliers and `apply_to_human`, the AI wizard block, starting units (4.2), the switches (Spell of Mastery, Spell of
    Return, heroes, lairs, neutral cities, raiders, random events and their frequency, fleeing),
    the lowered stack limit and city size cap, city distance, map size and counts, score scale.
-4. **Hard settings.** **No Myrror** (4.9) and **hardcore mode** (4.10), larger stacks ([`large-stacks.md`](large-stacks.md)), a raised city size cap
+4. **Hard settings.** **No Myrror** (4.9) and **hardcore mode** (4.10), larger stacks ([`large-stacks.md`](archive/large-stacks.md)), a raised city size cap
    and the other settings that need new art, layout or balance work: more than four opponents, per
    event switches. Each gets its own task and its own tests, and its range on the screen is raised
    only when it is done.

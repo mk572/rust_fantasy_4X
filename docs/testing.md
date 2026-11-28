@@ -82,4 +82,4 @@ cities founded and conquered, land explored, sites and nodes held, and spells re
 
 ## Reviews
 
-`test-review-log.md` lists the files whose tests were reviewed.
+`archive/test-review-log.md` lists the files whose tests were reviewed.

@@ -1337,7 +1337,7 @@ impl Diplomacy {
     /// Subversion (`Apply_Subversion`): the relation of every other wizard that has met `target`
     /// falls by `subversion_penalty` (`rules.ron`), and the peace between them is over. The original's code
     /// then overwrites the new relation with the old one, which leaves only the peace ended; the
-    /// help's rule is followed here (`docs/help-vs-implementation-conflicts.md`, B33).
+    /// help's rule is followed here (`docs/archive/help-vs-implementation-conflicts.md`, B33).
     pub(crate) fn subvert(
         &mut self,
         ctx: &mut DiplomacyCtx<'_>,

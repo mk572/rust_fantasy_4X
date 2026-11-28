@@ -376,7 +376,7 @@ through `f4x-extract art` (already extracted to `assets-local/art/<lbx>/<entry>_
 `Help` is the in-game help, `Original` is what the code does where ReMoM's reading of the
 disassembly is clear, `Ours` is what we have or will do. Items marked **Check** rest on a ReMoM
 comment or one read of the code and need a second look before they are built (the
-`help-vs-implementation-conflicts.md` rule).
+`archive/help-vs-implementation-conflicts.md` rule).
 
 | # | Topic | Help | Original code (ReMoM) | Proposal |
 |---|---|---|---|---|
