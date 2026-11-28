@@ -14,7 +14,7 @@ use f4x_battle::battle::{Battle, BattleCommand, RangedKind};
 use f4x_battle::map::{distance, in_city_area, Pos};
 use f4x_battle::{BattleUnit, Side};
 use f4x_core::rules::unit_flag::UnitFlag;
-use f4x_core::rules::{Ability, Rules};
+use f4x_core::rules::Rules;
 use f4x_core::world::setting::MeleeVsFliers;
 use f4x_def::half_int::HalfInt;
 use f4x_def::rules::attack_nature::AttackNature;
@@ -60,10 +60,7 @@ fn route(battle: &Battle, unit: &BattleUnit, to: Pos) -> Vec<Pos> {
 /// section nearest the enemy it can get to, struck from next to it. `None` if it should fight as
 /// usual (no wall, a breach already, or an enemy within reach).
 fn wall_order(battle: &Battle, unit: &BattleUnit, enemy: &BattleUnit) -> Option<BattleCommand> {
-    if unit.side != Side::Attacker
-        || !unit.has(Ability::new(70 /* wall_crusher */))
-        || !unit.can_attack()
-    {
+    if unit.side != Side::Attacker || !unit.crushes_walls() || !unit.can_attack() {
         return None;
     }
     let walls = battle.map.standing_walls();

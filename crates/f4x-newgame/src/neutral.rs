@@ -148,27 +148,24 @@ fn neutral_races(world: &World, plane: Plane) -> Vec<RaceId> {
         .collect()
 }
 
-/// How many of the squares a city on `at` works are of `class` (the 21 squares of its area:
-/// five by five without the corners).
+/// How many of the squares a city on `at` works are of `class` (`area_offsets`).
 fn terrain_round(world: &World, at: Position, class: TerrainClass) -> u32 {
     let Some(grid) = world.map().map(|m| m.plane(at.plane)) else {
         return 0;
     };
     let mut count = 0;
-    for dy in -2i32..=2 {
-        for dx in -2i32..=2 {
-            let y = at.y as i32 + dy;
-            if (dx.abs() == 2 && dy.abs() == 2) || y < 0 || y >= grid.height() as i32 {
-                continue;
-            }
-            let x = grid.wrap_x(at.x as i32 + dx) as i32;
-            if grid
-                .get(x, y)
-                .and_then(|t| world.content().terrains.get(t))
-                .is_some_and(|t| t.class == class)
-            {
-                count += 1;
-            }
+    for (dx, dy) in f4x_core::city::economy::area_offsets() {
+        let y = at.y as i32 + dy;
+        if y < 0 || y >= grid.height() as i32 {
+            continue;
+        }
+        let x = grid.wrap_x(at.x as i32 + dx) as i32;
+        if grid
+            .get(x, y)
+            .and_then(|t| world.content().terrains.get(t))
+            .is_some_and(|t| t.class == class)
+        {
+            count += 1;
         }
     }
     count

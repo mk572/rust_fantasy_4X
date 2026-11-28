@@ -138,6 +138,19 @@ impl World {
 
     // ---- turn change -------------------------------------------------------------
 
+    /// The percent of what `player` puts into alchemy that comes back (`alchemy_percent` of the
+    /// rules, as the wizard's retorts change it).
+    pub fn alchemy_percent(&self, player: PlayerId) -> i32 {
+        let base = self.content.rules.config.wizard.alchemy_percent;
+        self.wizard(player).map_or(base, |w| {
+            w.stat(
+                &self.content.rules,
+                crate::rules::Stat::AlchemyPercent,
+                base,
+            )
+        })
+    }
+
     /// The research that finished at the last turn end is learned and the next spell is chosen,
     /// at the start of the wizard's turn (`collect_power` added the points at the end).
     pub(crate) fn process_research(&mut self, player: PlayerId, rng: &mut GameRng) -> Vec<Event> {

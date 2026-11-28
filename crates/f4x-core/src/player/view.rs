@@ -297,6 +297,37 @@ impl<'a> PlayerView<'a> {
             .collect()
     }
 
+    /// Whether the square `at` is in the worked area of a city on `city` (`economy::works`).
+    pub fn city_works(&self, city: Position, at: Position) -> bool {
+        self.world
+            .map()
+            .is_some_and(|m| crate::city::economy::works(m.width(), city, at))
+    }
+
+    /// The percent of what the wizard puts into alchemy that comes back.
+    pub fn alchemy_percent(&self) -> i32 {
+        self.world.alchemy_percent(self.me)
+    }
+
+    /// The strength the wizard's cast of `spell` attacks a global enchantment with
+    /// (`World::global_attack_strength`).
+    pub fn global_attack_strength(&self, spell: SpellId, extra: u32) -> Option<u32> {
+        self.world.global_attack_strength(self.me, spell, extra)
+    }
+
+    /// Whether a cast of `spell` on a global enchantment cannot fail.
+    pub fn global_attack_certain(&self, spell: SpellId) -> bool {
+        self.world.global_attack_certain(spell)
+    }
+
+    /// How hard the global enchantment `instance` is to dispel, its caster's retorts counted;
+    /// `None` if there is no such instance.
+    pub fn global_difficulty(&self, instance: hecs::Entity) -> Option<u32> {
+        let spells = self.world.spells();
+        let (spell, caster) = (spells.def(instance)?, spells.caster_player(instance)?);
+        Some(self.world.dispel_difficulty(spell, Some(caster)))
+    }
+
     /// The lasting spells on the whole world that wizards at war with the player keep going, with
     /// the instance to aim Disjunction at.
     pub fn globals_of_enemies(&self) -> Vec<(SpellId, hecs::Entity)> {
@@ -433,6 +464,16 @@ impl<'a> PlayerView<'a> {
 
     pub fn unit_has_ability(&self, unit: hecs::Entity, ability: Ability) -> bool {
         self.world.units().unit_has_ability(unit, ability)
+    }
+
+    /// Whether the unit is a spirit that can meld with a node.
+    pub fn unit_can_meld(&self, unit: hecs::Entity) -> bool {
+        self.world.units().unit_can_meld(unit)
+    }
+
+    /// Whether the unit heals the units that stand with it.
+    pub fn unit_is_healer(&self, unit: hecs::Entity) -> bool {
+        self.world.units().unit_is_healer(unit)
     }
 
     /// Whether one of the unit's abilities sets the flag (`Units::unit_has_flag`).

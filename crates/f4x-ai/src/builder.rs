@@ -73,7 +73,9 @@ fn effect_total(view: &PlayerView, b: BuildingId, wanted: &[Stat]) -> f32 {
                 op: ModOp::Percent,
                 value,
                 ..
-            } if wanted.contains(&stat) => Some(value.as_f32() / 10.0),
+            } if wanted.contains(&stat) => {
+                Some(value.as_f32() / view.levers().building.percent_per_point)
+            }
             _ => None,
         })
         .sum()
@@ -223,9 +225,6 @@ fn listed_buildings(view: &PlayerView, city: hecs::Entity, need: Need) -> Vec<Bu
     v
 }
 
-/// The miners guild: it adds half to the gold, mana and ore savings of the tiles in the city's area.
-const MINERS_GUILD: BuildingId = BuildingId::new(34); // miners_guild
-
 /// What the rivers of a city are worth to its choice of food buildings: nothing below
 /// `rivers_min` squares.
 fn river_worth(view: &PlayerView, rivers: u32) -> f32 {
@@ -237,11 +236,11 @@ fn river_worth(view: &PlayerView, rivers: u32) -> f32 {
 }
 
 /// Land that gives production (forests, hills, mountains, desert) is a specialty only when there
-/// is a good deal of it: a point of worth for each tile's 3%, and nothing below
-/// `land_production_min`.
+/// is a good deal of it: a point of worth for each `land_production_per_point` percent, and
+/// nothing below `land_production_min`.
 fn terrain_production_worth(view: &PlayerView, percent: f32) -> f32 {
     if percent >= view.levers().building.land_production_min {
-        percent / 3.0
+        percent / view.levers().building.land_production_per_point
     } else {
         0.0
     }
@@ -258,7 +257,9 @@ fn specialty(view: &PlayerView, city: hecs::Entity, need: Need) -> Option<Buildi
             && need.net_gold
                 >= HalfInt::from_int(view.content().rules.buildings.get(b).upkeep_gold as i32)
     };
-    let miners = startable(MINERS_GUILD).then_some(MINERS_GUILD);
+    // The Miners' Guild adds to what the ores and gems of the city's area give.
+    let guild = BuildingId::new(view.content().rules.config.targets.miners_guild);
+    let miners = startable(guild).then_some(guild);
     let nightshade = || {
         view.content()
             .rules
@@ -270,8 +271,9 @@ fn specialty(view: &PlayerView, city: hecs::Entity, need: Need) -> Option<Buildi
             .filter(|&b| startable(b))
             .min_by_key(|&b| (view.content().rules.buildings.get(b).cost, b))
     };
-    // The worth of each special, in points: a point of gold or mana, a food, a tenth of a percent
-    // off the unit cost, two points a nightshade plant.
+    // The worth of each special, in points: a point of gold or mana, a food, some percent off the
+    // unit cost, some points a nightshade plant (the levers).
+    let levers = view.levers().building;
     let mut wants: Vec<(f32, Option<BuildingId>)> = vec![
         (
             sp.gold,
@@ -291,10 +293,11 @@ fn specialty(view: &PlayerView, city: hecs::Entity, need: Need) -> Option<Buildi
             ),
         ),
         (
-            sp.unit_cost_percent / 5.0 + terrain_production_worth(view, sp.terrain_production),
+            sp.unit_cost_percent / levers.unit_cost_per_point
+                + terrain_production_worth(view, sp.terrain_production),
             best_adding(view, city, need, &[Stat::CityProduction]).or(miners),
         ),
-        (sp.nightshade as f32 * 2.0, nightshade()),
+        (sp.nightshade as f32 * levers.nightshade_worth, nightshade()),
     ];
     wants.retain(|&(worth, b)| worth > 0.0 && b.is_some());
     wants.sort_by(|a, b| b.0.total_cmp(&a.0));
@@ -317,10 +320,11 @@ pub fn next_item(
     // 1. The garrison.
     let mut minimum = garrison_minimum(&view.content().rules, eco.figures).min(need.garrison_cap);
     if minimum > 0 {
-        minimum += u32::from(need.rival_near);
+        let levers = view.levers().building;
+        minimum += u32::from(need.rival_near) * levers.rival_guards;
         match (plan.primary, plan.secondary) {
-            (Focus::Defense, _) => minimum += 2,
-            (_, Some(Focus::Defense)) => minimum += 1,
+            (Focus::Defense, _) => minimum += levers.defense_guards,
+            (_, Some(Focus::Defense)) => minimum += levers.defense_second_guards,
             _ => {}
         }
     }
@@ -649,7 +653,7 @@ mod tests {
             .iter()
             .any(|(o, d)| d.requires.contains(&b) && adds_gold(o));
         assert!(
-            adds_gold(b) || opens_gold || b == MINERS_GUILD,
+            adds_gold(b) || opens_gold || b.num() == rules.config.targets.miners_guild,
             "{}",
             rules.buildings.get(b).id
         );
@@ -733,7 +737,7 @@ mod tests {
         let adds = |x: BuildingId| effect_total(&view, x, &[Stat::CityMana]) > 0.0;
         assert!(
             adds(b)
-                || b == MINERS_GUILD
+                || b.num() == rules.config.targets.miners_guild
                 || rules
                     .buildings
                     .iter()

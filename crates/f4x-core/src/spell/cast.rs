@@ -433,7 +433,6 @@ impl WorldHost<'_> {
         let Some((effect, number)) = C::of(def) else {
             return;
         };
-        let cost = def.cost + self.extra;
         match effect {
             C::Dispel => {
                 let removed = self.dispel(who, number, by);
@@ -453,16 +452,11 @@ impl WorldHost<'_> {
                 else {
                     return;
                 };
-                // Disjunction (not Spell Binding) is a Runemaster's dispel, twice as strong.
-                let power = if steal {
-                    1
-                } else {
-                    self.world.dispel_power(by)
-                };
+                let strength = self.world.global_attack_strength(by, spell, self.extra);
                 let result = self.world.attack_global(
                     by,
                     instance,
-                    cost * number.max(1) * power,
+                    strength.unwrap_or(0),
                     steal,
                     &mut *self.rng,
                 );

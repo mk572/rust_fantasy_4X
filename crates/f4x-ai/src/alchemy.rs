@@ -1,6 +1,6 @@
 //! A neutral player's alchemy (task 522): it has no wizard, no spells and no use for mana, so the
-//! AI turns all its mana into gold every turn, at the rate of any player (`Stat::AlchemyPercent`,
-//! 50% without a retort), with the ordinary `Alchemy` command. The game has no rule for this.
+//! AI turns all its mana into gold every turn, at the rate of any player
+//! (`World::alchemy_percent`), with the ordinary `Alchemy` command. The game has no rule for this.
 //!
 //! Tests: in this file.
 

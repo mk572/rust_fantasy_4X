@@ -361,7 +361,7 @@ impl Scene<'_> {
         let Some(battle) = self.world.battle() else {
             return 0.0;
         };
-        let walks = |u: &BattleUnit| !u.flag(UnitFlag::Flies) && !u.flag(UnitFlag::NonCorporeal);
+        let walks = BattleUnit::on_the_ground;
         let near = |u: &&BattleUnit, reach: u32| map::distance(u.cell, cell) <= reach;
         let ours = |reach: u32| self.sum(self.friends, |u| walks(u) && near(&u, reach));
         let theirs = |reach: u32| self.sum(self.enemies, |u| walks(u) && near(&u, reach));
@@ -384,11 +384,7 @@ impl Scene<'_> {
             }
             BattleEffect::CracksCall => {
                 let over = |units: &[&BattleUnit]| {
-                    self.sum(units, |u| {
-                        u.cell == cell
-                            && walks(u)
-                            && !u.has(f4x_core::rules::Ability::new(43 /* merging */))
-                    })
+                    self.sum(units, |u| u.cell == cell && u.can_fall_in_fissure())
                 };
                 let odds = battle.content.rules.battle.fissure_odds();
                 (odds * (over(self.enemies) - over(self.friends)) + breach).max(0.0)
@@ -555,7 +551,14 @@ impl Scene<'_> {
                 }
                 // Magical weapons for a unit that cannot hurt the weapon-immune enemies.
                 Effect::GrantAbility(a)
-                    if *a == f4x_core::rules::Ability::new(41 /* magical_weapon */)
+                    if self
+                        .battle
+                        .content
+                        .rules
+                        .abilities
+                        .get(*a)
+                        .flags
+                        .contains(&UnitFlag::MagicalWeapon)
                         && aimed.is_some_and(|u| {
                             u.side == self.side && self.blocked().iter().any(|b| b.id == u.id)
                         }) =>

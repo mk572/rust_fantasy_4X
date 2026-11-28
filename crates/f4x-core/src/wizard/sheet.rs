@@ -463,7 +463,8 @@ pub fn casting_cost(
     if let Some(w) = wizard {
         cost -= cost * w.cost_reduction(rules, def) / 100;
     }
-    if matches!(Some(def.realm.num()), Some(3 /* life */ | 0 /* nature */)) && evil_omens {
+    let omened = &rules.config.spell_effects.evil_omens_realms;
+    if evil_omens && omened.contains(&def.realm.num()) {
         cost += cost * rules.config.wizard.evil_omens_percent / 100;
     }
     cost

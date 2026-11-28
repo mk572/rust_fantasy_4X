@@ -58,7 +58,7 @@ fn design(
             break;
         }
         // The free group (the special powers) combines; the others take one power each.
-        if p.group != 9 && groups.contains(&p.group) {
+        if p.group != rules.config.item.free_group && groups.contains(&p.group) {
             continue;
         }
         let mut trial = design.clone();
@@ -66,7 +66,7 @@ fn design(
         if crafting::cost(&trial, rules) as i32 > budget {
             continue;
         }
-        if p.group != 9 {
+        if p.group != rules.config.item.free_group {
             groups.push(p.group);
         }
         design = trial;

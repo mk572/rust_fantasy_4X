@@ -23,7 +23,7 @@ fn mastery_under_way(view: &PlayerView) -> bool {
     let Some(w) = view.wizard() else {
         return false;
     };
-    let is_mastery = |s| kind(view.spell(s)) == Kind::Mastery;
+    let is_mastery = |s| kind(&view.content().rules, view.spell(s)) == Kind::Mastery;
     w.researching().is_some_and(is_mastery)
         || w.casting().is_some_and(|c| is_mastery(c.spell))
         || w.known().into_iter().any(is_mastery)
@@ -55,7 +55,10 @@ pub fn phase(view: &PlayerView, round: u32) -> Phase {
     let wanted = crate::objective::traits(view).cities_wanted;
     let cities = view.my_cities().len();
     let turn = round;
-    if mastery_under_way(view) || turn >= view.levers().planning.late_turn || cities >= 2 * wanted {
+    if mastery_under_way(view)
+        || turn >= view.levers().planning.late_turn
+        || cities >= view.levers().planning.win_cities_times * wanted
+    {
         Phase::Win
     } else if cities < wanted && turn < view.levers().planning.early_turn {
         Phase::Build
@@ -64,82 +67,63 @@ pub fn phase(view: &PlayerView, round: u32) -> Phase {
     }
 }
 
-/// Races whose strength is in the field (wide), and those whose strength is in building and
-/// magic (tall). A starting point to tune; the rest are neutral.
-const WIDE_RACES: &[&str] = &[
-    "orc",
-    "barbarian",
-    "troll",
-    "gnoll",
-    "beastmen",
-    "draconian",
-];
-const TALL_RACES: &[&str] = &["high_elf", "dark_elf", "halfling", "dwarven", "nomad"];
-/// Retorts that favour spreading out (heroes, armies, summons) and building up (research, mana,
-/// gold, items).
-const WIDE_RETORTS: &[&str] = &["warlord", "famous", "charismatic", "conjurer"];
-const TALL_RETORTS: &[&str] = &[
-    "sage_master",
-    "alchemy",
-    "channeler",
-    "mana_focusing",
-    "archmage",
-    "node_mastery",
-    "runemaster",
-    "artificer",
-];
-
 /// How the wizard should grow: 0 is all tall (buildings, research, housing, magic), 1 is all wide
 /// (settlers, armies, ships, conquest). It follows the wizard's race, retorts and books, the
 /// phase of the game and the situation: room to settle, and neighbours stronger or weaker than
 /// the wizard.
 pub fn width(view: &PlayerView, room_for_city: bool, round: u32) -> f32 {
-    let mut w: f32 = 0.5;
+    let k = &view.levers().width;
+    let mut w: f32 = k.start;
     if let Some(m) = view.wizard() {
         let rules = &view.content().rules;
         if let Some(race) = m.capital_race() {
-            let id = rules.races.get(race).id.as_str();
-            if WIDE_RACES.contains(&id) {
-                w += 0.1;
-            } else if TALL_RACES.contains(&id) {
-                w -= 0.1;
+            let num = rules.races.get(race).num;
+            if k.wide_races.contains(&num) {
+                w += k.race;
+            } else if k.tall_races.contains(&num) {
+                w -= k.race;
             }
         }
         for retort in m.retorts() {
-            let id = rules.retorts.get(retort).id.as_str();
-            if WIDE_RETORTS.contains(&id) {
-                w += 0.08;
-            } else if TALL_RETORTS.contains(&id) {
-                w -= 0.08;
+            let num = rules.retorts.get(retort).num;
+            if k.wide_retorts.contains(&num) {
+                w += k.retort;
+            } else if k.tall_retorts.contains(&num) {
+                w -= k.retort;
             }
         }
         // The wizard's temper and aim: the aggressive and the militarist and expansionist go
         // wide, the peaceful, theurgist and perfectionist build up.
         use f4x_core::wizard::objective::{Objective, Personality};
         w += match m.personality() {
-            Personality::Maniacal | Personality::Ruthless => 0.12,
-            Personality::Aggressive => 0.08,
+            Personality::Maniacal | Personality::Ruthless => k.temper_fierce,
+            Personality::Aggressive => k.temper_aggressive,
             Personality::Chaotic => 0.0,
-            Personality::Lawful => -0.04,
-            Personality::Peaceful => -0.1,
+            Personality::Lawful => -k.temper_lawful,
+            Personality::Peaceful => -k.temper_peaceful,
         };
         w += match m.objective() {
-            Some(Objective::Militarist) | Some(Objective::Expansionist) => 0.1,
-            Some(Objective::Theurgist) | Some(Objective::Perfectionist) => -0.1,
+            Some(Objective::Militarist) | Some(Objective::Expansionist) => k.objective,
+            Some(Objective::Theurgist) | Some(Objective::Perfectionist) => -k.objective,
             Some(Objective::Pragmatist) | None => 0.0,
         };
-        // Chaos and death books favour the fighter, the others the builder.
-        let books = |n: u16| m.books_in(f4x_def::rules::RealmId::new(n));
-        w += 0.03 * (books(2) + books(4)) as f32;
-        w -= 0.02 * (books(0) + books(1) + books(3)) as f32;
+        // The books of some realms favour the fighter, the others the builder.
+        let books = |realms: &[u16]| {
+            realms
+                .iter()
+                .map(|&n| m.books_in(f4x_def::rules::RealmId::new(n)))
+                .sum::<i32>()
+        };
+        w += k.wide_book * books(&k.wide_realms) as f32;
+        w -= k.tall_book * books(&k.tall_realms) as f32;
     }
     w += match phase(view, round) {
-        Phase::Build => 0.2,
+        Phase::Build => k.phase_build,
         Phase::Secure => 0.0,
-        Phase::Win if mastery_under_way(view) => -0.2,
-        Phase::Win => 0.1,
+        Phase::Win if mastery_under_way(view) => -k.phase_mastery,
+        Phase::Win => k.phase_win,
     };
-    w += if room_for_city { 0.2 } else { -0.2 };
+    w += if room_for_city { k.room } else { -k.room };
     // Neighbours: more cities than the wizard hold it back, fewer invite it out.
     let mine = view.my_cities().len() as f32;
     let theirs: Vec<f32> = view
@@ -154,10 +138,10 @@ pub fn width(view: &PlayerView, room_for_city: bool, round: u32) -> f32 {
         .filter(|&n| n > 0.0)
         .collect();
     if let Some(strongest) = theirs.iter().copied().reduce(f32::max) {
-        if strongest > mine * 1.5 {
-            w -= 0.1;
-        } else if strongest * 1.5 < mine {
-            w += 0.1;
+        if strongest > mine * k.neighbour_ratio {
+            w -= k.neighbour;
+        } else if strongest * k.neighbour_ratio < mine {
+            w += k.neighbour;
         }
     }
     w.clamp(0.0, 1.0)
@@ -202,7 +186,7 @@ mod tests {
             .rules
             .spells
             .iter()
-            .find(|(_, d)| kind(d) == Kind::Mastery)
+            .find(|(_, d)| kind(&w.content().rules, d) == Kind::Mastery)
             .map(|(id, _)| id)
             .ok_or("a spell of mastery")?;
         w.cheat_learn_spell(P1, mastery);
@@ -229,7 +213,7 @@ mod tests {
             .rules
             .spells
             .iter()
-            .find(|(_, d)| kind(d) == Kind::Mastery)
+            .find(|(_, d)| kind(&w.content().rules, d) == Kind::Mastery)
             .map(|(id, _)| id)
             .ok_or("a spell of mastery")?;
         w.cheat_learn_spell(P1, mastery);
@@ -247,7 +231,7 @@ mod tests {
             .rules
             .spells
             .iter()
-            .find(|(_, d)| kind(d) == Kind::Mastery)
+            .find(|(_, d)| kind(&w.content().rules, d) == Kind::Mastery)
             .map(|(id, _)| id)
             .ok_or("a spell of mastery")?;
         w.cheat_learn_spell(P1, mastery);

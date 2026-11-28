@@ -330,10 +330,14 @@ impl World {
 
     /// Whether Enchant Road has anything to work on around `at`.
     pub fn check_enchant_road(&self, at: Position) -> Result<(), TargetError> {
-        self.roads_within(at, 2)
+        self.roads_within(at, self.enchant_road_radius())
             .next()
             .map(|_| ())
             .ok_or(TargetError::NoRoad)
+    }
+
+    fn enchant_road_radius(&self) -> i32 {
+        self.content.rules.config.spell_effects.enchant_road_radius as i32
     }
 
     fn roads_within(&self, at: Position, radius: i32) -> impl Iterator<Item = (u32, u32)> + '_ {
@@ -348,9 +352,9 @@ impl World {
             })
     }
 
-    /// Enchant every road within two squares of `at`.
+    /// Enchant every road within `enchant_road_radius` squares of `at`.
     pub(crate) fn enchant_roads(&mut self, at: Position) -> Vec<Event> {
-        let tiles: Vec<_> = self.roads_within(at, 2).collect();
+        let tiles: Vec<_> = self.roads_within(at, self.enchant_road_radius()).collect();
         if tiles.is_empty() {
             return Vec::new();
         }

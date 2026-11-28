@@ -4,10 +4,13 @@
 //! summoning spell, a buff for the strongest units, a buff for a city, a lasting spell on the
 //! whole wizard.
 
-use f4x_def::rules::ai_strategy::{SplitLevers, StrategyAiRules};
+use f4x_def::rules::ai_strategy::{LadderLevers, SplitLevers, StrategyAiRules};
+use f4x_def::rules::unit_flag::UnitFlag;
+use f4x_def::rules::Rules;
 
 use crate::lever::Levered;
 use f4x_core::diplomacy::Treaty;
+use f4x_core::map::fog::block_offsets;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::rules::exec::Target;
@@ -100,13 +103,7 @@ fn has_hook(def: &SpellDef, name: &str) -> bool {
 /// Whether the spell summons a spirit that can meld with a node.
 fn summons_melder(view: &PlayerView, def: &SpellDef) -> bool {
     def.effects.iter().any(|r| match &r.effect {
-        Effect::Summon { unit, .. } => view
-            .content()
-            .rules
-            .units
-            .get(*unit)
-            .abilities
-            .contains(&f4x_def::rules::Ability::new(42 /* meld */)),
+        Effect::Summon { unit, .. } => view.content().rules.units.get(*unit).can_meld(),
         _ => false,
     })
 }
@@ -146,16 +143,16 @@ pub(crate) fn lycanthropy_target(
         .map(|(rate, u, extra)| (u, extra, rate))
 }
 
-/// The abilities (`abilities.ron`) that take a unit over the sea: water walking and wind walking
-/// (`SEA_WALKS`, the spells of `Kind::Cross`), and flying, which Flight gives.
-const SEA_WALKS: [u16; 2] = [71 /* water_walking */, 74 /* wind_walking */];
-const FLYING: u16 = 24;
+/// The flags of the abilities that take a unit over the sea without flying (the spells of
+/// `Kind::Cross`).
+const SEA_WALKS: [UnitFlag; 2] = [UnitFlag::WaterWalking, UnitFlag::WindWalking];
 
-/// Whether a spell grants one of the abilities.
-fn grants_any(def: &SpellDef, abilities: &[u16]) -> bool {
-    def.effects
-        .iter()
-        .any(|r| matches!(&r.effect, Effect::GrantAbility(a) if abilities.contains(&a.num())))
+/// Whether a spell grants an ability that sets one of the flags.
+fn grants_any(rules: &Rules, def: &SpellDef, flags: &[UnitFlag]) -> bool {
+    def.effects.iter().any(|r| {
+        matches!(&r.effect, Effect::GrantAbility(a)
+            if rules.abilities.get(*a).flags.iter().any(|f| flags.contains(f)))
+    })
 }
 
 /// Whether the spell raises a floating island: a ship made of the sea square it is aimed at.
@@ -168,7 +165,7 @@ fn raises_island(def: &SpellDef) -> bool {
 }
 
 /// What the AI makes of a spell.
-pub fn kind(def: &SpellDef) -> Kind {
+pub fn kind(rules: &Rules, def: &SpellDef) -> Kind {
     if !def.contexts.contains(&CastContext::Overland) {
         return Kind::Other;
     }
@@ -218,7 +215,7 @@ pub fn kind(def: &SpellDef) -> Kind {
     }
     if def.target == SpellTarget::OwnUnit
         && def.duration == Duration::Permanent
-        && grants_any(def, &SEA_WALKS)
+        && grants_any(rules, def, &SEA_WALKS)
     {
         return Kind::Cross;
     }
@@ -288,7 +285,7 @@ pub fn kind(def: &SpellDef) -> Kind {
         {
             Kind::CityBuff
         }
-        SpellTarget::None => match crate::intent::global_use_of(def) {
+        SpellTarget::None => match crate::intent::global_use_of(rules, def) {
             Some(crate::intent::GlobalUse::Boon | crate::intent::GlobalUse::Realm) => {
                 Kind::GlobalBuff
             }
@@ -308,49 +305,44 @@ pub fn kind(def: &SpellDef) -> Kind {
     }
 }
 
-/// The order in which kinds are tried: the win first, then what pays at once (seeing the
-/// world, healing a stack), then the army, then the buffs.
-fn priority(k: Kind) -> u8 {
+/// The order in which kinds are tried, from the `ladder` levers: the win first (it alone is not
+/// a lever), a kind that is never cast last.
+fn priority(l: &LadderLevers, k: Kind) -> u8 {
     match k {
         Kind::Mastery => 0,
-        Kind::Explore => 1,
-        // Fast movement is a big advantage: the road is cast before the summons and the buffs.
-        Kind::EnchantRoad => 2,
-        Kind::Cure => 2,
-        Kind::Summon => 3,
-        Kind::SummonHero => 3,
-        Kind::UnitBuff => 4,
-        // Units wait on the shore for it: before the buffs.
-        Kind::Cross => 3,
-        Kind::CityBuff => 5,
-        Kind::GlobalBuff => 6,
-        Kind::CityCurse => 7,
-        Kind::WizardCurse => 8,
-        // A wizard under a curse wants it off before it blows at anyone.
-        Kind::Disenchant => 2,
-        Kind::Disjunction => 8,
-        Kind::WorldSpell => 8,
-        Kind::Blast => 1,
-        Kind::Stasis => 2,
-        Kind::Mutate => 4,
-        // Rated against the summons: the same ladder step, the rate decides (`spellhelper::rate`).
-        Kind::Lycanthropy => 3,
-        Kind::Recall => 2,
-        Kind::PlaneShift => 2,
-        Kind::Gate => 2,
-        // After the summons: a gate saves the army its walk, it does not make it stronger.
-        Kind::EarthGate => 4,
-        Kind::StackStrike => 2,
-        Kind::LandCurse => 7,
-        Kind::LandBoost => 6,
-        Kind::Other => 9,
+        Kind::Explore => l.explore,
+        Kind::EnchantRoad => l.enchant_road,
+        Kind::Cure => l.cure,
+        Kind::Summon => l.summon,
+        Kind::SummonHero => l.summon_hero,
+        Kind::UnitBuff => l.unit_buff,
+        Kind::Cross => l.cross,
+        Kind::CityBuff => l.city_buff,
+        Kind::GlobalBuff => l.global_buff,
+        Kind::CityCurse => l.city_curse,
+        Kind::WizardCurse => l.wizard_curse,
+        Kind::Disenchant => l.disenchant,
+        Kind::Disjunction => l.disjunction,
+        Kind::WorldSpell => l.world_spell,
+        Kind::Blast => l.blast,
+        Kind::Stasis => l.stasis,
+        Kind::Mutate => l.mutate,
+        Kind::Lycanthropy => l.lycanthropy,
+        Kind::Recall => l.recall,
+        Kind::PlaneShift => l.plane_shift,
+        Kind::Gate => l.gate,
+        Kind::EarthGate => l.earth_gate,
+        Kind::StackStrike => l.stack_strike,
+        Kind::LandCurse => l.land_curse,
+        Kind::LandBoost => l.land_boost,
+        Kind::Other => u8::MAX,
     }
 }
 
 /// Where a kind of spell stands in the order of casting for a wizard: the ladder of `priority`
 /// (four to a step), moved up by what its objective weights (`Traits::cast_boost`). The Spell of
 /// Mastery stays first, and nothing else is moved past it.
-fn cast_rank(k: Kind, traits: &crate::objective::Traits) -> i32 {
+fn cast_rank(ladder: &LadderLevers, k: Kind, traits: &crate::objective::Traits) -> i32 {
     use crate::objective::Like;
     let like = match k {
         Kind::Summon | Kind::SummonHero | Kind::Lycanthropy => Some(Like::Summon),
@@ -369,7 +361,7 @@ fn cast_rank(k: Kind, traits: &crate::objective::Traits) -> i32 {
     let boost = like
         .and_then(|l| traits.cast_boost.iter().find(|&&(b, _)| b == l))
         .map_or(0, |&(_, by)| by);
-    let rank = i32::from(priority(k)) * 4 - boost;
+    let rank = i32::from(priority(ladder, k)) * 4 - boost;
     if k == Kind::Mastery {
         rank
     } else {
@@ -404,7 +396,12 @@ fn mana_wanted(view: &PlayerView, blocked: &[f4x_core::map::Plane], round: u32) 
         .known()
         .iter()
         .copied()
-        .filter(|&s| matches!(kind(view.spell(s)), Kind::Summon | Kind::SummonHero))
+        .filter(|&s| {
+            matches!(
+                kind(&view.content().rules, view.spell(s)),
+                Kind::Summon | Kind::SummonHero
+            )
+        })
         .filter(|&s| view.can_aim(s, None))
         .map(|s| mana_before(view.levers(), view.casting_cost(s)))
         .max()
@@ -413,7 +410,7 @@ fn mana_wanted(view: &PlayerView, blocked: &[f4x_core::map::Plane], round: u32) 
     // worth otherwise (the win itself, task 502).
     let mastery = magic
         .casting()
-        .filter(|c| kind(view.spell(c.spell)) == Kind::Mastery)
+        .filter(|c| kind(&view.content().rules, view.spell(c.spell)) == Kind::Mastery)
         .map_or(0, |c| c.remaining.max(0));
     // The summon is cast first and paid for, and the pool then holds the mana for the battle spells
     // that take a tower the soldiers alone cannot (task 502).
@@ -426,19 +423,13 @@ fn mana_wanted(view: &PlayerView, blocked: &[f4x_core::map::Plane], round: u32) 
 fn alchemy(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let gold = {
         let view = PlayerView::new(game, ai.player);
-        let Some(w) = view.wizard() else {
+        if view.wizard().is_none() {
             return;
-        };
+        }
         let short =
             mana_wanted(&view, &ai.tower_blocked, game.round()) - view.treasury().mana.floor();
         let spare = view.treasury().gold.floor() - view.levers().magic.gold_kept;
-        let percent = w
-            .stat(
-                &view.content().rules,
-                f4x_def::rules::Stat::AlchemyPercent,
-                50,
-            )
-            .max(1);
+        let percent = view.alchemy_percent().max(1);
         (short * 100 / percent).min(spare)
     };
     if gold > 0 {
@@ -479,13 +470,7 @@ fn fund_return(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             return;
         }
         // Alchemy returns a percent of what is put in, so the gold needed is mana over that.
-        let percent = w
-            .stat(
-                &view.content().rules,
-                f4x_def::rules::Stat::AlchemyPercent,
-                50,
-            )
-            .max(1);
+        let percent = view.alchemy_percent().max(1);
         (short * 100 / percent).min(view.treasury().gold.floor())
     };
     if gold > 0 {
@@ -541,12 +526,12 @@ fn split_target(view: &PlayerView, traits: &crate::objective::Traits, round: u32
     let mut t = [levers.base_mana, levers.base_research, levers.base_skill];
     match crate::phase::phase(view, round) {
         // Growing: spells and their research come first, little is cast.
-        crate::phase::Phase::Build => shift(&mut t, least, MANA, RESEARCH, 10),
+        crate::phase::Phase::Build => shift(&mut t, least, MANA, RESEARCH, levers.build_shift),
         crate::phase::Phase::Secure => {}
         // Winning: the spells are known, now they are cast.
         crate::phase::Phase::Win => {
-            shift(&mut t, least, RESEARCH, MANA, 15);
-            shift(&mut t, least, RESEARCH, SKILL, 5);
+            shift(&mut t, least, RESEARCH, MANA, levers.win_mana_shift);
+            shift(&mut t, least, RESEARCH, SKILL, levers.win_skill_shift);
         }
     }
     // A goal that likes magic casts more; one that spends its mana to the bone researches more.
@@ -559,7 +544,7 @@ fn split_target(view: &PlayerView, traits: &crate::objective::Traits, round: u32
     // A big reserve is not spent for the lack of power but for the lack of skill and spells.
     let reserve = view.treasury().mana.floor();
     if reserve > levers.rich_reserve {
-        shift(&mut t, least, MANA, RESEARCH, 10);
+        shift(&mut t, least, MANA, RESEARCH, levers.rich_shift);
     }
     t
 }
@@ -571,7 +556,7 @@ fn split(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         let Some(m) = view.wizard() else {
             return;
         };
-        let is_mastery = |s| kind(view.spell(s)) == Kind::Mastery;
+        let is_mastery = |s| kind(&view.content().rules, view.spell(s)) == Kind::Mastery;
         (
             m.casting().is_some_and(|c| is_mastery(c.spell)),
             m.researching().is_some_and(is_mastery),
@@ -656,13 +641,13 @@ fn set_split(player: f4x_core::player::PlayerId, (mana, research, skill): (u8, u
 // ---- research -------------------------------------------------------------------
 
 /// A spell's kind of use, for telling whether the AI already has one of its sort.
-fn category(def: &SpellDef) -> (Kind, bool) {
+fn category(rules: &Rules, def: &SpellDef) -> (Kind, bool) {
     let battle_harm = def.contexts.contains(&CastContext::Battle)
         && def
             .effects
             .iter()
             .any(|r| matches!(r.effect, Effect::Damage { .. } | Effect::Slay { .. }));
-    (kind(def), battle_harm)
+    (kind(rules, def), battle_harm)
 }
 
 /// Turns of research a candidate costs, with adjustments (cheaper when the AI has no spell of its
@@ -677,20 +662,25 @@ fn research_score(
 ) -> f32 {
     let def = view.spell(spell);
     let turns = view.research_cost(spell) as f32 / income.max(1) as f32;
-    let cat = category(def);
+    let cat = category(&view.content().rules, def);
     let owned = have.contains(&cat);
+    let levers = view.levers().research;
     let mut score = turns;
     if cat.1 || cat.0 == Kind::Summon {
-        score *= if owned { 1.0 } else { 0.25 };
+        score *= if owned { 1.0 } else { levers.new_fighting };
     } else if cat.0 == Kind::UnitBuff || cat.0 == Kind::CityBuff {
-        score *= if owned { 1.5 } else { 0.7 };
+        score *= if owned {
+            levers.owned_buff
+        } else {
+            levers.new_buff
+        };
     } else if owned {
-        score *= 1.5;
+        score *= levers.owned_other;
     }
     // The Spell of Mastery takes thousands of points: the AI goes for it only when it is within
     // reach, and otherwise takes it last.
     // (Unless another wizard is casting it and the AI can still beat them to it.)
-    if cat.0 == Kind::Mastery && turns > 250.0 && !racing {
+    if cat.0 == Kind::Mastery && turns > levers.mastery_turns && !racing {
         score = score * 100.0 + 1.0e6;
     }
     // Roads at no cost in moves are a big advantage, so the spell is researched early.
@@ -698,8 +688,8 @@ fn research_score(
         // Dearer when no road is ever built: only the roads of the world's start are left.
         score *= match (owned, crate::road::engineers_possible(view)) {
             (true, _) => 1.0,
-            (false, true) => 0.5,
-            (false, false) => 2.0,
+            (false, true) => levers.road_new,
+            (false, false) => levers.road_never,
         };
     }
     if liked(def, cat.0, traits) {
@@ -738,7 +728,11 @@ fn research(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         if m.researching().is_some() {
             return;
         }
-        let have: Vec<(Kind, bool)> = m.known().iter().map(|&s| category(view.spell(s))).collect();
+        let have: Vec<(Kind, bool)> = m
+            .known()
+            .iter()
+            .map(|&s| category(&view.content().rules, view.spell(s)))
+            .collect();
         let income = view.income().research;
         let traits = crate::objective::traits(&view);
         view.research_choices().into_iter().min_by(|&a, &b| {
@@ -809,8 +803,8 @@ fn resolve_paid(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         if !view.spell_needs_target(spell) {
             return;
         }
-        let k = kind(view.spell(spell));
-        if aims_at_crossers(view.spell(spell), k) {
+        let k = kind(&view.content().rules, view.spell(spell));
+        if aims_at_crossers(&view.content().rules, view.spell(spell), k) {
             cross_aim(&view, spell, k)
         } else {
             pick_target(&view, spell)
@@ -831,7 +825,7 @@ fn resolve_paid(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 /// The best aim for one of the spells the AI casts, if there is one the game accepts.
 fn pick_target(view: &PlayerView, spell: SpellId) -> Option<Target> {
     let def = view.spell(spell);
-    match kind(def) {
+    match kind(&view.content().rules, def) {
         Kind::UnitBuff => crate::spellhelper::best_buff(view, spell).map(|(u, _)| Target::Unit(u)),
         Kind::CityBuff => {
             // A city with an enemy stack by it first, then the fortress.
@@ -865,8 +859,14 @@ fn pick_target(view: &PlayerView, spell: SpellId) -> Option<Target> {
             .globals_of_enemies()
             .into_iter()
             // The dearest first: a spell that cost the enemy more is worth more to break. Only
-            // what the dispel has a fifth of a chance against (strength / (strength + cost)).
-            .filter(|&(s, _)| view.spell(s).cost <= dispel_strength(def) * 4)
+            // what the dispel has a fair chance against (strength / (strength + difficulty); `dispel_margin`).
+            .filter(|&(_, i)| {
+                let strength = view.global_attack_strength(spell, 0).unwrap_or(0);
+                view.global_attack_certain(spell)
+                    || view
+                        .global_difficulty(i)
+                        .is_some_and(|d| d <= strength * view.levers().magic.dispel_margin)
+            })
             .max_by_key(|&(s, i)| (view.spell(s).cost, std::cmp::Reverse(view.serial_of(i))))
             .map(|(_, i)| Target::Spell(i))
             .filter(|&t| view.can_aim(spell, Some(t))),
@@ -960,7 +960,7 @@ pub(crate) fn plane_shift_spell(view: &PlayerView) -> Option<SpellId> {
         .known()
         .iter()
         .copied()
-        .find(|&s| kind(view.spell(s)) == Kind::PlaneShift)
+        .find(|&s| kind(&view.content().rules, view.spell(s)) == Kind::PlaneShift)
 }
 
 /// The Astral Gate spell the wizard knows, if any.
@@ -969,7 +969,7 @@ pub(crate) fn astral_gate_spell(view: &PlayerView) -> Option<SpellId> {
         .known()
         .iter()
         .copied()
-        .find(|&s| kind(view.spell(s)) == Kind::Gate)
+        .find(|&s| kind(&view.content().rules, view.spell(s)) == Kind::Gate)
 }
 
 /// The square the army crosses by to attack `target` on the other plane, from the soldiers'
@@ -1200,8 +1200,8 @@ fn shift_target(ai: &Ai, view: &PlayerView, spell: SpellId) -> Option<Target> {
 
 /// Whether the spell goes first to a unit that waits for a ship: the walking spells, and Flight
 /// (a `UnitBuff`).
-fn aims_at_crossers(def: &SpellDef, k: Kind) -> bool {
-    k == Kind::Cross || (k == Kind::UnitBuff && grants_any(def, &[FLYING]))
+fn aims_at_crossers(rules: &Rules, def: &SpellDef, k: Kind) -> bool {
+    k == Kind::Cross || (k == Kind::UnitBuff && grants_any(rules, def, &[UnitFlag::Flies]))
 }
 
 /// The aim of a spell for [`aims_at_crossers`]: a unit that waits for a ship comes first, for
@@ -1229,7 +1229,8 @@ fn cross_target(view: &PlayerView, spell: SpellId) -> Option<Target> {
         return island_target(view, spell, &waiting);
     }
     let mine = view.my_units();
-    let wind = grants_any(view.spell(spell), &[74 /* wind_walking */]);
+    let rules = &view.content().rules;
+    let wind = grants_any(rules, view.spell(spell), &[UnitFlag::WindWalking]);
     let mut stands: Vec<(Position, hecs::Entity)> = waiting
         .iter()
         .filter_map(|&(s, _)| {
@@ -1290,7 +1291,7 @@ fn island_upkeep(view: &PlayerView) -> i32 {
     let rules = &view.content().rules;
     rules
         .units
-        .id_numbered(190 /* floating_island */)
+        .id_numbered(view.content().rules.config.spell_effects.floating_island)
         .map_or(0, |id| rules.units.get(id).upkeep.mana as i32)
 }
 
@@ -1325,15 +1326,6 @@ fn army_cap(view: &PlayerView) -> usize {
 fn quick_enough(levers: &StrategyAiRules, cost: i32, power: i32) -> bool {
     let magic = levers.magic;
     cost <= magic.dear_spell || cost <= magic.max_casting_turns * power
-}
-
-/// The strength of a dispel cast overland: the base cost, three times that for the "True" spells.
-fn dispel_strength(def: &SpellDef) -> u32 {
-    if def.id.ends_with("_true") {
-        def.cost * 3
-    } else {
-        def.cost
-    }
 }
 
 /// The most populous city of a wizard at war with the AI that the spell can be aimed at and
@@ -1372,6 +1364,7 @@ fn cursed_city(view: &PlayerView) -> Option<Position> {
 /// wizard has not explored, if that is a good deal.
 fn explore_target(view: &PlayerView) -> Option<Position> {
     let anchor = view.my_cities().first().map(|&(_, p)| p)?;
+    let lore = &view.content().rules.config.spell_effects;
     let mut best: Option<(u32, Position)> = None;
     for dy in (-18i32..=18).step_by(4) {
         for dx in (-30i32..=30).step_by(4) {
@@ -1379,13 +1372,12 @@ fn explore_target(view: &PlayerView) -> Option<Position> {
                 continue;
             };
             let mut fresh = 0;
-            for by in -5i32..5 {
-                for bx in -6i32..6 {
-                    if let Some(p) = view.shift(centre, bx, by) {
-                        if !view.explored(p) {
-                            fresh += 1;
-                        }
-                    }
+            for (bx, by) in block_offsets(lore.earth_lore_width, lore.earth_lore_height) {
+                if view
+                    .shift(centre, bx, by)
+                    .is_some_and(|p| !view.explored(p))
+                {
+                    fresh += 1;
                 }
             }
             if best
@@ -1510,8 +1502,8 @@ fn resurrect(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
         let mana = game.player(me).map_or(0, |p| p.treasury().mana.floor());
         let cost = game.casting_cost(me, spell, false);
         // The same gate as the other spells: paid from the reserve, not too many turns.
-        let per_turn = mana / 10 + game.income(me).split.mana.floor();
         let levers = game.levers();
+        let per_turn = mana / levers.magic.reserve_turns + game.income(me).split.mana.floor();
         if mana_before(levers, cost) > mana || cost / levers.magic.most_paying_turns > per_turn {
             return false;
         }
@@ -1544,7 +1536,7 @@ fn aim_for(ai: &Ai, view: &PlayerView, spell: SpellId, k: Kind) -> Option<Target
         gate_target(ai, view, spell)
     } else if k == Kind::EarthGate {
         earth_gate_target(ai, view, spell)
-    } else if aims_at_crossers(def, k) {
+    } else if aims_at_crossers(&view.content().rules, def, k) {
         cross_aim(view, spell, k)
     } else {
         pick_target(view, spell)
@@ -1586,7 +1578,7 @@ fn note_unmet(ai: &Ai, view: &PlayerView, world: &World, known: &[(Kind, i32, Sp
             .spells
             .iter()
             .map(|(id, _)| id)
-            .find(|&id| kind(view.spell(id)) == k)
+            .find(|&id| kind(&view.content().rules, view.spell(id)) == k)
         else {
             continue;
         };
@@ -1623,7 +1615,13 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             .known()
             .iter()
             .copied()
-            .map(|s| (kind(view.spell(s)), view.casting_cost(s), s))
+            .map(|s| {
+                (
+                    kind(&view.content().rules, view.spell(s)),
+                    view.casting_cost(s),
+                    s,
+                )
+            })
             .filter(|&(k, cost, _)| k != Kind::Other && cost > 0)
             .collect();
         note_unmet(ai, &view, game, &options);
@@ -1640,7 +1638,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         options.sort_by_key(|&(k, _cost, s)| {
             (
                 !priority_spirit(s),
-                cast_rank(k, &traits),
+                cast_rank(&view.levers().ladder, k, &traits),
                 std::cmp::Reverse(rated[&s]),
                 s,
             )
@@ -1677,7 +1675,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             // Summoned creatures and lasting spells cost mana every turn: not when the upkeep
             // already takes more than half of what the power makes (the split then leaves research
             // starved).
-            let room = magic.power_split().mana <= 55;
+            let room = magic.power_split().mana <= view.levers().magic.most_mana_share;
             let target = aim_for(ai, &view, spell, k);
             let now = mana_before(view.levers(), cost) <= mana;
             let wanted = match k {
@@ -1702,7 +1700,10 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                     now && room && view.hero_to_summon(spell) && view.can_aim(spell, target)
                 }
                 Kind::UnitBuff => {
-                    now && room && fighters >= 3 && upkeep_ok(&view, def) && target.is_some()
+                    now && room
+                        && fighters >= view.levers().magic.buff_army
+                        && upkeep_ok(&view, def)
+                        && target.is_some()
                 }
                 // Units wait on the shore for it: paid from what is in the pool, without the third
                 // that the other spells leave over (the wizards' pools stay below it for hundreds
@@ -1719,8 +1720,12 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                         && view.income().split.mana - view.income().mana_upkeep - island >= 0
                         && target.is_some()
                 }
-                Kind::Mutate => now && fighters >= 3 && target.is_some(),
-                Kind::Lycanthropy => now && fighters >= 3 && target.is_some(),
+                Kind::Mutate => {
+                    now && fighters >= view.levers().magic.buff_army && target.is_some()
+                }
+                Kind::Lycanthropy => {
+                    now && fighters >= view.levers().magic.buff_army && target.is_some()
+                }
                 Kind::CityBuff => now && room && upkeep_ok(&view, def) && target.is_some(),
                 Kind::GlobalBuff => {
                     now && room
@@ -1773,7 +1778,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 saving = true;
             }
             // Not too many turns of what the AI can put towards it.
-            let per_turn = mana / 10 + income.split.mana.floor();
+            let per_turn = mana / view.levers().magic.reserve_turns + income.split.mana.floor();
             if wanted
                 && (k == Kind::Mastery
                     || (cost / view.levers().magic.most_paying_turns <= per_turn
@@ -1822,7 +1827,7 @@ mod tests {
             .rules
             .spells
             .iter()
-            .filter(|(_, d)| kind(d) == Kind::Summon)
+            .filter(|(_, d)| kind(&shipped().rules, d) == Kind::Summon)
             .map(|(id, _)| id)
             .next()
             .ok_or("a summon")?;
@@ -1894,7 +1899,7 @@ mod tests {
             .rules
             .spells
             .iter()
-            .filter(|(id, d)| *id != spirit && kind(d) == Kind::Summon)
+            .filter(|(id, d)| *id != spirit && kind(&shipped().rules, d) == Kind::Summon)
             .map(|(id, _)| id)
             .next()
             .ok_or("another summon")?;
@@ -1948,18 +1953,32 @@ mod tests {
     #[test]
     fn an_objective_moves_the_kinds_it_weights_up_the_order_of_casting() {
         use crate::objective::traits_of;
+        let ladder = &crate::testworld::levers().ladder;
         let pragmatist = traits_of(crate::testworld::levers(), Some(Objective::Pragmatist));
         let militarist = traits_of(crate::testworld::levers(), Some(Objective::Militarist));
         let perfectionist = traits_of(crate::testworld::levers(), Some(Objective::Perfectionist));
         // The ladder: summons before buffs before curses.
-        assert!(cast_rank(Kind::Summon, &pragmatist) < cast_rank(Kind::GlobalBuff, &pragmatist));
-        assert!(cast_rank(Kind::GlobalBuff, &pragmatist) < cast_rank(Kind::CityCurse, &pragmatist));
+        assert!(
+            cast_rank(ladder, Kind::Summon, &pragmatist)
+                < cast_rank(ladder, Kind::GlobalBuff, &pragmatist)
+        );
+        assert!(
+            cast_rank(ladder, Kind::GlobalBuff, &pragmatist)
+                < cast_rank(ladder, Kind::CityCurse, &pragmatist)
+        );
         // A militarist curses its enemies before it buffs its cities.
-        assert!(cast_rank(Kind::CityCurse, &militarist) < cast_rank(Kind::CityBuff, &militarist));
-        assert!(cast_rank(Kind::CityBuff, &pragmatist) < cast_rank(Kind::CityCurse, &pragmatist));
+        assert!(
+            cast_rank(ladder, Kind::CityCurse, &militarist)
+                < cast_rank(ladder, Kind::CityBuff, &militarist)
+        );
+        assert!(
+            cast_rank(ladder, Kind::CityBuff, &pragmatist)
+                < cast_rank(ladder, Kind::CityCurse, &pragmatist)
+        );
         // A perfectionist buffs its cities before it summons.
         assert!(
-            cast_rank(Kind::CityBuff, &perfectionist) < cast_rank(Kind::Summon, &perfectionist)
+            cast_rank(ladder, Kind::CityBuff, &perfectionist)
+                < cast_rank(ladder, Kind::Summon, &perfectionist)
         );
         // Nothing passes the Spell of Mastery.
         for t in [&pragmatist, &militarist, &perfectionist] {
@@ -1969,14 +1988,14 @@ mod tests {
                 Kind::GlobalBuff,
                 Kind::Explore,
             ] {
-                assert!(cast_rank(Kind::Mastery, t) < cast_rank(k, t));
+                assert!(cast_rank(ladder, Kind::Mastery, t) < cast_rank(ladder, k, t));
             }
         }
     }
 
     fn kind_of(id: u16) -> Result<Kind, String> {
         let rules = &shipped().rules;
-        Ok(kind(rules.spells.get(spell(id)?)))
+        Ok(kind(rules, rules.spells.get(spell(id)?)))
     }
 
     #[test]
@@ -2253,15 +2272,15 @@ mod tests {
         let spells = &shipped().rules.spells;
         let bears = spells.get(spell(6 /* war_bears */)?);
         let militarist = traits_of(crate::testworld::levers(), Some(Objective::Militarist));
-        assert!(liked(bears, kind(bears), &militarist));
+        assert!(liked(bears, kind(&shipped().rules, bears), &militarist));
         assert!(!liked(
             bears,
-            kind(bears),
+            kind(&shipped().rules, bears),
             &traits_of(crate::testworld::levers(), Some(Objective::Perfectionist))
         ));
         assert!(!liked(
             bears,
-            kind(bears),
+            kind(&shipped().rules, bears),
             &traits_of(crate::testworld::levers(), None)
         ));
         assert!(militarist.likes.contains(&Like::Summon));
@@ -2714,7 +2733,10 @@ mod tests {
             .spells
             .defs()
             .iter()
-            .filter(|d| d.contexts.contains(&CastContext::Overland) && kind(d) == Kind::Other)
+            .filter(|d| {
+                d.contexts.contains(&CastContext::Overland)
+                    && kind(&shipped().rules, d) == Kind::Other
+            })
             .map(|d| d.num)
             .collect();
         left.sort_unstable();
@@ -2837,6 +2859,49 @@ mod tests {
             .global_instance(P1, awareness)
             .ok_or("player 1 has the global spell")?;
         assert_eq!(aim(&w), Some(Target::Spell(instance)));
+        Ok(())
+    }
+
+    /// Every attack on a global spell against every global spell: the AI tries it when the
+    /// strength the game gives the cast is within `dispel_margin` of the difficulty the game gives
+    /// the spell.
+    #[test]
+    fn the_dispel_a_wizard_tries_is_judged_by_the_games_strength_and_difficulty() -> TestResult {
+        let globals: Vec<SpellId> = shipped()
+            .rules
+            .spells
+            .iter()
+            .filter(|(_, d)| crate::intent::global_effect(d).is_some())
+            .map(|(id, _)| id)
+            .collect();
+        assert!(!globals.is_empty());
+        for attack in [
+            spell(210 /* disjunction */)?,
+            spell(61 /* disjunction_true */)?,
+            spell(76 /* spell_binding */)?,
+        ] {
+            for &global in &globals {
+                let mut w = game(COAST_CITY, 8 /* high_men */);
+                w.make_contact(P0, P1);
+                w.cheat_learn_spell(P0, attack);
+                w.scenario_add_global(P1, global);
+                w.command(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+                    player: P0,
+                    on: P1,
+                }));
+                let instance = w.global_instance(P1, global).ok_or("an instance")?;
+                let view = PlayerView::new(&w, P0);
+                let strength = w.global_attack_strength(P0, attack, 0).ok_or("an attack")?;
+                let difficulty = w.dispel_difficulty(global, Some(P1));
+                let worth = w.global_attack_certain(attack)
+                    || difficulty <= strength * view.levers().magic.dispel_margin;
+                assert_eq!(
+                    pick_target(&view, attack),
+                    worth.then_some(Target::Spell(instance)),
+                    "{attack:?} on {global:?}"
+                );
+            }
+        }
         Ok(())
     }
 
@@ -2968,7 +3033,7 @@ mod tests {
             .rules
             .spells
             .iter()
-            .find(|(_, d)| kind(d) == Kind::Mastery)
+            .find(|(_, d)| kind(&shipped().rules, d) == Kind::Mastery)
             .map(|(id, _)| id)
             .ok_or("a spell of mastery")?;
         w.cheat_learn_spell(P1, mastery);
@@ -3024,9 +3089,10 @@ mod tests {
         assert!(rate < gain / cast);
         assert!(crate::spellhelper::rate(&view, lycanthropy, Kind::Lycanthropy) > 0.0);
         let traits = crate::objective::traits(&view);
+        let ladder = &view.levers().ladder;
         assert_eq!(
-            cast_rank(Kind::Lycanthropy, &traits),
-            cast_rank(Kind::Summon, &traits),
+            cast_rank(ladder, Kind::Lycanthropy, &traits),
+            cast_rank(ladder, Kind::Summon, &traits),
             "rated against the summons"
         );
         Ok(())

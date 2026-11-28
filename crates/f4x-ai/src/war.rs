@@ -1214,8 +1214,9 @@ mod tests {
         let wanted = |m: &HashMap<_, _>| {
             crate::war_plan::units_for(&view, crate::war_plan::strength_wanted(&view, m, 2, target))
         };
-        assert_eq!(wanted(&weak), 3, "a march needs three at least");
-        assert!(wanted(&none) >= 3);
+        let least = view.levers().attack.min_march;
+        assert_eq!(wanted(&weak), least, "the fewest a march starts with");
+        assert!(wanted(&none) >= least);
         assert!(
             wanted(&strong) > wanted(&none),
             "{} {}",

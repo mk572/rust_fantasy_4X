@@ -21,14 +21,16 @@ use crate::Ai;
 use f4x_master::Game;
 
 /// How many scouts the wizard wants. While it builds up (`phase::Phase::Build`) it looks harder
-/// for places to settle and for its neighbours: two scouts until it has four cities. No settler is
+/// for places to settle and for its neighbours: more scouts while it has few cities. No settler is
 /// built before a place for a city is known, so the sooner the land is seen the sooner the second
 /// city is founded.
 pub(crate) fn wanted(levers: &ScoutingLevers, cities: usize, building: bool) -> usize {
     let base = match cities {
         0 => 0,
-        1..=3 => 1 + usize::from(building),
-        _ => 2,
+        n if n <= levers.few_cities => {
+            levers.few_scouts + usize::from(building) * levers.builder_scouts
+        }
+        _ => levers.many_scouts,
     };
     base + levers.scouts as usize
 }
@@ -44,7 +46,8 @@ fn across(at: Position) -> Position {
 
 /// Whether the ground across a tower is still unexplored, so that crossing it shows something.
 pub(crate) fn worth_crossing(view: &PlayerView, tower: Position) -> bool {
-    unexplored_near(view, across(tower), HalfInt::from_raw(3)) > 0
+    let sight = HalfInt::from_raw(view.levers().scouting.across_sight_halves);
+    unexplored_near(view, across(tower), sight) > 0
 }
 
 /// Past the build-up, a plane the wizard has hardly seen and has no unit on is worth a crossing
@@ -590,8 +593,9 @@ fn recruit(ai: &Ai, world: &World, reach: Option<Position>) -> Option<hecs::Enti
             continue;
         }
         let key = (
-            view.unit_stat(u, Stat::Moves) * 2
-                + i32::from(view.unit_has_flag(u, f4x_core::rules::unit_flag::UnitFlag::Flies)) * 2,
+            view.unit_stat(u, Stat::Moves)
+                + i32::from(view.unit_has_flag(u, f4x_core::rules::unit_flag::UnitFlag::Flies))
+                    * view.levers().scouting.flier_moves,
             std::cmp::Reverse(view.serial_of(u)),
             u,
         );
@@ -639,7 +643,8 @@ pub(crate) fn best_target_with(
             continue;
         }
         let walk = distance(view, from, p).unwrap_or(99) as f32;
-        let mut value = fresh as f32 - walk * view.levers().scouting.walk_cost * 4.0;
+        let levers = view.levers().scouting;
+        let mut value = fresh as f32 - walk * levers.walk_cost * levers.walk_weight;
         if recon
             .iter()
             .any(|&r| distance(view, r, p).is_some_and(|d| d <= view.levers().target.recon_near))
@@ -691,11 +696,16 @@ mod tests {
 
     #[test]
     fn the_number_of_scouts_grows_with_the_cities() {
-        assert_eq!(wanted(&levers().scouting, 0, true), 0);
-        assert_eq!(wanted(&levers().scouting, 1, false), 1);
-        assert_eq!(wanted(&levers().scouting, 3, false), 1);
-        assert_eq!(wanted(&levers().scouting, 4, false), 2);
-        assert_eq!(wanted(&levers().scouting, 12, false), 2);
+        let k = levers().scouting;
+        let (few, many) = (
+            k.few_scouts + k.scouts as usize,
+            k.many_scouts + k.scouts as usize,
+        );
+        assert_eq!(wanted(&k, 0, true), 0);
+        assert_eq!(wanted(&k, 1, false), few);
+        assert_eq!(wanted(&k, k.few_cities, false), few);
+        assert_eq!(wanted(&k, k.few_cities + 1, false), many);
+        assert_eq!(wanted(&k, 4 * k.few_cities, false), many);
     }
 
     /// A galley in the port city, and the AI that owns it.
@@ -783,9 +793,13 @@ mod tests {
 
     #[test]
     fn a_wizard_that_builds_up_wants_a_second_scout() {
-        assert_eq!(wanted(&levers().scouting, 1, true), 2);
-        assert_eq!(wanted(&levers().scouting, 3, true), 2);
-        assert_eq!(wanted(&levers().scouting, 2, false), 1);
+        let k = levers().scouting;
+        for cities in [1, k.few_cities] {
+            assert_eq!(
+                wanted(&k, cities, true),
+                wanted(&k, cities, false) + k.builder_scouts
+            );
+        }
     }
 
     /// The two units a wizard starts with are one garrison and one scout (a new game, no map seen).

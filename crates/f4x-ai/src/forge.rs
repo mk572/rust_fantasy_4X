@@ -17,13 +17,15 @@ pub(crate) fn active(view: &PlayerView, round: u32) -> bool {
     round >= view.levers().forge.forge_turn && phase(view, round) != Phase::Build
 }
 
-/// How many forge cities a wizard of `cities` cities has: one for `cities_per_forge`, two at
-/// least; a rich conqueror forges in half its cities.
+/// How many forge cities a wizard of `cities` cities has: one for `cities_per_forge`,
+/// `least_forges` at least; a rich conqueror one for `rich_cities_per_forge`.
 fn forge_count(levers: &ForgeLevers, cities: usize, rich: bool) -> usize {
     if rich {
-        (cities / 2).clamp(2, levers.most_forges_rich.max(2))
+        let least = levers.least_forges;
+        (cities / levers.rich_cities_per_forge).clamp(least, levers.most_forges_rich.max(least))
     } else {
-        (cities / levers.cities_per_forge).clamp(2, levers.most_forges.max(2))
+        let least = levers.least_forges;
+        (cities / levers.cities_per_forge).clamp(least, levers.most_forges.max(least))
     }
 }
 
@@ -177,10 +179,16 @@ mod tests {
 
     #[test]
     fn a_conqueror_with_gold_to_spare_forges_in_more_cities() {
-        assert_eq!(forge_count(&levers(), 10, false), 2);
-        assert_eq!(forge_count(&levers(), 30, false), levers().most_forges);
-        assert_eq!(forge_count(&levers(), 10, true), 5);
-        assert_eq!(forge_count(&levers(), 60, true), levers().most_forges_rich);
-        assert_eq!(forge_count(&levers(), 3, true), 2, "never fewer than two");
+        let k = levers();
+        let many = k.cities_per_forge * (k.most_forges + 1);
+        assert_eq!(forge_count(&k, many, false), k.most_forges);
+        let some = k.rich_cities_per_forge * (k.least_forges + 1);
+        assert_eq!(forge_count(&k, some, true), k.least_forges + 1);
+        assert!(forge_count(&k, some, false) < forge_count(&k, some, true));
+        let all = k.rich_cities_per_forge * (k.most_forges_rich + 1);
+        assert_eq!(forge_count(&k, all, true), k.most_forges_rich);
+        for rich in [false, true] {
+            assert_eq!(forge_count(&k, 1, rich), k.least_forges, "never fewer");
+        }
     }
 }

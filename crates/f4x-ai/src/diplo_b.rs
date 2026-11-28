@@ -70,7 +70,7 @@ pub(crate) fn regard(
     let (m, t) = (mine.score(&sk).max(1), theirs.score(&sk));
     let distance = nearest(world, scene, me, other);
     let near = distance.map_or(0, |d| (100 - k.near_per_square * d as i32).clamp(0, 100));
-    let might = (t * 100 / m - 50).clamp(0, 100);
+    let might = (t * 100 / m - k.might_floor).clamp(0, 100);
     // Ruthlessness is felt in proportion to how near the ruthless one is.
     let ruth = memory
         .ruthlessness(other, round, k.ruth_half)
@@ -151,7 +151,7 @@ pub(crate) fn peace_wish(
     let fear = if t >= m {
         r.fear * k.fear_pct / 100
     } else {
-        -r.fear * k.fear_pct / 200
+        -r.fear * k.fear_pct / (100 * k.strong_fear_divisor)
     };
     let mood = crate::objective::temper(world.personality(me), world.difficulty()).modifier();
     let young = match world.war_age(me, other) {

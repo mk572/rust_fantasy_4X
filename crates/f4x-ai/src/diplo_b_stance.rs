@@ -79,16 +79,16 @@ pub(crate) fn values(
         enemy += k.ally_war;
     }
     // Afraid of an equal or a weaker one: strike before it does.
-    if t * 100 <= m * 110 && r.fear >= k.strike_fear {
-        enemy += r.fear / 2;
+    if t * 100 <= m * k.equal_pct && r.fear >= k.strike_fear {
+        enemy += r.fear / k.strike_fear_divisor;
     }
     // Not the one that is much stronger.
     if t * 100 > m * k.too_strong_pct {
         enemy -= (t - m) * 100 / t;
     }
     enemy -= match treaty {
-        Treaty::Pact => 40,
-        Treaty::Alliance => 80,
+        Treaty::Pact => k.pact_penalty,
+        Treaty::Alliance => k.alliance_penalty,
         _ => 0,
     };
     if !reachable {

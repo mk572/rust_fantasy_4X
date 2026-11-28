@@ -173,11 +173,29 @@ pub struct CityEconomy {
     pub unit_cost_percent: i32,
 }
 
-/// Offsets of the worked area: 5x5 without its corners.
+/// How far the worked area of a city reaches from it.
+pub const AREA_RADIUS: i32 = 2;
+
+/// Whether the square (`dx`, `dy`) away from a city is in its worked area: the square of
+/// `AREA_RADIUS` round it without the corners.
+pub fn in_area(dx: i32, dy: i32) -> bool {
+    let (dx, dy) = (dx.abs(), dy.abs());
+    dx <= AREA_RADIUS && dy <= AREA_RADIUS && !(dx == AREA_RADIUS && dy == AREA_RADIUS)
+}
+
+/// Offsets of the worked area, row by row.
 pub fn area_offsets() -> impl Iterator<Item = (i32, i32)> {
-    (-2i32..=2)
-        .flat_map(|dy| (-2i32..=2).map(move |dx| (dx, dy)))
-        .filter(|(dx, dy)| !(dx.abs() == 2 && dy.abs() == 2))
+    let side = -AREA_RADIUS..=AREA_RADIUS;
+    side.clone()
+        .flat_map(move |dy| side.clone().map(move |dx| (dx, dy)))
+        .filter(|&(dx, dy)| in_area(dx, dy))
+}
+
+/// Whether the square `at` is in the worked area of a city on `city`, on a map `width` squares
+/// round.
+pub fn works(width: u32, city: Position, at: Position) -> bool {
+    let dx = wrap_distance(width, city.x, at.x) as i32;
+    city.plane == at.plane && in_area(dx, city.y.abs_diff(at.y) as i32)
 }
 
 fn wrap_distance(width: u32, a: u32, b: u32) -> u32 {
@@ -487,11 +505,6 @@ impl<'a> Economy<'a> {
             .into_iter()
             .filter(|p| p.plane == at.plane && *p != at)
             .collect();
-        let works = |city: Position, x: u32, y: u32| {
-            let dx = wrap_distance(map.width(), city.x, x) as i32;
-            let dy = city.y.abs_diff(y) as i32;
-            dx <= 2 && dy <= 2 && !(dx == 2 && dy == 2)
-        };
         let mut out = Vec::new();
         for (dx, dy) in area_offsets() {
             let y = at.y as i32 + dy;
@@ -499,15 +512,13 @@ impl<'a> Economy<'a> {
                 continue;
             }
             let x = (at.x as i32 + dx).rem_euclid(w) as u32;
-            let shared = others.iter().any(|&o| works(o, x, y as u32));
-            out.push((
-                Position {
-                    plane: at.plane,
-                    x,
-                    y: y as u32,
-                },
-                shared,
-            ));
+            let square = Position {
+                plane: at.plane,
+                x,
+                y: y as u32,
+            };
+            let shared = others.iter().any(|&o| works(map.width(), o, square));
+            out.push((square, shared));
         }
         out
     }
@@ -802,7 +813,7 @@ impl<'a> Economy<'a> {
             blight_proof,
             miners: self.city_has_building(
                 city,
-                crate::rules::BuildingId::new(34), /* miners_guild */
+                crate::rules::BuildingId::new(self.content.rules.config.targets.miners_guild),
             ),
             dwarf: race.is_some_and(|r| r.double_mining),
             half_ore: self.miners_half_ore,

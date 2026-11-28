@@ -677,3 +677,30 @@ fn a_city_is_renamed_trimmed_and_cut_and_an_empty_name_changes_nothing() {
     }
     assert_ne!(was, now);
 }
+
+/// The one shape of a city's area, which the game and the AI both ask for.
+#[test]
+fn a_city_works_the_squares_of_its_area_round_the_edge_of_the_map_and_no_corner() {
+    use f4x_core::city::economy::{area_offsets, works, AREA_RADIUS};
+    use f4x_core::map::{Plane, Position};
+    let (width, y) = (60, 10);
+    let at = |x: i32, y: i32| Position {
+        plane: Plane::Arcanus,
+        x: x.rem_euclid(width) as u32,
+        y: y as u32,
+    };
+    let city = at(0, y);
+    let reach = AREA_RADIUS + 1;
+    for dy in -reach..=reach {
+        for dx in -reach..=reach {
+            let listed = area_offsets().any(|o| o == (dx, dy));
+            assert_eq!(
+                works(width as u32, city, at(dx, y + dy)),
+                listed,
+                "{dx},{dy}"
+            );
+        }
+    }
+    let corner = at(AREA_RADIUS, y + AREA_RADIUS);
+    assert!(!works(width as u32, city, corner), "a corner");
+}

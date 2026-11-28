@@ -45,6 +45,10 @@
         perimeter_site_range: 4,
         // Soldiers further than this from an enemy in a city's zone are not called.
         perimeter_reach: 6,
+        // Strength a campaign wants beyond attack_force times what it expects to meet.
+        march_margin: 1.0,
+        // The strength of an average soldier of a wizard that has no fighter.
+        no_fighter_strength: 20.0,
     ),
     // Which town a campaign marches on (the war plan, and the choice of a landing or a crossing).
     target: (
@@ -90,6 +94,8 @@
         recon_near: 3,
         // The most fighters the war plan asks the cities to build for one campaign.
         max_force: 20,
+        // The walk, in squares, counted for the next target when the way to a town is not known.
+        unknown_walk: 40,
     ),
     // How many soldiers stand in a city.
     garrison: (
@@ -124,6 +130,20 @@
         sea_party: 2,
         // A plane explored less than this share is still blind to the wizard.
         blind_share: 0.6,
+        // Up to this many cities a wizard keeps few_scouts, with more many_scouts.
+        few_cities: 3,
+        // The scouts of a wizard with up to few_cities cities,
+        few_scouts: 1,
+        // this many more while it builds up,
+        builder_scouts: 1,
+        // and the scouts of a wizard with more cities.
+        many_scouts: 2,
+        // How heavily walk_cost counts when a scout picks its target.
+        walk_weight: 4.0,
+        // Moves a flying unit counts for beyond its own when the scout is picked.
+        flier_moves: 1,
+        // The sight, in half squares, round a tower on the other plane in which unexplored ground makes a crossing worth it.
+        across_sight_halves: 3,
     ),
     // Lairs, nodes and towers: the parties that take them.
     sites: (
@@ -206,6 +226,26 @@
         gold_reserve_base: 40,
         // plus this many turns of net income.
         gold_reserve_income: 3,
+        // With a landing planned, one more ship for each this many fighters (above 0).
+        fighters_per_ship: 12,
+        // Settlers kept on the way past the number of cities wanted, leaning wide,
+        settlers_wide: 3,
+        // and leaning neither wide nor tall (none leaning tall).
+        settlers_middle: 2,
+        // The fewest citizens a city builds a settler from.
+        settler_size: 3,
+        // The gold on hand counts as income, spread over this many turns (above 0).
+        gold_spread_turns: 100,
+        // With net gold below 0 and less gold than this the treasury is broke.
+        poor_gold: 60,
+        // Before a campaign the strike army gains a fighter for each this many cities (above 0).
+        cities_per_strike_fighter: 2,
+        // Fighters a maniacal temper adds to the strike army,
+        army_maniacal: 2,
+        // a ruthless or aggressive one,
+        army_fierce: 1,
+        // and the fighters a peaceful one takes off it.
+        army_peaceful: 1,
     ),
     // What the cities build.
     building: (
@@ -219,6 +259,20 @@
         rivers_min: 4,
         // Citizens from which a city is large, for a road enchantment.
         large_city: 8,
+        // Percent a building adds to a stat that count as one point of it (above 0).
+        percent_per_point: 10.0,
+        // Percent of production from the land that count as one point of a city specialty (above 0).
+        land_production_per_point: 3.0,
+        // Percent off the cost of soldiers that count as one point of a city specialty (above 0).
+        unit_cost_per_point: 5.0,
+        // Points of a city specialty each nightshade square is worth.
+        nightshade_worth: 2.0,
+        // Soldiers a rival nearby adds to the least garrison a city builds,
+        rival_guards: 1,
+        // a first focus on defence,
+        defense_guards: 2,
+        // and a second focus on defence.
+        defense_second_guards: 1,
     ),
     // The forge cities and the dismissal of cheap units late in the game.
     forge: (
@@ -234,6 +288,10 @@
         most_forges_rich: 12,
         // A unit is low-tier when it costs this percent of its race's top land unit or less.
         low_tier_percent: 35,
+        // The fewest forge cities.
+        least_forges: 2,
+        // A rich conqueror has one forge city for this many cities (above 0).
+        rich_cities_per_forge: 2,
     ),
     // Casting overland: which spell, when, and the mana it takes.
     magic: (
@@ -283,6 +341,20 @@
         gold_kept: 1000,
         // The race for the Spell of Mastery is run when the AI would finish this many times sooner than the rival.
         race_lead: 1.25,
+        // The mana a fight can use: the pool, up to this many times the casting skill.
+        usable_skill: 3.0,
+        // The weight of a spell that takes walkers over the sea against a summon of the same step.
+        cross_rate: 1000.0,
+        // A global enchantment is dispelled when its cost is at most this many times the strength of the dispel.
+        dispel_margin: 4,
+        // The fewest fighters before a spell on a unit is cast.
+        buff_army: 3,
+        // With more than this percent of the power on mana, nothing that costs upkeep is cast.
+        most_mana_share: 55,
+        // What the wizard puts towards a spell each turn: its mana reserve spread over this many turns, and the mana income (above 0).
+        reserve_turns: 10,
+        // A wizard leans to a realm when this percent of its books or more are of it.
+        lean_share_pct: 50,
     ),
     // How the power is split between mana, research and skill, in percent.
     split: (
@@ -322,6 +394,14 @@
         racing_research: 65,
         // and skill.
         racing_skill: 20,
+        // While it builds up, mana moved to research.
+        build_shift: 10,
+        // While it wins, research moved to mana
+        win_mana_shift: 15,
+        // and to skill.
+        win_skill_shift: 5,
+        // With a rich reserve, mana moved to research.
+        rich_shift: 10,
     ),
     // Items: crafting, buying and handing them out.
     items: (
@@ -354,6 +434,16 @@
         least_need: 0.2,
         // Squares from an own city within which a fight is on home ground.
         home_range: 3,
+        // What a fight is worth, 0 to 1: for a city,
+        stake_city: 1.0,
+        // for a lair,
+        stake_lair: 0.6,
+        // on home ground,
+        stake_home: 0.7,
+        // in the open,
+        stake_open: 0.3,
+        // and at least this with a hero in it.
+        stake_hero: 0.6,
     ),
     // Engineers, roads and bridges.
     engineers: (
@@ -412,6 +502,8 @@
         scout_timeout_turns: 50,
         // A dropped target stays on the list of failures for this many times plan_timeout_turns.
         forgive_plans: 3,
+        // With this many times the cities it wants, a wizard is in the winning phase.
+        win_cities_times: 2,
     ),
     // What the two groups below share: power, the leader, factors and self-interest (statecraft.rs). Overrides: AIS_DIPLO_<NAME>.
     diplomacy: (
@@ -461,6 +553,8 @@
         gift_least_gold: 100,
         // and for one to a close friend with a treaty.
         friend_gift_least_gold: 200,
+        // The books both wizards need in a realm for it to count as shared or opposed.
+        shared_books: 2,
     ),
     // Trades. Overrides: AIS_DIPLO_TRADE_<NAME>.
     trade: (
@@ -480,6 +574,8 @@
         margin_most: 140,
         // The least gold it sells a spell or an item for.
         least_price: 40,
+        // Fighters a city keeps beyond its garrison before one may be given away.
+        unit_spare: 1,
     ),
     // Feelings, peace, friends and enemies (diplo_b*.rs, docs/ai-diplomacy-b.md). Overrides: AIS_DIPLO_B_<NAME>.
     diplomacy_b: (
@@ -639,6 +735,34 @@
         map_cool: 30,
         // A trade or research pact is offered no more often to the same player than this.
         pact_cool: 30,
+        // A neighbour with this percent of our power or less is no might to fear.
+        might_floor: 50,
+        // The stronger side hears its fear in the peace wish divided by this (above 0).
+        strong_fear_divisor: 2,
+        // A wizard with at most this percent of our power is one we strike first when we fear it.
+        equal_pct: 110,
+        // The fear divided by this is then added to the enemy value (above 0).
+        strike_fear_divisor: 2,
+        // Taken off the enemy value of a pact partner,
+        pact_penalty: 40,
+        // and of an ally.
+        alliance_penalty: 80,
+        // Tributes and demands are made in steps of this much gold (above 0).
+        gold_step: 25,
+        // A wizard that yields to a threat pays this many steps,
+        tribute_least_steps: 2,
+        // and one more for each this much fear (above 0).
+        tribute_fear_per_step: 25,
+        // A threat is answered with war when the threatener's army is under this percent of ours.
+        far_stronger_pct: 80,
+        // A demand is made of a wizard with at least this much gold,
+        demand_least_gold: 100,
+        // for its gold divided by this (above 0),
+        demand_share_divisor: 4,
+        // at most this much.
+        demand_most: 100,
+        // On every turn that is a multiple of this a gift is a spell, when there is one to give (above 0).
+        spell_gift_every: 3,
     ),
     // Whether a captured city is razed, in points that speak for razing (raze.rs). Overrides: AIS_RAZE_<NAME>.
     raze: (
@@ -753,5 +877,279 @@
             boost_global_buff: 0,
             boost_curse: 0,
         ),
+    ),
+    // The wide or tall lean (phase.rs). Overrides: AIS_WIDTH_<NAME>; none reaches the lists.
+    width: (
+        // Races whose strength is in the field.
+        wide_races: [12 /* orc */, 0 /* barbarian */, 13 /* troll */, 5 /* gnoll */, 1 /* beastmen */, 3 /* draconian */],
+        // Races whose strength is in building and magic.
+        tall_races: [7 /* high_elf */, 2 /* dark_elf */, 6 /* halfling */, 4 /* dwarven */, 11 /* nomad */],
+        // Retorts that favour spreading out (heroes, armies, summons).
+        wide_retorts: [1 /* warlord */, 13 /* famous */, 16 /* charismatic */, 15 /* conjurer */],
+        // Retorts that favour building up (research, mana, gold, items).
+        tall_retorts: [7 /* sage_master */, 0 /* alchemy */, 8 /* channeler */, 11 /* mana_focusing */, 10 /* archmage */, 12 /* node_mastery */, 14 /* runemaster */, 17 /* artificer */],
+        // The realms of the fighter.
+        wide_realms: [2 /* chaos */, 4 /* death */],
+        // The realms of the builder.
+        tall_realms: [0 /* nature */, 1 /* sorcery */, 3 /* life */],
+        // The lean every wizard starts from.
+        start: 0.5,
+        // A race of wide_races adds this, one of tall_races takes it off.
+        race: 0.1,
+        // The same for each retort of wide_retorts and tall_retorts.
+        retort: 0.08,
+        // Added for a maniacal or ruthless temper,
+        temper_fierce: 0.12,
+        // for an aggressive one,
+        temper_aggressive: 0.08,
+        // and taken off for a lawful one
+        temper_lawful: 0.04,
+        // and for a peaceful one.
+        temper_peaceful: 0.1,
+        // Added for a militarist or expansionist, taken off for a theurgist or perfectionist.
+        objective: 0.1,
+        // Added for each book of wide_realms,
+        wide_book: 0.03,
+        // and taken off for each book of tall_realms.
+        tall_book: 0.02,
+        // Added while the wizard builds up,
+        phase_build: 0.2,
+        // and while it is winning,
+        phase_win: 0.1,
+        // taken off while it casts the Spell of Mastery.
+        phase_mastery: 0.2,
+        // Added with room for another city, taken off without.
+        room: 0.2,
+        // An enemy with this many times the cities (or the wizard against its strongest enemy)
+        neighbour_ratio: 1.5,
+        // takes this off the lean (adds it).
+        neighbour: 0.1,
+    ),
+    // The choice of research: what the turns a spell takes are multiplied by. Overrides: AIS_RESEARCH_<NAME>.
+    research: (
+        // Of a sort the wizard has none of yet: a summon or a spell that harms in battle,
+        new_fighting: 0.25,
+        // and a spell on a unit or a city.
+        new_buff: 0.7,
+        // Of a sort it has: a spell on a unit or a city,
+        owned_buff: 1.5,
+        // and any other (a summon or a spell that harms in battle counts as it is).
+        owned_other: 1.5,
+        // The Spell of Mastery is researched last while it takes more turns than this, unless a rival races for it.
+        mastery_turns: 250.0,
+        // Enchant Road not yet known, when the wizard can have engineers,
+        road_new: 0.5,
+        // and when it cannot.
+        road_never: 2.0,
+    ),
+    // The order in which kinds of spells are tried, the lower first; the Spell of Mastery always comes before all. Overrides: AIS_LADDER_<NAME>.
+    ladder: (
+        // Seeing the world,
+        explore: 1,
+        // Spell Blast,
+        blast: 1,
+        // enchanted roads (fast movement is a big advantage),
+        enchant_road: 2,
+        // healing a stack,
+        cure: 2,
+        // lifting a curse from an own city,
+        disenchant: 2,
+        // Stasis,
+        stasis: 2,
+        // Word of Recall,
+        recall: 2,
+        // Plane Shift,
+        plane_shift: 2,
+        // an Astral Gate,
+        gate: 2,
+        // a storm on an enemy stack,
+        stack_strike: 2,
+        // summoning creatures,
+        summon: 3,
+        // summoning heroes,
+        summon_hero: 3,
+        // taking walkers over the sea (they wait on the shore for it),
+        cross: 3,
+        // Lycanthropy (rated against the summons),
+        lycanthropy: 3,
+        // spells on units,
+        unit_buff: 4,
+        // Mutation,
+        mutate: 4,
+        // an Earth Gate (it saves the army its walk, it does not make it stronger),
+        earth_gate: 4,
+        // spells on own cities,
+        city_buff: 5,
+        // global enchantments,
+        global_buff: 6,
+        // raising a volcano,
+        land_boost: 6,
+        // curses on cities,
+        city_curse: 7,
+        // curses on land,
+        land_curse: 7,
+        // curses on wizards,
+        wizard_curse: 8,
+        // Disjunction,
+        disjunction: 8,
+        // and spells that strike the whole world.
+        world_spell: 8,
+    ),
+    // What a wizard feels about the others, -100 to 100 (opinion.rs, docs/diplomacy.md section 5). Overrides: AIS_OPINION_<NAME>; none reaches the lists.
+    opinion: (
+        // What an overland enchantment does to the feeling for its caster (realms: 0 nature, 2 chaos, 3 life, 4 death). A spell not listed does nothing.
+        enchantments: [
+            (spell: 213 /* spell_of_mastery */, value: -50),
+            (spell: 197 /* eternal_night */, value: -12),
+            (spell: 198 /* evil_omens */, value: -20, with_books: [3, 0]),
+            (spell: 188 /* zombie_mastery */, value: -14),
+            (spell: 59 /* aura_of_majesty */, value: 10),
+            (spell: 57 /* wind_mastery */, value: -4),
+            (spell: 79 /* suppress_magic */, value: -4),
+            (spell: 40 /* natures_wrath */, value: -20, with_books: [2, 4]),
+            (spell: 116 /* chaos_surge */, value: -10, without_books: [2]),
+            (spell: 117 /* doom_mastery */, value: -8),
+            (spell: 114 /* great_wasting */, value: -20),
+            (spell: 113 /* meteor_storm */, value: -15),
+            (spell: 120 /* armageddon */, value: -25),
+            (spell: 157 /* tranquility */, value: -20, with_books: [2]),
+            (spell: 156 /* life_force */, value: -20, with_books: [4]),
+            (spell: 158 /* crusade */, value: -10),
+            (spell: 154 /* holy_arms */, value: -5),
+        ],
+        // What a curse on a city does to its owner's feeling for the caster: the spell and the value.
+        city_spells: [
+            (26 /* earthquake */, -9),
+            (85 /* corruption */, -25),
+            (98 /* raise_volcano */, -50),
+            (110 /* chaos_rift */, -5),
+            (119 /* call_the_void */, -20),
+            (183 /* evil_presence */, -5),
+            (189 /* famine */, -5),
+            (190 /* cursed_lands */, -5),
+            (196 /* pestilence */, -8),
+        ],
+        // On the colour wheel, for each pair of books of one realm,
+        wheel_kin: 2,
+        // of neighbouring realms,
+        wheel_next: 1,
+        // and taken off for opposed ones.
+        wheel_opposed: 3,
+        // The first feeling is no lower than this far below 0.
+        start_floor: 90,
+        // With Life books against Death books, taken off for each of these books.
+        life_death_clash: 5,
+        // Otherwise added for each Life book of the two,
+        life_book: 2,
+        // and taken off for each Death book of the wizard with more.
+        death_book: 3,
+        // Taken off for each Chaos book of the wizard with more.
+        chaos_book: 2,
+        // Added for each book both have of Sorcery, Chaos, Nature or Life.
+        shared_book: 2,
+        // At war a feeling is at least this far below 0.
+        war_hostility: 25,
+        // Without an alliance a feeling is no higher than this.
+        no_alliance_most: 65,
+        // A good deed to one disliked, and a bad one by one liked, counts this many times.
+        contrast_factor: 2,
+        // A good deed to one disliked lifts the feeling to no more than this.
+        good_low_ceiling: 10,
+        // A good deed to one liked, and a bad one by one disliked, is divided by one more for each this many points of the feeling (above 0).
+        diminish_step: 25,
+        // Percent a lawful wizard counts a bad deed at,
+        lawful_bad_pct: 200,
+        // a maniacal one a bad deed,
+        maniacal_bad_pct: 150,
+        // and a maniacal one a good deed.
+        maniacal_good_pct: 75,
+        // Taken off for a city captured from the wizard.
+        city_taken: 40,
+        // Taken off at the first warning of a trespass,
+        trespass_first: 2,
+        // and at the last one.
+        trespass_last: 5,
+        // Taken off the lasting regard of the victim for a broken pact,
+        broken_pact: 10,
+        // and for a broken alliance (also off where the feeling drifts back to).
+        broken_alliance: 20,
+        // This many times as much when the breaker is lawful.
+        lawful_breaker_times: 2,
+        // Taken off the feeling of the victim.
+        broken_victim: 10,
+        // Taken off the lasting regard of every other wizard.
+        broken_bystander: 5,
+        // Gold given counts by its share of what the receiver held, in this many steps at most;
+        gift_steps: 4,
+        // each step is this much,
+        gift_per_step: 4,
+        // a flat this much for a receiver with no army,
+        gift_no_army: 8,
+        // and the sum is divided by this (above 0).
+        gift_divisor: 10,
+        // A spell given counts this much from a wizard disliked;
+        spell_low: 20,
+        // from one liked, what is missing to 100 divided by this (above 0).
+        spell_divisor: 10,
+        // The feeling rises by this percent of that,
+        spell_pct: 70,
+        // the lasting regard by this,
+        spell_regard: 5,
+        // up to this.
+        spell_regard_most: 30,
+        // Taken off by the maker of a demand that is turned down,
+        demand_refused: 6,
+        // by one that is threatened,
+        threatened: 7,
+        // and added for a trade agreed.
+        trade_agreed: 5,
+        // Taken off for a hero lost in a battle.
+        loss_hero: 20,
+        // Taken off for each other unit lost, in half points,
+        loss_unit_halves: 19,
+        // and more for a settler, in half points.
+        loss_settler_halves: 9,
+        // Taken off for a failed assault on the fortress city,
+        assault_fortress: 60,
+        // and on another city.
+        assault_city: 20,
+        // The most a bystander cares when a fortress is taken,
+        fortress_taken: 20,
+        // and when a wizard is destroyed.
+        wizard_destroyed: 40,
+        // An enchantment in force moves the feeling each turn by its value divided by this (above 0),
+        ongoing_divisor: 10,
+        // the Spell of Mastery being cast by this (above 0).
+        mastery_ongoing_divisor: 2,
+        // A stronger army is feared when this percent of how many times it is stronger is at most 100,
+        army_threshold_pct: 50,
+        // by what is missing to 101 divided by this, in hundredths of a point a turn (above 0).
+        army_fear_divisor: 2,
+        // Too many cities are looked at on every turn that is a multiple of this (above 0).
+        overcrowd_every: 2,
+        // The surplus of cities is divided by the size of the land plus this, less the difficulty,
+        overcrowd_base: 6,
+        // times this,
+        overcrowd_per: 2,
+        // at least this much,
+        overcrowd_least: 15,
+        // and this many hundredths of that are taken off.
+        overcrowd_hundredths: 25,
+        // Hundredths of a point a turn for units next to a city without a treaty.
+        intruder_hundredths: 12,
+        // Turns without a change by the other before the feeling drifts back.
+        drift_wait: 1,
+        // The drift is faster the nearer the feeling is to 0: nothing this far from it,
+        drift_range: 105,
+        // this many hundredths of a point a turn at 0.
+        drift_most: 50,
+        // Downwards it drifts only on every turn that is a multiple of this, this many times as far (above 0).
+        drift_down_every: 10,
+        // A war that begins puts the feeling this far below 0,
+        war_start: 87,
+        // and takes this off where it drifts back to.
+        war_default_penalty: 5,
+        // Added when a war ends in peace.
+        peace_gain: 40,
     ),
 )

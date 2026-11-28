@@ -11,15 +11,11 @@ use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::world::serial::Serial;
 use f4x_core::world::{Command, Event};
-use f4x_def::rules::Ability;
 
 use crate::roles::Role;
 use crate::view::{distance, is_fighter};
 use crate::Ai;
 use f4x_master::Game;
-
-/// The Healer ability of the unit table.
-pub(crate) const HEALER: Ability = Ability::new(27 /* healer */);
 
 /// Is the unit hurt enough to rest?
 pub(crate) fn needs_rest(view: &PlayerView, unit: hecs::Entity) -> bool {
@@ -158,7 +154,7 @@ fn choose(view: &PlayerView, unit: hecs::Entity) -> Option<Choice> {
     let healer = view
         .my_units()
         .into_iter()
-        .filter(|&u| u != unit && view.unit_has_ability(u, HEALER) && !needs_rest(view, u))
+        .filter(|&u| u != unit && view.unit_is_healer(u) && !needs_rest(view, u))
         .filter_map(|u| Some((view.unit_position(u)?, view.serial_of(u))))
         .filter(|&(p, _)| near(p).is_some_and(|k| k.0 <= care.healer_range))
         .filter(|&(p, _)| safer(p) && open(p))

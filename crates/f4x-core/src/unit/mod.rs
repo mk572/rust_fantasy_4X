@@ -276,6 +276,16 @@ impl<'a> UnitView<'a> {
         self.unit_def(unit).is_some() && self.abilities_shared(unit).contains(&ability)
     }
 
+    /// Whether the unit is a spirit that can meld with a node.
+    pub fn unit_can_meld(&self, unit: hecs::Entity) -> bool {
+        self.unit_has_ability(unit, Ability::new(42 /* meld */))
+    }
+
+    /// Whether the unit heals the units that stand with it.
+    pub fn unit_is_healer(&self, unit: hecs::Entity) -> bool {
+        self.unit_has_ability(unit, Ability::new(27 /* healer */))
+    }
+
     /// The flags the abilities set (`flags` in `abilities.ron`).
     pub fn flags_of(&self, abilities: &[Ability]) -> UnitFlags {
         let mut flags = UnitFlags::NONE;

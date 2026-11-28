@@ -10,8 +10,9 @@ use f4x_core::map::Position;
 use f4x_core::player::PlayerId;
 use f4x_core::rules::exec::Target;
 use f4x_core::rules::SpellId;
+use f4x_core::spell::dispel::CounterEffect;
 use f4x_core::spell::target_error::TargetError;
-use f4x_core::wizard::magic::MagicError;
+use f4x_core::wizard::magic::{MagicError, Retort};
 use f4x_core::world::save::Snapshot;
 use f4x_core::world::testutil::Table;
 use f4x_core::world::{Command, Event, Rejection, World};
@@ -995,4 +996,40 @@ fn a_unit_alive_only_by_a_spell_dies_when_it_is_turned_off_in_a_computer_wizards
     let standing = w.units().all_units().contains(&unit);
     w.drop_kept();
     assert!(!standing, "a unit with no hit points still stands");
+}
+
+#[test]
+fn the_strength_against_a_global_spell_is_the_mana_times_the_spells_factor_and_a_runemasters() {
+    for (name, mut w, p, _) in rivals() {
+        for spell in [
+            SpellId::new(210 /* disjunction */),
+            SpellId::new(61 /* disjunction_true */),
+            SpellId::new(76 /* spell_binding */),
+        ] {
+            let def = w.content().rules.spells.get(spell);
+            let (effect, factor) = CounterEffect::of(def).expect("an attack on a spell");
+            let (extra, cost) = (10, def.cost);
+            let plain = (cost + extra) * factor.max(1);
+            let runemaster = Retort::new(14 /* runemaster */);
+            w.cheat_set_retort(p, runemaster, false);
+            assert_eq!(
+                w.global_attack_strength(p, spell, extra),
+                Some(plain),
+                "{name}"
+            );
+            w.cheat_set_retort(p, runemaster, true);
+            // Spell Binding is no dispel: the retort does not strengthen it.
+            let power = match effect {
+                CounterEffect::SpellBinding => 1,
+                _ => w.dispel_power(p),
+            };
+            assert_eq!(
+                w.global_attack_strength(p, spell, extra),
+                Some(plain * power),
+                "{name}"
+            );
+        }
+        let dispel = SpellId::new(202 /* dispel_magic */);
+        assert_eq!(w.global_attack_strength(p, dispel, 0), None, "{name}");
+    }
 }

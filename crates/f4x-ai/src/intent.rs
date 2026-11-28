@@ -23,13 +23,14 @@ use f4x_core::spell::terraform::TerrainEffect;
 use f4x_core::spell::unit_effect::UnitEffect;
 use f4x_core::spell::wizard::WorldKill;
 use f4x_def::rules::effects::{Effect, TargetSel};
+use f4x_def::rules::Rules;
 use f4x_def::rules::{RealmId, SpellDef, SpellId, SpellTarget, Stat, UnitKind};
 
 use crate::view::{fighting_strength, is_fighter};
 
 /// What a lasting spell on the whole world is for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum GlobalUse {
+pub(crate) enum GlobalUse<'r> {
     /// It helps its caster whatever the books.
     Boon,
     /// It helps a caster whose books lean to the spell's realm: half or more of them.
@@ -38,7 +39,7 @@ pub(crate) enum GlobalUse {
     War,
     /// It strikes the wizards at war that have a book in one of the realms (the first list); a
     /// caster with a book in one of the second list would be hurt by it too and leaves it.
-    Against(&'static [u16], &'static [u16]),
+    Against(&'r [u16], &'r [u16]),
     /// It hurts its caster as much as the others, or traps it: never cast.
     Never,
 }
@@ -52,8 +53,9 @@ pub(crate) fn global_effect(def: &SpellDef) -> Option<GlobalEffect> {
 }
 
 /// What a global effect is for. No catch-all: a new effect is given its use here.
-pub(crate) fn global_use(effect: GlobalEffect) -> GlobalUse {
+pub(crate) fn global_use(rules: &Rules, effect: GlobalEffect) -> GlobalUse<'_> {
     use GlobalEffect as E;
+    let realms = &rules.config.spell_effects;
     match effect {
         // Seeing the whole map, faster ships, goodwill, fame and fewer rebels, strong armies,
         // the other wizards' spells in view: each helps whoever casts it.
@@ -74,16 +76,11 @@ pub(crate) fn global_use(effect: GlobalEffect) -> GlobalUse {
             GlobalUse::War
         }
         // Strike the spells of the realms they are set against.
-        E::NaturesWrath => GlobalUse::Against(&[4 /* death */, 2 /* chaos */], &[]),
-        E::LifeForce => GlobalUse::Against(&[4 /* death */], &[]),
-        E::Tranquility => GlobalUse::Against(&[2 /* chaos */], &[]),
-        // Life and nature spells cost half as much again for every wizard, the caster too.
-        E::EvilOmens => {
-            GlobalUse::Against(
-                &[3 /* life */, 0 /* nature */],
-                &[3 /* life */, 0 /* nature */],
-            )
-        }
+        E::NaturesWrath => GlobalUse::Against(&realms.natures_wrath_realms, &[]),
+        E::LifeForce => GlobalUse::Against(&realms.life_force_realms, &[]),
+        E::Tranquility => GlobalUse::Against(&realms.tranquility_realms, &[]),
+        // The spells of its realms are dearer for every wizard, the caster too.
+        E::EvilOmens => GlobalUse::Against(&realms.evil_omens_realms, &realms.evil_omens_realms),
         // No unit of the caster can change plane either.
         E::PlanarSeal => GlobalUse::Never,
     }
@@ -91,9 +88,9 @@ pub(crate) fn global_use(effect: GlobalEffect) -> GlobalUse {
 
 /// What a global spell is for, by its effect (a spell that kills across the map is a strike at
 /// the wizards at war, unless it kills the caster's creatures too).
-pub(crate) fn global_use_of(def: &SpellDef) -> Option<GlobalUse> {
+pub(crate) fn global_use_of<'r>(rules: &'r Rules, def: &SpellDef) -> Option<GlobalUse<'r>> {
     if let Some(effect) = global_effect(def) {
-        return Some(global_use(effect));
+        return Some(global_use(rules, effect));
     }
     WorldKill::NAMES
         .iter()
@@ -102,16 +99,18 @@ pub(crate) fn global_use_of(def: &SpellDef) -> Option<GlobalUse> {
         .map(|_| GlobalUse::War)
 }
 
-/// Whether the wizard's books lean to the realm: half of them or more.
+/// Whether the wizard's books lean to the realm: `lean_share_pct` of them or more.
 fn leans_to(view: &PlayerView, realm: RealmId) -> bool {
-    view.wizard()
-        .is_some_and(|w| w.books_in(realm) * 2 >= w.total_books().max(1) && w.books_in(realm) > 0)
+    view.wizard().is_some_and(|w| {
+        let share = view.levers().magic.lean_share_pct;
+        w.books_in(realm) * 100 >= w.total_books().max(1) * share && w.books_in(realm) > 0
+    })
 }
 
 /// Whether a lasting spell on the whole world has its use now: the wizard it helps, or the
 /// wizard at war it strikes.
 pub(crate) fn global_wanted(view: &PlayerView, def: &SpellDef) -> bool {
-    let Some(kind) = global_use_of(def) else {
+    let Some(kind) = global_use_of(&view.content().rules, def) else {
         return false;
     };
     match kind {
@@ -313,7 +312,7 @@ mod tests {
             .spells
             .defs()
             .iter()
-            .filter_map(|d| global_use_of(d).map(|u| (d.id.clone(), u)))
+            .filter_map(|d| global_use_of(&shipped().rules, d).map(|u| (d.id.clone(), u)))
             .collect();
         let of = |name: &str| uses.iter().find(|(id, _)| id == name).map(|(_, u)| *u);
         for name in [

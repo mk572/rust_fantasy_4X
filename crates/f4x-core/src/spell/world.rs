@@ -288,9 +288,8 @@ impl World {
         rng: &mut GameRng,
     ) -> Vec<Event> {
         let realm = self.content.rules.spells.get(spell).realm.num();
-        if realm != 4 /* death */ && realm != 2
-        /* chaos */
-        {
+        let shaking = &self.content.rules.config.spell_effects.natures_wrath_realms;
+        if !shaking.contains(&realm) {
             return Vec::new();
         }
         if !self.player_ids().into_iter().any(|p| {

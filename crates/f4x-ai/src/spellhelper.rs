@@ -11,6 +11,7 @@ use crate::view::{fighting_strength, is_fighter};
 use f4x_core::map::Plane;
 use f4x_core::player::view::PlayerView;
 use f4x_def::rules::effects::Effect;
+use f4x_def::rules::unit_flag::UnitFlag;
 use f4x_def::rules::{CastContext, SpellDef, SpellId};
 
 use crate::wizardry::Kind;
@@ -81,7 +82,10 @@ pub fn rate(view: &PlayerView, spell: SpellId, kind: Kind) -> f32 {
         Kind::UnitBuff => best_buff(view, spell).map_or(0.0, |b| b.1),
         // The cheapest spell that takes a walker over the sea (its cost and the upkeep as for a
         // summon): the one on the cheapest terms goes first.
-        Kind::Cross => 1000.0 / (cost + upkeep * view.levers().magic.rate_upkeep).max(1.0),
+        Kind::Cross => {
+            let magic = view.levers().magic;
+            magic.cross_rate / (cost + upkeep * magic.rate_upkeep).max(1.0)
+        }
         _ => cost / (1.0 + upkeep),
     };
     let affinity = view.wizard().map_or(1.0, |w| {
@@ -112,7 +116,7 @@ fn usable_mana(view: &PlayerView) -> f32 {
         return 0.0;
     };
     let skill = w.casting_skill(&view.content().rules).max(0) as f32;
-    (view.treasury().mana.floor().max(0) as f32).min(skill * 3.0)
+    (view.treasury().mana.floor().max(0) as f32).min(skill * view.levers().magic.usable_skill)
 }
 
 /// The strength the wizard's spells add to a party in a site fight: nothing without a battle
@@ -144,7 +148,7 @@ pub(crate) fn arming_share(view: &PlayerView, units: usize) -> f32 {
         let cost = def.cost.max(1) as f32;
         let grants = def.effects.iter().any(|r| {
             matches!(&r.effect, f4x_core::rules::effects::Effect::GrantAbility(a)
-                if *a == f4x_core::rules::Ability::new(41 /* magical_weapon */))
+                if view.content().rules.abilities.get(*a).flags.contains(&UnitFlag::MagicalWeapon))
         });
         let field = def.effects.iter().any(|r| {
             matches!(&r.effect, f4x_core::rules::effects::Effect::Custom { name, args }
@@ -214,7 +218,7 @@ mod tests {
             .rules
             .spells
             .iter()
-            .filter(|(_, d)| kind(d) == Kind::Summon)
+            .filter(|(_, d)| kind(&view.content().rules, d) == Kind::Summon)
             .map(|(id, d)| {
                 (
                     rate(&view, id, Kind::Summon),

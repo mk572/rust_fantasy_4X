@@ -15,8 +15,7 @@ use f4x_def::rules::effects::DamageTraits;
 use f4x_def::rules::immunity::{effective_resistance, Immunities};
 use f4x_def::rules::realm::Realm;
 use f4x_def::rules::unit_effect::UnitEffect;
-use f4x_def::rules::unit_flag::UnitFlag;
-use f4x_def::rules::{Ability, Modifier, SpellDef, SpellId};
+use f4x_def::rules::{Modifier, SpellDef, SpellId};
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
 
@@ -417,12 +416,7 @@ impl Battle {
         let mut events = vec![BattleEvent::FissureOpened { cell }];
         let over = self
             .unit_at(cell)
-            .filter(|u| {
-                !u.flag(UnitFlag::Flies)
-                    && !self.spares(u, spell)
-                    && !u.flag(UnitFlag::NonCorporeal)
-                    && !u.has(Ability::new(43 /* merging */))
-            })
+            .filter(|u| u.can_fall_in_fissure() && !self.spares(u, spell))
             .map(|u| u.id);
         if let Some(id) = over {
             let one_in = self.content.rules.battle.fissure_one_in;

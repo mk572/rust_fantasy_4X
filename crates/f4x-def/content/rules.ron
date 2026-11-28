@@ -37,7 +37,7 @@
     // The capital starts with 4 citizens (3 farm) and a smithy, barracks and builders hall; a spell cast
     // overland costs 5 times its battle price; each book beyond the 7th takes 10 percent off a cost; Evil
     // Omens adds half; a hero's battle mana is (skill + 1) * (level + 1) * 2.5.
-    wizard: (start_tax_rate: 2, capital_figures: 4, capital_farmers: 3, capital_buildings: [8, 3, 32], start_spirit: 154 /* magic_spirit */, start_ship: 35 /* trireme */, max_retorts: 6, research_slots: 8, resign_below_skill: 40, overland_cost_factor: 5, evil_omens_percent: 50, book_steps_from: 7, book_step_percent: 10, mastery_discount_books: 11, mastery_discount: 3000, hero_mana_percent: 250),
+    wizard: (start_tax_rate: 2, capital_figures: 4, capital_farmers: 3, capital_buildings: [8, 3, 32], start_spirit: 154 /* magic_spirit */, start_ship: 35 /* trireme */, max_retorts: 6, research_slots: 8, resign_below_skill: 40, overland_cost_factor: 5, alchemy_percent: 50, evil_omens_percent: 50, book_steps_from: 7, book_step_percent: 10, mastery_discount_books: 11, mastery_discount: 3000, hero_mana_percent: 250),
     // Items: the plain item's cost by kind, the mail's own defence, the limits of a design, the mana to move an item to a hero far away, and the random item.
     item: (
         base_cost: [(Sword, 100), (Mace, 100), (Axe, 100), (Bow, 100), (Staff, 300), (Wand, 200), (Misc, 50), (Shield, 100), (Chainmail, 100), (Platemail, 300)],
@@ -88,13 +88,18 @@
         city_walls: 35,
         nightshade_buildings: [22 /* shrine */, 10 /* animists_guild */, 23 /* temple */, 24 /* parthenon */, 25 /* cathedral */, 17 /* sages_guild */, 18 /* oracle */, 19 /* alchemists_guild */, 21 /* wizards_guild */],
         nightshade_strength: 100,
+        earth_lore_width: 12, earth_lore_height: 10, enchant_road_radius: 2, floating_island: 190 /* floating_island */,
+        evil_omens_realms: [3 /* life */, 0 /* nature */],
+        natures_wrath_realms: [4 /* death */, 2 /* chaos */],
+        life_force_realms: [4 /* death */],
+        tranquility_realms: [2 /* chaos */],
     ),
     // The retorts that cost two picks under the Adamant Alchemy and 2-Pick Myrran settings, and the
     // ships whose capacity the player sets.
     // The cavalry and halberdier units of the setting `cavalry_halberdier_abilities`, and the abilities
     // it gives them (first_strike, negate_first_strike).
     targets: (
-        alchemy_retort: 0, myrran_retort: 9, trireme_unit: 35, galley_unit: 36,
+        alchemy_retort: 0, myrran_retort: 9, trireme_unit: 35, galley_unit: 36, miners_guild: 34 /* miners_guild */,
         cavalry_units: [42 /* barbarian_cavalry */, 60 /* dark_elf_cavalry */, 98 /* high_elf_cavalry */, 107 /* high_men_cavalry */, 141 /* orc_cavalry */],
         halberdier_units: [48 /* beastmen */, 59 /* dark_elf */, 68 /* draconian */, 77 /* dwarven */, 85 /* gnoll */, 97 /* high_elf */, 116 /* klackon */, 122 /* lizardman */, 139 /* orc */, 149 /* troll */],
         first_strike: 23, negate_first_strike: 48,

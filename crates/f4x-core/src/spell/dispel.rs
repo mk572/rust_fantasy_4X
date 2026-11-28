@@ -126,6 +126,30 @@ impl World {
         u32::try_from(times).unwrap_or(1).max(1)
     }
 
+    /// The strength `by` attacks a global enchantment with when it casts `spell` with `extra`
+    /// mana put in: the mana times the spell's factor, and for Disjunction (not Spell Binding)
+    /// times the caster's `dispel_power`. `None` for a spell that makes no such attack.
+    pub fn global_attack_strength(&self, by: PlayerId, spell: SpellId, extra: u32) -> Option<u32> {
+        let def = self.content.rules.spells.get(spell);
+        let (effect, number) = CounterEffect::of(def)?;
+        let power = match effect {
+            CounterEffect::Disjunction => self.dispel_power(by),
+            CounterEffect::SpellBinding => 1,
+            CounterEffect::Dispel | CounterEffect::CounterMagic => return None,
+        };
+        Some((def.cost + extra) * number.max(1) * power)
+    }
+
+    /// Whether the attack `spell` makes on a global enchantment cannot fail: Spell Binding, when
+    /// the setting says so (patch 1.50, note 269).
+    pub fn global_attack_certain(&self, spell: SpellId) -> bool {
+        let def = self.content.rules.spells.get(spell);
+        matches!(
+            CounterEffect::of(def),
+            Some((CounterEffect::SpellBinding, _))
+        ) && self.settings.rules.spell_binding_always_succeeds
+    }
+
     /// The difficulty of dispelling `spell` cast by `caster` (`None` for no caster's retorts).
     pub fn dispel_difficulty(&self, spell: SpellId, caster: Option<PlayerId>) -> u32 {
         let def = self.content.rules.spells.get(spell);
@@ -315,7 +339,7 @@ impl World {
             return None;
         }
         let difficulty = self.dispel_difficulty(spell, Some(victim));
-        // Spell Binding never fails when the setting says so (patch 1.50, note 269).
+        // Spell Binding never fails when the setting says so (`global_attack_certain`).
         let certain = steal && self.settings.rules.spell_binding_always_succeeds;
         if !certain && !dispel_roll(&self.content.rules.battle, strength, difficulty, rng) {
             return Some(false);
@@ -404,11 +428,14 @@ impl World {
             SpellId::new(157), /* tranquility */
         ]
         .into_iter()
-        .filter(|&g| match g.num() {
-                156 /* life_force */ => realm == 4 /* death */,
-                157 /* tranquility */ => realm == 2 /* chaos */,
+        .filter(|&g| {
+            let effects = &self.content.rules.config.spell_effects;
+            match g.num() {
+                156 /* life_force */ => effects.life_force_realms.contains(&realm),
+                157 /* tranquility */ => effects.tranquility_realms.contains(&realm),
                 _ => true,
-            })
+            }
+        })
         .collect();
         let holders: Vec<(PlayerId, SpellId)> = self
             .player_ids()

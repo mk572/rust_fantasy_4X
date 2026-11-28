@@ -10,7 +10,6 @@ use crate::map::road::RoadWork;
 use crate::map::Position;
 use crate::player::view::PlayerView;
 use crate::player::{PlayerId, MONSTERS};
-use crate::rules::Ability;
 use crate::unit::ledger::{self, ArmyLedger};
 use crate::unit::movement::{adjacent, Entry, MoveError};
 use crate::unit::Standby;
@@ -343,10 +342,7 @@ impl World {
         units: &[hecs::Entity],
         to: Position,
     ) -> Result<(), MeldError> {
-        let melds = |u: &hecs::Entity| {
-            self.units()
-                .unit_has_ability(*u, Ability::new(42 /* meld */))
-        };
+        let melds = |u: &hecs::Entity| self.units().unit_can_meld(*u);
         if !units.iter().any(melds) {
             return Err(MeldError::NoMelder);
         }

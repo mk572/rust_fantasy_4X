@@ -125,9 +125,9 @@ pub(crate) fn rate(
     }
 }
 
-/// How a wizard answers a threat: one that fears the asker pays (what it can of two to nine times
-/// 25 gold, more the more it fears) and yields; one far stronger than the asker declares war; else it
-/// refuses.
+/// How a wizard answers a threat: one that fears the asker pays (what it can of some steps of
+/// `gold_step`, more the more it fears) and yields; one far stronger than the asker declares war;
+/// else it refuses.
 fn yields_to_threat(
     game: &mut Game,
     judge: PlayerId,
@@ -137,7 +137,8 @@ fn yields_to_threat(
 ) -> bool {
     if r.fear >= k.yield_fear {
         let gold = game.player(judge).map_or(0, |p| p.treasury().gold.floor());
-        let pay = (25 * (2 + r.fear / 25)).min(gold / 25 * 25);
+        let steps = k.tribute_least_steps + r.fear / k.tribute_fear_per_step;
+        let pay = (k.gold_step * steps).min(gold / k.gold_step * k.gold_step);
         return pay <= 0
             || !game
                 .apply(
@@ -151,7 +152,7 @@ fn yields_to_threat(
                 .iter()
                 .any(|e| matches!(e, Event::Rejected(_)));
     }
-    if army_strength(game, judge) * 80 > army_strength(game, asker) * 100 {
+    if army_strength(game, judge) * k.far_stronger_pct > army_strength(game, asker) * 100 {
         game.apply(
             judge,
             Command::Diplomacy(DiplomacyCommand::DeclareWar {
@@ -308,8 +309,9 @@ fn approach_one(ai: &Ai, game: &mut Game, events: &mut Vec<Event>, other: Player
     trade_offer(ai, game, events, other, &k);
 }
 
-/// A demand for tribute from a stronger wizard that does not like the other: a quarter of the
-/// other's gold, at most a hundred, in whole 25s. Whether it was made.
+/// A demand for tribute from a stronger wizard that does not like the other: a share of the
+/// other's gold (`demand_share_divisor`), at most `demand_most`, in whole steps of `gold_step`.
+/// Whether it was made.
 fn demand(
     ai: &Ai,
     game: &mut Game,
@@ -328,13 +330,13 @@ fn demand(
     if !due
         || treaty == Treaty::Alliance
         || friendship >= k.warn_below
-        || gold < 100
+        || gold < k.demand_least_gold
         || army_strength(game, me) <= army_strength(game, other)
     {
         return false;
     }
-    let asked = (gold / 4 / 25 * 25).min(100);
-    let made = asked >= 25
+    let asked = (gold / k.demand_share_divisor / k.gold_step * k.gold_step).min(k.demand_most);
+    let made = asked >= k.gold_step
         && propose(
             ai,
             game,
@@ -369,7 +371,7 @@ fn gift(
     }
     let spell = game
         .round()
-        .is_multiple_of(3)
+        .is_multiple_of(k.spell_gift_every)
         .then(|| crate::trade::spell_to_give(game, me, other))
         .flatten();
     let gold = game.player(me).map_or(0, |p| p.treasury().gold.floor());

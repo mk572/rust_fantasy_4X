@@ -32,7 +32,7 @@ pub(crate) fn healing(
         let Some(at) = units.unit_position(unit).filter(|p| wounded_at.contains(p)) else {
             continue;
         };
-        if units.unit_has_ability(unit, Ability::new(27 /* healer */)) {
+        if units.unit_is_healer(unit) {
             for other in units.units_at(at) {
                 if units.unit_owner(other) == units.unit_owner(unit)
                     && !healed_by_healer.contains(&other)

@@ -60,7 +60,8 @@ pub(crate) fn strength_wanted(
     target: Position,
 ) -> f32 {
     let force = view.levers().attack.attack_force;
-    crate::military::expected_defence(view, memory, turn, target) * force + 1.0
+    let margin = view.levers().attack.march_margin;
+    crate::military::expected_defence(view, memory, turn, target) * force + margin
 }
 
 /// How many average fighters a strength is, for the cities that build them: at least what a march
@@ -104,7 +105,7 @@ pub(crate) fn next_score(
     on_route: bool,
     foothold: bool,
 ) -> f32 {
-    let walk = t.from_us.unwrap_or(40) as f32 * levers.next_distance;
+    let walk = t.from_us.unwrap_or(levers.unknown_walk) as f32 * levers.next_distance;
     let held = t.defence / average.max(1.0) * levers.defence_squares;
     let mut score = levers.next_worth * worth(levers, t) - walk - held;
     if on_route {

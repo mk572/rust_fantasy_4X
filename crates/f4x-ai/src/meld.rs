@@ -12,12 +12,11 @@ use crate::Ai;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::world::{Command, Event};
-use f4x_def::rules::Ability;
 use f4x_master::Game;
 
 /// Whether the unit is a spirit that can meld.
 pub fn is_melder(view: &PlayerView, unit: hecs::Entity) -> bool {
-    view.unit_has_ability(unit, Ability::new(42 /* meld */))
+    view.unit_can_meld(unit)
 }
 
 /// The squares of nodes a spirit can meld with.

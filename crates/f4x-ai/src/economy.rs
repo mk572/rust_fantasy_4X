@@ -39,8 +39,8 @@ pub fn taxes(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     ai.order(game, Command::SetTaxRate { player: me, rate }, events);
 }
 
-/// How many ships the wizard wants. A landing on a big army needs a fleet: one ship per twelve
-/// fighters beyond the first, at most `max_ships`.
+/// How many ships the wizard wants. A landing on a big army needs a fleet: one ship per
+/// `fighters_per_ship` fighters beyond the first, at most `max_ships`.
 fn ships_wanted(ai: &Ai, view: &PlayerView) -> usize {
     let levers = view.levers().economy;
     let base = levers.ships;
@@ -52,7 +52,7 @@ fn ships_wanted(ai: &Ai, view: &PlayerView) -> usize {
         .into_iter()
         .filter(|&u| is_fighter(view, u))
         .count();
-    (base + fighters / 12).min(levers.max_ships)
+    (base + fighters / levers.fighters_per_ship).min(levers.max_ships)
 }
 
 /// How a wizard should grow: how many places for a city no settler has taken yet
@@ -162,9 +162,9 @@ fn more_settlers(levers: &EconomyLevers, wide: f32) -> usize {
     if wide <= levers.tall_below {
         0
     } else if wide >= levers.wide_above {
-        3
+        levers.settlers_wide
     } else {
-        2
+        levers.settlers_middle
     }
 }
 
@@ -460,6 +460,8 @@ struct Empire {
     gold: i32,
     /// Net gold with the gold on hand, spread over a hundred turns, counted as income.
     net: HalfInt,
+    /// Below this much gold a deficit cannot be borne (`poor_gold`).
+    poor_gold: i32,
     spare_food: HalfInt,
     fighters: usize,
     cities: usize,
@@ -477,7 +479,8 @@ impl Empire {
         Empire {
             round,
             gold,
-            net: budget.net_gold() + (gold / 100).max(0),
+            net: budget.net_gold() + (gold / view.levers().economy.gold_spread_turns).max(0),
+            poor_gold: view.levers().economy.poor_gold,
             spare_food: builder::spare_food(view),
             fighters: view
                 .my_units()
@@ -492,7 +495,11 @@ impl Empire {
                 .ceil() as usize,
             traits: crate::objective::traits(view),
             temper: view.wizard().map_or(0, |w| {
-                crate::objective::army_bias(w.personality(), view.difficulty())
+                crate::objective::army_bias(
+                    &view.levers().economy,
+                    w.personality(),
+                    view.difficulty(),
+                )
             }),
             known: view.known_cities(),
         }
@@ -500,7 +507,7 @@ impl Empire {
 
     /// The treasury cannot bear a deficit: net gold is negative and the gold on hand is low.
     fn broke(&self) -> bool {
-        self.net < 0 && self.gold < 60
+        self.net < 0 && self.gold < self.poor_gold
     }
 }
 
@@ -526,6 +533,7 @@ fn plan_for(
         round,
         gold,
         net: _,
+        poor_gold: _,
         spare_food,
         fighters,
         cities: all,
@@ -545,7 +553,8 @@ fn plan_for(
     let levers = view.levers().economy;
     let treasury_ok = empire.net >= 1 && spare_food >= HalfInt::from_int(1);
     // The strike force is what the campaign needs, once there is one; before that a few per city.
-    let strike = war_force.unwrap_or_else(|| traits.strike_base.max(1) + all / 2);
+    let strike = war_force
+        .unwrap_or_else(|| traits.strike_base.max(1) + all / levers.cities_per_strike_fighter);
     let strike = (strike as i32 + temper).max(1) as usize;
     // The registry says what the army is doing: soldiers waiting for orders are enough, and a war
     // with nobody marching wants attackers.
@@ -620,7 +629,7 @@ fn plan_for(
         free_sites.min(more_settlers(&view.levers().economy, wide).max(1))
     };
     let settlers = *settlers_planned < cap
-        && size >= 3
+        && size >= levers.settler_size
         && !broke
         && spare_food >= HalfInt::ZERO
         && settler_item(view, city).is_some();
@@ -632,7 +641,7 @@ fn plan_for(
         primary,
         secondary,
         settlers,
-        min_settler_pop: 3,
+        min_settler_pop: levers.settler_size,
         event_prompt: false,
         eager_settlers: true,
         elite_units: crate::phase::phase(view, round) == crate::phase::Phase::Win,
@@ -760,7 +769,8 @@ mod tests {
         let plan = plan_of(&w, &ai, city)?;
         assert_eq!(plan.primary, Focus::Production, "room for more cities");
         assert_eq!(plan.secondary, Some(Focus::Population));
-        assert!(plan.settlers && plan.eager_settlers && plan.min_settler_pop == 3);
+        assert!(plan.settlers && plan.eager_settlers);
+        assert_eq!(plan.min_settler_pop, w.levers().economy.settler_size);
         // The city is building something now (the chooser took over from housing), and a second
         // look leaves a standing order alone.
         cities(&mut ai, &mut w, &mut events);

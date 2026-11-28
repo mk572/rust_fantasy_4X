@@ -12,8 +12,7 @@ use crate::lever::Levered;
 use f4x_core::diplomacy::{army_strength, DiplomacyCommand, ProposalKind, Remark, Treaty};
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
-use f4x_core::rules::RaceId;
-use f4x_core::wizard::magic::Retort;
+use f4x_core::rules::{RaceId, Stat};
 use f4x_core::world::{Command, Event, World};
 
 use crate::memory::Diplomats;
@@ -132,7 +131,9 @@ pub(crate) fn affinity(world: &World, minds: &Diplomats, me: PlayerId, other: Pl
     let mut a = 0;
     if let Some(w) = world.wizard(other) {
         a += (w.fame() / k.fame_per_point).clamp(0, k.fame_cap);
-        if w.retorts().contains(&Retort::new(16) /* charismatic */) {
+        // A Charismatic wizard: its retorts make what others like count for more.
+        let rules = &world.content().rules;
+        if w.stat(rules, Stat::DiplomacyGainPercent, 100) > 100 {
             a += k.charismatic;
         }
     }
@@ -146,14 +147,16 @@ pub(crate) fn affinity(world: &World, minds: &Diplomats, me: PlayerId, other: Pl
         let (mine, theirs) = (books(&x), books(&y));
         let shared = mine
             .iter()
-            .filter(|(r, n)| **n >= 2 && theirs.get(r).is_some_and(|m| *m >= 2))
+            .filter(|(r, n)| {
+                **n >= k.shared_books && theirs.get(r).is_some_and(|m| *m >= k.shared_books)
+            })
             .count() as i32;
         a += (shared * k.shared_realm).min(k.shared_cap);
         // Life and Death do not get on.
         let opposed = |a: u16, b: u16| {
             let has = |m: &std::collections::BTreeMap<f4x_core::rules::RealmId, u8>, r: u16| {
                 m.get(&f4x_core::rules::RealmId::new(r))
-                    .is_some_and(|n| *n >= 2)
+                    .is_some_and(|n| *n >= k.shared_books)
             };
             (has(&mine, a) && has(&theirs, b)) || (has(&mine, b) && has(&theirs, a))
         };

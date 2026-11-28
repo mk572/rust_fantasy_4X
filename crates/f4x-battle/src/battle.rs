@@ -780,7 +780,7 @@ impl Battle {
     pub fn check_wall_attacker(&self, unit: usize, cell: Pos) -> Result<&BattleUnit, BattleError> {
         let u = self.check_unit(unit)?;
         Self::check_can_attack(u)?;
-        if u.side != Side::Attacker || !u.has(Ability::new(70 /* wall_crusher */)) {
+        if u.side != Side::Attacker || !u.crushes_walls() {
             return Err(BattleError::NotWallCrusher);
         }
         if !self.map.has_wall(cell) {
@@ -846,10 +846,7 @@ impl Battle {
     pub fn crush_wall_under(&mut self, attacker: usize, target: usize) -> Vec<BattleEvent> {
         let cell = self.units[target].cell;
         let a = &self.units[attacker];
-        if a.side != Side::Attacker
-            || !a.has(Ability::new(70 /* wall_crusher */))
-            || !self.map.has_wall(cell)
-        {
+        if a.side != Side::Attacker || !a.crushes_walls() || !self.map.has_wall(cell) {
             return Vec::new();
         }
         let ranged = distance(a.cell, cell) > 1;

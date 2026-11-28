@@ -570,6 +570,22 @@ impl BattleUnit {
         self.flag(UnitFlag::Teleports)
     }
 
+    /// Whether the unit is on the ground: it neither flies nor passes through it, bodiless.
+    pub fn on_the_ground(&self) -> bool {
+        !self.flag(UnitFlag::Flies) && !self.flag(UnitFlag::NonCorporeal)
+    }
+
+    /// Whether the fissure of a Cracks Call can take the unit: it is on the ground and has no
+    /// Merging, which passes through it.
+    pub fn can_fall_in_fissure(&self) -> bool {
+        self.on_the_ground() && !self.has(Ability::new(43 /* merging */))
+    }
+
+    /// Whether the unit can strike a city's wall down.
+    pub fn crushes_walls(&self) -> bool {
+        self.has(Ability::new(70 /* wall_crusher */))
+    }
+
     /// Whether the unit can sink into the ground now: it has Merging, half a move left, and did
     /// not come up this turn.
     pub fn can_merge(&self) -> bool {

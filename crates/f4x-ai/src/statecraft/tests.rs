@@ -2,6 +2,7 @@ use super::*;
 use crate::testworld::levers;
 use crate::testworld::{at, game, spawn, COAST_CITY, P0, P1};
 use f4x_core::rules::RealmId;
+use f4x_core::wizard::magic::Retort;
 use f4x_core::world::Event;
 use f4x_def::half_int::HalfInt;
 use f4x_master::Game;

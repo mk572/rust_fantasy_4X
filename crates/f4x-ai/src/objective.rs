@@ -6,7 +6,7 @@
 //! wizard without an objective (the human's, a test's). The personality moves the army a little
 //! and decides who starts wars (`diplomacy::quarrel`).
 
-use f4x_def::rules::ai_strategy::StrategyAiRules;
+use f4x_def::rules::ai_strategy::{EconomyLevers, StrategyAiRules};
 
 use crate::lever::Levered;
 use f4x_core::city::autobuild::Focus;
@@ -180,13 +180,13 @@ pub fn temper(personality: Personality, difficulty: u8) -> Personality {
 
 /// Fighters a temper adds to (or takes from) the strike army: the cruel keep more, the peaceful
 /// fewer, and a temper already at the top keeps one more per step the difficulty slides it past.
-pub fn army_bias(personality: Personality, difficulty: u8) -> i32 {
+pub fn army_bias(levers: &EconomyLevers, personality: Personality, difficulty: u8) -> i32 {
     let (shown, over) = slid(personality, difficulty);
     let base = match shown {
-        Personality::Maniacal => 2,
-        Personality::Ruthless | Personality::Aggressive => 1,
+        Personality::Maniacal => levers.army_maniacal,
+        Personality::Ruthless | Personality::Aggressive => levers.army_fierce,
         Personality::Chaotic | Personality::Lawful => 0,
-        Personality::Peaceful => -1,
+        Personality::Peaceful => -levers.army_peaceful,
     };
     base + over
 }
@@ -265,18 +265,20 @@ mod tests {
         assert_eq!(temper(Personality::Peaceful, 4), Personality::Chaotic);
         assert_eq!(temper(Personality::Ruthless, 4), Personality::Maniacal);
         assert_eq!(slid(Personality::Maniacal, 4), (Personality::Maniacal, 2));
+        let k = levers().economy;
         assert_eq!(
-            army_bias(Personality::Maniacal, 4),
-            army_bias(Personality::Maniacal, 2) + 2
+            army_bias(&k, Personality::Maniacal, 4),
+            army_bias(&k, Personality::Maniacal, 2) + 2
         );
         for &p in TEMPERS {
-            assert!(army_bias(p, 4) >= army_bias(p, 2));
+            assert!(army_bias(&k, p, 4) >= army_bias(&k, p, 2));
         }
     }
 
     #[test]
     fn a_crueller_temper_keeps_a_bigger_army() {
-        let bias: Vec<i32> = TEMPERS.iter().map(|&p| army_bias(p, 2)).collect();
+        let k = levers().economy;
+        let bias: Vec<i32> = TEMPERS.iter().map(|&p| army_bias(&k, p, 2)).collect();
         assert!(bias.windows(2).all(|w| w[0] <= w[1]), "{bias:?}");
         assert!(bias[0] < 0 && bias[5] > 0);
     }

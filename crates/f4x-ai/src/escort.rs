@@ -119,7 +119,7 @@ fn guarded(view: &PlayerView, charge: Serial) -> bool {
 /// Whether the unit cannot defend itself and is worth a guard when it stands alone in the field:
 /// a healer, or a hero much weaker than the army.
 fn needs_escort(view: &PlayerView, unit: hecs::Entity) -> bool {
-    if view.unit_has_ability(unit, crate::recover::HEALER) {
+    if view.unit_is_healer(unit) {
         return true;
     }
     if !view

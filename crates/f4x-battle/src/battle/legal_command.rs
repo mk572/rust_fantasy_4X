@@ -6,7 +6,6 @@
 //! Tests: in battle/tests.rs.
 
 use f4x_def::rules::damage_type::RangedKind;
-use f4x_def::rules::Ability;
 
 use super::{Battle, BattleCommand};
 use crate::map::{distance, GRID_H, GRID_W};
@@ -45,7 +44,7 @@ impl Battle {
                         out.push(BattleCommand::Shoot { unit, target: t.id });
                     }
                 }
-                if side == Side::Attacker && u.has(Ability::new(70 /* wall_crusher */)) {
+                if side == Side::Attacker && u.crushes_walls() {
                     for y in 0..GRID_H {
                         for x in 0..GRID_W {
                             let cell = (x, y);

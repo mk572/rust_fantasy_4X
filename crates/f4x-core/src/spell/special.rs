@@ -21,10 +21,6 @@ pub const MOVE_BUILDING: &str = "move_building";
 pub const MOVE_FORTRESS: &str = "fortress";
 pub const MOVE_CIRCLE: &str = "summoning_circle";
 
-/// The block Earth Lore reveals, in tiles.
-const LORE_WIDTH: u32 = 12;
-const LORE_HEIGHT: u32 = 10;
-
 impl World {
     /// The mineral Transmute makes of the one on `at`, or why there is none it can change.
     pub fn transmute_result(&self, at: Position) -> Result<crate::map::FeatureId, TargetError> {
@@ -60,8 +56,8 @@ impl World {
         if self.check_floating_island(owner, at).is_err() {
             return;
         }
-        let island = crate::rules::UnitId::new(190) /* floating_island */;
-        if let Some(id) = self.content.rules.units.id_numbered(island.num()) {
+        let island = self.content.rules.config.spell_effects.floating_island;
+        if let Some(id) = self.content.rules.units.id_numbered(island) {
             self.spawn_unit(owner, at, id);
         }
     }
@@ -78,7 +74,9 @@ impl World {
 
     /// Earth Lore: the wizard explores the whole block around the target tile.
     pub(crate) fn earth_lore(&mut self, caster: crate::player::PlayerId, at: Position) {
-        self.fog.explore_block(caster, at, LORE_WIDTH, LORE_HEIGHT);
+        let effects = &self.content.rules.config.spell_effects;
+        let (width, height) = (effects.earth_lore_width, effects.earth_lore_height);
+        self.fog.explore_block(caster, at, width, height);
     }
 
     /// Nature's Cures: every unit on the target's tile is healed in full, except creatures

@@ -37,6 +37,8 @@ levers!(
         min_crossing: usize,
         perimeter_site_range: i32,
         perimeter_reach: u32,
+        march_margin: f32,
+        no_fighter_strength: f32,
     }
 );
 
@@ -64,6 +66,7 @@ levers!(
         recon_bonus: f32,
         recon_near: u32,
         max_force: usize,
+        unknown_walk: u32,
     }
 );
 
@@ -90,6 +93,13 @@ levers!(
         keep_apart: u32,
         sea_party: usize,
         blind_share: f32,
+        few_cities: usize,
+        few_scouts: usize,
+        builder_scouts: usize,
+        many_scouts: usize,
+        walk_weight: f32,
+        flier_moves: i32,
+        across_sight_halves: i32,
     }
 );
 
@@ -145,6 +155,16 @@ levers!(
         wide_above: f32,
         gold_reserve_base: i32,
         gold_reserve_income: i32,
+        fighters_per_ship: usize,
+        settlers_wide: usize,
+        settlers_middle: usize,
+        settler_size: u32,
+        gold_spread_turns: i32,
+        poor_gold: i32,
+        cities_per_strike_fighter: usize,
+        army_maniacal: i32,
+        army_fierce: i32,
+        army_peaceful: i32,
     }
 );
 
@@ -156,6 +176,13 @@ levers!(
         land_production_min: f32,
         rivers_min: u32,
         large_city: u32,
+        percent_per_point: f32,
+        land_production_per_point: f32,
+        unit_cost_per_point: f32,
+        nightshade_worth: f32,
+        rival_guards: u32,
+        defense_guards: u32,
+        defense_second_guards: u32,
     }
 );
 
@@ -168,6 +195,8 @@ levers!(
         forge_rich_gold: i32,
         most_forges_rich: usize,
         low_tier_percent: u32,
+        least_forges: usize,
+        rich_cities_per_forge: usize,
     }
 );
 
@@ -196,6 +225,13 @@ levers!(
         gates_max: usize,
         gold_kept: i32,
         race_lead: f32,
+        usable_skill: f32,
+        cross_rate: f32,
+        dispel_margin: u32,
+        buff_army: usize,
+        most_mana_share: u8,
+        reserve_turns: i32,
+        lean_share_pct: i32,
     }
 );
 
@@ -220,6 +256,10 @@ levers!(
         racing_mana: u8,
         racing_research: u8,
         racing_skill: u8,
+        build_shift: i32,
+        win_mana_shift: i32,
+        win_skill_shift: i32,
+        rich_shift: i32,
     }
 );
 
@@ -245,6 +285,11 @@ levers!(
         even_ratio: f32,
         least_need: f32,
         home_range: u32,
+        stake_city: f32,
+        stake_lair: f32,
+        stake_home: f32,
+        stake_open: f32,
+        stake_hero: f32,
     }
 );
 
@@ -292,6 +337,7 @@ levers!(
         plan_timeout_turns: u32,
         scout_timeout_turns: u32,
         forgive_plans: u32,
+        win_cities_times: usize,
     }
 );
 
@@ -321,6 +367,7 @@ levers!(
         gift_gold: i32,
         gift_least_gold: i32,
         friend_gift_least_gold: i32,
+        shared_books: u8,
     }
 );
 
@@ -335,6 +382,7 @@ levers!(
         margin_least: i32,
         margin_most: i32,
         least_price: i32,
+        unit_spare: usize,
     }
 );
 
@@ -419,6 +467,20 @@ levers!(
         map_least_news: usize,
         map_cool: u32,
         pact_cool: u32,
+        might_floor: i32,
+        strong_fear_divisor: i32,
+        equal_pct: i32,
+        strike_fear_divisor: i32,
+        pact_penalty: i32,
+        alliance_penalty: i32,
+        gold_step: i32,
+        tribute_least_steps: i32,
+        tribute_fear_per_step: i32,
+        far_stronger_pct: i32,
+        demand_least_gold: i32,
+        demand_share_divisor: i32,
+        demand_most: i32,
+        spell_gift_every: u32,
     }
 );
 
@@ -472,6 +534,174 @@ pub struct ObjectiveTable {
     pub expansionist: ObjectiveLevers,
 }
 
+/// What an overland enchantment does to a wizard's feeling for its caster.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EnchantmentFeeling {
+    /// The spell's number.
+    pub spell: u16,
+    pub value: i32,
+    /// Only a wizard with a book of one of these realms minds (any wizard when empty).
+    #[serde(default)]
+    pub with_books: Vec<u16>,
+    /// A wizard with a book of one of these realms does not mind.
+    #[serde(default)]
+    pub without_books: Vec<u16>,
+}
+
+levers!(
+    /// How wide or tall a wizard leans, 0 all tall to 1 all wide.
+    WidthLevers {
+        start: f32,
+        race: f32,
+        retort: f32,
+        temper_fierce: f32,
+        temper_aggressive: f32,
+        temper_lawful: f32,
+        temper_peaceful: f32,
+        objective: f32,
+        wide_book: f32,
+        tall_book: f32,
+        phase_build: f32,
+        phase_win: f32,
+        phase_mastery: f32,
+        room: f32,
+        neighbour_ratio: f32,
+        neighbour: f32,
+    }
+    lists {
+        /// Races whose strength is in the field.
+        wide_races: Vec<u16>,
+        /// Races whose strength is in building and magic.
+        tall_races: Vec<u16>,
+        /// Retorts that favour spreading out (heroes, armies, summons).
+        wide_retorts: Vec<u16>,
+        /// Retorts that favour building up (research, mana, gold, items).
+        tall_retorts: Vec<u16>,
+        /// The realms of the fighter.
+        wide_realms: Vec<u16>,
+        /// The realms of the builder.
+        tall_realms: Vec<u16>,
+    }
+);
+
+levers!(
+    /// The choice of research: what the turns a spell takes are multiplied by.
+    ResearchLevers {
+        new_fighting: f32,
+        new_buff: f32,
+        owned_buff: f32,
+        owned_other: f32,
+        mastery_turns: f32,
+        road_new: f32,
+        road_never: f32,
+    }
+);
+
+levers!(
+    /// The order in which kinds of spells are tried: the lower first.
+    LadderLevers {
+        explore: u8,
+        blast: u8,
+        enchant_road: u8,
+        cure: u8,
+        disenchant: u8,
+        stasis: u8,
+        recall: u8,
+        plane_shift: u8,
+        gate: u8,
+        stack_strike: u8,
+        summon: u8,
+        summon_hero: u8,
+        cross: u8,
+        lycanthropy: u8,
+        unit_buff: u8,
+        mutate: u8,
+        earth_gate: u8,
+        city_buff: u8,
+        global_buff: u8,
+        land_boost: u8,
+        city_curse: u8,
+        land_curse: u8,
+        wizard_curse: u8,
+        disjunction: u8,
+        world_spell: u8,
+    }
+);
+
+levers!(
+    /// What a wizard feels about the others (`opinion.rs`).
+    OpinionLevers {
+        wheel_kin: i32,
+        wheel_next: i32,
+        wheel_opposed: i32,
+        start_floor: i32,
+        life_death_clash: i32,
+        life_book: i32,
+        death_book: i32,
+        chaos_book: i32,
+        shared_book: i32,
+        war_hostility: i32,
+        no_alliance_most: i32,
+        contrast_factor: i32,
+        good_low_ceiling: i32,
+        diminish_step: i32,
+        lawful_bad_pct: i32,
+        maniacal_bad_pct: i32,
+        maniacal_good_pct: i32,
+        city_taken: i32,
+        trespass_first: i32,
+        trespass_last: i32,
+        broken_pact: i32,
+        broken_alliance: i32,
+        lawful_breaker_times: i32,
+        broken_victim: i32,
+        broken_bystander: i32,
+        gift_steps: i32,
+        gift_per_step: i32,
+        gift_no_army: i32,
+        gift_divisor: i32,
+        spell_low: i32,
+        spell_divisor: i32,
+        spell_pct: i32,
+        spell_regard: i32,
+        spell_regard_most: i32,
+        demand_refused: i32,
+        threatened: i32,
+        trade_agreed: i32,
+        loss_hero: u32,
+        loss_unit_halves: u32,
+        loss_settler_halves: u32,
+        assault_fortress: i32,
+        assault_city: i32,
+        fortress_taken: i32,
+        wizard_destroyed: i32,
+        ongoing_divisor: i32,
+        mastery_ongoing_divisor: i32,
+        army_threshold_pct: i32,
+        army_fear_divisor: i32,
+        overcrowd_every: u32,
+        overcrowd_base: i32,
+        overcrowd_per: i32,
+        overcrowd_least: i32,
+        overcrowd_hundredths: i32,
+        intruder_hundredths: i32,
+        drift_wait: u32,
+        drift_range: i32,
+        drift_most: i32,
+        drift_down_every: u32,
+        war_start: i32,
+        war_default_penalty: i32,
+        peace_gain: i32,
+    }
+    lists {
+        /// What an overland enchantment does to the feeling for its caster (realms: 0 nature, 2 chaos, 3 life, 4 death). A spell not listed does nothing.
+        enchantments: Vec<EnchantmentFeeling>,
+        /// What a curse on a city does to its owner's feeling for the caster: the spell and the value.
+        city_spells: Vec<(u16, i32)>,
+    }
+);
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct StrategyAiRules {
@@ -498,6 +728,10 @@ pub struct StrategyAiRules {
     pub diplomacy_b: DiplomacyBLevers,
     pub raze: RazeLevers,
     pub objectives: ObjectiveTable,
+    pub width: WidthLevers,
+    pub research: ResearchLevers,
+    pub ladder: LadderLevers,
+    pub opinion: OpinionLevers,
 }
 
 /// The levers that are a share, so at most 1.
@@ -510,6 +744,11 @@ const AT_MOST_ONE: &[&str] = &[
     "least_need",
     "immune_discount",
     "blind_share",
+    "stake_city",
+    "stake_lair",
+    "stake_home",
+    "stake_open",
+    "stake_hero",
 ];
 
 /// The levers that may be below zero.
@@ -534,6 +773,30 @@ const ABOVE_ZERO: &[&str] = &[
     "mood_div",
     "built_per_point",
     "enemy_range",
+    "fighters_per_ship",
+    "gold_spread_turns",
+    "cities_per_strike_fighter",
+    "percent_per_point",
+    "land_production_per_point",
+    "unit_cost_per_point",
+    "rich_cities_per_forge",
+    "reserve_turns",
+    "strong_fear_divisor",
+    "strike_fear_divisor",
+    "gold_step",
+    "tribute_fear_per_step",
+    "demand_share_divisor",
+    "spell_gift_every",
+    "diminish_step",
+    "gift_divisor",
+    "spell_divisor",
+    "ongoing_divisor",
+    "mastery_ongoing_divisor",
+    "army_fear_divisor",
+    "overcrowd_every",
+    "drift_down_every",
+    "gift_steps",
+    "drift_range",
 ];
 
 impl StrategyAiRules {
@@ -566,6 +829,12 @@ impl StrategyAiRules {
         self.diplomacy_b
             .each(&mut |n, l| f("diplomacy_b", "DIPLO_B_", n, l));
         self.raze.each(&mut |n, l| f("raze", "RAZE_", n, l));
+        self.width.each(&mut |n, l| f("width", "WIDTH_", n, l));
+        self.research
+            .each(&mut |n, l| f("research", "RESEARCH_", n, l));
+        self.ladder.each(&mut |n, l| f("ladder", "LADDER_", n, l));
+        self.opinion
+            .each(&mut |n, l| f("opinion", "OPINION_", n, l));
         self.objectives
             .pragmatist
             .each(&mut |n, l| f("pragmatist", "PRAGMATIST_", n, l));

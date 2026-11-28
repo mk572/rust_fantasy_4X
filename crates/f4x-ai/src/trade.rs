@@ -502,7 +502,7 @@ fn sell(world: &World, minds: &Diplomats, me: PlayerId, other: PlayerId) -> Opti
 }
 
 /// A unit `me` can do without: the last-made fighter of a city that holds more fighters than
-/// `garrison_wanted` asks for, with one to spare, at peace with everybody (`will_give` asks the
+/// `garrison_wanted` asks for, with `unit_spare` to spare, at peace with everybody (`will_give` asks the
 /// same of the one who answers). The cheapest first, so the best stay home.
 fn surplus_unit(world: &World, me: PlayerId) -> Option<f4x_core::world::serial::Serial> {
     let at_war = world
@@ -519,7 +519,8 @@ fn surplus_unit(world: &World, me: PlayerId) -> Option<f4x_core::world::serial::
             .into_iter()
             .filter(|&u| crate::view::is_fighter(&view, u))
             .collect();
-        if fighters.len() <= crate::view::garrison_wanted(&view, city) + 1 {
+        let spare = world.levers().trade.unit_spare;
+        if fighters.len() <= crate::view::garrison_wanted(&view, city) + spare {
             return None;
         }
         let serial = world.units().serial_of(*fighters.last()?);

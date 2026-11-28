@@ -18,6 +18,7 @@
 //! Tests: in this file, on the small test world of `testworld.rs`.
 
 use crate::lever::Levered;
+use f4x_core::city::economy::area_offsets;
 use std::collections::{HashSet, VecDeque};
 
 use f4x_core::map::terrain::TerrainClass;
@@ -328,24 +329,17 @@ fn score(
     let w = &view.levers().city_site;
     // The land: the squares the city works, those another city works too at a reduced value.
     let mut land = 0.0;
-    for dy in -2i32..=2 {
-        for dx in -2i32..=2 {
-            if dx.abs() == 2 && dy.abs() == 2 {
-                continue;
-            }
-            let Some(p) = view.shift(at, dx, dy) else {
-                continue;
-            };
-            let value = w.land_value(view.terrain_class(p));
-            let shared = cities
-                .iter()
-                .any(|&c| view.distance(c, p).is_some_and(|d| d <= 2));
-            land += if shared {
-                value * w.shared_share
-            } else {
-                value
-            };
-        }
+    for (dx, dy) in area_offsets() {
+        let Some(p) = view.shift(at, dx, dy) else {
+            continue;
+        };
+        let value = w.land_value(view.terrain_class(p));
+        let shared = cities.iter().any(|&c| view.city_works(c, p));
+        land += if shared {
+            value * w.shared_share
+        } else {
+            value
+        };
     }
     let special = view.site_specials(at);
     let mut score = land

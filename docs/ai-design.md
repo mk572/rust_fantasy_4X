@@ -187,8 +187,10 @@ The environment variable `AIS_<NAME>` overrides a lever for a run (`AIS_ATTACK_F
 group's prefix where the head of a group in the file gives one (`AIS_DIPLO_B_OFFER`,
 `AIS_MILITARIST_STRIKE_BASE`; `AIS_CITIES` and `AIS_STRIKE` set every objective). The variables are
 read once; a value the lever cannot take, and a name that is no lever's, are reported on stderr and
-ignored. A rule of the game is not a lever (the AI reads it where the engine does), and a fact of
-the code (the table of neighbour squares, the order a list is walked in) stays in the code.
+ignored. A rule of the game is not a lever (the AI reads it where the engine does:
+the content, or a function of the engine; it never keeps a copy of its own), and a fact of
+the code (the table of neighbour squares, the order a list is walked in) stays in the code
+(`archive/constants-review.md` lists the numbers that stay).
 
 ### 5.1 Exploration (step 1)
 

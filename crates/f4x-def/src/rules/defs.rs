@@ -352,6 +352,11 @@ pub struct UnitDef {
 }
 
 impl UnitDef {
+    /// Whether the unit is a spirit that can meld with a node.
+    pub fn can_meld(&self) -> bool {
+        self.abilities.contains(&Ability::new(42 /* meld */))
+    }
+
     /// Whether the unit's normal attacks count as magical by what it is: heroes, fantastic and
     /// summoned creatures, and anything with the `magical_weapon` ability. Ships and catapults are
     /// `Fantastic` in the data, as in the original, but they are not creatures: their blows and
@@ -1309,6 +1314,20 @@ pub struct SpellEffectRules {
     /// The buildings that allow the use of nightshade, and the dispel strength each plant adds.
     pub nightshade_buildings: Vec<u16>,
     pub nightshade_strength: u32,
+    /// The block Earth Lore explores, in squares, centred on the square aimed at.
+    pub earth_lore_width: u32,
+    pub earth_lore_height: u32,
+    /// Enchant Road enchants the roads within this many squares of the square aimed at.
+    pub enchant_road_radius: u32,
+    /// The unit Floating Island raises.
+    pub floating_island: u16,
+    /// The realms whose spells Evil Omens makes dearer.
+    pub evil_omens_realms: Vec<u16>,
+    /// The realms whose casting shakes the caster's cities under another wizard's Nature's Wrath.
+    pub natures_wrath_realms: Vec<u16>,
+    /// The realms whose spells Life Force and Tranquility stand against.
+    pub life_force_realms: Vec<u16>,
+    pub tranquility_realms: Vec<u16>,
 }
 
 /// The rows a setting of the game changes: the retorts that cost two picks under Adamant Alchemy
@@ -1322,6 +1341,9 @@ pub struct SettingTargets {
     pub myrran_retort: u16,
     pub trireme_unit: u16,
     pub galley_unit: u16,
+    /// The Miners' Guild, which adds to what the ores of a city's area give
+    /// (`miners_guild_half_ore`).
+    pub miners_guild: u16,
     /// The cavalry units: the setting gives each of them `first_strike`.
     pub cavalry_units: Vec<u16>,
     /// The halberdier units: the setting gives each of them `negate_first_strike`.
@@ -1450,6 +1472,9 @@ pub struct WizardRules {
     /// A spell cast overland that can also be cast in battle costs this many times the battle
     /// price.
     pub overland_cost_factor: i32,
+    /// Alchemy: the percent of what is put in that comes back, before the wizard's retorts
+    /// (`Stat::AlchemyPercent`).
+    pub alchemy_percent: i32,
     /// Evil Omens: life and nature spells cost this many percent more.
     pub evil_omens_percent: i32,
     /// Each book beyond `book_steps_from` in the realm of a spell takes `book_step_percent` off

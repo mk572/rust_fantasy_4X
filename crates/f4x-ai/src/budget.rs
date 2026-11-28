@@ -30,18 +30,19 @@ pub(crate) fn stake(
     attackers: &[hecs::Entity],
     defenders: &[hecs::Entity],
 ) -> f32 {
+    let levers = view.levers().battle_spend;
     let at_home = view.my_cities().iter().any(|&(_, p)| {
         view.distance(p, target)
-            .is_some_and(|d| d <= view.levers().battle_spend.home_range)
+            .is_some_and(|d| d <= levers.home_range)
     });
     let place: f32 = if view.city_at(target).is_some() {
-        1.0
+        levers.stake_city
     } else if view.has_lair(target) {
-        0.6
+        levers.stake_lair
     } else if at_home {
-        0.7
+        levers.stake_home
     } else {
-        0.3
+        levers.stake_open
     };
     // Heroes put at risk, or an enemy hero or wizard's unit to kill, make any fight matter more.
     let heroes = view.my_heroes();
@@ -50,7 +51,7 @@ pub(crate) fn stake(
         .iter()
         .any(|&d| view.unit_def(d).is_some_and(|def| def.hero.is_some()));
     if hero_in || enemy_hero {
-        place.max(0.6)
+        place.max(levers.stake_hero)
     } else {
         place
     }
@@ -146,10 +147,15 @@ mod tests {
 
     #[test]
     fn little_at_stake_means_a_small_allowance() {
-        // The open field away from home (0.3) in an even fight: three tenths of the reserve.
-        assert_eq!(allowance(&spend(), 500, 5, 0.3, 1.0), Some(150));
-        // And a sure win there: a sixtieth part.
-        assert_eq!(allowance(&spend(), 500, 5, 0.3, 4.0), Some(30));
+        let k = spend();
+        let part = |share: f32| Some((500.0 * share).floor() as u32);
+        // The open field away from home in an even fight: that part of the reserve.
+        assert_eq!(allowance(&k, 500, 5, k.stake_open, 1.0), part(k.stake_open));
+        // And a sure win there: less again.
+        assert_eq!(
+            allowance(&k, 500, 5, k.stake_open, k.sure_ratio),
+            part(k.stake_open * k.least_need)
+        );
     }
 
     #[test]

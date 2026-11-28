@@ -19,6 +19,7 @@ use crate::lever::Levered;
 use crate::roles::Role;
 use crate::view::{is_fighter, stack_strength};
 use crate::Ai;
+use f4x_core::city::economy::area_offsets;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::world::Event;
@@ -30,18 +31,12 @@ struct Threat {
     units: Vec<hecs::Entity>,
 }
 
-/// The 21 squares round a city that its people work (a 5 by 5 block without its corners), the city
-/// itself left out.
+/// The squares round a city that its people work (`area_offsets`), the city itself left out.
 pub fn zone(view: &PlayerView, city: Position) -> Vec<Position> {
     let mut squares = Vec::new();
-    for dy in -2i32..=2 {
-        for dx in -2i32..=2 {
-            if (dx == 0 && dy == 0) || (dx.abs() == 2 && dy.abs() == 2) {
-                continue;
-            }
-            if let Some(p) = view.shift(city, dx, dy) {
-                squares.push(p);
-            }
+    for (dx, dy) in area_offsets().filter(|&offset| offset != (0, 0)) {
+        if let Some(p) = view.shift(city, dx, dy) {
+            squares.push(p);
         }
     }
     let near_sites = view

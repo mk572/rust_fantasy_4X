@@ -1,4 +1,4 @@
-// f4x save, version 5, game 0.0.8, checksum 9765462d7e25d124
+// f4x save, version 5, game 0.0.8, checksum fe17f363872831f7
 (
     version: 5,
     game_version: "0.0.8",
@@ -13,7 +13,7 @@
         scoring: (score_percent: 100),
         starting_units: (settler: false, magic_spirit: false, trireme: false),
     ),
-    content: "8c7f8f6abffb38a50e9c8f659ececf5ad94a187a0c230dcfb9b33664cea90526",
+    content: "a7a07e8440ef5b11ede3a9b3e49520abe2960f9b7dfdabe3a643c4521fde1fc8",
     human: None,
     diplomacy: (
         pairs: [],

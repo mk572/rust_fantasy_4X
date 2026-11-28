@@ -1265,7 +1265,7 @@ impl App {
         }
         for dy in -2i32..=2 {
             for dx in -2i32..=2 {
-                let corner = dx.abs() == 2 && dy.abs() == 2;
+                let corner = !f4x_core::city::economy::in_area(dx, dy);
                 let (x, y) = ((at.x as i32 + dx).rem_euclid(width), at.y as i32 + dy);
                 let (cx, cy) = (
                     215.0 + (dx + 2) as f32 * TILE_W,

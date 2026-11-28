@@ -852,6 +852,28 @@ fn strategic_ai_levers_out_of_their_range_are_refused() {
 }
 
 #[test]
+fn the_numbers_the_strategic_ai_keeps_for_rows_of_other_files_must_name_rows() {
+    use f4x_def::rules::ai_strategy::StrategyAiRules;
+    let refuse = |target: &str, change: fn(&mut StrategyAiRules)| {
+        refused_as::<StrategyAiRules>("ai_strategy.ron", IssueKind::Dangling, Some(target), change)
+    };
+    refuse("race", |s| s.width.wide_races.push(NOWHERE));
+    refuse("race", |s| s.width.tall_races.push(NOWHERE));
+    refuse("retort", |s| s.width.wide_retorts.push(NOWHERE));
+    refuse("retort", |s| s.width.tall_retorts.push(NOWHERE));
+    refuse("realm", |s| s.width.wide_realms.push(NOWHERE));
+    refuse("realm", |s| s.width.tall_realms.push(NOWHERE));
+    refuse("realm", |s| {
+        s.opinion.enchantments[0].with_books.push(NOWHERE)
+    });
+    refuse("realm", |s| {
+        s.opinion.enchantments[0].without_books.push(NOWHERE)
+    });
+    refuse("spell", |s| s.opinion.enchantments[0].spell = NOWHERE);
+    refuse("spell", |s| s.opinion.city_spells[0].0 = NOWHERE);
+}
+
+#[test]
 fn a_merchant_that_sells_for_nothing_is_refused() {
     refused::<RulesConfig>("rules.ron", "item_price_markup", |c| {
         c.offer.item_price_markup = 0

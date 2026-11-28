@@ -8,6 +8,7 @@ use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::world::serial::Serial;
 use f4x_core::world::{Command, Event};
+use f4x_def::rules::{BuildingId, Rules};
 
 use crate::view::{is_coastal, is_fighter, is_ship};
 use crate::Ai;
@@ -26,63 +27,83 @@ pub struct Plan {
     pub port: Position,
 }
 
-/// The ship, or the building towards one, for the port to build: a galley (five units) when it
-/// can, a trireme or its guild first when the ship is not for an army (`big` false), the buildings that lead to one when the race may have them, a trireme (two) when it may
-/// not.
+/// The ship, or the building towards one, for the port to build: a galley (the bigger ship of the
+/// rules' `targets`) when it can, a trireme or the building it needs first when the ship is not
+/// for an army (`big` false), the buildings that lead to a galley when the race may have them, a
+/// trireme when it may not.
 pub fn port_item(view: &PlayerView, city: hecs::Entity, big: bool) -> Option<ProductionItem> {
     let rules = &view.content().rules;
-    let unit = |id: u16| {
+    let can = |i: &ProductionItem| view.can_build(city, *i).is_ok();
+    let unit = |num: u16| {
         rules
             .units
-            .id_numbered(id)
+            .id_numbered(num)
             .map(ProductionItem::Unit)
-            .filter(|&i| view.can_build(city, i).is_ok())
+            .filter(can)
     };
-    let building = |num: u16| {
-        Some(ProductionItem::Building(f4x_def::rules::BuildingId::new(
-            num,
-        )))
+    // What a ship asks for in a city, and what those buildings ask for in turn.
+    let needs = |num: u16| {
+        let first = rules.units.id_numbered(num);
+        first.map_or_else(Vec::new, |u| chain(rules, &rules.units.get(u).requires))
     };
-    if let Some(galley) = unit(36 /* galley */) {
-        return Some(galley);
+    let (galley, trireme) = (
+        rules.config.targets.galley_unit,
+        rules.config.targets.trireme_unit,
+    );
+    let first_of = |list: Vec<BuildingId>| {
+        list.into_iter()
+            .map(ProductionItem::Building)
+            .find(|i| can(i))
+    };
+    if let Some(ship) = unit(galley) {
+        return Some(ship);
     }
-    // A ship that only scouts or carries a settler or two is not worth the yard's chain.
+    // A ship that only scouts or carries a settler or two is not worth the galley's chain.
     if !big {
-        if let Some(trireme) = unit(35 /* trireme */) {
-            return Some(trireme);
-        }
-        if let Some(guild) =
-            building(12 /* ship_wrights_guild */).filter(|&i| view.can_build(city, i).is_ok())
-        {
-            return Some(guild);
+        if let Some(item) = unit(trireme).or_else(|| first_of(needs(trireme))) {
+            return Some(item);
         }
     }
-    let yard = building(13 /* ship_yard */);
+    let yard = rules
+        .units
+        .id_numbered(galley)
+        .and_then(|u| rules.units.get(u).requires.first().copied());
     let yard_possible = yard.is_some_and(|y| {
-        !matches!(view.can_build(city, y), Err(ProductionError::WrongRace))
-            && !matches!(view.can_build(city, y), Err(ProductionError::NotCoastal))
+        !matches!(
+            view.can_build(city, ProductionItem::Building(y)),
+            Err(ProductionError::WrongRace | ProductionError::NotCoastal)
+        )
     });
     if yard_possible {
-        for id in [
-            13, /* ship_yard */
-            12, /* ship_wrights_guild */
-            15, /* sawmill */
-        ] {
-            if let Some(item) = building(id).filter(|&i| view.can_build(city, i).is_ok()) {
-                return Some(item);
-            }
+        if let Some(item) = first_of(needs(galley)) {
+            return Some(item);
         }
     }
-    if let Some(trireme) = unit(35 /* trireme */) {
-        return Some(trireme);
+    unit(trireme).or_else(|| first_of(needs(trireme)))
+}
+
+/// The buildings `wanted` and all they need, the wanted ones first; of what a building needs, the
+/// one it replaces comes before the others.
+fn chain(rules: &Rules, wanted: &[BuildingId]) -> Vec<BuildingId> {
+    let mut out = wanted.to_vec();
+    let mut next = 0;
+    while let Some(&b) = out.get(next) {
+        let def = rules.buildings.get(b);
+        for &need in def.replaces.iter().chain(&def.requires) {
+            if !out.contains(&need) {
+                out.push(need);
+            }
+        }
+        next += 1;
     }
-    building(12 /* ship_wrights_guild */).filter(|&i| view.can_build(city, i).is_ok())
+    out
 }
 
 /// Whether the item is the trireme.
 pub(crate) fn is_trireme(view: &PlayerView, item: ProductionItem) -> bool {
+    let rules = &view.content().rules;
     matches!(item, ProductionItem::Unit(u)
-        if view.content().rules.units.id_numbered(35 /* trireme */) == Some(u))
+        if rules.units.id_numbered(rules.config.targets.trireme_unit) == Some(u))
 }
 
 /// The AI's ships, oldest first.

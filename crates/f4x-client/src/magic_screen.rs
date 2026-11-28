@@ -604,13 +604,7 @@ impl MagicUi {
             .game
             .player(HUMAN)
             .map_or(0, |p| p.treasury().mana.floor());
-        let percent = app.game.wizard(HUMAN).map_or(50, |m| {
-            m.stat(
-                &app.game.content().rules,
-                f4x_def::rules::Stat::AlchemyPercent,
-                50,
-            )
-        });
+        let percent = app.game.alchemy_percent(HUMAN);
         let pool = if ui.gold_to_mana { gold } else { mana };
         if pool <= 1 {
             ui.slider = 3;

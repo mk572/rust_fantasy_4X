@@ -927,9 +927,7 @@ impl World {
                 amount,
                 gold_to_mana,
             } => {
-                let percent = self.wizard(player).map_or(50, |w| {
-                    w.stat(&self.content.rules, crate::rules::Stat::AlchemyPercent, 50)
-                });
+                let percent = self.alchemy_percent(player);
                 reject(match self.treasury_mut(player) {
                     Some(t) => wizard::magic_command::alchemy(percent, t, amount, gold_to_mana),
                     None => Err(wizard::magic::MagicError::UnknownPlayer),

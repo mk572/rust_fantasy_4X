@@ -14,7 +14,8 @@ original's table; in this game the core holds only the facts (`contacted`, the t
 the stage of the talk, the turns of a truce `peace_duration`, the pending proposals) and tells what happened in events
 (`DiplomacyEvent`: `WarDeclared`, `TreatyBroken`, `GoldGiven`, `BattleLosses`, `AssaultFailed`, `FortressTaken`,
 `WizardDestroyed`, `EnchantmentCast`, `CitySpellCast`, `Subverted`, ...). Each AI wizard keeps its own opinion of every other
-player (`f4x-ai/src/opinion.rs`: friendship, lasting regard, a broken-treaty flag), changes it by the table of section 5
+player (`f4x-ai/src/opinion.rs`: friendship, lasting regard, a broken-treaty flag; its numbers are the `opinion`
+group of `ai_strategy.ron`), changes it by the table of section 5
 from those events and by its own look at the game each turn (section 7, `Memory::look`), with no dice
 (`divergences.md` section 52). The human sees the AI's friendliness for the human as the relation (`Diplomats::feeling`).
 The patience counters, the hostility and the last action of the original are not kept (`docs/ai-diplomacy-b.md`).

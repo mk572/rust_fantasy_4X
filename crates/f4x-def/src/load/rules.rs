@@ -431,6 +431,52 @@ fn file_of(kind: &str) -> &'static str {
     }
 }
 
+/// The rows the strategic AI's levers name: races, retorts, realms and spells.
+fn check_ai_strategy(r: &Rules, p: &mut Issues) {
+    const F: &str = "ai_strategy.ron";
+    let w = &r.ai_strategy.width;
+    for (what, list) in [("wide_races", &w.wide_races), ("tall_races", &w.tall_races)] {
+        for &n in list.iter().filter(|&&n| r.races.by_num(n).is_none()) {
+            p.dangling(F, "width", what, "race", n);
+        }
+    }
+    for (what, list) in [
+        ("wide_retorts", &w.wide_retorts),
+        ("tall_retorts", &w.tall_retorts),
+    ] {
+        for &n in list.iter().filter(|&&n| r.retorts.id_numbered(n).is_none()) {
+            p.dangling(F, "width", what, "retort", n);
+        }
+    }
+    let o = &r.ai_strategy.opinion;
+    let realm_lists = [
+        ("width", "wide_realms", &w.wide_realms),
+        ("width", "tall_realms", &w.tall_realms),
+    ]
+    .into_iter()
+    .chain(o.enchantments.iter().flat_map(|e| {
+        [
+            ("opinion", "with_books", &e.with_books),
+            ("opinion", "without_books", &e.without_books),
+        ]
+    }));
+    for (group, what, list) in realm_lists {
+        for &n in list.iter().filter(|&&n| r.realms.id_numbered(n).is_none()) {
+            p.dangling(F, group, what, "realm", n);
+        }
+    }
+    let spells = o
+        .enchantments
+        .iter()
+        .map(|e| ("enchantments", e.spell))
+        .chain(o.city_spells.iter().map(|&(n, _)| ("city_spells", n)));
+    for (what, n) in spells {
+        if r.spells.id_numbered(n).is_none() {
+            p.dangling(F, "opinion", what, "spell", n);
+        }
+    }
+}
+
 /// The lair rules: real realms, rolls that can be made and a table that is not empty.
 fn check_lairs(r: &Rules, p: &mut Issues) {
     const F: &str = "lairs.ron";
@@ -548,6 +594,26 @@ fn check_config(r: &Rules, p: &mut Issues) {
     ] {
         if r.units.id_numbered(u).is_none() {
             p.dangling(F, "", what, "unit", u);
+        }
+    }
+    let effects = &c.spell_effects;
+    if r.units.id_numbered(effects.floating_island).is_none() {
+        p.dangling(F, "", "floating_island", "unit", effects.floating_island);
+    }
+    let guild = crate::rules::BuildingId::new(c.targets.miners_guild);
+    if r.buildings.try_get(guild).is_none() {
+        p.dangling(F, "", "miners_guild", "building", guild.num());
+    }
+    for (what, realms) in [
+        ("evil_omens_realms", &effects.evil_omens_realms),
+        ("natures_wrath_realms", &effects.natures_wrath_realms),
+        ("life_force_realms", &effects.life_force_realms),
+        ("tranquility_realms", &effects.tranquility_realms),
+    ] {
+        for &n in realms {
+            if r.realms.id_numbered(n).is_none() {
+                p.dangling(F, "", what, "realm", n);
+            }
         }
     }
     for &n in &c.limited_ai_races {
@@ -776,6 +842,7 @@ pub fn validate_rules(r: &Rules) -> Vec<ContentIssue> {
     for i in r.ai_strategy.problems() {
         p.push(i);
     }
+    check_ai_strategy(r, &mut p);
     if r.config.offer.item_price_markup == 0 {
         p.out_of_range("rules.ron", "offer", "item_price_markup", 0, "at least 1");
     }

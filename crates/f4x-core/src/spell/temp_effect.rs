@@ -227,9 +227,8 @@ impl<'a> UnitView<'a> {
             .is_some_and(|d| d.innate_magical_weapon())
             || self.unit_weapon_quality(unit) > 0
             || self
-                .unit_abilities(unit)
-                .iter()
-                .any(|a| *a == Ability::new(41 /* magical_weapon */))
+                .flags_of(&self.unit_abilities(unit))
+                .contains(crate::rules::unit_flag::UnitFlag::MagicalWeapon)
     }
 
     /// The ids of the lasting spells on a unit.

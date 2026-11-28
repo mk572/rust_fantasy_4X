@@ -213,12 +213,18 @@ pub(crate) fn target(view: &PlayerView, spell: SpellId) -> Option<Target> {
         let Some(path) = road_between(view, net, place, &seen_places) else {
             continue;
         };
-        // The first square of the road that is not enchanted; the cast, two squares on from it,
-        // enchants five.
+        // The first square of the road that is not enchanted; the cast is aimed the spell's
+        // radius on from it, so that the stretch behind the aim is not enchanted already.
         let Some(first) = path.iter().position(|&p| !view.has_enchanted_road(p)) else {
             continue;
         };
-        let at = path[(first + 2).min(path.len() - 1)];
+        let radius = view
+            .content()
+            .rules
+            .config
+            .spell_effects
+            .enchant_road_radius as usize;
+        let at = path[(first + radius).min(path.len() - 1)];
         let tile = Target::Tile(at);
         if view.can_aim(spell, Some(tile)) {
             return Some(tile);

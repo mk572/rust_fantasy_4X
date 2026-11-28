@@ -55,6 +55,13 @@ pub fn in_sight(dx: i32, dy: i32, sight: HalfInt, diagonal_extra: bool) -> bool 
     sight_cost(dx, dy, diagonal_extra) <= sight
 }
 
+/// The squares of a block of `width` by `height` squares centred on a square, as offsets from it.
+pub fn block_offsets(width: u32, height: u32) -> impl Iterator<Item = (i32, i32)> {
+    let (left, top) = (-(width as i32 / 2), -(height as i32 / 2));
+    (top..top + height as i32)
+        .flat_map(move |dy| (left..left + width as i32).map(move |dx| (dx, dy)))
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Fog {
     width: u32,
@@ -184,17 +191,10 @@ impl Fog {
         }
         let (w, h) = (self.width as i32, self.height as i32);
         let layer = self.layer(player, at.plane);
-        let (left, top) = (
-            at.x as i32 - width as i32 / 2,
-            at.y as i32 - height as i32 / 2,
-        );
-        for dy in 0..height as i32 {
-            let y = top + dy;
-            if !(0..h).contains(&y) {
-                continue;
-            }
-            for dx in 0..width as i32 {
-                layer[(y * w + (left + dx).rem_euclid(w)) as usize] = true;
+        for (dx, dy) in block_offsets(width, height) {
+            let y = at.y as i32 + dy;
+            if (0..h).contains(&y) {
+                layer[(y * w + (at.x as i32 + dx).rem_euclid(w)) as usize] = true;
             }
         }
     }
