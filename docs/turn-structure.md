@@ -298,7 +298,7 @@ The game does not take a sender's word that something is a reaction. An event th
 - A reaction stays open until the turn that caused it ends. A request and an attack hold that turn until they are answered; the others may be left, and lapse with it.
 - Open reactions are part of the saved game.
 - An attacker sends the attack on its own turn; the client does not start a battle on an AI's behalf.
-- A rival's unprompted offers and demands are no reactions: they are made in the rival's own turn (`approach_human`, the last thing of it).
+- A rival's unprompted offers and demands are no reactions: they are made in the rival's own turn (`diplo_b_talk::approach`, the last thing of it). A player warned for the last time of a partner's trespass chooses in its own turn (`diplomacy.md` section 6); the choice lapses with that turn.
 - Built (27 November 2026): the turn waits for its proposals. A controller that is asked answers (an AI at once, a human when they have), or leaves the proposal, which lapses as the turn ends (`World::end_player_turn`).
 - A reaction being allowed does not mean a front end or the AI uses it. A war question after a lost city, or an AI that strikes back at once, is new behaviour and not part of task 822.
 - `World::command_actor` names a player for every command: the speaker of a talk, the owner of the attacking stack of a fight (of the fighters, in an answer to an attack), the side to play of a battle order. `World::may_command` also refuses a stack with another player's unit in it.

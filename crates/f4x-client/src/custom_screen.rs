@@ -603,6 +603,16 @@ pub(crate) fn rows() -> Vec<Row> {
             |s, v| s.rules.color_wheel_relations = v != 0,
         ),
         flag(
+            "custom.expanded_diplomacy",
+            |s| s.rules.expanded_diplomacy.into(),
+            |s, v| s.rules.expanded_diplomacy = v != 0,
+        ),
+        flag(
+            "custom.allied_trespass_penalty",
+            |s| s.rules.allied_trespass_penalty.into(),
+            |s, v| s.rules.allied_trespass_penalty = v != 0,
+        ),
+        flag(
             "custom.defeat_loot",
             |s| s.rules.defeat_loot.into(),
             |s, v| s.rules.defeat_loot = v != 0,

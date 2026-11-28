@@ -142,6 +142,40 @@ impl Fog {
         self.explored.remove(&player);
     }
 
+    /// Each of the two learns every square the other has explored, on both planes.
+    pub fn share(&mut self, a: PlayerId, b: PlayerId) {
+        if self.width == 0 {
+            return;
+        }
+        for plane in Plane::all() {
+            let of_a = self.layer(a, plane).clone();
+            let of_b = self.layer(b, plane);
+            for (square, known) in of_b.iter_mut().zip(&of_a) {
+                *square |= *known;
+            }
+            let both = of_b.clone();
+            *self.layer(a, plane) = both;
+        }
+    }
+
+    /// How many squares `from` has explored that `to` has not, on both planes.
+    pub fn news(&self, from: PlayerId, to: PlayerId) -> usize {
+        let Some(of_from) = self.explored.get(&from) else {
+            return 0;
+        };
+        let of_to = self.explored.get(&to);
+        Plane::all()
+            .map(|plane| {
+                let i = plane.index();
+                of_from[i]
+                    .iter()
+                    .enumerate()
+                    .filter(|&(square, &known)| known && !of_to.is_some_and(|l| l[i][square]))
+                    .count()
+            })
+            .sum()
+    }
+
     /// Mark a `width` by `height` block of tiles, centred as nearly as it can on `at`
     /// (wrapping horizontally, clipped vertically), as explored.
     pub fn explore_block(&mut self, player: PlayerId, at: Position, width: u32, height: u32) {

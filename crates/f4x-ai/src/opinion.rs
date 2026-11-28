@@ -15,6 +15,7 @@ use f4x_core::wizard::objective::Personality;
 use f4x_core::world::{Event, World};
 use serde::{Deserialize, Serialize};
 
+use crate::lever::Levered;
 use crate::memory::Memory;
 
 /// What moved a feeling (`Change_Relations`): only a war's feeling is not made worse by what is done in it, and
@@ -85,9 +86,9 @@ pub(crate) struct Opinion {
     /// die for, at its average, is a small part of a point a turn: task 783).
     #[serde(default)]
     pub carry: i32,
-    /// Turns in a row the other has had units next to one of its cities, while they have a pact or an alliance.
+    /// What a treaty has grown the feeling by and not yet moved it, in hundredths of a point.
     #[serde(default)]
-    pub trespass: u32,
+    pub growth: i32,
     /// The last turn the other changed this feeling by what it did (the drift waits for a turn).
     #[serde(default)]
     pub moved: u32,
@@ -182,14 +183,33 @@ impl Memory {
         if value == 0 || from == me || !world.have_met(me, from) {
             return;
         }
+        let v = self.weighed(world, me, from, value, 1);
+        let treaty = world.treaty(me, from);
+        let o = self.slot(world, me, from);
+        if action != Action::AuraOfMajesty {
+            o.moved = round;
+        }
+        // Wars are not made worse by what one does in them.
+        if !(treaty == Treaty::War && action != Action::Trespass && v < 0) {
+            o.friendship = (o.friendship + v).clamp(-100, 100);
+        }
+        if treaty == Treaty::War {
+            o.friendship = o.friendship.min(-25);
+        }
+        if treaty != Treaty::Alliance {
+            o.friendship = o.friendship.min(65);
+        }
+    }
+
+    /// `value`, counted in `point`ths of a point, as `me` takes it from `from`: diminishing
+    /// returns, its temper and the other's gift for diplomacy.
+    fn weighed(&self, world: &World, me: PlayerId, from: PlayerId, value: i32, point: i32) -> i32 {
         let rel = self.friendship(world, me, from);
         let mut v = value;
         if v > 0 {
             if rel < 0 {
                 v *= 2;
-                if rel + v > 10 {
-                    v = 10 - rel;
-                }
+                v = v.min((10 - rel) * point);
             } else {
                 v /= rel / 25 + 1;
             }
@@ -212,19 +232,24 @@ impl Memory {
                 v = v * m.stat(rules, Stat::DiplomacyLossPercent, 100) / 100;
             }
         }
-        let treaty = world.treaty(me, from);
-        let o = self.slot(world, me, from);
-        if world.human() == Some(from) && action != Action::AuraOfMajesty {
-            o.moved = round;
+        v
+    }
+
+    /// A pact or an alliance warms the feeling by `hundredths` of a point a turn, with the same
+    /// diminishing returns as anything else that pleases. The parts of a point add up, so that it
+    /// goes on growing when a turn's share is less than one.
+    fn grow(&mut self, world: &World, me: PlayerId, other: PlayerId, hundredths: i32) {
+        if hundredths <= 0 || !world.have_met(me, other) {
+            return;
         }
-        // Wars are not made worse by what one does in them.
-        if !(treaty == Treaty::War && action != Action::Trespass && v < 0) {
-            o.friendship = (o.friendship + v).clamp(-100, 100);
-        }
-        if treaty == Treaty::War {
-            o.friendship = o.friendship.min(-25);
-        }
-        if treaty != Treaty::Alliance {
+        let v = self.weighed(world, me, other, hundredths, 100);
+        let alliance = world.treaty(me, other) == Treaty::Alliance;
+        let o = self.slot(world, me, other);
+        o.growth += v;
+        let whole = o.growth / 100;
+        o.growth -= whole * 100;
+        o.friendship = (o.friendship + whole).clamp(-100, 100);
+        if !alliance {
             o.friendship = o.friendship.min(65);
         }
     }
@@ -249,6 +274,21 @@ impl Memory {
                 if treaty == Treaty::None && (me == a || me == b) {
                     self.war_ended(world, me, if me == a { b } else { a });
                 }
+            }
+            // A partner's units next to a city of `me`: the first warning costs a little, the
+            // turn after is given in grace, the last one costs more (`DIPL_GetOffMyLawn`: 2, 5).
+            Event::Diplomacy(DiplomacyEvent::Trespassing {
+                owner,
+                intruder,
+                warning,
+            }) if owner == me => {
+                let last = world.content().rules.config.diplomacy.trespass_warnings;
+                let value = match warning {
+                    1 => -2,
+                    w if w >= last => -5,
+                    _ => 0,
+                };
+                self.change(world, me, intruder, value, Action::Trespass, round);
             }
             Event::Diplomacy(DiplomacyEvent::TreatyBroken {
                 breaker,
@@ -305,6 +345,13 @@ impl Memory {
                 let o = self.slot(world, me, from);
                 o.friendship = (o.friendship + base * 7 / 10).min(100);
                 o.hidden = (o.hidden + 5).min(30);
+            }
+            // An ally that asks to be paid for joining a war is thought less of.
+            Event::Diplomacy(DiplomacyEvent::ProposalCountered { new, .. })
+                if new.to == me && matches!(new.kind, ProposalKind::WarPrice { .. }) =>
+            {
+                let penalty = world.levers().diplomacy_b.call_price_penalty;
+                self.change(world, me, new.from, -penalty, Action::Threat, round);
             }
             Event::Diplomacy(DiplomacyEvent::ProposalAnswered {
                 proposal,
@@ -447,24 +494,21 @@ impl Memory {
         self.looked = Some(round);
         let turn = round;
         let mine = world.army_strength(me);
-        let view = f4x_core::player::view::PlayerView::new(world, me);
-        let my_cities = view.my_cities();
+        let k = world.levers().diplomacy_b;
+        let intruders = world.trespassers(me);
         for other in world.wizards() {
             if other == me || !world.have_met(me, other) {
                 continue;
             }
             let treaty = world.treaty(me, other);
-            // A treaty grows the feeling: `Random(3)` on half the turns for a pact, `Random(6)` for an alliance.
-            match treaty {
-                Treaty::Pact if turn.is_multiple_of(2) => {
-                    self.change(world, me, other, 1, Action::Friendship, round);
-                }
-                Treaty::Alliance => {
-                    let v = 1 + i32::from(turn.is_multiple_of(4));
-                    self.change(world, me, other, v, Action::Friendship, round);
-                }
-                _ => {}
-            }
+            // A treaty grows the feeling: `Random(3)` on half the turns for a pact, `Random(6)` for an
+            // alliance, here their averages.
+            let growth = match treaty {
+                Treaty::Pact => k.pact_growth,
+                Treaty::Alliance => k.alliance_growth,
+                _ => 0,
+            };
+            self.grow(world, me, other, growth);
             // The enchantments it keeps going, a tenth of the value of the cast each turn; the Spell of
             // Mastery while it is cast, a half.
             if let Some(w) = world.wizard(other) {
@@ -502,8 +546,11 @@ impl Memory {
                 let value = (-(cities - allowance) / divisor * 2).min(-15);
                 self.drip(world, me, other, value * 25, Action::Overextension, round);
             }
-            // Units next to its cities (`DIPL_GetOffMyLawn`).
-            self.watch_lawn(world, &view, &my_cities, me, other, round);
+            // Units next to its cities without a treaty, where there are no warnings
+            // (`DIPL_GetOffMyLawn`): a turn in sixteen costs `Random(5)`, 2 / 16.
+            if treaty == Treaty::None && intruders.contains(&other) {
+                self.drip(world, me, other, -12, Action::Trespass, round);
+            }
             // Drift back to where the feeling started, unless the other has just changed it.
             let o = self.opinion(world, me, other);
             if o.moved.saturating_add(1) < turn {
@@ -534,56 +581,6 @@ impl Memory {
             } else {
                 (o.friendship + whole).max(to)
             };
-        }
-    }
-
-    /// Non-settler units of `other` within two squares of one of `me`'s cities (that `me` sees).
-    fn watch_lawn(
-        &mut self,
-        world: &World,
-        view: &f4x_core::player::view::PlayerView,
-        cities: &[(hecs::Entity, f4x_core::map::Position)],
-        me: PlayerId,
-        other: PlayerId,
-        round: u32,
-    ) {
-        let treaty = world.treaty(me, other);
-        let trespassing = treaty != Treaty::War
-            && cities.iter().any(|&(_, city)| {
-                (-2..=2).any(|dy| {
-                    (-2..=2).any(|dx| {
-                        view.shift(city, dx, dy)
-                            .and_then(|square| view.hostile_at(square))
-                            .is_some_and(|units| {
-                                units.into_iter().any(|u| {
-                                    world.units().unit_owner(u) == Some(other)
-                                        && !world.units().unit_is_settler(u)
-                                })
-                            })
-                    })
-                })
-            });
-        if !trespassing {
-            if let Some(o) = self.opinions.iter_mut().find(|o| o.with == other) {
-                o.trespass = 0;
-            }
-            return;
-        }
-        if matches!(treaty, Treaty::Pact | Treaty::Alliance) {
-            // A warning (`Random(5)`: 2), a turn of grace, then 5 (the original also breaks the treaty).
-            let step = self.slot(world, me, other).trespass + 1;
-            self.slot(world, me, other).trespass = step;
-            match step {
-                1 => self.change(world, me, other, -2, Action::Trespass, round),
-                2 => {}
-                _ => {
-                    self.change(world, me, other, -5, Action::Trespass, round);
-                    self.slot(world, me, other).trespass = 0;
-                }
-            }
-        } else {
-            // A turn in sixteen costs `Random(5)`: 2 / 16.
-            self.drip(world, me, other, -12, Action::Trespass, round);
         }
     }
 
@@ -662,7 +659,7 @@ fn first_opinion(world: &World, me: PlayerId, other: PlayerId) -> Opinion {
         broken: false,
         war: world.treaty(me, other) == Treaty::War,
         carry: 0,
-        trespass: 0,
+        growth: 0,
         moved: 0,
     }
 }
@@ -672,6 +669,7 @@ mod tests {
     use super::*;
     use crate::diplo_b_stance::tests::pair;
     use crate::testworld::{P0, P1};
+    use f4x_core::diplomacy::{Goods, Proposal};
     use f4x_core::world::Command;
     use f4x_master::Game;
 
@@ -807,6 +805,36 @@ mod tests {
             30,
             "the breaker does not feel it"
         );
+    }
+
+    #[test]
+    fn an_ally_that_asks_to_be_paid_for_joining_a_war_is_thought_less_of_by_the_caller() {
+        let w = pair(8, 8, 100);
+        let third = PlayerId(2);
+        let proposal = |from, to, kind| Proposal {
+            from,
+            to,
+            kind,
+            round: 0,
+        };
+        let countered = Event::Diplomacy(DiplomacyEvent::ProposalCountered {
+            old: proposal(P0, P1, ProposalKind::WarOn(third)),
+            new: proposal(
+                P1,
+                P0,
+                ProposalKind::WarPrice {
+                    third,
+                    price: Goods::gold(1),
+                },
+            ),
+        });
+        let mut caller = mind(&w, 30);
+        caller.feel(&w, P0, &countered, w.round());
+        let after = caller.friendship(&w, P0, P1);
+        assert!(after < 30 && after > 30 - 20, "a small penalty: {after}");
+        let mut ally = mind(&w, 30);
+        ally.feel(&w, P1, &countered, w.round());
+        assert_eq!(ally.friendship(&w, P0, P1), 30);
     }
 
     #[test]
@@ -1034,6 +1062,27 @@ mod tests {
     }
 
     #[test]
+    fn a_pact_goes_on_warming_the_feeling_past_what_an_alliance_asks() {
+        let grown = |treaty| {
+            let mut w = pair(8, 8, 100);
+            w.start_treaty(P0, P1, treaty);
+            let mut m = mind(&w, 0);
+            m.slot(&w, P0, P1).default = 0;
+            looks(&mut w, &mut m, 400);
+            m.friendship(&w, P0, P1)
+        };
+        let floor = pair(8, 8, 100)
+            .content()
+            .rules
+            .config
+            .diplomacy
+            .alliance_relation;
+        let (pact, alliance) = (grown(Treaty::Pact), grown(Treaty::Alliance));
+        assert!(pact > floor, "{pact} against {floor}");
+        assert!(alliance > pact, "{alliance} against {pact}");
+    }
+
+    #[test]
     fn an_enchantment_kept_up_sours_the_feeling_every_turn_and_one_look_a_turn_counts() {
         let mut w = pair(8, 8, 100);
         w.scenario_add_global(P1, f4x_core::rules::SpellId::new(120 /* armageddon */));
@@ -1071,30 +1120,46 @@ mod tests {
     }
 
     #[test]
-    fn units_next_to_its_city_cost_a_partner_a_warning_a_grace_and_a_fine() {
-        let mut w = pair(8, 8, 100);
-        w.start_treaty(P0, P1, Treaty::Pact);
-        crate::testworld::spawn(&mut w, P1, crate::testworld::at(11, 10), 95, 2);
+    fn a_partners_first_and_last_warning_cost_it_and_the_one_between_does_not() {
+        let w = pair(8, 8, 100);
+        let last = w.content().rules.config.diplomacy.trespass_warnings;
+        let warned = |warning| {
+            felt(
+                &w,
+                DiplomacyEvent::Trespassing {
+                    owner: P0,
+                    intruder: P1,
+                    warning,
+                },
+            )
+        };
+        assert!(warned(1) < 0, "the first warning");
+        for between in 2..last {
+            assert_eq!(warned(between), 0, "a turn of grace: {between}");
+        }
+        assert!(warned(last) < warned(1), "the last costs most");
+    }
+
+    /// P0's feeling for P1 after some turns with `unit` of P1 next to P0's city, without a treaty.
+    fn beside_the_city(unit: u16) -> i32 {
+        let mut w = pair(8, 8, 101);
+        crate::testworld::spawn(&mut w, P1, crate::testworld::at(11, 10), unit, 2);
         w.explore(
             P0,
             crate::testworld::at(11, 10),
             f4x_def::half_int::HalfInt::from_raw(3),
         );
         let mut m = mind(&w, 0);
-        let step = |w: &mut Game, m: &mut Memory| {
-            w.set_round(w.round() + 1);
-            m.look(w, P0, w.round());
-            (m.opinion(w, P0, P1).trespass, m.friendship(w, P0, P1))
-        };
-        let (n1, f1) = step(&mut w, &mut m);
-        assert_eq!(n1, 1, "the first turn is a warning");
-        let first = f1;
-        assert!(f1 <= 0);
-        let (_, f2) = step(&mut w, &mut m);
-        assert!(f2 >= first, "a turn of grace (the pact's growth may add)");
-        let (n3, f3) = step(&mut w, &mut m);
-        assert_eq!(n3, 0, "the third turn is the fine");
-        assert!(f3 < f2, "{f3} against {f2}");
+        m.slot(&w, P0, P1).default = 0;
+        looks(&mut w, &mut m, 40);
+        m.friendship(&w, P0, P1)
+    }
+
+    #[test]
+    fn units_next_to_its_city_sour_a_stranger_but_engineers_do_not() {
+        let fighters = beside_the_city(104 /* high_men_spearmen */);
+        let engineers = beside_the_city(110 /* high_men_engineers */);
+        assert!(fighters < engineers, "{fighters} against {engineers}");
     }
 
     #[test]
@@ -1102,11 +1167,11 @@ mod tests {
         let after = |mine, theirs| {
             let mut w = pair(mine, theirs, 101);
             let mut m = mind(&w, 0);
-            m.slot(&w, P0, P1).default = -100;
+            m.slot(&w, P0, P1).default = 0;
             looks(&mut w, &mut m, 9);
             m.friendship(&w, P0, P1)
         };
-        // The drift towards the default (-100) is the same for both: only the army differs.
+        // It starts where it drifts to: only the army moves it.
         assert!(
             after(8, 12) < after(8, 8),
             "{} against {}",

@@ -57,18 +57,66 @@ pub(crate) struct Buttons {
     left_key: KeyCode,
     /// Whether a click elsewhere answers (as the left button).
     elsewhere: bool,
-    /// What Esc answers.
-    escape: bool,
+    /// What Esc answers; none when it answers nothing.
+    escape: Option<bool>,
 }
 
+/// A third button of a box, in a row of its own above the other two.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Third {
+    pub(crate) button: (Slab, &'static str),
+    pub(crate) key: KeyCode,
+}
+
+/// Which button of a box answered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Pick {
+    Right,
+    Left,
+    Third,
+}
+
+/// A partner's units near the cities after the last warning: break the treaty (right, B) or
+/// overlook it (left, O, Esc); a click elsewhere does nothing. The third button declares war.
+pub(crate) const BREAK_OR_OVERLOOK: Buttons = Buttons {
+    right: (Slab::Yes, "diplomacy.button_break"),
+    left: (Slab::No, "diplomacy.button_overlook"),
+    right_key: KeyCode::B,
+    left_key: KeyCode::O,
+    elsewhere: false,
+    escape: Some(false),
+};
+
+/// An ally's call to arms: join the war (right, J) or end the alliance (left, B). Neither Esc nor a
+/// click elsewhere answers: an alliance does not end by a slip.
+pub(crate) const JOIN_OR_BREAK: Buttons = Buttons {
+    right: (Slab::Yes, "diplomacy.button_join"),
+    left: (Slab::No, "diplomacy.button_break"),
+    right_key: KeyCode::J,
+    left_key: KeyCode::B,
+    elsewhere: false,
+    escape: None,
+};
+
+/// Yes (right, Y) or No (left, N), answered by nothing else: for an answer that cannot be taken
+/// back.
+pub(crate) const YES_OR_NO_ONLY: Buttons = Buttons {
+    right: (Slab::Yes, "ui.yes"),
+    left: (Slab::No, "ui.no"),
+    right_key: KeyCode::Y,
+    left_key: KeyCode::N,
+    elsewhere: false,
+    escape: None,
+};
+
 /// Yes (right) and No (left): `resource.lbx` 3 and 4.
-const YES_NO: Buttons = Buttons {
+pub(crate) const YES_NO: Buttons = Buttons {
     right: (Slab::Yes, "ui.yes"),
     left: (Slab::No, "ui.no"),
     right_key: KeyCode::Y,
     left_key: KeyCode::N,
     elsewhere: true,
-    escape: false,
+    escape: Some(false),
 };
 
 /// `Raze_City_Prompt`: "Do you wish to completely destroy this city?" Yes (right, Y) razes it and
@@ -79,7 +127,7 @@ pub(crate) const RAZE_OR_SPARE: Buttons = Buttons {
     right_key: KeyCode::Y,
     left_key: KeyCode::N,
     elsewhere: false,
-    escape: false,
+    escape: Some(false),
 };
 
 /// What the city screen and the outpost screen share: the question box over them and the
@@ -108,10 +156,28 @@ impl Buttons {
         {
             Some(false)
         } else if input.key_pressed(KeyCode::Escape) || (clicked && self.elsewhere) {
-            Some(self.escape)
+            self.escape
         } else {
             None
         }
+    }
+
+    /// [`Buttons::answer`] for a box that may have a third button, which a click or its key picks.
+    fn pick(
+        &self,
+        right: Hit,
+        left: Hit,
+        third: Option<(Hit, KeyCode)>,
+        input: &Input,
+    ) -> Option<Pick> {
+        if let Some((hit, key)) = third {
+            let right_click = input.mouse_pressed(MouseButton::Right);
+            if hit.clicked() || (right_click && hit.hovered()) || input.key_pressed(key) {
+                return Some(Pick::Third);
+            }
+        }
+        self.answer(right, left, input)
+            .map(|yes| if yes { Pick::Right } else { Pick::Left })
     }
 }
 
@@ -271,6 +337,19 @@ impl App {
         buttons: &Buttons,
         input: &Input,
     ) -> Option<bool> {
+        self.choice_box(lay, text, buttons, None, input)
+            .map(|pick| pick == Pick::Right)
+    }
+
+    /// `question_box` with room for a third button over the other two.
+    pub(crate) fn choice_box(
+        &mut self,
+        lay: &Layout,
+        text: &str,
+        buttons: &Buttons,
+        third: Option<Third>,
+        input: &Input,
+    ) -> Option<Pick> {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let line = self.art.text_height(4) + 2.0;
         let lines: Vec<(f32, String)> = self
@@ -278,7 +357,8 @@ impl App {
             .into_iter()
             .map(|l| (0.0, l))
             .collect();
-        let paragraph = line * lines.len() as f32;
+        let words = line * lines.len() as f32;
+        let paragraph = words + if third.is_some() { 21.0 } else { 0.0 };
         let (x, y) = (
             68.0,
             ((crate::resolution::DESIGN_H - (paragraph + 34.0)) / 2.0).floor(),
@@ -292,7 +372,11 @@ impl App {
             self.slab_button(lay, buttons.right, right_at, input),
             self.slab_button(lay, buttons.left, left_at, input),
         );
-        buttons.answer(right, left, input)
+        let third = third.map(|t| {
+            let at = (x + 59.0, y + 11.0 + words);
+            (self.slab_button(lay, t.button, at, input), t.key)
+        });
+        buttons.pick(right, left, third, input)
     }
 
     /// `Warn0`: the red box (`resource.lbx` 38 and 39) with the text centred; any click or key
@@ -368,6 +452,45 @@ mod tests {
         assert_eq!(
             YES_NO.answer(Hit::None, Hit::None, &Input::key(KeyCode::N)),
             Some(false)
+        );
+    }
+
+    #[test]
+    fn a_third_button_is_picked_by_its_click_or_key_and_esc_overlooks() {
+        let third = |hit| Some((hit, KeyCode::W));
+        let pick =
+            |hit, input: &Input| BREAK_OR_OVERLOOK.pick(Hit::None, Hit::None, third(hit), input);
+        let click = input_at(MouseButton::Left, 0.0, 0.0);
+        assert_eq!(pick(Hit::Clicked, &click), Some(Pick::Third));
+        assert_eq!(
+            pick(Hit::Hover, &input_at(MouseButton::Right, 0.0, 0.0)),
+            Some(Pick::Third)
+        );
+        assert_eq!(pick(Hit::None, &Input::key(KeyCode::W)), Some(Pick::Third));
+        assert_eq!(pick(Hit::None, &Input::key(KeyCode::B)), Some(Pick::Right));
+        assert_eq!(pick(Hit::None, &Input::key(KeyCode::O)), Some(Pick::Left));
+        assert_eq!(
+            pick(Hit::None, &Input::key(KeyCode::Escape)),
+            Some(Pick::Left)
+        );
+        assert_eq!(pick(Hit::None, &click), None, "a click elsewhere");
+        assert_eq!(
+            YES_NO.pick(Hit::None, Hit::None, None, &Input::key(KeyCode::W)),
+            None,
+            "a box without a third button"
+        );
+    }
+
+    #[test]
+    fn a_call_to_arms_is_answered_by_its_buttons_and_never_by_a_slip() {
+        let none = |input: &Input| JOIN_OR_BREAK.answer(Hit::None, Hit::None, input);
+        assert_eq!(none(&Input::key(KeyCode::J)), Some(true));
+        assert_eq!(none(&Input::key(KeyCode::B)), Some(false));
+        assert_eq!(none(&Input::key(KeyCode::Escape)), None);
+        assert_eq!(none(&input_at(MouseButton::Left, 0.0, 0.0)), None);
+        assert_eq!(
+            YES_OR_NO_ONLY.answer(Hit::None, Hit::None, &Input::key(KeyCode::Escape)),
+            None
         );
     }
 

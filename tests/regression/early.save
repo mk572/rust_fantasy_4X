@@ -1,4 +1,4 @@
-// f4x save, version 5, game 0.0.8, checksum b24875a90d7aee9e
+// f4x save, version 5, game 0.0.8, checksum 12587febc375526f
 (
     version: 5,
     game_version: "0.0.8",
@@ -25,7 +25,7 @@
             events: (random_events: true, pressure_percent: 75, frequency: Normal, start_turn: 6),
             scoring: (score_percent: 100),
         ),
-        content: "0e1be409a7a95d86ab118006193f953ac4c99e64eddb0e20db6fca65233d6ae5",
+        content: "da5816a0e6daebbc4fd8052bee4f5494ff77fbba5ee9ac44aede3741b5235e0c",
         human: None,
         diplomacy: (
             pairs: [],

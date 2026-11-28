@@ -29,6 +29,7 @@ pub(crate) mod kind {
     pub(crate) const MASTERY: &str = "mastery";
     pub(crate) const UPKEEP: &str = "upkeep";
     pub(crate) const PROPOSAL: &str = "proposal";
+    pub(crate) const TRESPASS: &str = "trespass";
     pub(crate) const SITE: &str = "site";
     pub(crate) const LEARNED: &str = "learned";
     pub(crate) const ATTACK: &str = "attack";

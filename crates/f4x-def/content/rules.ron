@@ -9,7 +9,11 @@
     // The combat forecast: the shares (percent) of the other side's worth below which a side is completely
     // outmatched, much weaker, slightly weaker; turned over they mark the other way.
     forecast: (bands_pct: (33, 60, 85)),
-    diplomacy: (subversion_penalty: 25, max_rounds: 4, pact_relation: 10, alliance_relation: 50),
+    // A treaty partner's units within `trespass_distance` squares of a city trespass (settlers and engineers
+    // do not); each turn of it in a row is a warning, and at `trespass_warnings` the city's owner chooses.
+    diplomacy: (subversion_penalty: 25, max_rounds: 4, pact_relation: 10, alliance_relation: 50, trespass_distance: 2, trespass_warnings: 3,
+        // Trade: percent of a town's gold, for each citizen. Research: percent of what both partners research.
+        trade_cap_percent: 3, trade_pact_cap_percent: 1, trade_pact_percent: 2, research_pact_percent: 3, research_pact_book_percent: 1),
     offer: (first_turn: 30, ai_first_turn: 50, max_chance: 10, ai_bonus: 10, item_price_markup: 3),
     outpost: (start_tens: 3, city_tens: 10),
     threat: (raider_limit: 30, rampage_damage: 40, cheapest_monster: 25, big_events_from_turn: 150, spared_realms: [3 /* life */],

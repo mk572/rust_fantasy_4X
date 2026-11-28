@@ -29,6 +29,12 @@ pub(crate) enum Did {
     Demand,
     Gift,
     Trade,
+    /// A call to join a war.
+    Call,
+    /// An offer to swap world maps.
+    Maps,
+    /// An offer of a trade or research pact.
+    Pacts,
 }
 
 /// The dealings of one wizard with another: what it has been told of the fighting between them.
@@ -63,6 +69,15 @@ pub(crate) struct Dealing {
     pub gifted: u32,
     #[serde(default)]
     pub traded: u32,
+    /// The turn it last called this ally to a war (0: never).
+    #[serde(default)]
+    pub called: u32,
+    /// The turn it last offered this one a swap of maps (0: never).
+    #[serde(default)]
+    pub mapped: u32,
+    /// The turn it last offered this one a trade or research pact (0: never).
+    #[serde(default)]
+    pub pacted: u32,
 }
 
 impl Dealing {
@@ -82,6 +97,9 @@ impl Dealing {
             demanded: 0,
             gifted: 0,
             traded: 0,
+            called: 0,
+            mapped: 0,
+            pacted: 0,
         }
     }
 }
@@ -200,6 +218,9 @@ impl Memory {
             Did::Demand => d.demanded = turn,
             Did::Gift => d.gifted = turn,
             Did::Trade => d.traded = turn,
+            Did::Call => d.called = turn,
+            Did::Maps => d.mapped = turn,
+            Did::Pacts => d.pacted = turn,
         }
     }
 
@@ -210,6 +231,9 @@ impl Memory {
             Did::Demand => d.demanded,
             Did::Gift => d.gifted,
             Did::Trade => d.traded,
+            Did::Call => d.called,
+            Did::Maps => d.mapped,
+            Did::Pacts => d.pacted,
         });
         last == 0 || turn >= last + cool
     }

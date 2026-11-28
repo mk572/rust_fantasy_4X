@@ -1471,6 +1471,21 @@ pub struct DiplomacyRules {
     /// A pact needs a relation above `pact_relation`, an alliance above `alliance_relation`.
     pub pact_relation: i32,
     pub alliance_relation: i32,
+    /// A treaty partner's unit this near a city (squares) trespasses.
+    pub trespass_distance: i32,
+    /// The turns of trespass in a row, each a warning, after which the city's owner chooses what to do.
+    pub trespass_warnings: u8,
+    /// The most that trade adds to a town's gold: this percent for each of its citizens.
+    pub trade_cap_percent: i32,
+    /// What each trade pact of the town's owner adds to `trade_cap_percent`.
+    pub trade_pact_cap_percent: i32,
+    /// The trade for each citizen of a road-connected town of a trade pact partner, in percent,
+    /// in place of the usual trade with that town.
+    pub trade_pact_percent: i32,
+    /// A research pact gives each partner this percent of what the two research together,
+    pub research_pact_percent: i32,
+    /// and this much percent more for each spell book of a realm both hold.
+    pub research_pact_book_percent: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]

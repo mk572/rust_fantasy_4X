@@ -860,8 +860,7 @@ Left out on purpose:
   time left (`f4x-ai` `diplomacy::quarrel`). **Peace patience** wears down by a quarter of what an attacker does
   in a war: the original for a human attacker only; **ours:** for every attacker, so AI wars end by peace offers
   too. **Kept as rules:** the strongest recent action (`last_action`) is still recorded for a human attacker only,
-  because it exists so the AI can remark on it to the human, and Subversion still spares the human, whose
-  feelings are their own to have.
+  because it exists so the AI can remark on it to the human.
 
 
 ## 39. Random events: the quirks decided (task 303)
@@ -1033,4 +1032,29 @@ eight. System A, the original's way and our first design, was removed on 23 Nove
 
 ## 52. The AI's table of relations has no dice (task 780)
 
-The original rolls inside `Change_Relations` and its callers (`Random(3)` for a pact's growth, `Random(20)` for a broken oath, `Random(25)` for a war, `Random(10)` for a refused demand, `Random(8)+Random(8)` for a gift of a spell, and so on). The AI of this game keeps its own opinion of each player (`f4x-ai/src/opinion.rs`) and uses the average of each roll, rounded: a war sets the feeling to -87, a broken oath takes 10, a refused demand 6, a threat 7, a gift of a spell `base * 7 / 10` and a regard of 5. The same events always give the same opinion. The per-turn rules (task 783) do the same: a pact's growth is one point every second turn, an alliance's one or two a turn, an army or empire too large and trespass are parts of a point added up from turn to turn, the drift back to the start is the average of its roll.
+The original rolls inside `Change_Relations` and its callers (`Random(3)` for a pact's growth, `Random(20)` for a broken oath, `Random(25)` for a war, `Random(10)` for a refused demand, `Random(8)+Random(8)` for a gift of a spell, and so on). The AI of this game keeps its own opinion of each player (`f4x-ai/src/opinion.rs`) and uses the average of each roll, rounded: a war sets the feeling to -87, a broken oath takes 10, a refused demand 6, a threat 7, a gift of a spell `base * 7 / 10` and a regard of 5. The same events always give the same opinion. The per-turn rules (task 783) do the same: a pact's growth is one point a turn and an alliance's one and three quarters (the original's averages, `pact_growth` and `alliance_growth`; smaller as the feeling rises), those, an army or empire too large and trespass without a treaty are parts of a point added up from turn to turn, the drift back to the start is the average of its roll.
+
+## 53. Trespass warnings, counter-offers and the call to arms
+
+- **Warnings.** The original warns and breaks treaties for its computer wizards only (`DIPL_GetOffMyLawn`). **Ours:**
+  every player with a wizard pact, human or computer, is told of a partner's units near its cities, turn by turn,
+  and at the last warning chooses itself: break the treaty, declare war, or overlook it. Settlers and engineers do
+  not count (`diplomacy.md` section 6).
+- **Allies.** The original holds trespassing against allies too; its 1.50 patch does not. **Ours:** it does not,
+  unless the setting `allied_trespass_penalty` is on (off in every rule set).
+- **Call to arms.** An ally asked into a war joins it, ends the alliance by refusing, or first names a price, once; a
+  price not paid leaves joining and refusing. The caller thinks a little less of an ally that names one. The original
+  has no price (`diplomacy.md` section 6).
+- **Counter-offers.** The original's are not written (`IDK_Npc_Counteroffer`). **Ours:** a pact, an alliance or a
+  peace may be answered with a price, and haggled over as a trade is.
+- **One diplomacy.** The computer player approaches, answers and warns another computer player as it does the human;
+  only where the question goes differs.
+
+## 54. Expanded diplomacy options
+
+The original offers no exchange of maps, no trade pact and no research pact. **Ours**, under the setting
+`expanded_diplomacy` (off under v1.31, on under v1.6 and the MK mod): partners of a wizard pact or an alliance may swap
+what they have explored, agree a trade pact (a neutral race too), which raises the trade with the partner's connected
+towns and the most a town earns from trade, and agree a research pact, which gives both a share of their combined
+research, more for shared spell books (`diplomacy.md`, "Expanded diplomacy options").
+

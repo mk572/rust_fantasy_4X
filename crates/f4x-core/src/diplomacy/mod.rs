@@ -17,7 +17,10 @@
 //!
 //! Tests: in diplomacy/tests.rs.
 
+#[cfg(test)]
+mod pact_tests;
 pub mod trade;
+mod trespass;
 pub use trade::Goods;
 
 use serde::{Deserialize, Serialize};
@@ -74,15 +77,34 @@ pub struct Pair {
     /// The cities each held when the war began, the lower player number first.
     #[serde(default)]
     pub war_cities: [u16; 2],
+    /// The trade pact the two have, beside their treaty.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub trade_pact: bool,
+    /// The research pact the two have, beside their treaty.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub research_pact: bool,
 }
 
-/// What a wizard holds about another, kept in the slot of one of them: how far the talk has gone, and the
-/// turns in which `from` will not attack `to` (a peace made, a threat yielded to).
+impl Pair {
+    /// A trade or research pact stands only while the two have a wizard pact or an alliance.
+    fn end_economic_pacts(&mut self) {
+        self.trade_pact = false;
+        self.research_pact = false;
+    }
+}
+
+/// What a wizard holds about another, kept in the slot of one of them: how far the talk has gone, the
+/// turns in which `from` will not attack `to` (a peace made, a threat yielded to) and the warnings `from`
+/// has given `to` for trespass.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct Stance {
     /// Turns in which `from` will not attack `to`.
     pub peace_duration: u32,
     pub stage: Stage,
+    /// The turns in a row that `to`, a treaty partner, has had units next to a city of `from`
+    /// (`trespass.rs`).
+    #[serde(default)]
+    pub trespass: u8,
 }
 
 /// What a wizard offers another.
@@ -91,7 +113,8 @@ pub enum ProposalKind {
     Pact,
     Alliance,
     Peace,
-    /// Ask the receiver to declare war on a third wizard.
+    /// Ask the receiver to declare war on a third wizard. Sent to an ally by a wizard at war
+    /// with the third, it is a call to arms (`Diplomacy::is_call_to_arms`).
     WarOn(PlayerId),
     /// Ask the receiver to break its alliance with a third wizard.
     BreakAllianceWith(PlayerId),
@@ -108,6 +131,59 @@ pub enum ProposalKind {
     Demand {
         gold: i32,
     },
+    /// A treaty with a price, the counter to a pact, an alliance or a peace: with the treaty the
+    /// proposer hands `give` to the receiver and gets `get`. One of the two may be empty.
+    Priced {
+        deal: Deal,
+        give: Goods,
+        get: Goods,
+    },
+    /// The answer of an ally to a call to arms: it joins the war on `third` if the receiver, who
+    /// called it, hands it `price`.
+    WarPrice {
+        third: PlayerId,
+        price: Goods,
+    },
+    /// Swap world maps: each gets the squares the other has explored, on both planes. Between
+    /// partners of a wizard pact or an alliance, under the setting `expanded_diplomacy`.
+    MapExchange,
+    /// A trade pact: road trade between the towns of the two counts for more, and each of the two
+    /// may earn more from trade in a town. Like [`ProposalKind::MapExchange`], between treaty
+    /// partners under `expanded_diplomacy`.
+    TradePact,
+    /// A research pact, between two wizards that are treaty partners, under `expanded_diplomacy`:
+    /// each gets a share of what the two research together.
+    ResearchPact,
+}
+
+/// The treaties a price can be set on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum Deal {
+    Pact,
+    Alliance,
+    Peace,
+}
+
+impl Deal {
+    /// The treaty `kind` is about, with or without a price; none for what takes no price.
+    pub fn of(kind: ProposalKind) -> Option<Deal> {
+        match kind {
+            ProposalKind::Pact => Some(Deal::Pact),
+            ProposalKind::Alliance => Some(Deal::Alliance),
+            ProposalKind::Peace => Some(Deal::Peace),
+            ProposalKind::Priced { deal, .. } => Some(deal),
+            _ => None,
+        }
+    }
+
+    /// The proposal of the treaty without a price.
+    pub fn kind(self) -> ProposalKind {
+        match self {
+            Deal::Pact => ProposalKind::Pact,
+            Deal::Alliance => ProposalKind::Alliance,
+            Deal::Peace => ProposalKind::Peace,
+        }
+    }
 }
 
 /// A proposal waiting for its receiver.
@@ -116,7 +192,7 @@ pub struct Proposal {
     pub from: PlayerId,
     pub to: PlayerId,
     pub kind: ProposalKind,
-    /// How many times a trade has been countered on the way here (0: the first offer).
+    /// How many times it has been countered on the way here (0: the first offer).
     pub round: u8,
 }
 
@@ -125,7 +201,10 @@ impl Proposal {
     fn concerns(&self, player: PlayerId) -> bool {
         self.from == player
             || self.to == player
-            || matches!(self.kind, ProposalKind::WarOn(p) | ProposalKind::BreakAllianceWith(p) if p == player)
+            || matches!(self.kind,
+                ProposalKind::WarOn(p)
+                | ProposalKind::BreakAllianceWith(p)
+                | ProposalKind::WarPrice { third: p, .. } if p == player)
     }
 }
 
@@ -185,8 +264,8 @@ pub enum DiplomacyEvent {
         treaty: Treaty,
     },
     ProposalMade(Proposal),
-    /// The receiver of `old` answered a trade with another one, `new`, which now waits for the
-    /// first proposer.
+    /// The receiver of `old` answered it with a proposal of its own, `new` (a trade, or a price
+    /// for the treaty), which now waits for the first proposer.
     ProposalCountered {
         old: Proposal,
         new: Proposal,
@@ -218,11 +297,13 @@ pub enum DiplomacyEvent {
         to: PlayerId,
         why: Remark,
     },
-    /// `intruder` has units next to a city of `owner`, who gives a warning (the first turn of a
-    /// treaty partner's trespass).
+    /// `intruder`, a treaty partner of `owner`, has units next to a city of `owner`: the warning
+    /// number `warning` in a row. At `trespass_warnings` the owner chooses what to do about it
+    /// (`World::trespass_choices`).
     Trespassing {
         owner: PlayerId,
         intruder: PlayerId,
+        warning: u8,
     },
     /// A battle's end: what `defender` lost to `attacker` (task 782). A fact, not a feeling: the
     /// AI weighs it (`docs/diplomacy.md` section 5). Units that were summoned in the fight and
@@ -291,8 +372,10 @@ pub enum DiplomacyCommand {
         from: PlayerId,
         accept: bool,
     },
-    /// The receiver answers the trade `from` made it with a trade of its own: what it would give
-    /// and what it would ask. An empty side is an open question (what would you give for this?).
+    /// The receiver answers the proposal `from` made it with one of its own: to a trade another
+    /// trade (what it would give and what it would ask; an empty side is an open question, what
+    /// would you give for this?), to a pact, an alliance or a peace a price for it
+    /// (`ProposalKind::Priced`).
     Counter {
         player: PlayerId,
         from: PlayerId,
@@ -322,6 +405,11 @@ pub enum DiplomacyCommand {
         from: PlayerId,
         to: PlayerId,
     },
+    /// The player lets the trespass of `with` pass, at its last warning: the warnings start again.
+    Overlook {
+        player: PlayerId,
+        with: PlayerId,
+    },
     /// `from` tells `to` why it has done what it did (a war, a gift, a peace offer): the
     /// original's remarks. Nothing changes but what the human is told.
     Remark {
@@ -341,7 +429,8 @@ impl DiplomacyCommand {
     fn parties(&self) -> [PlayerId; 2] {
         match *self {
             DiplomacyCommand::Greeted { player, with }
-            | DiplomacyCommand::BreakTreaty { player, with } => [player, with],
+            | DiplomacyCommand::BreakTreaty { player, with }
+            | DiplomacyCommand::Overlook { player, with } => [player, with],
             DiplomacyCommand::DeclareWar { player, on } => [player, on],
             DiplomacyCommand::Answer { player, from, .. }
             | DiplomacyCommand::Counter { player, from, .. } => [player, from],
@@ -469,6 +558,8 @@ pub enum Outcome {
         to: PlayerId,
         item: crate::world::serial::Serial,
     },
+    /// Each of the two learns the squares the other has explored.
+    Maps { a: PlayerId, b: PlayerId },
     /// A unit changes owner and appears in `to`'s closest city with room.
     Unit {
         to: PlayerId,
@@ -506,6 +597,8 @@ impl Diplomacy {
             status: Treaty::None,
             war_age: None,
             war_cities: [0, 0],
+            trade_pact: false,
+            research_pact: false,
         })
     }
 
@@ -516,6 +609,39 @@ impl Diplomacy {
     /// The treaty between two wizards.
     pub fn treaty(&self, a: PlayerId, b: PlayerId) -> Treaty {
         self.pair(a, b).map_or(Treaty::None, |p| p.status)
+    }
+
+    pub fn has_trade_pact(&self, a: PlayerId, b: PlayerId) -> bool {
+        self.pair(a, b).is_some_and(|p| p.trade_pact)
+    }
+
+    pub fn has_research_pact(&self, a: PlayerId, b: PlayerId) -> bool {
+        self.pair(a, b).is_some_and(|p| p.research_pact)
+    }
+
+    /// The players `player` has a trade pact with.
+    pub fn trade_partners(&self, player: PlayerId) -> impl Iterator<Item = PlayerId> + '_ {
+        self.partners(player, |p| p.trade_pact)
+    }
+
+    /// The players `player` has a research pact with.
+    pub fn research_partners(&self, player: PlayerId) -> impl Iterator<Item = PlayerId> + '_ {
+        self.partners(player, |p| p.research_pact)
+    }
+
+    fn partners(
+        &self,
+        player: PlayerId,
+        has: fn(&Pair) -> bool,
+    ) -> impl Iterator<Item = PlayerId> + '_ {
+        self.pairs.iter().filter_map(move |(&(a, b), pair)| {
+            let other = match player.0 {
+                p if p == a => b,
+                p if p == b => a,
+                _ => return None,
+            };
+            has(pair).then_some(PlayerId(other))
+        })
     }
 
     /// How many turns the two have been at war (none when they are not).
@@ -619,8 +745,15 @@ impl Diplomacy {
         } else {
             [count(b), count(a)]
         };
+        // Warnings given under the treaty that was are over with it.
+        for (from, to) in [(a, b), (b, a)] {
+            self.stance_mut(from, to).trespass = 0;
+        }
         let pair = self.pair_mut(ctx.view, a, b);
         pair.status = treaty;
+        if !matches!(treaty, Treaty::Pact | Treaty::Alliance) {
+            pair.end_economic_pacts();
+        }
         if treaty == Treaty::War && pair.war_age.is_none() {
             pair.war_cities = cities;
         }
@@ -743,6 +876,24 @@ impl Diplomacy {
             ProposalKind::Alliance => matches!(status, Treaty::None | Treaty::Pact),
             ProposalKind::Peace => status == Treaty::War,
             ProposalKind::Threat => status != Treaty::War,
+            // What the maps hold is not asked: a refusal would tell it.
+            ProposalKind::MapExchange => {
+                view.settings().rules.expanded_diplomacy
+                    && matches!(status, Treaty::Pact | Treaty::Alliance)
+            }
+            ProposalKind::TradePact => {
+                view.settings().rules.expanded_diplomacy
+                    && matches!(status, Treaty::Pact | Treaty::Alliance)
+                    && !self.has_trade_pact(from, to)
+            }
+            // A neutral race does no research.
+            ProposalKind::ResearchPact => {
+                view.settings().rules.expanded_diplomacy
+                    && matches!(status, Treaty::Pact | Treaty::Alliance)
+                    && !self.has_research_pact(from, to)
+                    && view.wizard(from).is_some()
+                    && view.wizard(to).is_some()
+            }
             ProposalKind::Demand { gold } => status != Treaty::War && gold > 0,
             // A wizard allied with the third one is first asked to break the alliance: Break
             // Alliance replaces Declare War for that wizard (1.50 note 058).
@@ -766,6 +917,21 @@ impl Diplomacy {
                     && trade::can_hand_over(view, from, to, give)
                     && trade::can_hand_over(view, to, from, get)
             }
+            ProposalKind::WarPrice { third, price } => {
+                // `from` is the ally, `to` the wizard that called it and would pay.
+                status == Treaty::Alliance
+                    && known_third(third)
+                    && self.treaty(to, third) == Treaty::War
+                    && !matches!(self.treaty(from, third), Treaty::War | Treaty::Alliance)
+                    && !price.is_empty()
+                    && trade::can_hand_over(view, to, from, price)
+            }
+            ProposalKind::Priced { deal, give, get } => {
+                self.check_proposal(view, from, to, deal.kind()).is_ok()
+                    && !(give.is_empty() && get.is_empty())
+                    && trade::can_hand_over(view, from, to, give)
+                    && trade::can_hand_over(view, to, from, get)
+            }
         };
         if ok {
             Ok(())
@@ -781,6 +947,10 @@ impl Diplomacy {
         to: PlayerId,
         kind: ProposalKind,
     ) -> Result<(), DiplomacyError> {
+        // A price for joining a war only answers a call to arms.
+        if matches!(kind, ProposalKind::WarPrice { .. }) {
+            return Err(DiplomacyError::NotAllowed);
+        }
         self.check_proposal(ctx.view, from, to, kind)?;
         if self.proposals.iter().any(|p| p.from == from && p.to == to) {
             return Err(DiplomacyError::AlreadyPending);
@@ -796,7 +966,9 @@ impl Diplomacy {
         Ok(())
     }
 
-    /// The receiver of a trade answers with a trade of its own (a negotiation, `max_rounds` of `rules.ron`).
+    /// The receiver answers with a proposal of its own (a negotiation, `max_rounds` of `rules.ron`):
+    /// a trade with a trade, a pact, an alliance or a peace with a price for it. A call to arms is
+    /// answered with a price once: when that is turned down, only yes or no are left.
     fn counter(
         &mut self,
         ctx: &mut DiplomacyCtx<'_>,
@@ -810,9 +982,17 @@ impl Diplomacy {
             .position(|p| p.from == from && p.to == player)
             .ok_or(DiplomacyError::NothingPending)?;
         let old = self.proposals[at];
-        let both_trades = matches!(old.kind, ProposalKind::Trade { .. })
-            && matches!(kind, ProposalKind::Trade { .. });
-        if !both_trades || old.round + 1 >= ctx.view.content().rules.config.diplomacy.max_rounds {
+        let answers_it = match kind {
+            ProposalKind::Trade { .. } => matches!(old.kind, ProposalKind::Trade { .. }),
+            ProposalKind::Priced { deal, .. } => Deal::of(old.kind) == Some(deal),
+            ProposalKind::WarPrice { third, .. } => {
+                old.kind == ProposalKind::WarOn(third)
+                    && old.round == 0
+                    && self.is_call_to_arms(old)
+            }
+            _ => false,
+        };
+        if !answers_it || old.round + 1 >= ctx.view.content().rules.config.diplomacy.max_rounds {
             return Err(DiplomacyError::NotAllowed);
         }
         self.check_proposal(ctx.view, player, from, kind)?;
@@ -836,7 +1016,48 @@ impl Diplomacy {
         Ok(())
     }
 
-    /// The receiver's answer: an accepted proposal takes effect.
+    /// Whether `proposal` calls an ally to join a war the proposer is in. The ally joins, ends the
+    /// alliance by refusing, or first names a price (`ProposalKind::WarPrice`).
+    pub fn is_call_to_arms(&self, proposal: Proposal) -> bool {
+        matches!(proposal.kind, ProposalKind::WarOn(third)
+            if self.treaty(proposal.from, proposal.to) == Treaty::Alliance
+                && self.treaty(proposal.from, third) == Treaty::War)
+    }
+
+    /// The caller has not paid the price: the call goes to the ally again, to be answered with yes
+    /// or no. It takes the place of anything else the caller had put to the ally.
+    fn call_again(&mut self, ctx: &mut DiplomacyCtx<'_>, price: Proposal, third: PlayerId) {
+        let call = Proposal {
+            from: price.to,
+            to: price.from,
+            kind: ProposalKind::WarOn(third),
+            round: price.round + 1,
+        };
+        if !self.is_call_to_arms(call)
+            || self
+                .check_proposal(ctx.view, call.from, call.to, call.kind)
+                .is_err()
+        {
+            return;
+        }
+        let (replaced, open): (Vec<Proposal>, Vec<Proposal>) = std::mem::take(&mut self.proposals)
+            .into_iter()
+            .partition(|p| p.from == call.from && p.to == call.to);
+        self.proposals = open;
+        for proposal in replaced {
+            self.queue.push(DiplomacyEvent::ProposalAnswered {
+                proposal,
+                accepted: false,
+                lapsed: true,
+            });
+        }
+        self.proposals.push(call);
+        self.queue.push(DiplomacyEvent::ProposalMade(call));
+    }
+
+    /// The receiver's answer: an accepted proposal takes effect. Refusing a call to arms ends the
+    /// alliance, broken by the one that refuses; refusing a price for joining a war puts the call
+    /// again.
     fn answer(
         &mut self,
         ctx: &mut DiplomacyCtx<'_>,
@@ -878,6 +1099,22 @@ impl Diplomacy {
             accepted,
             lapsed: false,
         });
+        if !accepted {
+            match proposal.kind {
+                // Only a refusal ends the alliance, and only while the call still stands.
+                ProposalKind::WarOn(_)
+                    if !accept
+                        && self.is_call_to_arms(proposal)
+                        && self
+                            .check_proposal(ctx.view, from, player, proposal.kind)
+                            .is_ok() =>
+                {
+                    self.break_treaties(ctx, player, from);
+                }
+                ProposalKind::WarPrice { third, .. } => self.call_again(ctx, proposal, third),
+                _ => {}
+            }
+        }
         Ok(())
     }
 
@@ -901,6 +1138,21 @@ impl Diplomacy {
             ProposalKind::WarOn(third) => self.declare_war(ctx, p.to, third),
             ProposalKind::BreakAllianceWith(third) => self.break_treaties(ctx, p.to, third),
             ProposalKind::Trade { give, get } => {
+                Self::hand_over(ctx, p.from, p.to, give);
+                Self::hand_over(ctx, p.to, p.from, get);
+            }
+            ProposalKind::MapExchange => ctx.out.push(Outcome::Maps { a: p.from, b: p.to }),
+            ProposalKind::TradePact => self.pair_mut(ctx.view, p.from, p.to).trade_pact = true,
+            ProposalKind::ResearchPact => {
+                self.pair_mut(ctx.view, p.from, p.to).research_pact = true;
+            }
+            ProposalKind::WarPrice { third, price } => {
+                Self::hand_over(ctx, p.to, p.from, price);
+                self.declare_war(ctx, p.from, third);
+            }
+            ProposalKind::Priced { deal, give, get } => {
+                let kind = deal.kind();
+                self.carry_out(ctx, Proposal { kind, ..p }, rng);
                 Self::hand_over(ctx, p.from, p.to, give);
                 Self::hand_over(ctx, p.to, p.from, get);
             }
@@ -1003,7 +1255,8 @@ impl Diplomacy {
         let actor = match command {
             DiplomacyCommand::Greeted { .. }
             | DiplomacyCommand::Answer { .. }
-            | DiplomacyCommand::Counter { .. } => None,
+            | DiplomacyCommand::Counter { .. }
+            | DiplomacyCommand::Overlook { .. } => None,
             DiplomacyCommand::BreakTreaty { player, .. }
             | DiplomacyCommand::DeclareWar { player, .. } => Some(player),
             DiplomacyCommand::Propose { from, .. }
@@ -1046,6 +1299,7 @@ impl Diplomacy {
                     Err(DiplomacyError::NotAllowed)
                 }
             }
+            DiplomacyCommand::Overlook { player, with } => self.overlook(ctx.view, player, with),
             DiplomacyCommand::DeclareWar { player, on } => {
                 if !self.have_met(player, on) {
                     Err(DiplomacyError::NotContacted)
@@ -1096,9 +1350,7 @@ impl Diplomacy {
             .view
             .player_ids()
             .into_iter()
-            .filter(|&w| {
-                w != target && ctx.view.takes_part_in_diplomacy(w) && ctx.view.human() != Some(w)
-            })
+            .filter(|&w| w != target && ctx.view.takes_part_in_diplomacy(w))
             .filter(|&w| self.have_met(w, target))
             .collect();
         for w in others {
@@ -1213,6 +1465,13 @@ impl Diplomacy {
         loser: PlayerId,
         destroyed: bool,
     ) {
+        if destroyed {
+            for (&(a, b), pair) in &mut self.pairs {
+                if a == loser.0 || b == loser.0 {
+                    pair.end_economic_pacts();
+                }
+            }
+        }
         if winner == loser {
             return;
         }
@@ -1329,6 +1588,8 @@ impl World {
             // Only a command gives a spell, and it learns it itself, with the generator.
             Outcome::Spell { .. } => debug_assert!(false, "a spell outside a command"),
             Outcome::Item { from, to, item } => self.pass_item(from, to, item),
+            // Exploring a square this way meets nobody: only sight does.
+            Outcome::Maps { a, b } => self.fog.share(a, b),
             Outcome::Unit { to, unit } => self.pass_unit(to, unit),
             // A hero goes like a unit: it keeps its experience and the items it carries.
             Outcome::Hero { to, hero } => self.pass_unit(to, hero),
@@ -1451,9 +1712,8 @@ impl World {
         self.with_diplomacy(|d, ctx| d.contact_near(ctx, player, at, radius));
     }
 
-    /// Subversion on `target`: every other wizard who has met them thinks 25 points worse of them
-    /// and will not hold to a peace with them. The human's own feelings are left alone, as in the
-    /// original (`Apply_Subversion`).
+    /// Subversion on `target`: every other wizard who has met them thinks worse of them
+    /// (`subversion_penalty`) and will not hold to a peace with them.
     pub(crate) fn subvert(&mut self, caster: PlayerId, target: PlayerId) {
         self.with_diplomacy(|d, ctx| d.subvert(ctx, caster, target));
     }
@@ -1496,6 +1756,12 @@ impl World {
     /// The total cost of a wizard's units.
     pub fn army_strength(&self, player: PlayerId) -> i32 {
         army_strength(self, player)
+    }
+
+    /// Whether `proposal` calls an ally to join a war the proposer is in
+    /// ([`Diplomacy::is_call_to_arms`]).
+    pub fn is_call_to_arms(&self, proposal: Proposal) -> bool {
+        self.diplomacy.is_call_to_arms(proposal)
     }
 
     /// Whether `from` may put `kind` to `to` now: the entries the original greys out.
@@ -1637,6 +1903,18 @@ pub enum KindSave {
     Demand {
         gold: i32,
     },
+    Priced {
+        deal: Deal,
+        give: Goods,
+        get: Goods,
+    },
+    WarPrice {
+        third: u8,
+        price: Goods,
+    },
+    MapExchange,
+    TradePact,
+    ResearchPact,
 }
 
 impl Diplomacy {
@@ -1670,6 +1948,16 @@ impl Diplomacy {
                         ProposalKind::Threat => KindSave::Threat,
                         ProposalKind::Demand { gold } => KindSave::Demand { gold },
                         ProposalKind::Trade { give, get } => KindSave::Trade { give, get },
+                        ProposalKind::Priced { deal, give, get } => {
+                            KindSave::Priced { deal, give, get }
+                        }
+                        ProposalKind::WarPrice { third, price } => KindSave::WarPrice {
+                            third: third.0,
+                            price,
+                        },
+                        ProposalKind::MapExchange => KindSave::MapExchange,
+                        ProposalKind::TradePact => KindSave::TradePact,
+                        ProposalKind::ResearchPact => KindSave::ResearchPact,
                     },
                 })
                 .collect(),
@@ -1704,6 +1992,16 @@ impl Diplomacy {
                         get: Goods::spell(get),
                     },
                     KindSave::Trade { give, get } => ProposalKind::Trade { give, get },
+                    KindSave::Priced { deal, give, get } => {
+                        ProposalKind::Priced { deal, give, get }
+                    }
+                    KindSave::WarPrice { third, price } => ProposalKind::WarPrice {
+                        third: PlayerId(third),
+                        price,
+                    },
+                    KindSave::MapExchange => ProposalKind::MapExchange,
+                    KindSave::TradePact => ProposalKind::TradePact,
+                    KindSave::ResearchPact => ProposalKind::ResearchPact,
                 };
                 Proposal {
                     from: PlayerId(p.from),

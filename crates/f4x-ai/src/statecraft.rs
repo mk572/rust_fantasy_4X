@@ -271,7 +271,7 @@ pub(crate) fn propose(
         )
         .is_ok();
     if made && game.human() != Some(to) {
-        events.extend(crate::settle(game, me, to, &ai.diplomats));
+        events.extend(crate::settle(game, me, to, &ai.minds()));
     }
     made
 }
@@ -288,7 +288,7 @@ pub(crate) fn remark(ai: &Ai, game: &mut Game, events: &mut Vec<Event>, to: Play
     );
 }
 
-/// Once a turn, after the talk with the other wizards.
+/// Once a turn, after the answers to what the others have proposed.
 pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     {
@@ -298,9 +298,8 @@ pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         }
     }
     let scene = Scene::new(game, me);
-    // The peace score offers peace where it says so (`diplo_b.rs`); the enemy and the friends come from the
-    // three values (`diplo_b_stance.rs`).
-    crate::diplo_b::wars(ai, game, events, &scene);
+    // The enemy comes from the three values (`diplo_b_stance.rs`); what is said to the others comes at
+    // the end of the turn (`diplo_b_talk::approach`).
     crate::diplo_b_stance::run(ai, game, events, &scene);
 }
 

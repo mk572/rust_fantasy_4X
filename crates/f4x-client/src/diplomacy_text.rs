@@ -90,6 +90,11 @@ pub fn accepted(texts: &Texts, kind: ProposalKind, salt: usize) -> String {
         ProposalKind::Trade { .. } => line(texts, "diplomacy.accepted_trade"),
         ProposalKind::Threat => line(texts, "diplomacy.accepted_threat"),
         ProposalKind::Demand { .. } => line(texts, "diplomacy.gold_thanks"),
+        ProposalKind::WarPrice { .. } => line(texts, "diplomacy.accepted_war"),
+        ProposalKind::MapExchange => line(texts, "diplomacy.accepted_maps"),
+        ProposalKind::TradePact => line(texts, "diplomacy.accepted_trade_pact"),
+        ProposalKind::ResearchPact => line(texts, "diplomacy.accepted_research_pact"),
+        ProposalKind::Priced { deal, .. } => accepted(texts, deal.kind(), salt),
     }
 }
 
@@ -109,6 +114,11 @@ pub fn refused(texts: &Texts, kind: ProposalKind, level: usize, salt: usize) -> 
         ProposalKind::Trade { .. } => line(texts, "diplomacy.refused_trade"),
         ProposalKind::Threat => line(texts, "diplomacy.refused_threat"),
         ProposalKind::Demand { .. } => line(texts, "diplomacy.refused_threat"),
+        ProposalKind::WarPrice { .. } => line(texts, "diplomacy.refused_war_price"),
+        ProposalKind::MapExchange => line(texts, "diplomacy.refused_maps"),
+        ProposalKind::TradePact => line(texts, "diplomacy.refused_trade_pact"),
+        ProposalKind::ResearchPact => line(texts, "diplomacy.refused_research_pact"),
+        ProposalKind::Priced { deal, .. } => refused(texts, deal.kind(), level, salt),
     }
 }
 

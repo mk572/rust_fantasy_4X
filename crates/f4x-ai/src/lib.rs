@@ -13,6 +13,7 @@ mod alchemy;
 mod assault;
 mod assembly;
 mod attack;
+mod bargain;
 pub mod battle;
 mod bridge;
 mod budget;
@@ -25,6 +26,7 @@ mod diplo_b_stance;
 mod diplo_b_talk;
 mod diplomacy;
 mod dispatch;
+mod econ_pact;
 mod economy;
 mod enchant_road;
 mod escort;
@@ -33,6 +35,7 @@ mod forge;
 mod garrison;
 mod intent;
 mod lever;
+mod map_swap;
 mod meld;
 mod memory;
 mod military;
@@ -66,6 +69,7 @@ mod testworld;
 mod trade;
 mod view;
 mod war;
+mod war_call;
 mod war_plan;
 mod wizardry;
 
@@ -636,7 +640,7 @@ impl Ai {
         }
         self.memory.put().look(game, self.player, game.round());
         diplomacy::answer(self, game, &mut events);
-        diplo_b_talk::negotiate(self, game, &mut events);
+        diplo_b_talk::judge_trespass(self, game, &mut events);
         statecraft::run(self, game, &mut events);
         offer::answer(self, game, &mut events);
         offer::equip(self, game, &mut events);
@@ -668,9 +672,9 @@ impl Ai {
         economy::cities(self, game, &mut events);
         road::build_engineer(self, game, &mut events);
         shortfall::run(self, game, &mut events);
-        // What it has to say to the human comes last: a war declared here leaves the human a
-        // turn before the first attack, and the turn waits for the answer to a proposal.
-        diplo_b_talk::approach_human(self, game, &mut events);
+        // What it has to say to the others comes last: a war declared here leaves the other a
+        // turn before the first attack, and the turn waits for a human's answer to a proposal.
+        diplo_b_talk::approach(self, game, &mut events);
         events
     }
 

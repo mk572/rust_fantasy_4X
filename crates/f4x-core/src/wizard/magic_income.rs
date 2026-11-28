@@ -37,6 +37,10 @@ pub(crate) trait IncomeView {
     }
     /// Mana the lasting spells and summoned creatures cost per turn, before a Channeler's half.
     fn upkeep_total(&self, player: PlayerId) -> i32;
+    /// The wizards this one has a research pact with.
+    fn research_partners(&self, _player: PlayerId) -> Vec<PlayerId> {
+        Vec::new()
+    }
     /// A computer wizard's difficulty bonus on the power of its nodes, in percent.
     fn node_percent(&self, _player: PlayerId) -> i32 {
         100
@@ -52,7 +56,7 @@ pub struct Income {
     pub city_research: i32,
     /// The power base split by the wizard's percentages.
     pub split: PowerShares,
-    /// Research points paid at the next turn change, with bonuses.
+    /// Research points paid at the next turn change, with bonuses and what research pacts add.
     pub research: i32,
     /// Mana per turn to keep lasting spells and summoned creatures going.
     pub mana_upkeep: HalfInt,
@@ -83,8 +87,8 @@ fn mana_upkeep(view: &impl IncomeView, player: PlayerId) -> HalfInt {
     HalfInt::from_raw(view.upkeep_total(player).saturating_mul(2) * percent / 100)
 }
 
-/// Everything the wizard earns (zero power while the Spell of Return is cast or mana is short) and owes, with the cities asked once.
-pub(crate) fn income(view: &impl IncomeView, player: PlayerId) -> Income {
+/// What the wizard's power comes to, split, and what it researches by itself.
+fn earnings(view: &impl IncomeView, player: PlayerId) -> Income {
     let (city_mana, city_research) = view.city_yield(player);
     let casting_return = view.casting_return(player);
     let power_base = if casting_return || view.mana_is_short() {
@@ -107,14 +111,43 @@ pub(crate) fn income(view: &impl IncomeView, player: PlayerId) -> Income {
     let research = view.wizard(player).map_or(split.research.max(0), |m| {
         m.research_income(view.content(), &split)
     });
-    let mana_upkeep = mana_upkeep(view, player);
     Income {
         power_base,
         city_research,
         split,
         research,
-        mana_upkeep,
+        mana_upkeep: HalfInt::ZERO,
     }
+}
+
+/// What the research pact with `partner` adds to the research of `player`, who researches `own`
+/// by itself: a percent of what the two research together, more for each book of a realm both hold.
+fn pact_research(view: &impl IncomeView, player: PlayerId, partner: PlayerId, own: i32) -> i32 {
+    let (Some(a), Some(b)) = (view.wizard(player), view.wizard(partner)) else {
+        return 0;
+    };
+    let shared: i32 = crate::rules::BOOK_REALMS
+        .iter()
+        .map(|&realm| a.books_in(realm).min(b.books_in(realm)))
+        .sum();
+    let rules = &view.content().rules.config.diplomacy;
+    let percent = rules.research_pact_percent + rules.research_pact_book_percent * shared;
+    (own + earnings(view, partner).research).max(0) * percent / 100
+}
+
+/// Everything the wizard earns (zero power while the Spell of Return is cast or mana is short) and owes, with the cities asked once.
+pub(crate) fn income(view: &impl IncomeView, player: PlayerId) -> Income {
+    let mut income = earnings(view, player);
+    if !view.casting_return(player) {
+        let own = income.research;
+        income.research += view
+            .research_partners(player)
+            .into_iter()
+            .map(|partner| pact_research(view, player, partner, own))
+            .sum::<i32>();
+    }
+    income.mana_upkeep = mana_upkeep(view, player);
+    income
 }
 
 /// [`IncomeView`] over a whole game.
@@ -124,6 +157,13 @@ impl IncomeView for WorldIncome<'_> {
     fn node_percent(&self, player: PlayerId) -> i32 {
         crate::player::component::<crate::player::Bonus>(&self.0.ecs, player)
             .map_or(100, |b| b.mana)
+    }
+
+    fn research_partners(&self, player: PlayerId) -> Vec<PlayerId> {
+        if !self.0.settings.rules.expanded_diplomacy {
+            return Vec::new();
+        }
+        self.0.diplomacy.research_partners(player).collect()
     }
 
     fn wizard(&self, player: PlayerId) -> Option<Wizard<'_>> {

@@ -130,6 +130,8 @@ pub(crate) fn from_old(text: &str, game_version: &str) -> Result<SaveFile, LoadE
                     status: p.status,
                     war_age: p.war_since.map(|since| round.saturating_sub(since)),
                     war_cities: p.war_cities,
+                    trade_pact: false,
+                    research_pact: false,
                 };
                 (a, b, pair)
             })

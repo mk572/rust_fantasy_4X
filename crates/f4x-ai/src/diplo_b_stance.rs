@@ -156,8 +156,8 @@ fn choose_enemy(
         .map(|(_, p)| (p, round))
 }
 
-/// Once a turn (`statecraft::run`): look at the others now and then, choose the enemy, declare
-/// the war, court the friends.
+/// Once a turn (`statecraft::run`): look at the others now and then, choose the enemy and declare
+/// the war. The friends are courted at the end of the turn (`diplo_b_talk::approach`).
 pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, scene: &Scene) {
     let me = ai.player;
     let k = game.levers().diplomacy_b;
@@ -179,14 +179,6 @@ pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, scene: 
     ai.memory.put().enemy = chosen;
     if let Some((enemy, _)) = chosen {
         declare(ai, game, events, scene, enemy, reaches(enemy));
-    }
-    for &w in &scene.others {
-        if Some(w) == chosen.map(|(e, _)| e) || game.treaty(me, w) == Treaty::War {
-            continue;
-        }
-        if game.human() != Some(w) {
-            court(ai, game, events, w, reaches(w));
-        }
     }
 }
 
@@ -276,14 +268,8 @@ fn declare(
 }
 
 /// Court a wizard that is no enemy by its friend value: a pact, then an alliance, or a gift where the
-/// relation is too low for a pact; once in `court_cool` turns.
-pub(crate) fn court(
-    ai: &Ai,
-    game: &mut Game,
-    events: &mut Vec<Event>,
-    other: PlayerId,
-    reachable: bool,
-) {
+/// relation is too low for a pact; once in `court_cool` turns. Whether something was done.
+pub(crate) fn court(ai: &Ai, game: &mut Game, events: &mut Vec<Event>, other: PlayerId) -> bool {
     let me = ai.player;
     let k = game.levers().diplomacy_b;
     let (friend, due) = {
@@ -292,13 +278,14 @@ pub(crate) fn court(
         let due = memory
             .with(other)
             .is_none_or(|d| d.courted == 0 || game.round() >= d.courted + k.court_cool);
+        // Reach counts for the enemy value only.
         (
-            values(game, me, other, &scene, &memory, reachable, game.round()).friend,
+            values(game, me, other, &scene, &memory, false, game.round()).friend,
             due,
         )
     };
     if !due || friend < k.gift_min {
-        return;
+        return false;
     }
     let relation = ai.memory.get().friendship(game, me, other);
     let rules = &game.content().rules.config.diplomacy;
@@ -321,6 +308,7 @@ pub(crate) fn court(
     if done {
         ai.memory.put().courted(other, game.round());
     }
+    done
 }
 
 #[cfg(test)]

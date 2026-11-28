@@ -70,13 +70,8 @@ peace_wish = weariness
   leader, +15 for the others while at war with it).
 * **Offer** at `OFFER` (80) with a cool-down of `COOL` (15) turns for each wizard, kept in the memory; **accept** at
   `ACCEPT` (60). The dice are gone from the decision.
-* **Where it plugs in:** `statecraft::run` calls `diplo_b::wars` in place of `statecraft::wars`;
-  `diplomacy::rate` answers a peace by `diplo_b::accepts` from the judge's memory (in place of `peace_ok`);
-  `diplomacy::negotiate` makes no peace roll for B; `approach_human` offers the human peace by `offer_due`. The
-  dominant war, appeasing and the coalition of A are replaced by part 2 below; the hate rolls, the warnings and
-  the human-directed parts are still A's.
-* **What a B wizard asks of an A wizard** is answered by A's rules, and the other way round: the two systems meet in
-  one game through the same proposals.
+* **Where it plugs in:** `diplo_b_talk::approach` offers peace by `offer_due`; a peace is answered by the score
+  from the judge's memory (`diplo_b_talk::shortfall`).
 
 By arithmetic (not measured), a stalled war between equals with nothing in it reaches the accept mark after about
 a hundred quiet turns and the offer mark after about a hundred and twenty-five, moved by 10 or so either way by the
@@ -85,9 +80,8 @@ friendship and the temper; a lost war reaches both much sooner. These are guesse
 
 ## What is built (task 763: friends and enemies)
 
-`diplo_b_stance.rs`, run from `statecraft::run` for B in place of A's appeasing, coalition and dominant war (and
-`diplomacy::quarrel` is not called for B; `approach_human` does not ask for pacts for B). Every `REVIEW` (5)
-turns each other wizard gets `Values { enemy, friend }`:
+`diplo_b_stance.rs`, run from `statecraft::run` (the wars) and from `diplo_b_talk::approach` (courting). Every
+`REVIEW` (5) turns each other wizard gets `Values { enemy, friend }`:
 
 * **enemy** = prey (weaker and reachable, up to `PREY_VALUE` 60) + `HOSTILE_PCT` of the ill will + `LEADER_ENEMY` for
   the leader + `MASTERY_ENEMY` for the Mastery caster + `AT_WAR` for the one already fought + half the fear if the
@@ -130,11 +124,34 @@ chance (24 seeds at 3 wizards, 400 turns, is the first run).
 * **A threat**: a wizard that fears the asker (`YIELD_FEAR`) pays and yields, one clearly stronger than the asker declares war,
   else it refuses. **A demand** is yielded to by one that fears the asker. **A trade** is by worth (`trade.rs`).
 * **Peace** is the peace score (`peace_wish`). Nothing is rolled.
-* **To the human** (`approach_human`, at the end of the wizard's own turn, which waits for the human's answer to a
-  proposal): peace by `offer_due`; war on someone it hates
-  (`WAR_BELOW`) with no treaty; a warning to a partner whose friendship fell to `WARN_BELOW` (every `WARN_COOL` turns) and the
-  treaty broken at `BREAK_BELOW`; courting (pacts, alliances, a gift for a low relation) by `court`; a demand of gold from
-  a weaker player it dislikes (every `DEMAND_COOL` turns); a gift from a close friend with a treaty (`GIFT_FRIEND`, every
-  `GIFT_COOL` turns). The wars it picks on its own turn come from the enemy value (`diplo_b_stance::run`), which also counts
-  an ally's war (`ALLY_WAR`), so an ally joins the wars of its friend.
-* Among the AIs, trades are offered every `TRADE_COOL` turns (`negotiate`).
+* **Counter-offers** (`bargain.rs`): how many points a wizard is short of a pact, an alliance or a peace
+  (`shortfall`) is worth `GOLD_PER_POINT` gold each. Short by at most `COUNTER_REACH`, it names a price (gold, or a
+  thing and the gold that makes it up); with points to spare it pays up to their worth for what a priced offer asks of
+  it; further short, it refuses whatever is offered. A price that covers the shortfall is accepted.
+* **Approaching** (`approach`, at the end of the wizard's own turn, which waits for the answer to a proposal), every
+  other player alike, computer or human: peace by `offer_due`; war on someone it hates (`WAR_BELOW`) with no treaty; the
+  treaty broken at `BREAK_BELOW`; a warning to a partner whose friendship fell to `WARN_BELOW` (every `WARN_COOL`
+  turns). Then at most one of: courting (pacts, alliances, a gift for a low relation) by `court`, a demand of gold from
+  a weaker player it dislikes (every `DEMAND_COOL` turns), a gift from a close friend with a treaty (`GIFT_FRIEND`,
+  every `GIFT_COOL` turns); else a trade (every `TRADE_COOL` turns). The wars it picks on its own turn come from the
+  enemy value (`diplo_b_stance::run`), which also counts an ally's war (`ALLY_WAR`), so an ally joins the wars of its
+  friend.
+* **Call to arms** (`war_call.rs`, `diplomacy.md` section 6): the friendship for the caller, the temper and the enemy
+  value of the third make the support for the war (`war_support`; a war the ally is already in counts as enough), and at
+  `WAR_ACCEPT` it joins. Short by at most `COUNTER_REACH`, it names a price once (`GOLD_PER_POINT` gold for each point,
+  at least the least price of a trade). Else, or when the price is not paid, it joins for a caller it feels at least
+  the rules' `alliance_relation` for and refuses the rest. It never joins against one much stronger
+  (`TOO_STRONG_PCT`). As the caller it pays a price it can spend and would part with, worth at most
+  `COUNTER_REACH` x `GOLD_PER_POINT`, and thinks `CALL_PRICE_PENALTY` less of the ally that asked.
+* **World maps** (`map_swap.rs`, the setting `expanded_diplomacy`): it takes a swap when the other's map shows it
+  something new and it has explored less than `MAP_REFUSE_PCT` percent (three times) of the squares the other has. It
+  offers one to a partner whose map would show it at least `MAP_LEAST_NEWS` squares and that it would take a swap
+  with, at most every `MAP_COOL` turns for each, when it has nothing else to put to that player. To judge this it reads
+  how much the other has explored and how much of that it lacks, which the human is not shown.
+* **Trade and research pacts** (`econ_pact.rs`): both sides gain, so it takes either from any treaty partner. It
+  offers one the two lack, research first, to a partner it has nothing else to put to, at most every `PACT_COOL` turns
+  for each.
+* **Calling** (`approach`): a wizard at war calls an ally that is not in that war, against the strongest such enemy
+  with at least `CALL_ENEMY_PCT` percent of its own power, at most every `CALL_COOL` turns for each ally.
+* **Trespass** (`judge_trespass`, `diplomacy.md` section 6): at the last warning it declares war at
+  `TRESPASS_WAR_BELOW` (from `FROM_TURN`), breaks the treaty at `TRESPASS_BREAK_BELOW`, else overlooks it.

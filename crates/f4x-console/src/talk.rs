@@ -2,7 +2,7 @@
 //!
 //! Tests: in `tests.rs`, through the console.
 
-use f4x_core::diplomacy::{DiplomacyCommand, DiplomacyError, Goods, ProposalKind, Treaty};
+use f4x_core::diplomacy::{Deal, DiplomacyCommand, DiplomacyError, Goods, ProposalKind, Treaty};
 use f4x_core::player::PlayerId;
 use f4x_core::world::Command;
 
@@ -30,6 +30,20 @@ pub const TABLE: &[CommandDef] = &[
         usage: "answer <wizard> <yes|no>",
         help: "Answer the proposal that wizard made you.",
         run: answer,
+    },
+    CommandDef {
+        name: "counter",
+        kind: Kind::Legal,
+        usage: "counter <wizard> <you give> <you get>",
+        help: "Answer that wizard's proposal with your own: a trade with another trade, a pact, an alliance or peace with a price for it, an ally's call to war with the price you ask for joining (you give -). Each side is a gold amount, a spell, or - for nothing.",
+        run: counter,
+    },
+    CommandDef {
+        name: "overlook",
+        kind: Kind::Legal,
+        usage: "overlook <wizard>",
+        help: "At the last warning for a partner's units near your cities, let it pass (else breaktreaty or declarewar).",
+        run: overlook,
     },
     CommandDef {
         name: "breaktreaty",
@@ -132,6 +146,14 @@ fn diplomacy(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             relation_word(rel),
             treaty_word(ctx.game.treaty(me, w))
         ));
+        for (held, pact) in [
+            (ctx.game.diplomacy.has_trade_pact(me, w), "trade pact"),
+            (ctx.game.diplomacy.has_research_pact(me, w), "research pact"),
+        ] {
+            if held {
+                ctx.say(format!("  in force: {pact}"));
+            }
+        }
         if a.get(0).is_some() {
             let can = |k| ctx.game.check_proposal(me, w, k).is_ok();
             let mut offers = Vec::new();
@@ -139,6 +161,9 @@ fn diplomacy(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
                 ("pact", ProposalKind::Pact),
                 ("alliance", ProposalKind::Alliance),
                 ("peace", ProposalKind::Peace),
+                ("maps", ProposalKind::MapExchange),
+                ("tradepact", ProposalKind::TradePact),
+                ("researchpact", ProposalKind::ResearchPact),
             ] {
                 if can(kind) {
                     offers.push(word);
@@ -165,14 +190,25 @@ fn diplomacy(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
                 crate::describe::player(ctx.game, p.from),
                 crate::describe::player(ctx.game, p.to),
             );
+            let call = if ctx.game.is_call_to_arms(*p) {
+                " (a call to arms: answering no ends the alliance)"
+            } else {
+                ""
+            };
             format!(
-                "waiting: {from} to {to}: {}",
+                "waiting: {from} to {to}: {}{call}",
                 crate::describe::proposal(ctx.game, p.kind)
             )
         })
         .collect();
     for line in waiting {
         ctx.say(line);
+    }
+    for intruder in ctx.game.trespass_choices(me) {
+        let name = crate::describe::player(ctx.game, intruder);
+        ctx.say(format!(
+            "{name}'s units are near your cities after the last warning: breaktreaty, declarewar or overlook"
+        ));
     }
     Ok(())
 }
@@ -181,12 +217,15 @@ fn propose(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let to = ctx.other_wizard(a, 0)?;
     let kind = match a.need(
         1,
-        "pact, alliance, peace, threat, war, break, swap, buy or sell",
+        "pact, alliance, peace, threat, war, break, maps, tradepact, researchpact, swap, buy or sell",
     )? {
         "pact" => ProposalKind::Pact,
         "alliance" => ProposalKind::Alliance,
         "peace" => ProposalKind::Peace,
         "threat" => ProposalKind::Threat,
+        "maps" => ProposalKind::MapExchange,
+        "tradepact" => ProposalKind::TradePact,
+        "researchpact" => ProposalKind::ResearchPact,
         "war" => ProposalKind::WarOn(ctx.other_wizard(a, 2)?),
         "break" => ProposalKind::BreakAllianceWith(ctx.other_wizard(a, 2)?),
         "swap" => {
@@ -247,6 +286,55 @@ fn answer(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             accept,
         },
     )
+}
+
+/// One side of a counter: gold, a spell or `-` for nothing.
+fn side(ctx: &Ctx, a: &Args, i: usize, name: &str) -> Result<Goods, ConsoleError> {
+    let word = a.need(i, name)?;
+    if word == "-" {
+        return Ok(Goods::NONE);
+    }
+    if let Ok(gold) = word.parse::<i32>() {
+        return Ok(Goods::gold(gold));
+    }
+    let spells = &ctx.game.content().rules.spells;
+    Ok(Goods::spell(resolve(spells, word, |d| &d.id, "spell")?))
+}
+
+fn counter(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let from = ctx.other_wizard(a, 0)?;
+    let player = ctx.session.player;
+    let give = side(ctx, a, 1, "what you give")?;
+    let get = side(ctx, a, 2, "what you get")?;
+    let waiting = ctx
+        .game
+        .diplomacy
+        .proposals()
+        .iter()
+        .find(|p| p.from == from && p.to == player)
+        .ok_or_else(|| {
+            ConsoleError::Refused(error_word(DiplomacyError::NothingPending).to_string())
+        })?;
+    let kind = match (waiting.kind, Deal::of(waiting.kind)) {
+        (_, Some(deal)) => ProposalKind::Priced { deal, give, get },
+        // The price of joining a war: the caller gives it, the one that answers gives nothing.
+        (ProposalKind::WarOn(third), None) if give.is_empty() => {
+            ProposalKind::WarPrice { third, price: get }
+        }
+        (ProposalKind::WarOn(_), None) => {
+            return Err(ConsoleError::Refused(
+                error_word(DiplomacyError::NotAllowed).to_string(),
+            ))
+        }
+        _ => ProposalKind::Trade { give, get },
+    };
+    talk(ctx, DiplomacyCommand::Counter { player, from, kind })
+}
+
+fn overlook(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let with = ctx.other_wizard(a, 0)?;
+    let player = ctx.session.player;
+    talk(ctx, DiplomacyCommand::Overlook { player, with })
 }
 
 fn breaktreaty(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {

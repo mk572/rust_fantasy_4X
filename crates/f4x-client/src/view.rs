@@ -1757,6 +1757,7 @@ impl App {
             }
         }
         self.queue_proposal();
+        self.queue_trespass();
         self.queue_offer();
         if !self.modals.is_empty() && !matches!(self.screen, Screen::Console) {
             return self.modal_frame(input) && !self.quit;

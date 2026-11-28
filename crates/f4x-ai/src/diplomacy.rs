@@ -1,9 +1,11 @@
-//! The AI's side of the talk: it answers the proposals made to it (`diplo_b_talk::rate`).
+//! The AI's side of the talk: it answers the proposals made to it, accepting, refusing or countering
+//! (`trade.rs`, `bargain.rs`, `war_call.rs`, `diplo_b_talk::rate`, which asks `map_swap.rs`).
 
-use f4x_core::diplomacy::{DiplomacyCommand, ProposalKind};
+use f4x_core::diplomacy::{Deal, DiplomacyCommand, ProposalKind};
 use f4x_core::player::view::PlayerView;
 use f4x_core::world::{Command, Event};
 
+use crate::trade::Reply;
 use crate::Ai;
 use f4x_master::Game;
 
@@ -12,45 +14,41 @@ use f4x_master::Game;
 pub(crate) fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let pending = PlayerView::new(game, ai.player).proposals_to_me();
     for proposal in pending {
-        if matches!(proposal.kind, ProposalKind::Trade { .. }) {
-            match crate::trade::respond(game, &ai.minds(), ai.player, proposal) {
-                crate::trade::Reply::Counter(kind) => {
-                    let sent = ai.send(
-                        game,
-                        Command::Diplomacy(DiplomacyCommand::Counter {
-                            player: ai.player,
-                            from: proposal.from,
-                            kind,
-                        }),
-                        events,
-                    );
-                    if sent.is_ok() {
-                        continue;
-                    }
-                }
-                reply => {
-                    ai.order(
-                        game,
-                        Command::Diplomacy(DiplomacyCommand::Answer {
-                            player: ai.player,
-                            from: proposal.from,
-                            accept: reply == crate::trade::Reply::Accept,
-                        }),
-                        events,
-                    );
-                    continue;
+        let reply = match (proposal.kind, Deal::of(proposal.kind)) {
+            (ProposalKind::Trade { .. }, _) => {
+                crate::trade::respond(game, &ai.minds(), ai.player, proposal)
+            }
+            (_, Some(deal)) => crate::bargain::respond(game, &ai.minds(), proposal, deal),
+            (ProposalKind::WarOn(third), _) if game.is_call_to_arms(proposal) => {
+                crate::war_call::respond(game, &ai.minds(), proposal, third)
+            }
+            (kind, None) => {
+                match crate::diplo_b_talk::rate(game, proposal.from, ai.player, kind, &ai.minds()) {
+                    Verdict::Accepted => Reply::Accept,
+                    Verdict::Refused => Reply::Reject,
                 }
             }
+        };
+        if let Reply::Counter(kind) = reply {
+            let sent = ai.send(
+                game,
+                Command::Diplomacy(DiplomacyCommand::Counter {
+                    player: ai.player,
+                    from: proposal.from,
+                    kind,
+                }),
+                events,
+            );
+            if sent.is_ok() {
+                continue;
+            }
         }
-        let accept =
-            crate::diplo_b_talk::rate(game, proposal.from, proposal.to, proposal.kind, &ai.minds())
-                == Verdict::Accepted;
         ai.order(
             game,
             Command::Diplomacy(DiplomacyCommand::Answer {
                 player: ai.player,
                 from: proposal.from,
-                accept,
+                accept: reply == Reply::Accept,
             }),
             events,
         );

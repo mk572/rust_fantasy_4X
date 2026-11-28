@@ -96,6 +96,8 @@
     "custom.stronger_lairs": "Stronger lairs and towers (patch 1.50)",
     "custom.treasure_patch_150": "Lair treasure of patch 1.50",
     "custom.suppress_spares_return": "Suppress Magic spares Spell of Return",
+    "custom.expanded_diplomacy": "Expanded diplomacy options",
+    "custom.allied_trespass_penalty": "Diplomatic penalty for trespassing while allied",
     "custom.defaults_title": "Default Game Settings",
     "custom.limit_ai_races": "Limit AI race picks at higher difficulties",
     "custom.ban_life_and_death": "Ban Life and Death books in one wizard",

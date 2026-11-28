@@ -194,6 +194,8 @@ pub struct Economy<'a> {
     pub(crate) content: &'a Content,
     /// The world events going on; none unless [`Economy::with_events`] says otherwise.
     pub(crate) events: &'a crate::world_event::Events,
+    /// Who has trade pacts with whom; none unless the expanded diplomacy options are on.
+    pub(crate) trade_pacts: Option<&'a crate::diplomacy::Diplomacy>,
     /// A diagonal step costs half as much again (`BasicSettings::diagonal_extra_cost`).
     pub(crate) diagonal_extra: bool,
     /// A step between two river squares costs what a road step does (`RuleSettings::river_roads`).
@@ -235,6 +237,7 @@ impl<'a> Economy<'a> {
             map,
             content,
             events: &crate::world_event::NONE,
+            trade_pacts: None,
             diagonal_extra: false,
             river_roads: false,
             settlers_cost_citizen: true,
@@ -248,6 +251,12 @@ impl<'a> Economy<'a> {
             ship_room: None,
             own_cities: None,
         }
+    }
+
+    /// The same view with the trade pacts of the game.
+    pub fn with_trade_pacts(mut self, pacts: Option<&'a crate::diplomacy::Diplomacy>) -> Self {
+        self.trade_pacts = pacts;
+        self
     }
 
     /// The same view with the game's limit of units on one square.
@@ -659,8 +668,9 @@ impl<'a> Economy<'a> {
             .is_ok_and(|b| b.0.contains(&building))
     }
 
-    /// Total weight of citizens in cities road-connected to `at` (other races count fully,
-    /// the same race half): the trade that boosts gold.
+    /// The trade of the cities road-connected to `at`, in percent: one for each citizen of another
+    /// race and half for the same race, or `trade_pact_percent` for each citizen of a city whose
+    /// owner has a trade pact with the owner of this one.
     fn road_trade(
         &self,
         city: hecs::Entity,
@@ -691,14 +701,26 @@ impl<'a> Economy<'a> {
                 }
             }
         }
+        let owner = self.city_owner(city);
+        let pact_percent = self.content.rules.config.diplomacy.trade_pact_percent;
         let mut total = 0;
-        for (e, _, p) in self.cities() {
+        for (e, c, p) in self.cities() {
             if e == city || p.plane != at.plane || !seen.contains(&(p.x, p.y)) {
                 continue;
             }
             let pop = self.ecs.get::<&Population>(e).map_or(0, |p| p.figures) as i32;
             let other = self.ecs.get::<&CityRace>(e).ok().map(|r| r.0);
-            total += if other == race { pop / 2 } else { pop };
+            let partner = self
+                .trade_pacts
+                .zip(owner)
+                .is_some_and(|(pacts, o)| pacts.has_trade_pact(o, c.owner));
+            total += if partner {
+                pop * pact_percent
+            } else if other == race {
+                pop / 2
+            } else {
+                pop
+            };
         }
         total
     }
@@ -1305,8 +1327,8 @@ impl<'a> Economy<'a> {
     }
 
     /// The percent of the gold a site's trade adds: shore 10, river 20, river mouth 30
-    /// (`Square_Gold_Bonus` in the original), the roads and the race, at most 3 percent for each
-    /// citizen.
+    /// (`Square_Gold_Bonus` in the original), the roads and the race, at most `trade_cap_percent`
+    /// for each citizen, and `trade_pact_cap_percent` more for each trade pact of the owner.
     pub(crate) fn site_trade_percent(
         &self,
         city: hecs::Entity,
@@ -1336,7 +1358,16 @@ impl<'a> Economy<'a> {
             (true, true) => 30,
         } + self.road_trade(city, at, race_id)
             + race.map_or(0, |r| r.trade_percent))
-        .min(figures as i32 * 3)
+        .min(figures as i32 * self.trade_cap_per_citizen(city))
+    }
+
+    fn trade_cap_per_citizen(&self, city: hecs::Entity) -> i32 {
+        let rules = &self.content.rules.config.diplomacy;
+        let pacts = self
+            .trade_pacts
+            .zip(self.city_owner(city))
+            .map_or(0, |(d, owner)| d.trade_partners(owner).count());
+        rules.trade_cap_percent + rules.trade_pact_cap_percent * pacts as i32
     }
 
     /// Gold the buildings of a city cost to maintain (replaced buildings are free).
@@ -1410,6 +1441,12 @@ impl World {
     pub fn economy(&self) -> Economy<'_> {
         Economy::new(&self.ecs, self.map.as_ref(), &self.content)
             .with_events(&self.events)
+            .with_trade_pacts(
+                self.settings
+                    .rules
+                    .expanded_diplomacy
+                    .then_some(&self.diplomacy),
+            )
             .with_diagonal_extra(self.settings.basic.diagonal_extra_cost)
             .with_river_roads(self.settings.rules.river_roads)
             .with_settlers_cost_citizen(self.settings.rules.settlers_cost_citizen)

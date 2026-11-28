@@ -15,7 +15,7 @@ column. It is a text search, so a row can be a false alarm (a pure function give
 input) and a made-up situation built another way (a number written onto a unit) is not found.
 The `Decision` column is for the walk through the list.
 
-**Part 1: 12 tests. Part 2: 0 tests. Of 2090 in all.**
+**Part 1: 12 tests. Part 2: 0 tests. Of 2326 in all.**
 
 # Part 1: made-up units, battles, spells and rule sets
 
@@ -35,8 +35,8 @@ The `Decision` column is for the walk through the list.
 
 | Test | Line | What is made up | Through | Decision |
 |---|---|---|---|---|
-| `a_key_no_type_has_is_refused_wherever_it_is_put` | 675 | hand-built definition (struct literal) | itself | |
-| `a_file_with_more_rows_than_a_table_holds_is_an_error_and_not_a_panic` | 784 | hand-built definition (struct literal) | itself | |
+| `a_key_no_type_has_is_refused_wherever_it_is_put` | 676 | hand-built definition (struct literal) | itself | |
+| `a_file_with_more_rows_than_a_table_holds_is_an_error_and_not_a_panic` | 785 | hand-built definition (struct literal) | itself | |
 
 ## `crates/f4x-def/tests/it/c4_values.rs` (9)
 

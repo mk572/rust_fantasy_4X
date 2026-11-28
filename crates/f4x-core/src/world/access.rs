@@ -54,6 +54,12 @@ impl World {
             .sum()
     }
 
+    /// How many squares `from` has explored that `to` has not: what a map of `from`'s would show
+    /// `to`.
+    pub fn map_news(&self, from: PlayerId, to: PlayerId) -> usize {
+        self.fog.news(from, to)
+    }
+
     /// The random events that are going on.
     pub fn events(&self) -> &crate::world_event::Events {
         &self.events

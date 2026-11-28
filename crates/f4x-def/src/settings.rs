@@ -562,6 +562,16 @@ pub struct RuleSettings {
     /// Patch 1.40 (IW114): an enemy's Suppress Magic does not counter the Spell of Return.
     #[serde(default = "fb_suppress_spares_return")]
     pub suppress_spares_return: bool,
+    /// Whether an ally's units near a wizard's cities are held against it: on, an ally is warned
+    /// and the wizard chooses at the last warning, as with a wizard pact (the original's rule). Off,
+    /// allies may move through each other's land (the default in every rule set).
+    #[serde(default = "fb_allied_trespass_penalty")]
+    pub allied_trespass_penalty: bool,
+    /// Whether diplomacy offers what the original does not have, such as an exchange of world
+    /// maps (`docs/diplomacy.md`, "Expanded diplomacy options"). Off under v1.31, on in the
+    /// other rule sets.
+    #[serde(default = "fb_expanded_diplomacy")]
+    pub expanded_diplomacy: bool,
     /// The original's limit on the races of the computer wizards above Normal difficulty: on,
     /// an AI wizard on Arcanus is Klackon, High Elf, Halfling, High Men or Nomad (`Generate_Home_Cities`);
     /// off, any Arcanus race. Myrror races are never limited. Off by default in both rule sets
@@ -803,6 +813,16 @@ fn fb_treasure_patch_150() -> bool {
     fallback("treasure_patch_150", |g| g.rules.treasure_patch_150)
 }
 
+fn fb_allied_trespass_penalty() -> bool {
+    fallback("allied_trespass_penalty", |g| {
+        g.rules.allied_trespass_penalty
+    })
+}
+
+fn fb_expanded_diplomacy() -> bool {
+    fallback("expanded_diplomacy", |g| g.rules.expanded_diplomacy)
+}
+
 fn fb_suppress_spares_return() -> bool {
     fallback("suppress_spares_return", |g| g.rules.suppress_spares_return)
 }
@@ -1015,6 +1035,8 @@ impl RuleSet {
                 miners_guild_half_ore: true,
                 spell_binding_always_succeeds: true,
                 suppress_spares_return: true,
+                // Not the patch's: our own offers come with the newer rule sets.
+                expanded_diplomacy: true,
                 ..base.rules
             },
             ..base

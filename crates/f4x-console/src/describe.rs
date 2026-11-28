@@ -661,7 +661,21 @@ pub fn proposal(world: &World, kind: f4x_core::diplomacy::ProposalKind) -> Strin
             goods(world, give)
         ),
         K::Threat => "a threat to attack".into(),
+        K::MapExchange => "an exchange of world maps".into(),
+        K::TradePact => "a trade pact".into(),
+        K::ResearchPact => "a research pact".into(),
         K::Demand { gold } => format!("{gold} gold as tribute"),
+        K::WarPrice { third, price } => format!(
+            "joining the war on {} for {}",
+            player(world, third),
+            goods(world, price)
+        ),
+        K::Priced { deal, give, get } => format!(
+            "{} with a price: giving {}, asking {}",
+            proposal(world, deal.kind()),
+            goods(world, give),
+            goods(world, get)
+        ),
     }
 }
 
@@ -733,10 +747,15 @@ fn diplomacy(world: &World, d: &f4x_core::diplomacy::DiplomacyEvent) -> String {
             player(world, *from),
             player(world, *to)
         ),
-        D::Trespassing { owner, intruder } => format!(
-            "{} warns {} to keep its units away from its cities",
+        D::Trespassing {
+            owner,
+            intruder,
+            warning,
+        } => format!(
+            "{} warns {} to keep its units away from its cities (warning {warning} of {})",
             player(world, *owner),
-            player(world, *intruder)
+            player(world, *intruder),
+            world.content().rules.config.diplomacy.trespass_warnings
         ),
         D::SpellGiven { from, to, spell: s } => format!(
             "{} gives {} {}",

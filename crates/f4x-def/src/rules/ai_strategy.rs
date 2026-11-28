@@ -321,7 +321,7 @@ levers!(
         audience_refused_below: i32,
         gift_gold: i32,
         gift_least_gold: i32,
-        human_gift_least_gold: i32,
+        friend_gift_least_gold: i32,
     }
 );
 
@@ -407,6 +407,19 @@ levers!(
         gift_friend: i32,
         yield_fear: i32,
         ally_war: i32,
+        pact_growth: i32,
+        alliance_growth: i32,
+        trespass_break_below: i32,
+        trespass_war_below: i32,
+        counter_reach: i32,
+        gold_per_point: i32,
+        call_cool: u32,
+        call_enemy_pct: i32,
+        call_price_penalty: i32,
+        map_refuse_pct: i32,
+        map_least_news: usize,
+        map_cool: u32,
+        pact_cool: u32,
     }
 );
 
@@ -506,6 +519,8 @@ const SIGNED: &[&str] = &[
     "warn_below",
     "break_below",
     "war_below",
+    "trespass_break_below",
+    "trespass_war_below",
 ];
 
 /// The levers that must be more than 0: the AI divides by them, steps by them, or needs a range.

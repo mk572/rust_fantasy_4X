@@ -243,7 +243,7 @@ Special value `-10000` means "declare this on the record": no numbers change, th
 | Overland enchantment (Spell of Mastery -50, Eternal Night -12, Evil Omens -20 vs Life/Nature wizards, Zombie Mastery -14, Wind Mastery -4, Suppress Magic -4, Time Stop ...) | divided at cast-time divisor | 10, 12 | `Spells128.c` |
 | Aura of Majesty | `+10 / divisor` to everyone | 0 | `Spells128.c` |
 | AI-to-AI friendly gravitation | `+5 + Random(5)` one in 20 turns | 1 | `NPC_To_NPC_Treaty_Negotiations` |
-| Units of another wizard within two squares of a city (not settlers or builders) | pact or alliance: `-Random(5)` and a warning, a turn of grace, then `-5` (the original also breaks both treaties; the game leaves that to the owner); no treaty: 6 percent a turn of `-Random(5)` | 73, 5, 0 | `DIPL_GetOffMyLawn` |
+| Units of another wizard within two squares of a city (not settlers or builders) | pact or alliance: `-Random(5)` and a warning, a turn of grace, then `-5` (the original also breaks both treaties; the game leaves that to the owner, see "Trespassing" in §6); no treaty: 6 percent a turn of `-Random(5)` | 73, 5, 0 | `DIPL_GetOffMyLawn` |
 | Gift of gold or a spell | positive (§4) | direct | talk |
 
 ## 6. War, peace and breaking treaties
@@ -272,6 +272,78 @@ where the code uses a leftover message index for `x` (a bug; intended is probabl
 the other's ally; the game does not (a treaty ends only by a player's decision). In `NPC_To_NPC_Treaty_Negotiations`, an AI allied with another declares war on
 whoever that ally is at war with. `NPC_Required_Alliances`: with 10 percent a turn, an AI ally of
 the human who is at war with another wizard the human is not at war with asks the human to join.
+
+### Trespassing (as built)
+
+At the start of a player's turn the core counts, for every partner of a wizard pact, whether it has units within
+`diplomacy.trespass_distance` squares (`rules.ron`) of one of the player's cities, in sight of the player
+(`diplomacy/trespass.rs`). Allies move through each other's land without warnings, so that they can fight together;
+the setting `allied_trespass_penalty` ("Diplomatic penalty for trespassing while allied", off in every rule set, on is
+the original's rule) counts them too. Settlers and units that can build (engineers) do not count. Each such turn in a row raises
+`DiplomacyEvent::Trespassing { owner, intruder, warning }`; a turn without them starts the count again, as does any
+change of the treaty. At warning `diplomacy.trespass_warnings` the owner has a choice (`World::trespass_choices`):
+`BreakTreaty`, `DeclareWar` or `Overlook`. One left open lapses with the owner's turn. The core decides nothing. Human
+and computer player are treated alike: the client asks the human in a box over the map, the console has `overlook`, and
+the AI judges by its friendship (`diplo_b_talk::judge_trespass`; the levers `trespass_break_below` and
+`trespass_war_below`). The computer player's feeling for the intruder falls at the first and at the last warning.
+Without a treaty there are no warnings; the AI's feeling sours as before. Breaking a treaty over trespass is breaking
+a treaty like any other.
+
+### Counter-offers (as built)
+
+A pact, an alliance, a peace and a trade may be answered with `DiplomacyCommand::Counter`. A counter to a treaty is
+`ProposalKind::Priced { deal, give, get }`: the same treaty with goods (gold, a spell, an item, a unit, a hero) that
+change hands when it is agreed. It names at least one thing, each side must be able to hand over its part, and it can
+be countered again, within the same `diplomacy.max_rounds` as a trade.
+
+### Call to arms (as built)
+
+A request to declare war on a third wizard (`ProposalKind::WarOn`) is a call to arms when the two are allies and the
+one asking is at war with the third (`World::is_call_to_arms`). The ally has three answers:
+
+* **Join**: it declares war on the third.
+* **Refuse**: the alliance ends, broken by the one that refuses, with the usual effect of a broken treaty on what
+  others think of it. A proposal left open lapses with the turn and breaks nothing, as does a refusal of a call that
+  no longer stands (peace made in the meantime).
+* **Name a price** (`DiplomacyCommand::Counter` with `ProposalKind::WarPrice { third, price }`), once for each call.
+  The caller pays, and the ally declares war, or does not: then the call is put again, in place of anything else the
+  caller had waiting with the ally, and only joining and refusing are left.
+
+The caller thinks a little less of an ally that names a price (`diplomacy_b.call_price_penalty`). Human and computer
+player alike: the client asks the human in a box (Join, Break, Price) that no stray click or Esc answers, the console
+uses `answer` and `counter <wizard> - <price>`. Without an alliance and a war of the asker, `WarOn` is a plain request
+that is refused without harm. The original has no price, and its 1.50 patch lets the human refuse at a loss of 50
+relation and keep the alliance (wiki article "Alliance"); both are our own rules here.
+
+### Expanded diplomacy options
+
+The setting `expanded_diplomacy` ("Expanded diplomacy options", Custom screen; off under v1.31, on under v1.6 and the
+MK mod) turns on the offers the original does not have. Off, none of them can be made.
+
+**Exchange of world maps** (`ProposalKind::MapExchange`). Partners of a wizard pact or an alliance may swap maps: when
+it is agreed, each learns every square the other has explored, on both planes (`Fog::share`). It is exploration, not
+sight: the land, cities, nodes, lairs, towers and roads there show, units on the map do not, and no one is met by it.
+The city screen of a city learned this way lists its garrison, as for any explored city. The client offers it under
+"Exchange", beside the spells; the console as `propose <wizard> maps`. The computer player's answer and offers:
+`docs/ai-diplomacy-b.md`.
+
+**Trade and research pacts** (`ProposalKind::TradePact`, `ResearchPact`). Both are agreed between partners of a wizard
+pact or an alliance, once for each pair, and stand as long as that treaty does: breaking it, war and the defeat of a
+side end them (`Pair` keeps them, saved with the game). The figures are in `rules.ron`, `diplomacy`.
+
+* **Trade pact**, with a wizard or a neutral race. For each of the two, a town's road-connected trade counts
+  `trade_pact_percent` (2%) for each citizen of a connected town of the partner, in place of 1% (another race) or ½%
+  (the same race). Apart from that, every town of the owner may earn up to `trade_cap_percent` (3%) for each of its
+  citizens, and `trade_pact_cap_percent` (1%) more for **each** trade pact the owner holds, whether or not a road leads
+  to that partner. The cap covers all the trade of the site: shore, river, roads and the Nomads' bonus.
+* **Research pact**, between wizards only. At each turn change both get the same extra research:
+  `research_pact_percent` (3%) of what the two research together, and `research_pact_book_percent` (1%) more for each
+  **shared book**: of every realm, the books both hold (the smaller of the two numbers). "What the two research" is
+  each one's own research as the Magic screen gives it without any pact, so pacts do not compound. A wizard casting the
+  Spell of Return gets nothing from a pact.
+
+The client offers them under "Propose Treaty", "Trade and Research"; the console as `propose <wizard> tradepact` and
+`researchpact` (`diplomacy <wizard>` shows what is in force).
 
 ## 7. The turn
 
@@ -365,11 +437,9 @@ score of section 7 step 4 decides an alliance (above 150 with relation above 50)
 (`peace_patience + Random(100) > 100`); the other wizard answers at once with `rate`; an ally joins the wars of its
 friend one turn in ten.
 
-In the rules (`diplomacy/mod.rs`, once a turn): `trespass` is `DIPL_GetOffMyLawn` for every wizard but the human
-as the owner (non-settlers within two squares of a city on the same plane; towers are not counted): with a pact or
-alliance a warning and `-Random(5)` on the first turn, nothing on the second, `-5` on the third (no treaty is broken),
-with no treaty 6 percent a turn of `-Random(5)`; the "too many cities" reaction counts the allowance as
-`(landsize + 1) * 3` scaled by the map's area against 60 by 40. In the client: the room fades in and out, an attack
+What is left of the original's once-a-turn rules: trespass is "Trespassing" in section 6, and the AI's "too many
+cities" reaction counts the allowance as `(landsize + 1) * 3` scaled by the map's area against 60 by 40
+(`f4x-ai/src/opinion.rs`). In the client: the room fades in and out, an attack
 on a pact or alliance partner asks "You have a treaty with X. Do you still wish to attack?" first, and menu rows that
 cannot be chosen are greyed instead of dark.
 
@@ -426,7 +496,8 @@ has seen, the treaties and the proposals.
    answered with a counter or refused. The AI answers by `trade::respond`: a full offer that clears its margin is accepted; a
    short one is countered by asking the proposer for one more category, the one that costs the proposer least and clears the gap,
    or by asking less of itself; an open question is answered by naming a price (gold, or a thing and the gold that makes it up) or by naming
-   the thing it would give; anything else is refused. A counter is only made when the proposer, if an AI, would take it. Two AIs run the
+   the thing it would give; anything else is refused. A counter is only made when the proposer could take it, by what the things are worth to it and the least margin
+   anyone asks (`trade::asker_could_take`), whoever the proposer is. Two AIs run the
    rounds in one turn (`f4x_ai::settle`), a human answers on the diplomacy screen, which lists what the wizard has put (`Their Offer`: agree, change it, no deal).
    The AI also opens with an open question for the thing of the other's that is worth the most more to it than to the other, when no
    full offer clears both margins (`trade::open_ask`). The human puts a trade together on the `Trade` menu by adding gold, a spell, an item,
@@ -538,8 +609,8 @@ a named constant so a rule set can restore it (task 788, rule sets):
 | `Diplomacy_Offer_Tribute` adds the gold gift's relation twice in one branch; amounts come from the AI's gold and are greyed by the human's | Odd | Gold offered from the human's reserve, gain applied once |
 | The war-on-a-third-wizard entry is always greyed; the break-alliance list is of non-allies | Cannot be used | Enabled when a legal target exists; break-alliance lists allies |
 | Proposals use the treaty patience for all types, peace included | Peace proposals wear out treaty patience | Same until play shows it is wrong |
-| "Get off my lawn" first warning does nothing beyond a counter in one branch | Faithful | As in the original, until it is tested in play |
-| Counter-offers (`IDK_Npc_Counteroffer`) | Not written; yes with 50 percent for results 1-2 | Same, until a counter-offer design exists (§11) |
+| "Get off my lawn": only the computer wizards warn, and break the treaty themselves | Faithful | Every owner is warned alike and chooses; the game breaks nothing (§6) |
+| Counter-offers (`IDK_Npc_Counteroffer`) | Not written; yes with 50 percent for results 1-2 | A treaty is countered with a price (§6); no dice |
 | `Find_Worst_Modifier` is documented as the lowest of the patience counters but its comparisons are muddled (it also starts from 0) | The "cold shoulder" test is unreliable | Lowest of the three (intended) |
 | "Final war" status | Never set | Left out |
 | Attacking a treaty partner calls `Break_Treaties(defender, attacker)`: the victim is the breaker | The oath-breaker penalty is the victim's | The attacker breaks the treaty and takes the penalty |
@@ -556,8 +627,6 @@ Anything in the table must also be written down as a test so the choice is visib
 
 - The values in OSG Table 25.2 (permanent relation modifiers) and the text of `DIPLOMSG` are not
   in the notes read; get them from the manual in `reference/` before fixing numbers in rule data.
-- The three-way counter-offer ("if you also give me a spell I will accept") in the original is
-  not implemented there. Do we add it (beyond the original, a new task)?
 - More than one human (hot seat, task 799) and asynchronous play (task 800) mean the human-only
   assumptions of §8 (player 0 is the human) must become "every human wizard".
 - Should the AI explain its refusals (which patience was too low) for a better player experience

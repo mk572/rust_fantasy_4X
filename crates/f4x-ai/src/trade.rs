@@ -44,7 +44,7 @@ pub(crate) fn margin(world: &World, minds: &Diplomats, judge: PlayerId, other: P
 }
 
 /// Whether handing `goods` to `to` arms an enemy of `from`: a spell, an item or a unit, not gold.
-fn arms(world: &World, from: PlayerId, to: PlayerId, goods: Goods) -> bool {
+pub(crate) fn arms(world: &World, from: PlayerId, to: PlayerId, goods: Goods) -> bool {
     (goods.spell.is_some() || goods.item.is_some() || goods.unit.is_some())
         && arms_enemy(world, from, to)
 }
@@ -76,7 +76,7 @@ pub(crate) fn verdict(
 
 /// Whether `judge` is willing to part with the units and the hero of `goods`: not while it is at
 /// war, not its last defender of a city and not its last hero.
-fn will_give(world: &World, judge: PlayerId, goods: Goods) -> bool {
+pub(crate) fn will_give(world: &World, judge: PlayerId, goods: Goods) -> bool {
     let at_war = world
         .player_ids()
         .into_iter()
@@ -194,17 +194,20 @@ pub(crate) fn respond(
         .map_or(Reply::Reject, Reply::Counter)
 }
 
-/// Whether the asker, if an AI, would take what the judge counters with; a human decides alone.
-fn asker_would_take(
+/// Whether the asker could take what the judge counters with (it gets `gives` and hands over
+/// `gets`), as far as anybody can tell: by what the things are worth to it and the least margin
+/// anyone asks. What it feels is its own.
+fn asker_could_take(
     world: &World,
-    minds: &Diplomats,
     judge: PlayerId,
     asker: PlayerId,
     gives: Goods,
     gets: Goods,
 ) -> bool {
-    Some(asker) == world.human()
-        || verdict(world, minds, asker, judge, gives, gets) == Verdict::Accepted
+    !arms(world, asker, judge, gets)
+        && will_give(world, asker, gets)
+        && core::worth(world, asker, gives) * 100
+            >= core::worth(world, asker, gets) * world.levers().trade.margin_least
 }
 
 /// A full offer that is a little short: ask for one more category from the asker.
@@ -233,7 +236,7 @@ fn counter_short(
             (more > give.gold && core::can_hand_over(world, asker, judge, Goods::gold(more)))
                 .then_some(Goods { gold: more, ..give })
         })
-        .filter(|&g| clears(g) && asker_would_take(world, minds, judge, asker, get, g))
+        .filter(|&g| clears(g) && asker_could_take(world, judge, asker, get, g))
         .min_by_key(|&g| core::worth(world, asker, g));
     if let Some(new_give) = ask {
         return Some(ProposalKind::Trade {
@@ -256,7 +259,7 @@ fn counter_short(
             core::worth(world, judge, give)
                 >= core::worth(world, judge, g) * margin(world, minds, judge, asker) / 100
         })
-        .filter(|&g| asker_would_take(world, minds, judge, asker, g, give))
+        .filter(|&g| asker_could_take(world, judge, asker, g, give))
         .max_by_key(|&g| core::worth(world, asker, g))
         .map(|less| ProposalKind::Trade {
             give: less,
@@ -276,22 +279,35 @@ fn name_price(
     let k = world.levers().trade;
     let need = (core::worth(world, judge, get) * margin(world, minds, judge, asker) / 100)
         .max(k.least_price);
-    let paid_in = holdings(world, asker, judge)
-        .into_iter()
-        .map(|c| {
-            let short = (need - core::worth(world, judge, c)).max(0);
-            Goods { gold: short, ..c }
-        })
-        .chain(std::iter::once(Goods::gold(need)));
-    let price = paid_in
-        .filter(|&g| core::can_hand_over(world, asker, judge, g))
-        .filter(|&g| core::worth(world, judge, g) >= need)
-        .filter(|&g| asker_would_take(world, minds, judge, asker, get, g))
-        .min_by_key(|&g| core::worth(world, asker, g))?;
+    let price = payment(world, judge, asker, need, |g| {
+        asker_could_take(world, judge, asker, get, g)
+    })?;
     Some(ProposalKind::Trade {
         give: get,
         get: price,
     })
+}
+
+/// What `payer` could hand `payee` that is worth `need` to it, the cheapest for the payer of what
+/// `takes` lets through: gold, one of its things, or a thing and the gold that makes it up.
+pub(crate) fn payment(
+    world: &World,
+    payee: PlayerId,
+    payer: PlayerId,
+    need: i32,
+    takes: impl Fn(Goods) -> bool,
+) -> Option<Goods> {
+    holdings(world, payer, payee)
+        .into_iter()
+        .map(|c| {
+            let short = (need - core::worth(world, payee, c)).max(0);
+            Goods { gold: short, ..c }
+        })
+        .chain(std::iter::once(Goods::gold(need)))
+        .filter(|&g| core::can_hand_over(world, payer, payee, g))
+        .filter(|&g| core::worth(world, payee, g) >= need)
+        .filter(|&g| takes(g))
+        .min_by_key(|&g| core::worth(world, payer, g))
 }
 
 /// The asker gives `give` and names nothing: name what the judge would give for it, the thing
@@ -317,7 +333,7 @@ fn name_offer(
         .chain((gold >= k.least_price).then(|| Goods::gold(gold)))
         .filter(|&g| core::can_hand_over(world, judge, asker, g))
         .filter(|&g| !(g.is_only_gold() && give.is_only_gold()))
-        .filter(|&g| asker_would_take(world, minds, judge, asker, g, give))
+        .filter(|&g| asker_could_take(world, judge, asker, g, give))
         .max_by_key(|&g| core::worth(world, asker, g))?;
     Some(ProposalKind::Trade {
         give: pay,
@@ -344,7 +360,7 @@ fn price(
 }
 
 /// The gold `me` can spend on a purchase.
-fn spendable(world: &World, me: PlayerId) -> i32 {
+pub(crate) fn spendable(world: &World, me: PlayerId) -> i32 {
     let gold = world.player(me).map_or(0, |p| p.treasury().gold.floor());
     (gold - crate::economy::gold_reserve(world, me)).max(0)
 }

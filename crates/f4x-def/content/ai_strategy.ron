@@ -461,8 +461,8 @@
         gift_gold: 50,
         // The treasury needed for a gift to another wizard,
         gift_least_gold: 100,
-        // and for one that answers the human.
-        human_gift_least_gold: 200,
+        // and for one to a close friend with a treaty.
+        friend_gift_least_gold: 200,
     ),
     // Trades. Overrides: AIS_DIPLO_TRADE_<NAME>.
     trade: (
@@ -615,6 +615,32 @@
         yield_fear: 50,
         // What an ally at war with a wizard adds to its enemy value.
         ally_war: 30,
+        // What a pact adds to the feeling each turn, in hundredths of a point, before the diminishing returns,
+        pact_growth: 100,
+        // and an alliance.
+        alliance_growth: 175,
+        // At the last warning of a trespass: the friendship at which it breaks the treaty,
+        trespass_break_below: 0,
+        // and at which it declares war.
+        trespass_war_below: -50,
+        // How many points short of accepting a treaty it still names a price,
+        counter_reach: 30,
+        // and the gold it asks, or pays, for each point.
+        gold_per_point: 5,
+        // Turns between two calls to the same ally to join a war,
+        call_cool: 30,
+        // against an enemy of at least this percent of the caller's power.
+        call_enemy_pct: 80,
+        // What an ally's price for joining takes off the caller's feeling for it, before the diminishing returns.
+        call_price_penalty: 3,
+        // It will not swap world maps once it has explored this percent of the other's squares,
+        map_refuse_pct: 300,
+        // offers a swap that would show it at least this many new squares,
+        map_least_news: 40,
+        // and no more often to the same player than this many turns.
+        map_cool: 30,
+        // A trade or research pact is offered no more often to the same player than this.
+        pact_cool: 30,
     ),
     // Whether a captured city is razed, in points that speak for razing (raze.rs). Overrides: AIS_RAZE_<NAME>.
     raze: (

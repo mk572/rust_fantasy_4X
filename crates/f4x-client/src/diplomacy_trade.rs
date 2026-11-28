@@ -6,6 +6,7 @@
 
 use crate::text::Args;
 use f4x_core::diplomacy::trade::{self, Goods};
+use f4x_core::diplomacy::{Deal, Proposal, ProposalKind};
 use f4x_core::player::PlayerId;
 
 use crate::view::App;
@@ -47,11 +48,46 @@ impl Cat {
 pub(crate) struct Draft {
     pub give: Goods,
     pub ask: Goods,
-    /// The draft answers a trade the wizard has made (a counter) and not a new offer.
+    /// The draft answers what the wizard has proposed (a counter) and is no new offer.
     pub counter: bool,
+    /// The treaty the draft sets a price on; none for a trade.
+    pub deal: Option<Deal>,
+    /// The war the draft names a price for joining; its `ask` is the price.
+    pub war: Option<PlayerId>,
 }
 
 impl Draft {
+    /// The counter to `proposal`, to start from: it turned round (what the wizard gives the human
+    /// gets; what it asks, the human gives).
+    pub(crate) fn answering(proposal: Proposal) -> Draft {
+        let (give, ask) = match proposal.kind {
+            ProposalKind::Trade { give, get } | ProposalKind::Priced { give, get, .. } => {
+                (get, give)
+            }
+            _ => (Goods::NONE, Goods::NONE),
+        };
+        Draft {
+            give,
+            ask,
+            counter: true,
+            deal: Deal::of(proposal.kind),
+            war: match proposal.kind {
+                ProposalKind::WarOn(third) => Some(third),
+                _ => None,
+            },
+        }
+    }
+
+    /// What the draft proposes.
+    pub(crate) fn kind(&self) -> ProposalKind {
+        let (give, get) = (self.give, self.ask);
+        match (self.war, self.deal) {
+            (Some(third), _) => ProposalKind::WarPrice { third, price: get },
+            (None, Some(deal)) => ProposalKind::Priced { deal, give, get },
+            (None, None) => ProposalKind::Trade { give, get },
+        }
+    }
+
     pub(crate) fn side(&self, side: Side) -> Goods {
         match side {
             Side::Give => self.give,

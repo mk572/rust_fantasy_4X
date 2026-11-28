@@ -2721,6 +2721,79 @@ fn treaties_break_and_wars_are_declared() {
 }
 
 #[test]
+fn a_proposal_is_countered_with_a_price() {
+    use f4x_core::diplomacy::{Deal, DiplomacyCommand, Goods, ProposalKind};
+    use f4x_core::world::Command;
+    let (mut w, mut c) = (game(), console());
+    let other = meet_all(&mut w)[0];
+    let number = other.0;
+    let nothing = c.execute(&mut w, &format!("counter {number} - 10"));
+    assert!(!nothing.ok, "{}", nothing.text());
+    w.command(Command::Diplomacy(DiplomacyCommand::Propose {
+        from: other,
+        to: HUMAN,
+        kind: ProposalKind::Pact,
+    }));
+    let r = c.execute(&mut w, &format!("counter {number} - 10"));
+    assert!(r.ok, "{}", r.text());
+    let waiting = w.diplomacy.proposals().first().map(|p| (p.from, p.kind));
+    assert_eq!(
+        waiting,
+        Some((
+            HUMAN,
+            ProposalKind::Priced {
+                deal: Deal::Pact,
+                give: Goods::NONE,
+                get: Goods::gold(10),
+            }
+        ))
+    );
+}
+
+#[test]
+fn a_trespass_is_listed_and_overlooked_at_the_last_warning() {
+    use f4x_core::diplomacy::Treaty;
+    use f4x_core::world::Command;
+    let (mut w, mut c) = (game(), console());
+    let other = meet_all(&mut w)[0];
+    let number = other.0;
+    w.start_treaty(HUMAN, other, Treaty::Pact);
+    let early = c.execute(&mut w, &format!("overlook {number}"));
+    assert!(!early.ok, "{}", early.text());
+    let (_, city) = *w
+        .economy()
+        .cities_of(HUMAN)
+        .first()
+        .expect("the player has a city");
+    let unit = w
+        .content()
+        .rules
+        .units
+        .id_numbered(104 /* high_men_spearmen */)
+        .expect("the unit is in the content");
+    let arrived = f4x_core::world::testutil::sweep::around(&w, city)
+        .into_iter()
+        .any(|pos| {
+            w.command(Command::CreateUnit {
+                owner: other,
+                pos,
+                unit,
+            });
+            w.trespassers(HUMAN).contains(&other)
+        });
+    assert!(arrived, "no room next to the city");
+    for _ in 0..w.content().rules.config.diplomacy.trespass_warnings {
+        w.start_player_turn(HUMAN);
+    }
+    let listed = c.execute(&mut w, "diplomacy");
+    assert!(listed.text().contains("overlook"), "{}", listed.text());
+    let r = c.execute(&mut w, &format!("overlook {number}"));
+    assert!(r.ok, "{}", r.text());
+    assert_eq!(w.treaty(HUMAN, other), Treaty::Pact);
+    assert_eq!(w.trespass_choices(HUMAN), []);
+}
+
+#[test]
 fn gifts_move_gold_and_spells() {
     let (mut w, mut c) = (game(), console());
     let other = meet_all(&mut w)[0];
@@ -2761,6 +2834,8 @@ fn the_talk_commands_are_legal_ones_and_diplomacy_a_query() {
     for name in [
         "propose",
         "answer",
+        "counter",
+        "overlook",
         "breaktreaty",
         "declarewar",
         "givegold",
@@ -3653,3 +3728,103 @@ fn the_new_command_takes_a_map_size() {
 }
 
 mod cheat;
+
+#[test]
+fn an_allys_call_to_war_is_answered_with_a_price_or_ends_the_alliance() {
+    use f4x_core::diplomacy::{DiplomacyCommand, Goods, ProposalKind, Treaty};
+    use f4x_core::world::Command;
+    let called = || {
+        let (mut w, mut c) = (game(), console());
+        // The game of a test has one rival: a third wizard joins it.
+        let third = (2..u8::MAX)
+            .map(PlayerId)
+            .find(|&p| w.player(p).is_none())
+            .expect("a free seat");
+        w.add_player(third, "North");
+        w.init_wizard(
+            third,
+            &[(f4x_core::rules::RealmId::new(3 /* life */), 3)],
+            &[],
+            None,
+        )
+        .expect("a wizard");
+        let ally = meet_all(&mut w)
+            .into_iter()
+            .find(|&p| p != third)
+            .expect("a rival");
+        w.make_contact(ally, third);
+        w.start_treaty(ally, HUMAN, Treaty::Alliance);
+        w.declare_war(ally, third);
+        w.command(Command::Diplomacy(DiplomacyCommand::Propose {
+            from: ally,
+            to: HUMAN,
+            kind: ProposalKind::WarOn(third),
+        }));
+        let r = c.execute(&mut w, "diplomacy");
+        assert!(r.text().contains("call to arms"), "{}", r.text());
+        (w, c, ally, third)
+    };
+    let (mut w, mut c, ally, third) = called();
+    let r = c.execute(&mut w, &format!("counter {} 10 -", ally.0));
+    assert!(!r.ok, "a price is asked, not given: {}", r.text());
+    let r = c.execute(&mut w, &format!("counter {} - 10", ally.0));
+    assert!(r.ok, "{}", r.text());
+    let waiting = w.diplomacy.proposals().first().map(|p| (p.from, p.kind));
+    let price = ProposalKind::WarPrice {
+        third,
+        price: Goods::gold(10),
+    };
+    assert_eq!(waiting, Some((HUMAN, price)));
+
+    let (mut w, mut c, ally, _) = called();
+    let r = c.execute(&mut w, &format!("answer {} no", ally.0));
+    assert!(r.ok, "{}", r.text());
+    assert_eq!(w.treaty(ally, HUMAN), Treaty::None);
+}
+
+#[test]
+fn world_maps_are_offered_to_a_partner_under_the_expanded_options() {
+    use f4x_core::diplomacy::{ProposalKind, Treaty};
+    let (mut w, mut c) = (game(), console());
+    let other = meet_all(&mut w)[0];
+    w.start_treaty(other, HUMAN, Treaty::Pact);
+    let propose = format!("propose {} maps", other.0);
+    let r = c.execute(&mut w, &propose);
+    assert!(!r.ok, "the options are off: {}", r.text());
+    w.scenario_change_settings(|s| s.rules.expanded_diplomacy = true);
+    let r = c.execute(&mut w, &format!("diplomacy {}", other.0));
+    assert!(r.text().contains("maps"), "{}", r.text());
+    let r = c.execute(&mut w, &propose);
+    assert!(r.ok, "{}", r.text());
+    let waiting = w.diplomacy.proposals().first().map(|p| (p.from, p.kind));
+    assert_eq!(waiting, Some((HUMAN, ProposalKind::MapExchange)));
+}
+
+#[test]
+fn trade_and_research_pacts_are_offered_and_shown_when_in_force() {
+    use f4x_core::diplomacy::{DiplomacyCommand, ProposalKind, Treaty};
+    use f4x_core::world::Command;
+    let (mut w, mut c) = (game(), console());
+    let other = meet_all(&mut w)[0];
+    w.start_treaty(other, HUMAN, Treaty::Pact);
+    w.scenario_change_settings(|s| s.rules.expanded_diplomacy = true);
+    for (word, kind) in [
+        ("tradepact", ProposalKind::TradePact),
+        ("researchpact", ProposalKind::ResearchPact),
+    ] {
+        let r = c.execute(&mut w, &format!("diplomacy {}", other.0));
+        assert!(r.text().contains(word), "{}", r.text());
+        let r = c.execute(&mut w, &format!("propose {} {word}", other.0));
+        assert!(r.ok, "{}", r.text());
+        let waiting = w.diplomacy.proposals().first().map(|p| (p.from, p.kind));
+        assert_eq!(waiting, Some((HUMAN, kind)));
+        w.command(Command::Diplomacy(DiplomacyCommand::Answer {
+            player: other,
+            from: HUMAN,
+            accept: true,
+        }));
+    }
+    let r = c.execute(&mut w, &format!("diplomacy {}", other.0));
+    assert!(r.text().contains("in force: trade pact"), "{}", r.text());
+    assert!(r.text().contains("in force: research pact"), "{}", r.text());
+}

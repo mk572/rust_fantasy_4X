@@ -7,7 +7,7 @@ use std::ops::AddAssign;
 
 use f4x_battle::battle::BattleEvent;
 use f4x_core::city::production::ProductionItem;
-use f4x_core::diplomacy::{DiplomacyEvent, Proposal, ProposalKind, Treaty};
+use f4x_core::diplomacy::{Deal, DiplomacyEvent, Proposal, ProposalKind, Treaty};
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::player::PlayerId;
 use f4x_core::world::{Event, World};
@@ -92,6 +92,8 @@ pub struct Metrics {
     pub trades_goods: u32,
     pub threats: u32,
     pub demands: u32,
+    pub map_offers: u32,
+    pub economic_offers: u32,
     pub warnings: u32,
     pub gold_gifts: u32,
     pub spell_gifts: u32,
@@ -215,7 +217,7 @@ impl Metrics {
     }
 
     /// Each count with its name, in the order a report shows them.
-    pub fn rows(&self) -> [(&'static str, u32); 92] {
+    pub fn rows(&self) -> [(&'static str, u32); 94] {
         [
             ("cities founded", self.cities_founded),
             ("cities captured", self.cities_captured),
@@ -248,6 +250,8 @@ impl Metrics {
             ("trades of items, units or heroes", self.trades_goods),
             ("threats", self.threats),
             ("tribute demands", self.demands),
+            ("map exchanges offered", self.map_offers),
+            ("trade and research pacts offered", self.economic_offers),
             ("warnings", self.warnings),
             ("gold gifts", self.gold_gifts),
             ("spell gifts", self.spell_gifts),
@@ -585,6 +589,8 @@ impl AddAssign for Metrics {
             trades_goods,
             threats,
             demands,
+            map_offers,
+            economic_offers,
             warnings,
             gold_gifts,
             spell_gifts,
@@ -679,6 +685,8 @@ impl AddAssign for Metrics {
         self.trades_goods += trades_goods;
         self.threats += threats;
         self.demands += demands;
+        self.map_offers += map_offers;
+        self.economic_offers += economic_offers;
         self.warnings += warnings;
         self.gold_gifts += gold_gifts;
         self.spell_gifts += spell_gifts;
@@ -1570,6 +1578,17 @@ impl Tally {
                             ProposalKind::Trade { .. } => m.spell_exchanges += 1,
                             ProposalKind::Threat => m.threats += 1,
                             ProposalKind::Demand { .. } => m.demands += 1,
+                            ProposalKind::MapExchange => m.map_offers += 1,
+                            ProposalKind::TradePact | ProposalKind::ResearchPact => {
+                                m.economic_offers += 1;
+                            }
+                            // Only ever a counter to a call to arms.
+                            ProposalKind::WarPrice { .. } => {}
+                            ProposalKind::Priced { deal, .. } => match deal {
+                                Deal::Pact => m.pact_offers += 1,
+                                Deal::Alliance => m.alliance_offers += 1,
+                                Deal::Peace => m.peace_offers += 1,
+                            },
                         }
                     }),
                 Event::Diplomacy(DiplomacyEvent::ProposalAnswered {
@@ -1594,7 +1613,9 @@ impl Tally {
                     }
                 }),
                 Event::Diplomacy(DiplomacyEvent::ProposalCountered { new, .. }) => {
-                    self.bump(new.from, |m| m.trade_counters += 1)
+                    if matches!(new.kind, ProposalKind::Trade { .. }) {
+                        self.bump(new.from, |m| m.trade_counters += 1)
+                    }
                 }
                 Event::Diplomacy(DiplomacyEvent::TreatyChanged { a, b, treaty }) => {
                     if matches!(treaty, Treaty::Pact | Treaty::Alliance) {

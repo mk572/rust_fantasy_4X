@@ -63,6 +63,7 @@ impl World {
         events.extend(self.sail_marooned(player));
         events.extend(self.drown_stranded(Some(player), rng));
         events.extend(self.process_road_work(player));
+        self.warn_trespassers(player);
         events
     }
 
@@ -101,9 +102,11 @@ impl World {
     /// against the rivals' turns and a shortage costs its units now. Raze windows shut;
     /// farmers are kept on the farms; the treasury settles (gold and food income, upkeep); the
     /// wizard's magic runs (mana income, research points, mana upkeep, casting); the cities build.
-    /// Before all of it, what was proposed in the turn and not answered lapses.
+    /// Before all of it, what was proposed in the turn and not answered lapses, and so does the
+    /// player's choice about a trespass.
     pub fn end_player_turn(&mut self, player: PlayerId, rng: &mut GameRng) -> Vec<Event> {
         self.diplomacy.lapse_proposals();
+        self.lapse_trespass(player);
         let mut events = self.walk_orders(player, rng);
         self.close_raze_windows(player);
         // The monsters' owner has units only: no cities, no treasury, no magic.

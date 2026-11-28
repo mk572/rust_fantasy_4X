@@ -14,15 +14,14 @@
 //! Every number is in the `diplomacy_b` levers (`AIS_DIPLO_B_<NAME>`). Tests: below.
 
 use crate::lever::Levered;
-use f4x_core::diplomacy::{ProposalKind, Remark, Treaty};
+use f4x_core::diplomacy::Treaty;
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
-use f4x_core::world::{Event, World};
+use f4x_core::world::World;
 
 use crate::memory::Memory;
-use crate::statecraft::{propose, remark, Scene};
+use crate::statecraft::Scene;
 use crate::Ai;
-use f4x_master::Game;
 
 /// What a wizard feels about another (task 762).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -170,18 +169,6 @@ pub(crate) fn peace_wish(
         - young
 }
 
-/// Whether a wizard of system B says yes to a peace `asker` offers (`diplomacy::rate`).
-pub(crate) fn accepts(
-    world: &World,
-    judge: PlayerId,
-    asker: PlayerId,
-    memory: &Memory,
-    round: u32,
-) -> bool {
-    world.treaty(judge, asker) != Treaty::War
-        || peace_wish(world, judge, asker, memory, round) >= world.levers().diplomacy_b.accept
-}
-
 /// Whether `ai` asks `other` for peace now: at war, the wish is at the offer's mark and it has not
 /// asked lately.
 pub(crate) fn offer_due(ai: &Ai, world: &World, other: PlayerId, round: u32) -> bool {
@@ -194,28 +181,15 @@ pub(crate) fn offer_due(ai: &Ai, world: &World, other: PlayerId, round: u32) -> 
         && peace_wish(world, ai.player, other, &memory, round) >= k.offer
 }
 
-/// The wars it fights with the other wizards: peace is offered where the wish says so.
-pub(crate) fn wars(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>, scene: &Scene) {
-    for &w in &scene.others {
-        // The human is asked by `approach_human`.
-        if game.human() == Some(w) || !offer_due(ai, game, w, game.round()) {
-            continue;
-        }
-        if propose(ai, game, events, w, ProposalKind::Peace) {
-            ai.memory.put().offered_peace(w, game.round());
-            remark(ai, game, events, w, Remark::WarWeary);
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::diplo_b_talk::shortfall;
     use crate::testworld::levers;
     use crate::testworld::{at, game, spawn, COAST_CITY, P0, P1};
-    use f4x_core::diplomacy::DiplomacyCommand;
+    use f4x_core::diplomacy::{Deal, DiplomacyCommand, ProposalKind};
     use f4x_core::rules::RealmId;
-    use f4x_core::world::Command;
+    use f4x_core::world::{Command, Event};
     use f4x_def::half_int::HalfInt;
     use f4x_master::Game;
 
@@ -385,7 +359,7 @@ mod tests {
     fn a_stalled_war_between_equals_drifts_to_an_offer_and_the_cool_down_holds() {
         let k = levers().diplomacy_b;
         let mut w = war(10, 10, 110);
-        let mut ai = Ai::new(P0);
+        let ai = Ai::new(P0);
         let mut turn = 110;
         // Until the wish reaches the mark nothing is offered.
         while peace_wish(&w, P0, P1, &ai.memory.get(), w.round()) < k.offer {
@@ -395,9 +369,8 @@ mod tests {
             assert!(turn < 2000, "a quiet war reaches the mark in the end");
         }
         assert!(offer_due(&ai, &w, P1, w.round()));
-        let scene = Scene::new(&w, P0);
         let mut events = Vec::new();
-        wars(&mut ai, &mut w, &mut events, &scene);
+        crate::diplo_b_talk::approach(&ai, &mut w, &mut events);
         assert_eq!(ai.memory.get().with(P1).map(|d| d.offered), Some(turn));
         // It does not ask again at once, and asks again when the cool-down is over.
         w.set_round(turn + 1);
@@ -413,16 +386,19 @@ mod tests {
             &w,
             &[battle_lost(), city_lost(), city_lost(), battle_lost()],
         );
-        assert!(accepts(&w, P0, P1, &m, w.round()), "the loser says yes");
+        // Whether `judge`, which remembers `memory`, takes a peace the other offers.
+        let accepts = |w: &Game, judge: PlayerId, asker: PlayerId, memory: &Memory| {
+            let ai = Ai::new(judge);
+            *ai.memory.put() = memory.clone();
+            shortfall(w, asker, judge, Deal::Peace, &ai.minds()) <= 0
+        };
+        assert!(accepts(&w, P0, P1, &m), "the loser says yes");
         let winner = Memory::default();
-        assert!(
-            !accepts(&w, P1, P0, &winner, w.round()),
-            "the winner says no"
-        );
+        assert!(!accepts(&w, P1, P0, &winner), "the winner says no");
         // And at peace everyone accepts what is not a war's peace.
         let mut at_peace = war(1, 30, 160);
         at_peace.declare_peace(P0, P1);
-        assert!(accepts(&at_peace, P1, P0, &winner, w.round()));
+        assert!(accepts(&at_peace, P1, P0, &winner));
     }
 
     fn razed() -> Event {
@@ -517,7 +493,7 @@ mod tests {
     }
 
     #[test]
-    fn the_statecraft_of_a_wizard_on_b_offers_peace_by_the_score_and_a_on_a_does_not_use_it() {
+    fn a_wizard_at_the_mark_offers_peace_at_the_end_of_its_turn() {
         let k = levers().diplomacy_b;
         let mut w = war(1, 30, 200);
         let mut ai = Ai::new(P0);
@@ -527,11 +503,11 @@ mod tests {
         );
         assert!(peace_wish(&w, P0, P1, &ai.memory.get(), w.round()) >= k.offer);
         let mut events = Vec::new();
-        crate::statecraft::run(&mut ai, &mut w, &mut events);
+        crate::diplo_b_talk::approach(&ai, &mut w, &mut events);
         assert_eq!(
             ai.memory.get().with(P1).map(|d| d.offered),
             Some(200),
-            "B asked"
+            "it asked"
         );
     }
 

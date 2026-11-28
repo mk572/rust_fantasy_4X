@@ -103,6 +103,7 @@ impl Game {
                 | DiplomacyCommand::BreakTreaty { .. }
                 | DiplomacyCommand::GiveSpell { .. }
                 | DiplomacyCommand::Warn { .. }
+                | DiplomacyCommand::Overlook { .. }
                 | DiplomacyCommand::Remark { .. } => false,
             },
             Command::AcceptOffer { index, .. } | Command::RejectOffer { index, .. } => {
