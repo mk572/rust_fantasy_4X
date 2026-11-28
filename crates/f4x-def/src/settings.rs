@@ -615,7 +615,7 @@ pub struct RuleSettings {
 }
 
 /// Who a special spell is open to (`RuleSettings::spell_of_mastery`, `spell_of_return`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SpellAccess {
     /// Every wizard.
@@ -1007,7 +1007,7 @@ pub struct LevelDef {
 
 /// The rule sets a new game can start from (the Custom screen's dropdown, the soak's `--rules`).
 /// Picking one fills in its settings; `Custom` is every setting by hand.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub enum RuleSet {
     /// The original's last official patch: the rules as the original and ReMoM have them, which
     /// `rules_settings.ron` holds for each difficulty level.

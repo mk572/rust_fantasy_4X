@@ -557,7 +557,7 @@ Results of the runs: `docs/soak-baseline.md`.
 Speed: the games run `--jobs N` at a time (default one for each core; games that print as they
 go, with `--every`, `--trace` or `--detail`, run one at a time), 5.7 times faster on ten cores
 with the same results. The reference-only game of each seed is kept in `soak-out/cache/` and
-reused while the rules, content, reference AI and soak code are unchanged (`--no-cache` plays
+reused while the rules, content, reference AI, soak code and options are unchanged (`--no-cache` plays
 it again); editing only `crates/f4x-ai` keeps it valid. Seeds where the wizards live on separate
 land masses stay in on purpose: ships and landings are what the AI has to learn.
 

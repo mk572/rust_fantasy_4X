@@ -15,6 +15,9 @@ use crate::soak::{GameResult, Options};
 const SOURCES: &[&str] = &[
     "crates/f4x-core/src",
     "crates/f4x-def/src",
+    "crates/f4x-battle/src",
+    "crates/f4x-master/src",
+    "crates/f4x-newgame/src",
     "crates/f4x-ai-ref/src",
     "crates/f4x-tools/src",
     "Cargo.lock",
@@ -58,16 +61,49 @@ fn key(opts: &Options, seed: u64) -> Option<String> {
             return None;
         }
     }
-    (
-        seed,
-        opts.turns,
-        opts.players,
-        opts.grant_mastery,
-        opts.snapshots_every,
-        opts.starting_units,
-    )
-        .hash(&mut hasher);
+    hash_options(opts, seed, &mut hasher);
     Some(format!("{:016x}", hasher.finish()))
+}
+
+/// Every option that changes the kept game or its kept report. All fields are named, so that a
+/// new option does not compile until it is sorted into one of the two kinds.
+fn hash_options(opts: &Options, seed: u64, hasher: &mut DefaultHasher) {
+    let Options {
+        turns,
+        players,
+        events,
+        grant_mastery,
+        snapshots_every,
+        map,
+        land,
+        magic,
+        difficulty,
+        mastery,
+        spell_return,
+        rules,
+        starting_units,
+        // The seed of this game comes in by itself.
+        first: _,
+        last: _,
+        // What is printed or written while a game is played.
+        every: _,
+        trace: _,
+        detail: _,
+        refused_log: _,
+        no_refused_log: _,
+        out: _,
+        jobs: _,
+        // A game with a network, or with no cache asked for, is never kept.
+        battle_ai: _,
+        no_cache: _,
+        // Their contents are hashed with the sources.
+        dir: _,
+        from: _,
+    } = opts;
+    seed.hash(hasher);
+    (turns, players, events, grant_mastery, snapshots_every).hash(hasher);
+    (map, land, magic, difficulty).hash(hasher);
+    (mastery, spell_return, rules, starting_units).hash(hasher);
 }
 
 fn file(out: &Path, opts: &Options, seed: u64) -> Option<PathBuf> {
@@ -114,6 +150,37 @@ mod tests {
         assert_eq!(before, fingerprint(&dir)?);
         std::fs::write(dir.join("a.txt"), "two")?;
         assert_ne!(before, fingerprint(&dir)?);
+        Ok(())
+    }
+
+    #[test]
+    fn the_key_follows_every_option_that_changes_the_game() -> TestResult {
+        let of = |args: &[&str]| -> Result<u64, String> {
+            let args: Vec<String> = args.iter().map(|&a| a.to_string()).collect();
+            let opts = Options::parse(&args, "")?;
+            let mut hasher = DefaultHasher::new();
+            hash_options(&opts, 1, &mut hasher);
+            Ok(hasher.finish())
+        };
+        let plain = of(&[])?;
+        assert_eq!(plain, of(&["--jobs", "2", "--every", "10", "--detail"])?);
+        for args in [
+            &["--turns", "7"][..],
+            &["--players", "3"],
+            &["--events"],
+            &["--grant-mastery", "5"],
+            &["--snapshots-every", "9"],
+            &["--map", "40x30"],
+            &["--land", "40"],
+            &["--magic", "2"],
+            &["--difficulty", "3"],
+            &["--rules", "mk"],
+            &["--mastery", "off"],
+            &["--return", "off"],
+            &["--start-units", "trireme"],
+        ] {
+            assert_ne!(plain, of(args)?, "{args:?}");
+        }
         Ok(())
     }
 
