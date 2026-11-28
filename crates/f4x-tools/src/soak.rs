@@ -216,10 +216,10 @@ impl Options {
         Ok(o)
     }
 
-    /// How many games to play at once. Games that print as they go (`--every`, `--trace`,
-    /// `--detail`) are played one at a time so their lines stay together.
+    /// How many games to play at once. Games watched as they go (`--every`, `--trace`) are
+    /// played one at a time so their lines stay together.
     pub fn jobs(&self) -> usize {
-        if self.every > 0 || self.trace > 0 || self.detail {
+        if self.every > 0 || self.trace > 0 {
             return 1;
         }
         self.jobs
@@ -332,8 +332,8 @@ pub struct GameResult {
 }
 
 /// The lines of one game's report, tagged with the seed (and the variant). A game that prints as
-/// it goes (`--every`, `--trace`, `--detail`) prints each line at once; any other game prints
-/// them together when it ends, so that games played side by side do not interleave.
+/// it goes (`--every`, `--trace`, or `--detail` with one job) prints each line at once; any other
+/// game prints them together when it ends, so that games played side by side do not interleave.
 struct Log {
     tag: String,
     live: bool,
@@ -343,6 +343,11 @@ struct Log {
 impl Log {
     fn line(&mut self, text: String) {
         let line = format!("{}: {text}", self.tag);
+        self.untagged(line);
+    }
+
+    /// A line as it stands: the detail under a game's own lines.
+    fn untagged(&mut self, line: String) {
         if self.live {
             println!("{line}");
         }
@@ -564,7 +569,7 @@ pub fn game(
     let mut stood = Stood::default();
     let mut log = Log {
         tag: tag.clone(),
-        live: opts.every > 0 || opts.trace > 0 || opts.detail,
+        live: opts.every > 0 || opts.trace > 0 || (opts.detail && opts.jobs() == 1),
         lines: Vec::new(),
     };
     for line in profile_lines(&game) {
@@ -670,7 +675,9 @@ pub fn game(
         }
     }
     if opts.detail {
-        city_lines(&game);
+        for line in city_lines(&game) {
+            log.untagged(line);
+        }
     }
     let outcome = match game.game_over() {
         Some(o) => format!(
@@ -1038,7 +1045,8 @@ fn trace_turn(
 }
 
 /// Each city of a wizard with who has explored it (the soak's `--detail` lines).
-fn city_lines(world: &World) {
+fn city_lines(world: &World) -> Vec<String> {
+    let mut out = Vec::new();
     for (c, city, pos) in world.economy().cities() {
         if world.is_neutral_player(city.owner) {
             continue;
@@ -1049,7 +1057,7 @@ fn city_lines(world: &World) {
             .filter(|&p| p != city.owner && world.is_explored(p, pos))
             .map(|p| format!("p{}", p.0))
             .collect();
-        println!(
+        out.push(format!(
             "    city {} of p{} at {:?} {},{} size {}: explored by [{}]",
             city.name,
             city.owner.0,
@@ -1058,8 +1066,9 @@ fn city_lines(world: &World) {
             pos.y,
             world.economy().city_economy(c).map_or(0, |e| e.figures),
             seen_by.join(" ")
-        );
+        ));
     }
+    out
 }
 
 /// For a game with no winner: what each wizard with cities could do about each rival with cities, so a
@@ -1830,7 +1839,8 @@ mod tests {
         for flag in ["--every", "--trace"] {
             assert_eq!(parse(&[flag, "5", "--jobs", "4"])?.jobs(), 1, "{flag}");
         }
-        assert_eq!(parse(&["--detail", "--jobs", "4"])?.jobs(), 1);
+        // The detail of a game is held back until the game ends, so games run side by side.
+        assert_eq!(parse(&["--detail", "--jobs", "4"])?.jobs(), 4);
         assert_eq!(parse(&["--jobs", "4"])?.jobs(), 4);
         assert_eq!(parse(&["--jobs", "0"])?.jobs(), 1, "never fewer than one");
         Ok(())

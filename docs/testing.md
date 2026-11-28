@@ -75,7 +75,7 @@ answer function (`Input::dismisses`, `ui::hit`). Examples:
 
 ## Soaks and AI comparisons
 
-Soaks are `f4x-tools soak`, started through `scripts/cool_run.sh` with at most 4 jobs. A change of the
+Soaks are `f4x-tools soak`, started through `scripts/cool_run.sh --all-cores` with at most 8 jobs. A change of the
 AI is measured by playing the same seed and settings with the old AI, then again with the new AI in
 some (not all) of the seats (`scripts/ai_battle.py`, `ai-design.md` 8.1a), and comparing games won,
 cities founded and conquered, land explored, sites and nodes held, and spells researched and cast.

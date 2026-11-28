@@ -11,9 +11,9 @@ builds, the script stops and says so, and the reference is forked by hand
 baseline of a measurement and is expensive to rebuild: nothing replaces it behind your back. It
 builds `f4x-tools` with the
 `reference` feature (adding the reference to the `f4x-tools` manifest for the build, then
-restoring the manifest and `Cargo.lock`) and runs it through `scripts/cool_run.sh` (low priority,
-paused while the Mac is under thermal pressure; `AI_BATTLE_NO_COOL=1` runs it plainly) with four games at
-once unless `--jobs` says otherwise. A fork from the working tree makes the reference equal to the live AI,
+restoring the manifest and `Cargo.lock`) and runs it through `scripts/cool_run.sh --all-cores` (low
+priority on every core, paused while the Mac is under thermal pressure; `AI_BATTLE_NO_COOL=1` runs it
+plainly) with eight games at once unless `--jobs` says otherwise. A fork from the working tree makes the reference equal to the live AI,
 so a battle right after one compares the AI with itself: freeze the AI before editing it (task 478).
 """
 import argparse
@@ -24,9 +24,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 COOL_RUN = ROOT / "scripts" / "cool_run.sh"
-# Games played at once unless --jobs is given: the machine has ten cores and heats up (docs/learning-ai.md
-# section 3 keeps long runs to four).
-DEFAULT_JOBS = "4"
+# Games played at once unless --jobs is given: two of the machine's ten cores stay free.
+DEFAULT_JOBS = "8"
 REFERENCE = ROOT / "crates" / "f4x-ai-ref"
 FORK = ROOT / "scripts" / "fork_ai.py"
 MANIFEST = ROOT / "crates" / "f4x-tools" / "Cargo.toml"
@@ -58,7 +57,7 @@ def build() -> subprocess.CompletedProcess:
 
 
 HELP = """\
-Arguments after the script name go to `f4x-tools` unchanged (it validates them); `--jobs 4` is added
+Arguments after the script name go to `f4x-tools` unchanged (it validates them); `--jobs 8` is added
 unless given. `AI_BATTLE_NO_COOL=1` runs without `cool_run.sh`. The reference is the one frozen by hand from the live
 AI. It is never forked here: when it is missing, marked stale or no longer builds the script stops and says
 so (fork it by hand: `scripts/fork_ai.py --from REF`, `--replace` over an existing one).
@@ -99,9 +98,9 @@ def main() -> int:
     binary = ROOT / "target" / "release" / "f4x-tools"
     if "--jobs" not in args:
         args = [*args, "--jobs", DEFAULT_JOBS]
-    # Like every long run: at low priority, paused while the Mac is hot (scripts/cool_run.sh).
+    # Like every soak: at low priority on every core, paused while the Mac is hot (scripts/cool_run.sh).
     # AI_BATTLE_NO_COOL=1 runs it plainly.
-    cool = [] if os.environ.get("AI_BATTLE_NO_COOL") else [str(COOL_RUN)]
+    cool = [] if os.environ.get("AI_BATTLE_NO_COOL") else [str(COOL_RUN), "--all-cores"]
     return subprocess.run([*cool, str(binary), *args], cwd=ROOT).returncode
 
 

@@ -19,7 +19,7 @@ the deadline.
 Options:
   --until HH:MM   the local time to stop (the next time the clock shows it)
   --out DIR       folder for everything (default soak-out/overnight-YYYYmmdd-HHMM, git-ignored)
-  --jobs N        games played at once in a run (default 4, at most 4 by the project rule)
+  --jobs N        games played at once in a run (default 8, at most 8 by the project rule)
   --extra ARGS    more arguments for every `f4x-tools soak` (default '--events')
   --only LIST     only these runs of the matrix (comma-separated, see soak_variety.sh --help)
   --boost         run the soaks through `cool_run.sh --boost` (full power, never paused; the thermal
@@ -38,7 +38,7 @@ Exit status: 0 when no run failed or panicked, 1 otherwise, 2 for a usage error.
 USAGE
 }
 
-until_at=""; out=""; jobs=4; extra="--events"; only=""; first_round=0; boost=""
+until_at=""; out=""; jobs=8; extra="--events"; only=""; first_round=0; boost=""
 while [ $# -gt 0 ]; do
     case "$1" in
         -h|--help) usage; exit 0 ;;
@@ -65,7 +65,7 @@ say() { echo "$(stamp) $*" | tee -a "$log" >&2; }
 
 say "start: until $(date -r "$deadline" '+%Y-%m-%d %H:%M'), jobs $jobs, extra '$extra', out $out"
 say "commit: $(git rev-parse --short HEAD) $(git status --short | wc -l | tr -d ' ') changed files"
-scripts/cool_run.sh cargo build --release -p f4x-tools || { say "build failed"; exit 1; }
+scripts/cool_run.sh --all-cores cargo build --release -p f4x-tools || { say "build failed"; exit 1; }
 
 # The thermal watch: once a minute, until the deadline.
 (

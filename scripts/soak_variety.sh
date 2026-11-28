@@ -20,7 +20,7 @@ Options:
   --out DIR     folder for the reports (default /tmp/soak-variety-YYYYmmdd-HHMM); one <name>.txt
                 and one <name>-refused.tsv for each run, and summary.txt
   --only LIST   run only these runs (comma-separated names, see the list below)
-  --jobs N      games played at once in a run (default 4)
+  --jobs N      games played at once in a run (default 8)
   --quick       one seed and 300 turns for every run: a smoke test of the matrix
   --dry-run     print the commands and stop
   --seed-offset N  add N to every seed of the runs: more games for the same settings (default 0)
@@ -57,7 +57,7 @@ RUNS=(
     "long-2p|2|60x40|30|1|2|181..182|1200"
 )
 
-out=""; only=""; jobs=4; quick=0; dry=0; offset=0; extra=""; boost=""
+out=""; only=""; jobs=8; quick=0; dry=0; offset=0; extra=""; boost=""
 while [ $# -gt 0 ]; do
     case "$1" in
         -h|--help) usage; exit 0 ;;
@@ -79,7 +79,7 @@ bin=target/release/f4x-tools
 if [ "$dry" = 0 ]; then
     if [ -e "$out/summary.txt" ]; then echo "soak_variety: $out/summary.txt exists; use another --out" >&2; exit 2; fi
     mkdir -p "$out" || exit 2
-    scripts/cool_run.sh cargo build --release -p f4x-tools || { echo "soak_variety: build failed" >&2; exit 1; }
+    scripts/cool_run.sh --all-cores cargo build --release -p f4x-tools || { echo "soak_variety: build failed" >&2; exit 1; }
 fi
 
 failed=0
@@ -88,7 +88,7 @@ for run in "${RUNS[@]}"; do
     if [ -n "$only" ] && ! [[ ",$only," == *",$name,"* ]]; then continue; fi
     if [ "$quick" = 1 ]; then seeds="${seeds%%..*}..${seeds%%..*}"; turns=300; fi
     seeds="$((${seeds%%..*} + offset))..$((${seeds##*..} + offset))"
-    cmd=(scripts/cool_run.sh $boost "$bin" soak --seeds "$seeds" --turns "$turns" --players "$players"
+    cmd=(scripts/cool_run.sh "${boost:---all-cores}" "$bin" soak --seeds "$seeds" --turns "$turns" --players "$players"
          --map "$map" --land "$land" --magic "$magic" --difficulty "$difficulty"
          --jobs "$jobs" --refused-log "$out/$name-refused.tsv")
     # shellcheck disable=SC2206

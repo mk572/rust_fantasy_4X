@@ -120,7 +120,8 @@ before anything else is built on it. For networks this small the CPU backend may
 (no transfer cost), and the spike measures both.
 
 **Running on a laptop: stay cool.** An overheated Mac slows everything to a crawl, so every
-long run (training, evaluation, soak) goes through `scripts/cool_run.sh COMMAND...`: it runs
+long run (training, evaluation, soak) goes through `scripts/cool_run.sh COMMAND...` (soaks with
+`--all-cores`, which leaves out the background priority and so uses the performance cores): it runs
 the command at background priority (`taskpolicy -b`, `nice -n 19`), reads the macOS thermal
 state every 15 seconds (`ProcessInfo.thermalState`, no privileges; the same signal the imagegen
 project uses, `scripts/thermal_state.swift`), **stops the whole command while the state is

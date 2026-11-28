@@ -554,8 +554,9 @@ and encounter site), units lost in battle (`BattleCasualties` and units lost fle
 which turn) and per wizard the three places where it lost the most attacks on a neutral city or a lair.
 Results of the runs: `docs/soak-baseline.md`.
 
-Speed: the games run `--jobs N` at a time (default one for each core; games that print as they
-go, with `--every`, `--trace` or `--detail`, run one at a time), 5.7 times faster on ten cores
+Speed: the games run `--jobs N` at a time (default one for each core; games watched as they
+go, with `--every` or `--trace`, run one at a time; with `--detail` a game's lines are printed
+together when it ends), 5.7 times faster on ten cores
 with the same results. The reference-only game of each seed is kept in `soak-out/cache/` and
 reused while the rules, content, reference AI, soak code and options are unchanged (`--no-cache` plays
 it again); editing only `crates/f4x-ai` keeps it valid. Seeds where the wizards live on separate

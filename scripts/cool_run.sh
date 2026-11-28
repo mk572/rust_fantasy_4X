@@ -4,6 +4,7 @@
 # everything crawl.
 #
 #   scripts/cool_run.sh COMMAND [ARGS...]
+#   scripts/cool_run.sh --all-cores COMMAND [ARGS...]   soaks: every core, still paused when hot
 #   scripts/cool_run.sh --timing COMMAND [ARGS...]   for timing runs: see below
 #   scripts/cool_run.sh --boost COMMAND [ARGS...]    full power, thermal check at the start only
 #   scripts/cool_run.sh --state          print nominal | fair | serious | critical | unknown
@@ -17,6 +18,9 @@
 #   * when the state is COOL_PAUSE_AT or worse, the whole command is stopped (SIGSTOP) and only
 #     continued (SIGCONT) once the state is back to nominal, then it rests COOL_REST more seconds;
 #   * a state that cannot be read counts as hot.
+# --all-cores is the mode for soaks: `nice -n 19` without the background QoS, so the command runs on
+# the performance cores too (background QoS keeps it on the efficiency cores), with the same pause
+# while the Mac is hot.
 # --timing is the relaxed mode for a short run whose wall time is the result (scripts/perf_guard.py):
 # it waits for a cool Mac before it starts, then runs at normal priority (background QoS is about six
 # times slower, docs/KNOWLEDGE.md) and is never paused (a pause would count in the time). When the
@@ -30,6 +34,7 @@ set -u
 usage() {
     cat <<'USAGE'
 Usage: cool_run.sh COMMAND [ARGS...]
+       cool_run.sh --all-cores COMMAND [ARGS...]
        cool_run.sh --state
        cool_run.sh -h | --help
 
@@ -38,6 +43,8 @@ while the Mac is under thermal pressure, so it never heats the machine into the 
 makes everything crawl.
 
 Options:
+  --all-cores   the mode for soaks: low priority on every core, performance cores included,
+                paused while the Mac is hot like the plain mode
   --timing      relaxed mode for a short timing run: starts only when the Mac is cool, runs at
                 normal priority, is never paused, and warns if the Mac got hot during the run
   --boost       full-power mode for a long run: starts only when the Mac is cool, then runs at
@@ -46,8 +53,8 @@ Options:
   --state       print the thermal state (nominal | fair | serious | critical | unknown) and exit
   -h, --help    print this help and exit
 
-COMMAND [ARGS...] is run under `taskpolicy -b` and `nice -n 19`; its exit status is the
-script's. The command is stopped (SIGSTOP) when the thermal state is COOL_PAUSE_AT or worse and
+COMMAND [ARGS...] is run under `taskpolicy -b` and `nice -n 19` (--all-cores: `nice` alone);
+its exit status is the script's. The command is stopped (SIGSTOP) when the thermal state is COOL_PAUSE_AT or worse and
 continued once the state is nominal again, after COOL_REST more seconds. A state that cannot be
 read counts as hot. The first word must be a command, not an option.
 
@@ -60,7 +67,7 @@ USAGE
 }
 case "${1:-}" in
     -h|--help) usage; exit 0 ;;
-    --state|--timing|--boost|"") ;;
+    --state|--all-cores|--timing|--boost|"") ;;
     -*) echo "cool_run: unknown option: $1 (see --help)" >&2; exit 2 ;;
 esac
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -73,6 +80,9 @@ rank() { case "$1" in nominal) echo 0;; fair) echo 1;; serious) echo 2;; critica
 if [ "${1:-}" = "--state" ]; then state; exit 0; fi
 timing=0
 boost=0
+# What puts the command at low priority: by default also on the efficiency cores only.
+polite=(taskpolicy -b nice -n 19)
+if [ "${1:-}" = "--all-cores" ]; then polite=(nice -n 19); shift; fi
 if [ "${1:-}" = "--timing" ]; then timing=1; shift; fi
 if [ "${1:-}" = "--boost" ]; then boost=1; shift; fi
 [ $# -ge 1 ] || { echo "cool_run: no command given (see --help)" >&2; exit 2; }
@@ -106,7 +116,7 @@ if [ "$timing" = 1 ]; then
 fi
 
 set -m
-taskpolicy -b nice -n 19 "$@" &
+"${polite[@]}" "$@" &
 pid=$!
 trap 'kill -CONT -- -$pid 2>/dev/null; kill -TERM -- -$pid 2>/dev/null; exit 130' INT TERM
 
