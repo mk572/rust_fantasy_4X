@@ -119,6 +119,18 @@ pub fn commands(w: &World) -> Vec<Command> {
             player: p,
             change: crate::unit::task::Change::TidyMusters,
         });
+        for check in [
+            crate::unit::task_walk::Check::Missions {
+                unfit_sites: Vec::new(),
+            },
+            crate::unit::task_walk::Check::Escorts,
+        ] {
+            out.push(Command::CheckTasks {
+                player: p,
+                check,
+                door: None,
+            });
+        }
         for rate in [0u8, 3, 255] {
             out.push(Command::SetTaxRate { player: p, rate });
         }
@@ -271,6 +283,13 @@ pub fn commands(w: &World) -> Vec<Command> {
 
     for &u in &units {
         out.push(Command::ClearOrders { units: vec![u] });
+        for &p in &players {
+            out.push(Command::WalkTasks {
+                player: p,
+                units: vec![u],
+                door: None,
+            });
+        }
         out.push(Command::Purify { units: vec![u] });
         out.push(Command::Meld { units: vec![u] });
         out.push(Command::ShiftPlane { units: vec![u] });

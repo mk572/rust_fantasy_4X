@@ -100,7 +100,7 @@ pub fn run(
     // A holder whose enemy is gone (or whose city is no longer threatened) gives the role back.
     let holders = ai.tasks(game).roles.members(Role::Perimeter);
     for serial in holders {
-        let to = ai.tasks(game).roles.target_of(serial, Role::Perimeter);
+        let to = ai.tasks(game).roles.objective_of(serial, Role::Perimeter);
         let wanted = to.is_some_and(|to| threats.iter().any(|t| t.square == to));
         let alive = {
             let view = PlayerView::new(game, me);
@@ -127,7 +127,7 @@ pub fn run(
                     tasks.roles.is(s, Role::Perimeter)
                         && tasks
                             .roles
-                            .target_of(s, Role::Perimeter)
+                            .objective_of(s, Role::Perimeter)
                             .is_some_and(|to| to == threat.square)
                 })
                 .collect();
@@ -163,11 +163,13 @@ pub fn run(
         };
         if total >= their * ratio {
             for &s in &serials {
-                let _ = ai
-                    .write(game)
-                    .claim(s, Role::Perimeter, Some(threat.square));
-                ai.write(game)
-                    .set_target(s, Role::Perimeter, Some(threat.square));
+                if ai.write(game).claim(s, Role::Perimeter, None).is_ok()
+                    && ai.tasks(game).roles.objective_of(s, Role::Perimeter) != Some(threat.square)
+                {
+                    // The square to attack from is chosen below.
+                    ai.write(game)
+                        .stage(s, Role::Perimeter, None, threat.square);
+                }
             }
             gather(ai, game, &idle, &threat, their * ratio, events);
         }
@@ -228,9 +230,15 @@ fn gather(
     // the last one on the way of the unit that arrives last (`assembly.rs`).
     if let Some(square) = standing {
         crate::assembly::set_beside(ai, game, threat.square, square);
+        let ready: Vec<hecs::Entity> = idle
+            .iter()
+            .copied()
+            .filter(|u| !walkers.contains(u))
+            .collect();
+        crate::assembly::take(ai, game, Role::Perimeter, &ready, square, threat.square);
     }
     // Soldiers that cannot get there now are tried again next turn.
-    let _ = crate::assembly::march(ai, game, &walkers, threat.square, events);
+    let _ = crate::assembly::march(ai, game, Role::Perimeter, &walkers, threat.square, events);
 }
 
 #[cfg(test)]
@@ -261,7 +269,7 @@ mod tests {
     }
 
     /// A weak raider in the zone is gone for: the soldiers walk to a square beside it, with the
-    /// role and its square as their target.
+    /// role, that square as their target and the raider's as the objective.
     #[test]
     fn a_weak_stack_in_the_zone_is_gone_for_by_the_spare_soldiers() {
         let (mut w, spare) = besieged(1);
@@ -270,12 +278,13 @@ mod tests {
         let view = PlayerView::new(&w, P0);
         for &u in &spare {
             assert!(view.unit_has_order(u));
+            let (tasks, serial) = (ai.tasks(&w), view.serial_of(u));
             assert_eq!(
-                ai.tasks(&w)
-                    .roles
-                    .target_of(view.serial_of(u), Role::Perimeter),
+                tasks.roles.objective_of(serial, Role::Perimeter),
                 Some(at(8, 6))
             );
+            let from = tasks.roles.target_of(serial, Role::Perimeter);
+            assert!(from.is_some_and(|p| view.distance(p, at(8, 6)) == Some(1)));
         }
     }
 

@@ -1,60 +1,24 @@
 //! Gathering a force (task 837, `docs/ai-design.md` "Gathering a force"): how long units need to a
 //! square, on foot or through a gate; the one square beside each target that everything sent against
 //! it goes to; the rally point on the way of the unit that arrives last; and the walk there. The
-//! campaign (`war.rs`), the raids (`raid.rs`), the perimeter and the walk repair
-//! (`dispatch::resend`) use it. The attack is `attack.rs`'s.
+//! campaign (`war.rs`), the raids (`raid.rs`), the perimeter and the check of the missions
+//! (`dispatch.rs`) use it. The way itself is core's (`f4x_core::unit::travel`). The attack is
+//! `attack.rs`'s.
 //!
 //! Tests: below, on shipped units.
 
-use std::collections::HashMap;
-
-use f4x_core::city::gate::{ASTRAL_GATE, EARTH_GATE};
-use f4x_core::map::terrain::TerrainClass;
-use f4x_core::map::{Plane, Position};
+use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::unit::movement::MoveError;
-use f4x_core::unit::pathing::ReachSignature;
-use f4x_core::world::{Command, Event, Rejection, World};
-use f4x_def::half_int::HalfInt;
-use f4x_def::rules::unit_flag::UnitFlag;
+use f4x_core::unit::travel::{Travel, TravelError, Trip};
+use f4x_core::world::serial::Serial;
+use f4x_core::world::{Event, Rejection, World};
 use f4x_master::Game;
 
 use crate::roles::{MusterKind, Role};
 use crate::view::distance;
 use crate::{Ai, SendError};
 use f4x_core::unit::task::{Assembly, Tasks};
-
-/// The squares of a way, each with the turn the units stand on it.
-type Way = Vec<(Position, u32)>;
-
-/// How a door is gone through.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Passage {
-    /// A step from one Earth Gate city to another.
-    EarthGate,
-    /// A change of plane on the square: a tower, an Astral Gate, a unit's own planar travel, or
-    /// the square a Plane Shift is cast on.
-    Plane,
-}
-
-/// A way across the map that walking does not give.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct Door {
-    pub entry: Position,
-    pub exit: Position,
-    pub passage: Passage,
-}
-
-/// How units get to a square.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Trip {
-    pub turns: u32,
-    /// The squares walked, the one the walk starts on first: the units' own, or the exit of the
-    /// door.
-    pub way: Way,
-    /// The door gone through, when that is shorter than the walk.
-    pub door: Option<Door>,
-}
 
 /// Why units could not be sent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -69,235 +33,35 @@ pub(crate) enum MarchError {
     Refused(MoveError),
 }
 
-/// The square on the other plane.
-pub(crate) fn mirror(p: Position) -> Position {
-    let plane = match p.plane {
-        Plane::Arcanus => Plane::Myrror,
-        Plane::Myrror => Plane::Arcanus,
+/// Walk units, whose tasks send them to `square`, their next step there. Nothing is asked of the
+/// game when there is no way or the next square has no room for them.
+pub(crate) fn send(
+    ai: &Ai,
+    game: &mut Game,
+    travel: &mut Travel,
+    units: &[hecs::Entity],
+    square: Position,
+    events: &mut Vec<Event>,
+) -> Result<(), MarchError> {
+    let step = travel
+        .step(&PlayerView::new(game, ai.player), units, square)
+        .map_err(|why| match why {
+            TravelError::NoUnits => MarchError::NoUnits,
+            TravelError::Unreachable => MarchError::Unreachable,
+        })?;
+    let Some(step) = step else {
+        return Ok(());
     };
-    Position { plane, ..p }
-}
-
-/// The doors every unit of the AI may use: its Earth Gates and Astral Gates, and the square the
-/// campaign crosses by.
-fn doors(ai: &Ai, world: &World) -> Vec<Door> {
-    let view = PlayerView::new(world, ai.player);
-    let me = ai.player;
-    let cities: Vec<Position> = view.my_cities().into_iter().map(|(_, p)| p).collect();
-    let has = |p: Position, gate| world.economy().has_gate(p, me, gate);
-    let earth: Vec<Position> = cities
-        .iter()
-        .copied()
-        .filter(|&p| has(p, EARTH_GATE))
-        .collect();
-    let mut found = Vec::new();
-    for &entry in &earth {
-        for &exit in &earth {
-            if entry != exit && entry.plane == exit.plane {
-                found.push(Door {
-                    entry,
-                    exit,
-                    passage: Passage::EarthGate,
-                });
-            }
+    // A square with no room for the party is left alone (it may be free later).
+    if !Ai::room_at(game, step.to(), units.len()) {
+        return Err(MarchError::Refused(MoveError::StackFull));
+    }
+    match ai.walk(game, units.to_vec(), events) {
+        Ok(()) => Ok(()),
+        Err(SendError::Rejected(Rejection::Move(why)) | SendError::Stopped(why)) => {
+            Err(MarchError::Refused(why))
         }
-    }
-    if world.units().planar_seal_active() {
-        return found;
-    }
-    let astral = cities
-        .iter()
-        .copied()
-        .filter(|&p| has(p, ASTRAL_GATE) && view.city_at(mirror(p)).is_none());
-    found.extend(astral.chain(ai.crossing).map(|entry| Door {
-        entry,
-        exit: mirror(entry),
-        passage: Passage::Plane,
-    }));
-    found
-}
-
-/// The doors and the walks worked out for one look at the world: no unit may move while it is
-/// kept.
-pub(crate) struct Travel {
-    doors: Vec<Door>,
-    ways: HashMap<(ReachSignature, HalfInt, HalfInt, Position, Position), Option<Way>>,
-}
-
-impl Travel {
-    pub fn new(ai: &Ai, world: &World) -> Self {
-        Self {
-            doors: doors(ai, world),
-            ways: HashMap::new(),
-        }
-    }
-
-    /// The walk of the units from `from` to `to` ([`PlayerView::way`]); units of one kind on one
-    /// square share the search.
-    fn walk(
-        &mut self,
-        view: &PlayerView,
-        units: &[hecs::Entity],
-        from: Position,
-        to: Position,
-    ) -> Option<Way> {
-        let Some(signature) = view.reach_signature(units) else {
-            return view.way(units, from, to);
-        };
-        let least = |f: &dyn Fn(hecs::Entity) -> HalfInt| {
-            units.iter().map(|&u| f(u)).min().unwrap_or(HalfInt::ZERO)
-        };
-        let left = least(&|u| view.unit_moves_left(u));
-        let full = least(&|u| view.unit_max_moves(u));
-        self.ways
-            .entry((signature, left, full, from, to))
-            .or_insert_with(|| view.way(units, from, to))
-            .clone()
-    }
-
-    /// How units standing together get to `to`: the shorter of their walk and their way through a
-    /// door. `None` when there is neither.
-    pub fn trip(
-        &mut self,
-        view: &PlayerView,
-        units: &[hecs::Entity],
-        to: Position,
-    ) -> Option<Trip> {
-        let from = view.unit_position(*units.first()?)?;
-        let turns_of = |way: &Way| way.last().map_or(0, |w| w.1);
-        let mut best = self.walk(view, units, from, to).map(|walk| {
-            let turns = turns_of(&walk);
-            let mut way = vec![(from, 0)];
-            way.extend(walk);
-            Trip {
-                turns,
-                way,
-                door: None,
-            }
-        });
-        // Units that travel between the planes by themselves do so where they stand.
-        let own = (units
-            .iter()
-            .all(|&u| view.unit_has_flag(u, UnitFlag::PlanarTravel))
-            && view.can_shift_plane(units))
-        .then_some(Door {
-            entry: from,
-            exit: mirror(from),
-            passage: Passage::Plane,
-        });
-        let doors: Vec<Door> = own.into_iter().chain(self.doors.iter().copied()).collect();
-        for door in doors {
-            if door.entry.plane != from.plane || door.exit.plane != to.plane {
-                continue;
-            }
-            // A walker does not come out on the sea.
-            if view.terrain_class(door.exit) == Some(TerrainClass::Ocean)
-                && units.iter().any(|&u| view.is_walker(u))
-            {
-                continue;
-            }
-            let Some(before) = self.walk(view, units, from, door.entry) else {
-                continue;
-            };
-            // Going through takes a turn of its own.
-            let through = turns_of(&before) + 1;
-            if best.as_ref().is_some_and(|b| b.turns <= through) {
-                continue;
-            }
-            let Some(after) = self.walk(view, units, door.exit, to) else {
-                continue;
-            };
-            let turns = through + turns_of(&after);
-            if best.as_ref().is_some_and(|b| b.turns <= turns) {
-                continue;
-            }
-            let mut way = vec![(door.exit, through)];
-            way.extend(after.into_iter().map(|(p, t)| (p, t + through)));
-            best = Some(Trip {
-                turns,
-                way,
-                door: Some(door),
-            });
-        }
-        best
-    }
-
-    /// Whether any of the units could get to any of `squares`: one search for each kind of unit,
-    /// that stops at the first square found, so that a target nothing can get to (across the
-    /// water) costs no search for each square round it. A door may take a unit anywhere.
-    fn any_gets_to(&self, view: &PlayerView, units: &[hecs::Entity], squares: &[Position]) -> bool {
-        let mut asked: Vec<ReachSignature> = Vec::new();
-        units.iter().any(|&u| {
-            if !self.doors.is_empty()
-                || view.unit_has_flag(u, UnitFlag::PlanarTravel)
-                || view.unit_position(u).is_some_and(|p| squares.contains(&p))
-            {
-                return true;
-            }
-            let Some(signature) = view.reach_signature(&[u]) else {
-                return true;
-            };
-            if asked.contains(&signature) {
-                return false;
-            }
-            asked.push(signature);
-            view.reaches_any(&[u], squares)
-        })
-    }
-
-    /// Send units standing together on their way to `to`: through the door when that is shorter,
-    /// walking to it first. Units on the square of a door that is not open yet (a Plane Shift not
-    /// yet cast) wait there.
-    pub fn send(
-        &mut self,
-        ai: &Ai,
-        game: &mut Game,
-        units: &[hecs::Entity],
-        to: Position,
-        events: &mut Vec<Event>,
-    ) -> Result<(), MarchError> {
-        let (command, dest) = {
-            let view = PlayerView::new(game, ai.player);
-            let from = units
-                .first()
-                .and_then(|&u| view.unit_position(u))
-                .ok_or(MarchError::NoUnits)?;
-            if from == to {
-                return Ok(());
-            }
-            let trip = self.trip(&view, units, to).ok_or(MarchError::Unreachable)?;
-            let units = units.to_vec();
-            match trip.door {
-                Some(door) if door.entry == from => match door.passage {
-                    Passage::EarthGate => (
-                        Command::EarthGate {
-                            units,
-                            to: door.exit,
-                        },
-                        door.exit,
-                    ),
-                    Passage::Plane if view.can_shift_plane(&units) => {
-                        (Command::ShiftPlane { units }, door.exit)
-                    }
-                    Passage::Plane => return Ok(()),
-                },
-                door => {
-                    let dest = door.map_or(to, |d| d.entry);
-                    (Command::GoTo { units, to: dest }, dest)
-                }
-            }
-        };
-        // A square with no room for the party is left alone (it may be free later).
-        if !Ai::room_at(game, dest, units.len()) {
-            return Err(MarchError::Refused(MoveError::StackFull));
-        }
-        match ai.send(game, command, events) {
-            Ok(()) => Ok(()),
-            Err(SendError::Rejected(Rejection::Move(why)) | SendError::Stopped(why)) => {
-                Err(MarchError::Refused(why))
-            }
-            Err(_) => Err(MarchError::Unreachable),
-        }
+        Err(_) => Err(MarchError::Unreachable),
     }
 }
 
@@ -327,7 +91,7 @@ fn force_for(view: &PlayerView, target: Position, units: &[hecs::Entity]) -> Vec
         let s = view.serial_of(u);
         let bound = [Role::March, Role::Raid, Role::Perimeter]
             .into_iter()
-            .any(|r| tasks.roles.target_of(s, r) == Some(target))
+            .any(|r| tasks.roles.objective_of(s, r) == Some(target))
             || tasks
                 .roles
                 .muster_of(s)
@@ -395,7 +159,7 @@ pub(crate) fn tidy(ai: &Ai, game: &mut Game) {
         let tasks = ai.tasks(game);
         let mut live: Vec<Position> = ai.campaign.into_iter().collect();
         for role in [Role::March, Role::Raid, Role::Perimeter] {
-            live.extend(tasks.roles.targeted(role).into_iter().map(|(_, p)| p));
+            live.extend(tasks.roles.objectives(role));
         }
         live.extend(
             tasks
@@ -539,18 +303,21 @@ pub(crate) fn rally(
     point
 }
 
-/// Send a party against `target`: to the square beside it that everything bound for it goes to.
-/// Units that stand there stay. `Ok` when any unit is there or on its way.
+/// Send a party against `target`: each unit takes `role` with the square beside the target that
+/// everything bound for it goes to, and walks there. Units that stand there stay. `Ok` when any
+/// unit is there or on its way; else those that took the role for this give it back.
 pub(crate) fn march(
     ai: &mut Ai,
     game: &mut Game,
+    role: Role,
     units: &[hecs::Entity],
     target: Position,
     events: &mut Vec<Event>,
 ) -> Result<(), MarchError> {
-    let mut travel = Travel::new(ai, game);
+    let mut travel = Travel::new(game, ai.player, ai.crossing);
     let square = beside(ai, game, &mut travel, target, units)?;
-    let groups = by_square(&PlayerView::new(game, ai.player), units);
+    let (newly, holders) = take(ai, game, role, units, square, target);
+    let groups = by_square(&PlayerView::new(game, ai.player), &holders);
     let mut sent = false;
     let mut refused = None;
     for (at, group) in groups {
@@ -558,15 +325,47 @@ pub(crate) fn march(
             sent = true;
             continue;
         }
-        match travel.send(ai, game, &group, square, events) {
+        match send(ai, game, &mut travel, &group, square, events) {
             Ok(()) => sent = true,
             Err(why) => refused = refused.or(Some(why)),
         }
     }
     match refused {
-        Some(why) if !sent => Err(why),
+        Some(why) if !sent => {
+            ai.write(game).release_many(&newly, role);
+            Err(why)
+        }
         _ => Ok(()),
     }
+}
+
+/// Record `role` for each of the units that may take it: to `square`, against `target`. Returns
+/// the ones that did not hold the role before, and the units that hold it now.
+pub(crate) fn take(
+    ai: &Ai,
+    game: &mut Game,
+    role: Role,
+    units: &[hecs::Entity],
+    square: Position,
+    target: Position,
+) -> (Vec<Serial>, Vec<hecs::Entity>) {
+    let serials: Vec<(hecs::Entity, Serial)> = {
+        let view = PlayerView::new(game, ai.player);
+        units.iter().map(|&u| (u, view.serial_of(u))).collect()
+    };
+    let (mut newly, mut holders) = (Vec::new(), Vec::new());
+    for (unit, serial) in serials {
+        let held = ai.tasks(game).roles.is(serial, role);
+        if ai.write(game).claim(serial, role, None).is_err() {
+            continue;
+        }
+        ai.write(game).stage(serial, role, Some(square), target);
+        if !held {
+            newly.push(serial);
+        }
+        holders.push(unit);
+    }
+    (newly, holders)
 }
 
 /// The facts of a march the game refused for want of room: how many the party is and how full
@@ -641,7 +440,7 @@ pub(crate) fn campaign_muster(
 mod tests {
     use super::*;
     use crate::testworld::{at, game, spawn, spawn_site, COAST_CITY, INLAND_CITY, P0};
-    use f4x_core::world::World;
+    use f4x_core::world::{Command, World};
     use f4x_master::Game;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -662,7 +461,7 @@ mod tests {
     }
 
     fn turns(ai: &Ai, w: &World, unit: hecs::Entity, to: Position) -> Option<Trip> {
-        Travel::new(ai, w).trip(&PlayerView::new(w, P0), &[unit], to)
+        Travel::new(w, ai.player, ai.crossing).trip(&PlayerView::new(w, P0), &[unit], to)
     }
 
     fn earth_gates(w: &mut World, at_squares: &[Position]) -> TestResult {
@@ -684,7 +483,7 @@ mod tests {
         units.extend(spawn(&mut w, P0, at(7, 9), PALADINS, 1));
         units.push(far);
         let mut ai = Ai::new(P0);
-        let mut travel = Travel::new(&ai, &w);
+        let mut travel = Travel::new(&w, ai.player, ai.crossing);
         let square =
             beside(&mut ai, &mut w, &mut travel, target(), &units).map_err(|e| format!("{e:?}"))?;
         let point =
@@ -712,7 +511,7 @@ mod tests {
         assert_eq!(rally_of(&ai.tasks(&w), target()), Some(point), "it is kept");
         // Other units do not move it while it can be used.
         let more = spawn(&mut w, P0, at(3, 9), PALADINS, 1);
-        let mut travel = Travel::new(&ai, &w);
+        let mut travel = Travel::new(&w, ai.player, ai.crossing);
         assert_eq!(
             rally(&mut ai, &mut w, &mut travel, target(), square, &more),
             Some(point)
@@ -720,7 +519,7 @@ mod tests {
         // No room on it: another is chosen.
         let full = w.max_tile();
         spawn(&mut w, P0, point, SPEARMEN, full);
-        let mut travel = Travel::new(&ai, &w);
+        let mut travel = Travel::new(&w, ai.player, ai.crossing);
         assert_ne!(
             rally(&mut ai, &mut w, &mut travel, target(), square, &units),
             Some(point)
@@ -737,8 +536,9 @@ mod tests {
         let east = spawn(&mut w, P0, at(9, 3), PALADINS, 2);
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();
-        march(&mut ai, &mut w, &south, target(), &mut events).map_err(|e| format!("{e:?}"))?;
-        let mut travel = Travel::new(&ai, &w);
+        march(&mut ai, &mut w, Role::March, &south, target(), &mut events)
+            .map_err(|e| format!("{e:?}"))?;
+        let mut travel = Travel::new(&w, ai.player, ai.crossing);
         let first =
             beside(&mut ai, &mut w, &mut travel, target(), &south).map_err(|e| format!("{e:?}"))?;
         assert_eq!(PlayerView::new(&w, P0).distance(first, target()), Some(1));
@@ -748,7 +548,7 @@ mod tests {
         );
         let full = w.max_tile();
         spawn(&mut w, P0, first, SPEARMEN, full);
-        let mut travel = Travel::new(&ai, &w);
+        let mut travel = Travel::new(&w, ai.player, ai.crossing);
         let next =
             beside(&mut ai, &mut w, &mut travel, target(), &east).map_err(|e| format!("{e:?}"))?;
         let view = PlayerView::new(&w, P0);
@@ -789,10 +589,17 @@ mod tests {
             "walked from the exit"
         );
         // Sent there, it steps through the gate.
-        let mut travel = Travel::new(&ai, &w);
-        travel
-            .send(&ai, &mut w, &[by_gate], square, &mut Vec::new())
-            .map_err(|e| format!("{e:?}"))?;
+        let mut travel = Travel::new(&w, ai.player, ai.crossing);
+        take(&ai, &mut w, Role::March, &[by_gate], square, target());
+        send(
+            &ai,
+            &mut w,
+            &mut travel,
+            &[by_gate],
+            square,
+            &mut Vec::new(),
+        )
+        .map_err(|e| format!("{e:?}"))?;
         assert_eq!(w.units().unit_position(by_gate), Some(seat));
         Ok(())
     }
@@ -803,7 +610,7 @@ mod tests {
         let mut w = world()?;
         let units = spawn(&mut w, P0, at(5, 5), PALADINS, 3);
         let mut ai = Ai::new(P0);
-        let mut travel = Travel::new(&ai, &w);
+        let mut travel = Travel::new(&w, ai.player, ai.crossing);
         let square =
             beside(&mut ai, &mut w, &mut travel, target(), &units).map_err(|e| format!("{e:?}"))?;
         assert_eq!(

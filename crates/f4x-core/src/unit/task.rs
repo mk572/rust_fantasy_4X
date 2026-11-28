@@ -1,8 +1,9 @@
 //! Unit tasks: what a player has set each of its units to do, the parties being assembled and
 //! the squares a force gathers on. The player keeps them in its army ledger, reads them there and
 //! changes them with `Command::Task`, one [`Change`] at a time; the computer player chooses them
-//! (`docs/ai-unit-registry.md`). A task orders no unit about by itself. The turns an entry
-//! records are the round the game gives the world with the command.
+//! (`docs/ai-unit-registry.md`). A task orders no unit about by itself: the movement helper walks
+//! the units when the player calls it (`unit/task_walk.rs`). The turns an entry records are the
+//! round the game gives the world with the command.
 //!
 //! The ledger holds tasks of its living units only: writing them leaves out the others, and a
 //! unit that leaves the army loses its task as it loses its order.
@@ -62,6 +63,14 @@ pub enum Change {
         serial: Serial,
         role: Role,
         to: Option<Position>,
+    },
+    /// Record where a unit sent against something goes (`to`, the square it attacks from) and
+    /// what it is sent against.
+    Stage {
+        serial: Serial,
+        role: Role,
+        to: Option<Position>,
+        objective: Position,
     },
     SetCrossing {
         serial: Serial,
@@ -168,6 +177,12 @@ impl Tasks {
                 }
             }
             Change::SetTarget { serial, role, to } => roles.set_target(serial, role, to, round),
+            Change::Stage {
+                serial,
+                role,
+                to,
+                objective,
+            } => roles.stage(serial, role, to, objective, round),
             Change::SetCrossing { serial, crossing } => roles.set_crossing(serial, crossing),
             Change::BoardAt { serial, ship, tile } => roles.board_at(serial, ship, tile),
             Change::Unboard { serial } => roles.unboard(serial),
@@ -295,6 +310,9 @@ pub enum Role {
     MoveTo,
     /// A soldier on its way to an under-defended own city (`reinforce.rs`, `to` = the city).
     Reinforce,
+    /// A wounded unit that mends (`recover.rs`): `to` is where, its own square when it stays; one
+    /// that goes to a healer is tied to it (`with`) and follows it.
+    Rest,
 }
 
 /// What carries a unit to its target when no walk leads there: the unit keeps its role and its
@@ -321,8 +339,13 @@ pub struct Assignment {
     /// The plan clock (`plan_clock.rs`) reads it.
     #[serde(default)]
     pub planned: u32,
-    /// Where the role sends it (a city to return to, a shore tile to wait on), if anywhere.
+    /// Where the role sends it (a city to return to, a shore tile to wait on), if anywhere. A
+    /// raider, a marcher and a perimeter soldier are sent to the square they attack from.
     pub to: Option<Position>,
+    /// What a raider, a marcher or a perimeter soldier is sent against. Saves from before the
+    /// field hold it in `to` ([`Registry::objective_of`]).
+    #[serde(default)]
+    pub objective: Option<Position>,
     /// The group it acts with (a raid party, a march, a ferry and its passengers, an escort and
     /// its charge): the units sharing the id. `Registry::new_party` gives a fresh one.
     #[serde(default)]
@@ -349,6 +372,7 @@ impl Assignment {
             since: turn,
             planned: turn,
             to: None,
+            objective: None,
             party: None,
             with: None,
             crossing: None,
@@ -591,6 +615,46 @@ impl Registry {
                 a.crossing = None;
             }
             a.to = to;
+        }
+    }
+
+    /// What the unit is sent against, if it holds `role` (a raid, a march, the perimeter). A
+    /// save from before the objective was recorded apart holds it in `to`.
+    pub fn objective_of(&self, serial: Serial, role: Role) -> Option<Position> {
+        self.map
+            .get(&serial)
+            .filter(|a| a.role == role)
+            .and_then(|a| a.objective.or(a.to))
+    }
+
+    /// What the units holding `role` are sent against.
+    pub fn objectives(&self, role: Role) -> Vec<Position> {
+        self.map
+            .values()
+            .filter(|a| a.role == role)
+            .filter_map(|a| a.objective.or(a.to))
+            .collect()
+    }
+
+    /// Send the unit, if it holds `role`, to `to` against `objective`. A new objective is a new
+    /// plan; a new square to attack the same one from is not.
+    pub fn stage(
+        &mut self,
+        serial: Serial,
+        role: Role,
+        to: Option<Position>,
+        objective: Position,
+        turn: u32,
+    ) {
+        if let Some(a) = self.map.get_mut(&serial).filter(|a| a.role == role) {
+            if a.objective.or(a.to) != Some(objective) {
+                a.planned = turn;
+                a.crossing = None;
+            } else if a.to != to {
+                a.crossing = None;
+            }
+            a.to = to;
+            a.objective = Some(objective);
         }
     }
 
@@ -928,6 +992,7 @@ impl Registry {
                         since: turn,
                         planned: turn,
                         to,
+                        objective: None,
                         party: None,
                         with: None,
                         crossing: None,
@@ -982,6 +1047,8 @@ impl Role {
 
     fn priority(self) -> u8 {
         match self {
+            // Nobody takes a wounded unit from its rest.
+            Role::Rest => 0,
             Role::Settle => 1,
             Role::Bridge => 2,
             Role::TransportReady => 3,

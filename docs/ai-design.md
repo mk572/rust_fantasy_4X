@@ -670,7 +670,7 @@ unit tests in `wizardry.rs` and `f4x-ai/src/battle/order.rs`, `crates/f4x-learn/
   or planes; the soak cannot end those by conquest. A trireme (two land units, needs a Ship
   Wrights Guild) or a galley (five, needs a Ship Yard, which needs a Sawmill) is built in a
   coastal city; a stack of the ship and its passengers moves with one `GoTo`
-  (as every walk of the AI does, `ai-unit-registry.md` "Orders"); passengers land with
+  (`ai-unit-registry.md` "Orders"); passengers land with
   an ordinary move onto the land next to the target. What the AI would have to add: a port, the
   buildings, a gathering of nine or more units over several trips, and a landing area it holds
   until the force is whole. Built in `naval.rs` (port, ship, one landing at a time); a ship loaded for a rival's city declares war first; what stays open is a second ship, planes (a sea scout lands a fighter on empty land, a ship takes a party to a guarded tower, a scout changes plane on a cleared one; an army does not cross yet), and why seeds 2 and 8 make no landing on the other wizard (task 230).
@@ -1052,11 +1052,11 @@ A stack beside a target attacks when the units that may attack it are at least `
 
 ## Gathering a force (task 837, 27 November 2026)
 
-The jobs only **build up a force** that can take a target; whether it attacks is `attack.rs`'s. `assembly.rs` holds how a force gets there, for the campaign (`war.rs`), the raids (`raid.rs`), the perimeter and the walk repair (`dispatch::resend`). Where the idea came from and what is left for later: [`ai-strike-force.md`](ai-strike-force.md).
+The jobs only **build up a force** that can take a target; whether it attacks is `attack.rs`'s. `assembly.rs` holds how a force gets there, for the campaign (`war.rs`), the raids (`raid.rs`) and the perimeter. The way and the walk through doors are core's (`f4x_core::unit::travel`), used by the movement helper of the unit tasks (`ai-unit-registry.md`, "Orders"). Where the idea came from and what is left for later: [`ai-strike-force.md`](ai-strike-force.md).
 
-**Travel time** to a square is the shorter of the walk and the way through a door: from an own Earth Gate city to another on the same plane, through an own Astral Gate city or the campaign's crossing to the other plane, or where the units stand when all of them travel between the planes by themselves. Going through counts as a turn. A unit whose way through a door is the shorter one takes it (`Travel::send`); one standing on a crossing that is not open yet (a Plane Shift not yet cast) waits there. The walk from a square a unit does not stand on is `PlayerView::way`.
+**Travel time** to a square is the shorter of the walk and the way through a door: from an own Earth Gate city to another on the same plane, through an own Astral Gate city or the campaign's crossing to the other plane, or where the units stand when all of them travel between the planes by themselves. Going through counts as a turn. A unit whose way through a door is the shorter one takes it (`Travel::step`); one standing on a crossing that is not open yet (a Plane Shift not yet cast) waits there. The walk from a square a unit does not stand on is `PlayerView::way`.
 
-**The square beside the target.** One for each target, and every unit sent against it goes there: the last square before the target on the way of the unit that arrives last. It holds no enemy, lair, city or tower and has room for the force. It is kept until it is blocked; then the open square nearest to it takes its place.
+**The square beside the target.** One for each target, and every unit sent against it goes there (it is the square of the unit's task, the target its objective): the last square before the target on the way of the unit that arrives last. It holds no enemy, lair, city or tower and has room for the force. It is kept until it is blocked; then the open square nearest to it takes its place.
 
 **The force** is picked by need: until the strength wanted (`war_plan::strength_wanted`) and `min_march` units are there, at most what a battle holds a side; in the win phase every free soldier up to that. The members of the campaign's muster come first (they are not swapped for others every turn), then the soldiers who are at the target soonest. With fewer than `min_march` soldiers free and marching, nothing is gathered.
 

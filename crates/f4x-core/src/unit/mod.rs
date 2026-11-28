@@ -21,7 +21,9 @@ pub mod sanity;
 pub mod scouting;
 pub mod stasis;
 pub mod task;
+pub mod task_walk;
 pub mod transport;
+pub mod travel;
 pub mod undead;
 
 use crate::rules::damage_type::DamageTypes;

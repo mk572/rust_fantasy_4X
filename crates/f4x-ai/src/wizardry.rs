@@ -6,13 +6,13 @@
 
 use f4x_def::rules::ai_strategy::{SplitLevers, StrategyAiRules};
 
-use crate::assembly::mirror;
 use crate::lever::Levered;
 use f4x_core::diplomacy::Treaty;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::rules::exec::Target;
 use f4x_core::spell::unit_effect::UnitEffect;
+use f4x_core::unit::travel::mirror;
 use f4x_core::world::{Command, Event, World};
 use f4x_def::rules::effects::Effect;
 use f4x_def::rules::{CastContext, Duration, SpellDef, SpellId, SpellTarget};

@@ -12,10 +12,11 @@ use f4x_core::player::PlayerId;
 use f4x_core::world::serial::Serial;
 use f4x_core::world::{Event, World};
 
-use crate::assembly::{self, Travel};
+use crate::assembly;
 use crate::site::{lost_before, sites_near, unarmed_share};
 use crate::view::{distance, is_fighter, party, stack_strength, unit_strength};
 use crate::Ai;
+use f4x_core::unit::travel::Travel;
 use f4x_master::Game;
 
 pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
@@ -73,7 +74,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 .find_map(|&u| {
                     view.tasks()
                         .roles
-                        .target_of(view.serial_of(u), crate::roles::Role::Raid)
+                        .objective_of(view.serial_of(u), crate::roles::Role::Raid)
                 })
                 .filter(|t| sites.contains(t));
             // The site it is set on first, then the nearest few: one it cannot walk to is
@@ -89,9 +90,12 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         // The party goes to the square beside the first site it can get to; one beside a site it
         // cannot gather at stays where it is.
         let chosen = candidates.iter().copied().find(|&t| {
-            match assembly::march(ai, game, &units, t, events) {
+            match assembly::march(ai, game, crate::roles::Role::Raid, &units, t, events) {
                 Ok(()) => true,
-                Err(_) if beside(game, me, pos, t) => true,
+                Err(_) if beside(game, me, pos, t) => {
+                    assembly::take(ai, game, crate::roles::Role::Raid, &units, pos, t);
+                    true
+                }
                 Err(why) => {
                     // A site the party cannot walk to is passed over by design (the next
                     // candidate is tried), so it is not a refused order worth logging.
@@ -108,12 +112,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 }
             }
         });
-        if let Some(site) = chosen {
-            for &s in &serials {
-                ai.write(game)
-                    .set_target(s, crate::roles::Role::Raid, Some(site));
-            }
-        } else {
+        if chosen.is_none() {
             // No candidate could be walked to, or there was none: the raid is over where the
             // party stands. Its soldiers are free again and the dispatcher, the rest rules
             // (`recover.rs`) and the garrison job take them from there: nothing needs them in a
@@ -187,17 +186,12 @@ pub fn form(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
                 sites
             };
             for site in sites {
-                if assembly::march(ai, game, party, site, events).is_ok()
-                    || beside(game, me, pos, site)
-                {
-                    let view = PlayerView::new(game, me);
-                    let serials: Vec<Serial> = party.iter().map(|&u| view.serial_of(u)).collect();
-                    ai.write(game)
-                        .claim_all(serials.iter().copied(), crate::roles::Role::Raid);
+                let role = crate::roles::Role::Raid;
+                let going = assembly::march(ai, game, role, party, site, events).is_ok();
+                if going || beside(game, me, pos, site) {
                     // The party attacks only the site it is sent against (`attack.rs`).
-                    for s in serials {
-                        ai.write(game)
-                            .set_target(s, crate::roles::Role::Raid, Some(site));
+                    if !going {
+                        assembly::take(ai, game, role, party, pos, site);
                     }
                     left = true;
                     break;
@@ -247,10 +241,10 @@ pub(crate) fn release(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 .filter(|&u| !view.unit_has_order(u) && view.unit_position(u) != Some(muster.rally))
                 .collect()
         };
-        let mut travel = Travel::new(ai, game);
+        let mut travel = Travel::new(game, ai.player, ai.crossing);
         for u in idle {
             // One that cannot go on now is tried again next turn, until the muster's time is up.
-            let _ = travel.send(ai, game, &[u], muster.rally, events);
+            let _ = assembly::send(ai, game, &mut travel, &[u], muster.rally, events);
         }
     }
 }
@@ -335,7 +329,7 @@ pub(crate) fn gather(
         };
         (site, best)
     };
-    let mut travel = Travel::new(ai, game);
+    let mut travel = Travel::new(game, ai.player, ai.crossing);
     let members: Vec<hecs::Entity> = {
         let view = PlayerView::new(game, me);
         best.into_iter()
@@ -347,22 +341,36 @@ pub(crate) fn gather(
     };
     let rally =
         assembly::rally(ai, game, &mut travel, objective, beside, &members).unwrap_or(beside);
-    let mut gathering: Vec<Serial> = Vec::new();
-    for u in members {
-        let (serial, at) = {
-            let view = PlayerView::new(game, me);
-            (view.serial_of(u), view.unit_position(u))
-        };
-        if at == Some(rally) || travel.send(ai, game, &[u], rally, events).is_ok() {
-            gathering.push(serial);
+    let serials: Vec<Serial> = {
+        let view = PlayerView::new(game, me);
+        members.iter().map(|&u| view.serial_of(u)).collect()
+    };
+    if ai
+        .write(game)
+        .begin_muster(
+            crate::roles::MusterKind::Raid,
+            rally,
+            Some(objective),
+            &serials,
+        )
+        .is_none()
+    {
+        return;
+    }
+    // One that cannot set out is no part of the muster.
+    let mut stayed: Vec<Serial> = Vec::new();
+    for (u, serial) in members.into_iter().zip(serials) {
+        let at = PlayerView::new(game, me).unit_position(u);
+        if at != Some(rally)
+            && ai.tasks(game).roles.is(serial, crate::roles::Role::Muster)
+            && assembly::send(ai, game, &mut travel, &[u], rally, events).is_err()
+        {
+            stayed.push(serial);
         }
     }
-    ai.write(game).begin_muster(
-        crate::roles::MusterKind::Raid,
-        rally,
-        Some(objective),
-        &gathering,
-    );
+    ai.write(game)
+        .release_many(&stayed, crate::roles::Role::Muster);
+    ai.write(game).tidy_musters();
 }
 
 #[cfg(test)]
@@ -493,7 +501,7 @@ mod tests {
         assert!(ai
             .tasks(&w)
             .roles
-            .targets(crate::roles::Role::Raid)
+            .objectives(crate::roles::Role::Raid)
             .iter()
             .all(|&t| t == at(4, 4)));
         Ok(())
@@ -574,18 +582,42 @@ mod tests {
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();
         assert_eq!(
-            march(&mut ai, &mut w, &party, at(30, 9), &mut events),
+            march(
+                &mut ai,
+                &mut w,
+                crate::roles::Role::Raid,
+                &party,
+                at(30, 9),
+                &mut events
+            ),
             Err(MarchError::Unreachable),
             "over the sea"
         );
         assert_eq!(
-            march(&mut ai, &mut w, &[], at(30, 9), &mut events),
+            march(
+                &mut ai,
+                &mut w,
+                crate::roles::Role::Raid,
+                &[],
+                at(30, 9),
+                &mut events
+            ),
             Err(MarchError::NoUnits)
         );
         // A site on the party's own island can be marched on.
         let site = at(3, 3);
         spawn_site(&mut w, site, Vec::new(), Vec::new())?;
-        assert_eq!(march(&mut ai, &mut w, &party, site, &mut events), Ok(()));
+        assert_eq!(
+            march(
+                &mut ai,
+                &mut w,
+                crate::roles::Role::Raid,
+                &party,
+                site,
+                &mut events
+            ),
+            Ok(())
+        );
         Ok(())
     }
 

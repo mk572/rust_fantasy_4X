@@ -2,8 +2,9 @@
 
 How the scripted AI (`crates/f4x-ai`) keeps track of what each of its units is for. Part of the AI
 design ([`ai-design.md`](ai-design.md) section 13). Code: the records are
-`crates/f4x-core/src/unit/task.rs`, the rules that fill them `crates/f4x-ai/src/roles.rs`; the
-routines that take and give roles are named below.
+`crates/f4x-core/src/unit/task.rs`, the movement that carries them out `unit/task_walk.rs` and
+`unit/travel.rs` (core), the rules that fill them `crates/f4x-ai/src/roles.rs`; the routines that take
+and give roles are named below.
 
 ## 1. The rule
 
@@ -35,9 +36,10 @@ turn.
 |---|---|
 | `role` | what the unit is for (section 3) |
 | `since` | the turn it took the role |
-| `to` | the square the role sends it to, if any (a raid site, a scout target, a settler's site, the sea square a pickup ship lies at, the city a soldier is sent to) |
+| `to` | the square the role sends it to, if any (the square a raid or march attacks from, a scout target, a settler's site, the sea square a pickup ship lies at, the city a soldier is sent to) |
+| `objective` | what a `Raid`, `March` or `Perimeter` unit is sent against; `to` is the square beside it. An older save has only `to`, which then stands for the objective until the dispatcher gives the unit a square (`dispatch::restage`) |
 | `party` | the id of the group it acts with, if any (a raid party, a pickup ship and the units it came for) |
-| `with` | the one unit it is tied to (the ship that comes for a waiting unit; an escort's charge) |
+| `with` | the one unit it is tied to (the ship that comes for a waiting unit; an escort's charge; the healer a resting unit goes to) |
 | `planned` | the turn its present plan began (`plan_clock.rs` drops a plan that takes too long) |
 | `crossing`, `boarding` | how it gets to `to` when it cannot walk, and the shore tile where it boards |
 | `last_pos`, `stuck` | where it stood at the last look and for how many looks in a row it has not moved, for roles that give up a target that cannot be reached |
@@ -67,16 +69,17 @@ Listed in priority order (the lower number wins a claim, section 4). The roles w
 
 | Role | For | Held by | Taken and given in |
 |---|---|---|---|
+| `Rest` | a wounded soldier mending, with what it does decided: it goes to a healer (`with` = the healer, followed wherever it stands), to a city or out of the enemy's range (`to`), or stays (`to` = its square) | soldiers | `recover.rs` |
 | `Settle` | a settler walking to a site to found a city (`to` = the site) | settlers | `expand.rs` |
 | `TransportReady` | a ship whose planned passengers (tied to it) fill it, with its target, until it sails (`to` = the sea square of a landing, the sea square of a rescue) | ships | `naval.rs`, `pickup.rs` |
 | `Transporting` | a ship that has sailed with its load, on its way to its target (a landing to its sea square, rescued soldiers to a port) | ships | `naval.rs`, `pickup.rs` |
 | `SeaParty` | the fighters a sea scout carries to put ashore | soldiers | `scout.rs` |
 | `PlanarScout` | the scout walking to an open tower to change plane (`to` = the tower) | one unit | `scout.rs` |
 | `TransportSpace` | a ship with a target whose planned passengers (tied to it) are fewer than it holds: on its way to the port to load a landing (`to` = the port), holding part of a load, or on its way to the sea square where stranded soldiers wait (`to` = the square) | ships | `naval.rs`, `pickup.rs` |
-| `Perimeter` | a soldier dealing with the enemy in the zone of a city (`to` = the enemy's square) | soldiers | `perimeter.rs` |
-| `Reinforce` | a soldier on its way to an under-defended own city, or kept in a threatened one (`to` = the city; released on arrival unless the city is threatened) | soldiers | `reinforce.rs` |
-| `Raid` | out on a tower, node or encounter site (`to` = the site) | soldiers | `site.rs`, `naval.rs` |
-| `March` | on the march against a city | soldiers | `military.rs` |
+| `Perimeter` | a soldier dealing with the enemy in the zone of a city (`to` = the square it attacks from, `objective` = the enemy's square) | soldiers | `perimeter.rs` |
+| `Reinforce` | a soldier on its way to an under-defended own city, or kept in a threatened one (`to` = the city it reinforces; released on arrival unless the city is threatened) | soldiers | `reinforce.rs` |
+| `Raid` | out on a tower, node or encounter site (`to` = the square beside it, `objective` = the site) | soldiers | `raid.rs`, `naval.rs` |
+| `March` | on the march against a city (`to` = the square it attacks from, `objective` = the city) | soldiers | `war.rs` |
 | `Muster` | walking to the rally point of a party being assembled (`to` = the rally, `party` = the muster) | soldiers | `raid.rs`, `war.rs` |
 | `Escort` | going with a settler, an engineer or a spirit (`with` = the unit it guards) | soldiers | `escort.rs` |
 | `Meld` | a spirit on its way to an open node (`to` = the node) | spirits | `meld.rs` |
@@ -109,8 +112,8 @@ and the units planned for it are tied to it (`with`; they keep their own roles a
   drop square beside the destination with the units aboard. When they are ashore their tag is
   cleared (a landing party is released: the war job judges it where it stands) and the ship is free.
 
-Every voyage is a pickup, whoever its units are: a landing party (`March` with the enemy city as
-target), a reinforcement, a settler for a site over the sea. `Registry::plan_ship` sets the role from the count; the
+Every voyage is a pickup, whoever its units are: a landing party (`March` against the enemy
+city), a reinforcement, a settler for a site over the sea. `Registry::plan_ship` sets the role from the count; the
 campaign has no ferry code of its own any more, and `Role::Voyage` and `Role::Colonize` are gone.
 
 `Pickup` in the code is a read-back of the registry (`pickup::voyages`), not a store.
@@ -157,11 +160,13 @@ stands**, and the turn is run by the dispatcher (`dispatch.rs`):
 1. **Register** (`roles::register`, also at the very start of the AI's turn): units built, hired or
    summoned since are written into the registry at once, with the base role their place says. A
    unit with no entry at all counts as awaiting orders (`Roles::is_free`).
-2. **Give up the missions that are over** (`dispatch::revalidate`, before any new job): a unit whose
-   raid, scout or meld mission cannot be fulfilled any more (the lair is gone, the ground is
-   explored, the node is taken) or whose order stopped short of its target (a raid counts as arrived
-   beside its site) loses its role and its order and awaits orders. Counted as `missions over,
-   unit reset to awaiting orders`.
+2. **Give up the missions that are over** (`dispatch::revalidate`, before any new job): the AI
+   says which settlers' sites it holds unfit and calls the helper's check ("Orders" below). A unit
+   whose raid, scout, meld, march, settle, road or reinforcement target is no target any more (the
+   lair is gone, the ground is explored, the node is taken, the city is lost) loses its role and its
+   order and awaits orders; one that lost its walk short of its target is sent on (a raid or march
+   counts as arrived beside its objective). Counted as `missions over, unit reset to awaiting
+   orders`.
 3. **The jobs, in the order of the checklist** (the list in `dispatch.rs`): a city in danger
    (`perimeter.rs`), settlers, engineers and spirits, escorts, scouts, then the old war code
    (`site`, `military`, `naval`, `pickup`) until tasks 646 and 647 move it into jobs. A job
@@ -183,7 +188,7 @@ await orders like any other.
 
 A settler that leaves a city for its site (`expand.rs` calls `escort::walk`) is given the strongest
 free soldier the city can spare above `garrison_wanted`; a city with none sends its settler alone.
-The two are sent to the site as one stack, with one `GoTo`, at the pace of the slower; a charge
+The two are sent to the site as one stack, with one walk, at the pace of the slower; a charge
 that can cross what its escort cannot goes alone, and with no escort and an enemy near it waits.
 After the settlers have moved, `escort::run` frees the escorts whose charge is gone and stops an
 unescorted settler or spirit when an enemy comes near; `dispatch::repair_escorts` sends an escort
@@ -195,12 +200,28 @@ built: the charge waiting when its escort is lost and an enemy is near.
 
 ### Orders
 
-The AI moves its units itself, with `Command::GoTo` (road work with `Command::BuildRoad`), and ends a
-walk it no longer wants with `Command::ClearOrders`. It gives no other standing order of a player
-(`Command::GiveOrder`). The core walks a `GoTo` at once and at the end of each turn (section 5). The
-registry holds the role and the target, so a walk that ended short of it is sent again, or the
-mission dropped, by the dispatcher's step 2. Task 830 moves this movement into a helper in core that
-reads the tasks from the ledger (`docs/TASKS.md`).
+The AI orders no unit's walk itself where a task has a target: it **records the task first**, with
+its target, and then calls the movement helper in core for those units (`Command::WalkTasks`,
+`Ai::walk`), job by job, so the walks keep the order of the jobs. A walk for which there is no way
+gives the task back (a march whose way or square is only full keeps it for the next turn).
+
+The helper (`unit/task_walk.rs`) reads where each task sends its unit (`World::task_destination`:
+`to`; for an escort where its charge stands; for a unit resting with a healer where the healer
+stands) and walks it there. `Raid`, `March`, `Perimeter` and `Muster` walk the shorter way, through
+own Earth Gate and Astral Gate cities, towers and the campaign's crossing, which the AI names in the
+command (`unit/travel.rs`); every other task walks. The helper's check (`Command::CheckTasks`,
+`dispatch.rs`) comes twice more: before the jobs it gives up the missions that are over and sends on
+the units that lost their walk (section 5, step 2); after the jobs that move the charges it sends the
+escorts that fell behind. It chooses no target, calls no attack, and of a task changes nothing but
+to give it back or to tag it for a crossing (below). Ships are not its business yet (task 830).
+
+What the AI still orders itself: `Command::GoTo` for the ships' voyages and their landings
+(`pickup.rs`, `bridge.rs`, the scout put ashore), for the walk onto an unguarded site
+(`assault.rs`) and for the monsters (`monster.rs`), road work with `Command::BuildRoad`, a plane
+shift at the campaign's crossing, and
+`Command::ClearOrders` to end a walk it no longer wants. It gives no standing order of a player
+(`Command::GiveOrder`; the players' own orders move onto the helper with task 838). The core walks a
+walk at once and at the end of each turn (section 5).
 
 ### The road
 
@@ -231,7 +252,8 @@ free soldiers within 6 squares (the army's spare ones, over `garrison_wanted`) a
 already hold `Perimeter` for it:
 
 - if together they are `attack_force` times as strong, they gather on one square beside it, where
-  `attack.rs` attacks when those standing there are enough; `to` = its square;
+  `attack.rs` attacks when those standing there are enough; `to` = that square, `objective` = the
+  enemy's;
 - units of a player not at war count only when the AI is open to war on that player;
 - if it is the stronger they join the garrison of the city (`to` = the city);
 - a holder whose enemy is gone (or whose city is no longer threatened) gives the role back.
@@ -278,17 +300,24 @@ the unit that arrives last, never in a city.
   party from there. No new raid starts while one is mustering.
 - `MusterKind::Campaign` (`war::run`): the soldiers picked for the campaign hold `Muster` while
   they gather: on the rally point (those already beside the target hold it with the square beside
-  it as their goal), at the landing site, or on the near side of a crossing. They stay the army's
-  (`stacks` counts them). The muster ends when the march leaves (they become `March`), when the
+  at the landing site, or on the near side of a crossing. Soldiers that stand beside the target
+  already hold `March` at once, with that square. The members stay the army's (`stacks` counts
+  them). The muster ends when the march leaves (they become `March`), when the
   target changes or is called off, or when there is no campaign. A rally or target that changed
   ends the old muster and begins a new one. A landing's muster stays at the landing site while the
   ships fetch its walkers.
 
 ## 8. Plans and ends
 
-- A settler or a spirit with no escort at its side does not set out while an enemy unit is within
-  4 squares (`escort::walk`); one already walking stops (`escort::run`) and goes on when the enemy
-  is gone or a soldier is spare.
+- A settler or a spirit with no escort at its side does not set out while an enemy unit is near
+  (within `escort_enemy_near` squares, `ai_strategy.ron`; `escort::walk`); one already walking stops
+  (`escort::run`) and goes on when the enemy is gone or a soldier is spare.
+- A soldier hurt below `rest_percent` takes `Rest` (`recover.rs`), unless it holds a task other
+  than a raid or a march, or mends in an own city already. With an enemy near (`rest_enemy_near`
+  squares) it goes to a healer or a city only when that is farther from the enemy than it is, else
+  out of the enemy's range; with none near, to a healer (`healer_range`) first, then a city
+  (`rest_city_range`), else it stays. The choice is looked at again each turn, no routine takes a
+  resting unit, and the task ends when it has mended.
 - A healer or a weak hero (much weaker than the average fighter) alone outside a city is given an
   escort from the nearest city (`escort::stragglers`); it ends in a city or in a stack of fighters.
 - A settler whose site (`city_site.rs`) is over the sea holds `Settle` with that site as target and the tag
@@ -336,4 +365,4 @@ the unit that arrives last, never in a city.
 
 ## Crossing (17 November 2026)
 
-`Assignment::crossing` (`Crossing::Sea` or `Crossing::Plane`) tags a unit that holds a role with a target but cannot walk there: the target is on the other plane (`Plane`), or on this plane with no known land route (`Sea`). `dispatch::revalidate` sets it for the roles with a target (raid, scout, meld, march, settle, road), and `dispatch::repair_escorts` sends an escort after its charge (the charge's square is its target; it runs after the jobs that move the charges) when the walk is refused as impassable; a unit that holds the tag is not sent again, keeps its role and its target, and waits for the transport (ships, a tower, a spell: task 647, `Registry::needing`). A new target clears the tag. The unit is tagged with what it wants to do, not with the means.
+`Assignment::crossing` (`Crossing::Sea` or `Crossing::Plane`) tags a unit that holds a role with a target but cannot walk there: the target is on the other plane (`Plane`), or on this plane with no known land route (`Sea`). The helper's check sets it for the units it cannot send on (the missions of section 5, step 2, and the escorts that fell behind, whose charge's square is their target); a unit that holds the tag is not sent again, keeps its role and its target, and waits for the transport (ships, a tower, a spell: task 647, `Registry::needing`). A new target or a new square clears the tag. The unit is tagged with what it wants to do, not with the means.

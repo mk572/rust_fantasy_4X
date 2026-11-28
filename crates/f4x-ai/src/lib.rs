@@ -714,6 +714,23 @@ impl Ai {
         world.economy().army_at(to).len() + count <= world.max_tile()
     }
 
+    /// Call the movement helper for units that stand together: they set out for where the task
+    /// of the first of them sends them (`Command::WalkTasks`). Record the task first.
+    #[track_caller]
+    fn walk(
+        &self,
+        game: &mut Game,
+        units: Vec<hecs::Entity>,
+        events: &mut Vec<Event>,
+    ) -> Result<(), SendError> {
+        let command = Command::WalkTasks {
+            player: self.player,
+            units,
+            door: self.crossing,
+        };
+        self.submit(game, command, events, true)
+    }
+
     /// Send a command and keep its events.
     #[track_caller]
     fn send(
@@ -764,6 +781,10 @@ impl Ai {
             Command::GoTo { units, to } | Command::MoveStack { units, to } => {
                 Some(Aim::Walk(units.clone(), *to))
             }
+            Command::WalkTasks { units, .. } => units
+                .first()
+                .and_then(|&u| game.task_destination(u))
+                .map(|to| Aim::Walk(units.clone(), to)),
             Command::AutoResolve {
                 attackers,
                 defenders,
@@ -775,8 +796,11 @@ impl Ai {
             } => Some(Aim::Fight(attackers.clone(), defenders.clone())),
             _ => None,
         };
-        let walk_command = matches!(command, Command::GoTo { .. } | Command::MoveStack { .. })
-            .then(|| command.clone());
+        let walk_command = matches!(
+            command,
+            Command::GoTo { .. } | Command::MoveStack { .. } | Command::WalkTasks { .. }
+        )
+        .then(|| command.clone());
         // The battle AI plays both sides of an AI's battle, each side's orders under that
         // side's name, until a defender gives its own (docs/turn-structure.md 10.4).
         let sender = match command {

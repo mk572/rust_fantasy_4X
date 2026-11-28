@@ -11,7 +11,7 @@
 
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
-use f4x_core::world::{Command, Event};
+use f4x_core::world::Event;
 
 use crate::roles::Role;
 use crate::view::{fighting_strength, is_fighter, unit_strength, ReachCache};
@@ -117,19 +117,24 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 break;
             }
             let strength = unit_strength(&PlayerView::new(game, me), unit);
+            let serial = PlayerView::new(game, me).serial_of(unit);
+            if ai
+                .write(game)
+                .claim(serial, Role::Reinforce, Some(city))
+                .is_err()
+            {
+                continue;
+            }
             if !sails {
-                let go = Command::GoTo {
-                    units: vec![unit],
-                    to: city,
-                };
-                if ai.send(game, go, events).is_err() {
-                    continue;
+                if let Err(why) = ai.walk(game, vec![unit], events) {
+                    // No way there: the task is given back. A full square on the way is none of
+                    // that: the walk is tried again.
+                    if !why.is_no_room() {
+                        ai.write(game).release(serial, Role::Reinforce);
+                        continue;
+                    }
                 }
             }
-            let serial = PlayerView::new(game, me).serial_of(unit);
-            let _ = ai.write(game).claim(serial, Role::Reinforce, Some(city));
-            ai.write(game)
-                .set_target(serial, Role::Reinforce, Some(city));
             if sails {
                 ai.write(game)
                     .set_crossing(serial, Some(crate::roles::Crossing::Sea));
@@ -191,6 +196,7 @@ fn keep_home(ai: &mut Ai, game: &mut Game, threatened: &[(Position, f32)]) {
 mod tests {
     use super::*;
     use crate::testworld::{at, game, spawn, COAST_CITY, INLAND_CITY, P0, P1};
+    use f4x_core::world::Command;
     use f4x_master::Game;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;

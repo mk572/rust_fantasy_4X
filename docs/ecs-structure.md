@@ -406,13 +406,17 @@ of everyone's.
   of its own job, the turns its role and plan began, the ship that carries it, the musters, and the
   square each gathering force rallies on and attacks from). The computer players change them with
   `Command::Task`, one change (`task::Change`) a command, dated with the round the world is given; a
-  change orders no unit about, nothing in the rules acts on the tasks, and core runs none of its
-  after-command checks for it (`World::execute`). `World::player_tasks` and
+  change orders no unit about, nothing in the rules acts on the tasks by itself, and core runs none
+  of its after-command checks for it (`World::execute`). `World::player_tasks` and
   `PlayerView::tasks` read them, by reference (`ledger::TasksRef`). They speak of living units only:
   a change says nothing of another unit, and a unit's task ends with its place in the ledger. Plans
   that are no unit's own job (a campaign's target, a landing, a plane crossing's square) are not
   here: they stay with the computer player. Saved with each player (`PlayerSave::tasks`, left out
   when empty).
+- The **movement helper** (`unit/task_walk.rs`, `unit/travel.rs`) carries out the movement of those
+  tasks when it is called: `Command::WalkTasks` walks units to where their tasks send them,
+  `Command::CheckTasks` gives back the tasks that have no target any more and sends on the units that
+  lost their walk (`ai-unit-registry.md`, "Orders"). Both move units like any walk.
 - A serving hero is in it, like any unit. A hero that is not serving is not: **heroes stay in the hero
   list** (the hero entities, `all_heroes`, 3.5) whatever happens to them. A hero that leaves has the
   parts of its body taken off its entry (`unit::strip_body`, which lists every component a unit can

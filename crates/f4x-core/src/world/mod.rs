@@ -605,7 +605,12 @@ impl World {
         );
     }
 
-    fn execute_command(&mut self, cmd: Command, round: u32, rng: &mut GameRng) -> Vec<Event> {
+    pub(crate) fn execute_command(
+        &mut self,
+        cmd: Command,
+        round: u32,
+        rng: &mut GameRng,
+    ) -> Vec<Event> {
         match cmd {
             Command::CreateUnit { owner, pos, unit } => {
                 let unit = self.spawn_unit(owner, pos, unit);
@@ -675,6 +680,16 @@ impl World {
             Command::GiveOrder { units, errand } => self
                 .give_errand(&units, errand, rng)
                 .unwrap_or_else(|why| vec![Event::Rejected(why)]),
+            Command::WalkTasks {
+                player: _,
+                units,
+                door,
+            } => self.walk_tasks(&units, door, round, rng),
+            Command::CheckTasks {
+                player,
+                check,
+                door,
+            } => self.check_tasks(player, &check, door, round, rng),
             Command::ClearOrders { units } => {
                 for u in units {
                     unit::ledger::end_order(&self.ecs, u);

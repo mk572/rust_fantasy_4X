@@ -280,6 +280,7 @@ levers!(
         healer_range: u32,
         rest_city_range: u32,
         escort_enemy_near: i32,
+        rest_enemy_near: i32,
         weak_hero: f32,
         meld_patience: u32,
     }

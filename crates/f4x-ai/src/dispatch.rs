@@ -25,6 +25,9 @@
 //! Then come the ships and the colonies (task 647) and the audit that counts what is left.
 
 use crate::Ai;
+use f4x_core::player::view::PlayerView;
+use f4x_core::unit::task_walk::Check;
+use f4x_core::unit::travel::Travel;
 use f4x_core::world::{Event, World};
 use f4x_master::Game;
 
@@ -66,242 +69,113 @@ pub fn pool(ai: &Ai, world: &World) -> Pool {
     pool
 }
 
-/// Whether the mission a unit holds is still worth pursuing: the lair a raid went for is still
-/// there (or the tower intact), the ground a scout went to is still
-/// unexplored, the node a spirit went to is still open. Missions of other roles are checked by
-/// their own modules each turn.
-fn mission_valid(
-    ai: &Ai,
-    view: &f4x_core::player::view::PlayerView,
-    role: crate::roles::Role,
-    target: f4x_core::map::Position,
-    round: u32,
-) -> bool {
-    use crate::roles::Role;
-    match role {
-        Role::Raid => crate::site::live(view, target),
-        // A target with a city on it is dropped (a landing square of a voyage is no site: the settler
-        // looks for one ashore).
-        // The site must still take a city and a way lead to it (on foot or by ship); the way is
-        // worked out on the day of the site check only (`city_site.rs`).
-        Role::Settle => {
-            view.city_at(target).is_none()
-                && view.can_found_city(target)
-                && (!ai.sites.rebuilt_on(round)
-                    || crate::city_site::site_reach(view, target).is_some())
-        }
-        Role::Scout => !view.explored(target),
-        Role::Meld => crate::meld::open_nodes(ai, view).contains(&target),
-        Role::Reinforce => view.my_cities().into_iter().any(|(_, p)| p == target),
-        _ => true,
-    }
-}
-
-/// Send units that lost their walk to their target again. A unit the game says no walk leads to
-/// is tagged with what it needs (`Crossing`: another plane, or the sea when the target is on this
-/// plane with no known land route) and keeps its role. The units to give up are returned: those
-/// refused for another reason (no moves left, say).
-fn resend(
-    ai: &mut Ai,
-    game: &mut Game,
-    lost: Vec<(hecs::Entity, crate::roles::Role, f4x_core::map::Position)>,
-    events: &mut Vec<Event>,
-) -> Vec<(hecs::Entity, crate::roles::Role)> {
-    use crate::roles::Role;
-    use crate::SendError;
-    use f4x_core::unit::movement::MoveError;
-    use f4x_core::world::Rejection;
-    let mut refused = Vec::new();
-    for (unit, role, target) in lost {
-        // A unit with planar travel of its own (a shadow demon, or any unit with the spell or an
-        // item) changes plane where it stands, with no tower, gate or spell to wait for.
-        shift_by_itself(ai, game, unit, target, events);
-        // `Err(true)`: no walk leads there; `Err(false)`: refused for another reason.
-        let sent: Result<(), bool> = match role {
-            Role::Raid | Role::March => crate::assembly::march(ai, game, &[unit], target, events)
-                .map_err(|why| why == crate::assembly::MarchError::Unreachable),
-            _ => ai
-                .probe(
-                    game,
-                    f4x_core::world::Command::GoTo {
-                        units: vec![unit],
-                        to: target,
-                    },
-                    events,
-                )
-                .map_err(|why| {
-                    matches!(
-                        why,
-                        SendError::Rejected(
-                            Rejection::Move(MoveError::Impassable) | Rejection::NoPath(_)
-                        ) | SendError::Stopped(MoveError::Impassable)
-                    )
-                }),
-        };
-        let unreachable = match sent {
-            Ok(()) => continue,
-            Err(no_walk) => no_walk,
-        };
-        let (serial, here) = {
-            let view = f4x_core::player::view::PlayerView::new(game, ai.player);
-            (view.serial_of(unit), view.unit_position(unit))
-        };
-        match here {
-            Some(h) if h.plane != target.plane => {
-                ai.write(game)
-                    .set_crossing(serial, Some(crate::roles::Crossing::Plane));
-            }
-            // Only a walker waits for a ship; a flier or a swimmer crosses the water itself.
-            Some(_)
-                if unreachable
-                    && f4x_core::player::view::PlayerView::new(game, ai.player).is_walker(unit) =>
-            {
-                ai.write(game)
-                    .set_crossing(serial, Some(crate::roles::Crossing::Sea));
-            }
-            _ => refused.push((unit, role)),
-        }
-    }
-    refused
-}
-
-/// A unit on the other plane from `target` that can travel between the planes by itself shifts
-/// now (`UnitFlag::PlanarTravel`, its own, its enchantments' or its items'), so that its walk is an
-/// ordinary one and it is never tagged `Crossing::Plane`. Does nothing for any other unit, or
-/// while the game will not let it shift (Planar Seal, no moves left).
-fn shift_by_itself(
-    ai: &mut Ai,
-    game: &mut Game,
-    unit: hecs::Entity,
-    target: f4x_core::map::Position,
-    events: &mut Vec<Event>,
-) {
-    let shifts = {
-        let view = f4x_core::player::view::PlayerView::new(game, ai.player);
-        view.unit_position(unit)
-            .is_some_and(|p| p.plane != target.plane)
-            && view.unit_has_flag(unit, f4x_def::rules::unit_flag::UnitFlag::PlanarTravel)
-            && view.can_shift_plane(&[unit])
-    };
-    if shifts {
-        let _ = ai.send(
-            game,
-            f4x_core::world::Command::ShiftPlane { units: vec![unit] },
-            events,
-        );
-    }
-}
-
-/// An escort that fell behind its charge (the stack was split by a fight, or the charge was
-/// ordered on by another job) goes to where the charge stands now. Run after the jobs that move
-/// the charges, so it follows their new square. An escort the game will not send keeps its role.
-pub fn repair_escorts(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+/// The forces' tasks before the missions are looked over: a raider, a marcher or a perimeter
+/// soldier with no walk is given the square to attack its objective from again (the one chosen
+/// before while it is open), and one of a save from before the objective was recorded apart is
+/// given both. The helper walks to what the task says.
+fn restage(ai: &mut Ai, game: &mut Game) {
+    use crate::assembly::MarchError;
     use crate::roles::Role;
     let lost: Vec<_> = {
-        let view = f4x_core::player::view::PlayerView::new(game, ai.player);
-        let find = |s| {
-            view.my_units()
-                .into_iter()
-                .find(|&u| view.serial_of(u) == s)
-        };
+        let view = PlayerView::new(game, ai.player);
         let tasks = view.tasks();
-        tasks
-            .roles
-            .members(Role::Escort)
+        view.my_units()
             .into_iter()
-            .filter(|&e| tasks.roles.crossing_of(e).is_none())
-            .filter_map(|e| {
-                let charge = find(tasks.roles.with_of(e)?)?;
-                let unit = find(e)?;
-                let (there, here) = (view.unit_position(charge)?, view.unit_position(unit)?);
-                (there != here && !view.unit_has_order(unit)).then_some((unit, Role::Escort, there))
+            .filter_map(|u| {
+                let serial = view.serial_of(u);
+                let task = tasks.roles.get(serial)?;
+                if !matches!(task.role, Role::Raid | Role::March) {
+                    return None;
+                }
+                let objective = tasks.roles.objective_of(serial, task.role)?;
+                let here = view.unit_position(u)?;
+                let arrived =
+                    Some(here) == task.to || view.distance(here, objective).is_some_and(|d| d <= 1);
+                let walks = view.unit_has_order(u) || task.crossing.is_some();
+                (task.objective.is_none() || !(walks || arrived))
+                    .then_some((u, serial, task.role, objective))
             })
             .collect()
     };
-    resend(ai, game, lost, events);
+    for (unit, serial, role, objective) in lost {
+        let mut travel = Travel::new(game, ai.player, ai.crossing);
+        let to = match crate::assembly::beside(ai, game, &mut travel, objective, &[unit]) {
+            Ok(square) => Some(square),
+            // No way: the task keeps the objective itself, which the helper finds no way to
+            // either, and the unit is tagged with what it needs to get there.
+            Err(MarchError::Unreachable) => Some(objective),
+            // No square to attack from: the task is given up.
+            Err(_) => None,
+        };
+        ai.write(game).stage(serial, role, to, objective);
+    }
 }
 
-/// Before any new job is looked for: a unit sent on a mission that can no longer be fulfilled
-/// (a rival cleared the lair first, the ground was explored by another) is given up. A unit whose
-/// walk is gone (it was moved by a strike, a battle, a refused step) but whose target stands in
-/// the registry is sent again; it is given up only when the game refuses. It loses its role and its order and awaits orders where it
-/// stands, so the jobs below see it in the pool. Returns how many were reset.
+/// The escorts that fell behind their charges (the stack was split by a fight, or the charge was
+/// ordered on by another job) go to where the charges stand now. Run after the jobs that move the
+/// charges, so they follow to the new squares.
+pub fn repair_escorts(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+    check(ai, game, Check::Escorts, events);
+}
+
+/// Have the movement helper look the tasks over.
+fn check(ai: &Ai, game: &mut Game, check: Check, events: &mut Vec<Event>) {
+    let command = f4x_core::world::Command::CheckTasks {
+        player: ai.player,
+        check,
+        door: ai.crossing,
+    };
+    // Nothing of it is a refused order: a walk the game will not take changes the task.
+    let _ = ai.probe(game, command, events);
+}
+
+/// Before any new job is looked for: the helper gives up the missions that can no longer be
+/// fulfilled (a rival cleared the lair first, the ground was explored by another) and sends on the
+/// units that lost their walk; those it gives up await orders where they stand, so the jobs below
+/// see them in the pool. Returns how many were reset.
 pub fn revalidate(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) -> u32 {
     use crate::roles::Role;
-    let me = ai.player;
-    let mut reset: Vec<(hecs::Entity, crate::roles::Role)> = Vec::new();
-    let mut lost: Vec<(hecs::Entity, crate::roles::Role, f4x_core::map::Position)> = Vec::new();
-    {
-        let view = f4x_core::player::view::PlayerView::new(game, me);
+    restage(ai, game);
+    // The settlers' sites: one with a city on it, or that takes none, or that no way leads to
+    // any more (worked out on the day of the site check only, `city_site.rs`).
+    let mut unfit_sites = Vec::new();
+    let mut ended = Vec::new();
+    let held: Vec<_> = {
+        let view = PlayerView::new(game, ai.player);
         let tasks = view.tasks();
-        for unit in view.my_units() {
-            let serial = view.serial_of(unit);
-            for role in [
-                Role::Raid,
-                Role::Scout,
-                Role::Meld,
-                Role::March,
-                Role::Settle,
-                Role::Road,
-                Role::Reinforce,
-            ] {
-                if !tasks.roles.is(serial, role) {
-                    continue;
-                }
-                let Some(target) = tasks.roles.target_of(serial, role) else {
-                    continue;
-                };
-                let here = view.unit_position(unit);
-                // Failed: no order is left and the unit is not where it was going.
-                // A raid fights the site from the square beside it, so that counts as arrived.
-                let reach = u32::from(matches!(role, Role::Raid | Role::March));
-                let arrived = here.is_some_and(|h| {
-                    h == target
-                        || (reach > 0
-                            && crate::view::distance(&view, h, target).is_some_and(|d| d <= reach))
-                });
-                // A ship that has sailed to its scouting target has explored it by arriving, and its
-                // mission is not over: `scout::scout` puts the party aboard ashore and picks the
-                // next target. Resetting it here left the party waiting for a ship that no longer
-                // scouted.
-                let arrived_ship =
-                    role == Role::Scout && arrived && crate::view::is_ship(&view, unit);
-                if !arrived_ship && !mission_valid(ai, &view, role, target, game.round()) {
-                    if role == Role::Settle {
-                        ai.settler_fates.note(if view.city_at(target).is_some() {
-                            crate::settler_fate::SettlerFate::SiteTaken
-                        } else {
-                            crate::settler_fate::SettlerFate::SiteUnusable
-                        });
+        view.my_units()
+            .into_iter()
+            .filter_map(|u| {
+                let serial = view.serial_of(u);
+                let task = tasks.roles.get(serial)?;
+                if let (Role::Settle, Some(site)) = (task.role, task.to) {
+                    let unreached = ai.sites.rebuilt_on(game.round())
+                        && crate::city_site::site_reach(&view, site).is_none();
+                    if unreached {
+                        unfit_sites.push(serial);
                     }
-                    reset.push((unit, role));
-                } else if !view.unit_has_order(unit)
-                    && !view.unit_builds_road(unit)
-                    && !arrived
-                    && tasks.roles.crossing_of(serial).is_none()
-                {
-                    // A unit can lose its walk for many reasons (a strike moved it, a battle,
-                    // a refused step): the registry still knows where it goes.
-                    lost.push((unit, role, target));
+                    if view.city_at(site).is_some() {
+                        ended.push(crate::settler_fate::SettlerFate::SiteTaken);
+                    } else if unreached || !view.can_found_city(site) {
+                        ended.push(crate::settler_fate::SettlerFate::SiteUnusable);
+                    }
                 }
-            }
-        }
+                (!task.role.is_base()).then_some((serial, task.role))
+            })
+            .collect()
+    };
+    for fate in ended {
+        ai.settler_fates.note(fate);
     }
-    reset.extend(resend(ai, game, lost, events));
-    let mut serials = Vec::new();
-    for &(unit, role) in &reset {
-        let serial = f4x_core::player::view::PlayerView::new(game, me).serial_of(unit);
-        ai.write(game).release(serial, role);
-        serials.push(unit);
-    }
-    let count = serials.len() as u32;
-    if !serials.is_empty() {
-        ai.order(
-            game,
-            f4x_core::world::Command::ClearOrders { units: serials },
-            events,
-        );
-    }
+    check(ai, game, Check::Missions { unfit_sites }, events);
+    let count = {
+        let tasks = ai.tasks(game);
+        held.iter()
+            .filter(|&&(s, role)| {
+                !tasks.roles.is(s, role) && tasks.roles.is(s, Role::AwaitingOrders)
+            })
+            .count() as u32
+    };
     ai.missions_reset += count;
     count
 }
@@ -771,5 +645,29 @@ mod tests {
             "the escort follows its charge"
         );
         assert!(ai.tasks(&w).roles.is(s, Role::Escort));
+    }
+
+    /// A march of an old save has the target itself as its square: it is given the square to
+    /// attack from beside it, and the target becomes the objective.
+    #[test]
+    fn a_march_of_an_old_save_is_given_a_square_beside_its_target() {
+        use crate::roles::Role;
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        w.reveal_map(P0);
+        let target = at(4, 4);
+        let unit = spawn(&mut w, P0, at(8, 9), 113 /* high_men_paladins */, 1)[0];
+        let mut ai = Ai::new(P0);
+        let serial = f4x_core::player::view::PlayerView::new(&w, P0).serial_of(unit);
+        let _ = ai.write(&mut w).claim(serial, Role::March, Some(target));
+        revalidate(&mut ai, &mut w, &mut Vec::new());
+        let view = f4x_core::player::view::PlayerView::new(&w, P0);
+        let tasks = ai.tasks(&w);
+        assert_eq!(tasks.roles.objective_of(serial, Role::March), Some(target));
+        let from = tasks.roles.target_of(serial, Role::March);
+        assert!(
+            from.is_some_and(|p| view.distance(p, target) == Some(1)),
+            "{from:?}"
+        );
+        assert!(view.unit_has_order(unit) || view.unit_position(unit) != Some(at(8, 9)));
     }
 }

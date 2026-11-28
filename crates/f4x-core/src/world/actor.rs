@@ -56,6 +56,8 @@ impl World {
             | Command::RazeCity { player, .. }
             | Command::BalanceFarmers { player }
             | Command::Task { player, .. }
+            | Command::WalkTasks { player, .. }
+            | Command::CheckTasks { player, .. }
             | Command::SetTaxRate { player, .. }
             | Command::SetGrandVizier { player, .. }
             | Command::SetPowerSplit { player, .. }
@@ -98,7 +100,8 @@ fn ordered_units(command: &Command) -> &[hecs::Entity] {
         | Command::BuildRoad { units, .. }
         | Command::Meld { units }
         | Command::ShiftPlane { units }
-        | Command::EarthGate { units, .. } => units,
+        | Command::EarthGate { units, .. }
+        | Command::WalkTasks { units, .. } => units,
         Command::BeginBattle { attackers, .. } | Command::AutoResolve { attackers, .. } => {
             attackers
         }

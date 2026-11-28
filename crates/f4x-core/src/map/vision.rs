@@ -312,7 +312,9 @@ impl VisionEffect {
             | C::RejectOffer { .. }
             | C::CancelCast { .. }
             | C::Diplomacy(_) => Self::None,
-            C::MoveStack { .. } | C::GoTo { .. } => Self::Walk,
+            C::MoveStack { .. } | C::GoTo { .. } | C::WalkTasks { .. } | C::CheckTasks { .. } => {
+                Self::Walk
+            }
             _ => Self::Recount,
         }
     }

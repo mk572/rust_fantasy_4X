@@ -184,7 +184,7 @@ fn target_at(
 
 /// Is the unit part of the campaign force sent against `square`?
 fn campaigns_against(roles: &Registry, unit: Serial, square: Position) -> bool {
-    roles.target_of(unit, Role::March) == Some(square)
+    roles.objective_of(unit, Role::March) == Some(square)
         || roles
             .muster_of(unit)
             .is_some_and(|(_, m)| m.kind == MusterKind::Campaign && m.objective == Some(square))
@@ -192,7 +192,7 @@ fn campaigns_against(roles: &Registry, unit: Serial, square: Position) -> bool {
 
 /// Was the unit sent against what stands on `square`, with the campaign or a raid?
 fn sent_against(roles: &Registry, unit: Serial, square: Position) -> bool {
-    roles.target_of(unit, Role::Raid) == Some(square) || campaigns_against(roles, unit, square)
+    roles.objective_of(unit, Role::Raid) == Some(square) || campaigns_against(roles, unit, square)
 }
 
 /// Do the unit's roles let it attack the target?
@@ -472,11 +472,15 @@ fn fight(
             .collect()
     };
     if !out.is_empty() {
-        let home = Command::GoTo {
-            units: out,
-            to: force.from,
+        let posts: Vec<(Serial, Role, Option<Position>)> = {
+            let view = PlayerView::new(game, me);
+            out.iter()
+                .map(|&u| (view.serial_of(u), Role::Garrison, Some(force.from)))
+                .collect()
         };
-        ai.order(game, home, events);
+        ai.write(game).set_bases(posts);
+        // A refused walk is in the refused-order log; the next turn starts from where they are.
+        let _ = ai.walk(game, out, events);
     }
     true
 }

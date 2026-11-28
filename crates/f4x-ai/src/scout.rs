@@ -185,7 +185,8 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 if is_sea_scout {
                     units.extend(board(ai, game, unit, pos));
                 }
-                ai.order(game, Command::GoTo { units, to }, events);
+                // A refused walk is in the refused-order log; the scout tries again later.
+                let _ = ai.walk(game, units, events);
             }
             None => {
                 // Nothing left to explore that this unit can reach: its scouting is over and it
@@ -453,14 +454,11 @@ fn planar_scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 .release(serial, crate::roles::Role::PlanarScout);
             return;
         }
-        ai.order(
-            game,
-            Command::GoTo {
-                units: vec![unit],
-                to: tower,
-            },
-            events,
-        );
+        let serial = PlayerView::new(game, me).serial_of(unit);
+        ai.write(game)
+            .set_target(serial, crate::roles::Role::PlanarScout, Some(tower));
+        // A refused walk is in the refused-order log; the scout tries again later.
+        let _ = ai.walk(game, vec![unit], events);
     }
 }
 

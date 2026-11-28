@@ -50,7 +50,7 @@ The commands are the variants of `Command` (`world/command.rs`, each with its do
 
 | Area | Commands |
 |---|---|
-| Units and movement | `MoveStack`, `GoTo`, `GiveOrder`, `ClearOrders`, `SetStandby`, `SetBridge`, `ShiftPlane`, `EarthGate`, `EnterSite`, `Meld`, `Purify`, `BuildRoad`, `DismissUnit`, `SettleOutpost` |
+| Units and movement | `MoveStack`, `GoTo`, `WalkTasks`, `CheckTasks`, `GiveOrder`, `ClearOrders`, `SetStandby`, `SetBridge`, `ShiftPlane`, `EarthGate`, `EnterSite`, `Meld`, `Purify`, `BuildRoad`, `DismissUnit`, `SettleOutpost` |
 | Battles | `BeginBattle`, `AutoResolve`, `Defend`, `Battle` (an order in the battle being fought) |
 | Cities | `SetProduction`, `BuyProduction`, `SellBuilding`, `SetFarmers`, `BalanceFarmers`, `SetAutoBuild`, `SetGrandVizier`, `RenameCity`, `RazeCity` |
 | Treasury and shortages | `SetTaxRate`, `Alchemy`, `ReleaseTroops`, `ReleaseUpkeep` |

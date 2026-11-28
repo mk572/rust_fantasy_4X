@@ -50,7 +50,7 @@ pub(crate) fn spirit_wanted(ai: &Ai, view: &PlayerView, round: u32) -> bool {
     {
         return true;
     }
-    let raided = view.tasks().roles.targets(Role::Raid);
+    let raided = view.tasks().roles.objectives(Role::Raid);
     view.nodes()
         .into_iter()
         .any(|n| n.owner != Some(ai.player) && !n.warped && raided.contains(&n.pos))
@@ -142,16 +142,12 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             list.sort_by_key(|&p| (view.distance(here, p).unwrap_or(u32::MAX), p.y, p.x));
             list
         };
-        let chosen = candidates
-            .into_iter()
-            .find(|&node| crate::escort::walk(ai, game, spirit, node, events));
-        match chosen {
-            Some(node) => {
-                let _ = ai.write(game).claim(serial, Role::Meld, Some(node));
-            }
-            None => {
-                ai.write(game).release(serial, Role::Meld);
-            }
+        let chosen = candidates.into_iter().find(|&node| {
+            ai.write(game).claim(serial, Role::Meld, Some(node)).is_ok()
+                && crate::escort::walk(ai, game, spirit, node, events)
+        });
+        if chosen.is_none() {
+            ai.write(game).release(serial, Role::Meld);
         }
     }
 }

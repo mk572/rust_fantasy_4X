@@ -30,6 +30,22 @@ pub enum Command {
         units: Vec<hecs::Entity>,
         errand: unit::Errand,
     },
+    /// The movement helper: the units, which stand on one square, set out for where the task of
+    /// the first of them sends them (`unit/task_walk.rs`). `door` is a square they may change
+    /// plane on besides the towers and gates (a Plane Shift to be cast there).
+    WalkTasks {
+        player: player::PlayerId,
+        #[serde(with = "world::stable_ref::many")]
+        units: Vec<hecs::Entity>,
+        door: Option<map::Position>,
+    },
+    /// The movement helper: look over the player's unit tasks, give up those whose target is no
+    /// target any more and send on the units that lost their walk (`unit/task_walk.rs`).
+    CheckTasks {
+        player: player::PlayerId,
+        check: unit::task_walk::Check,
+        door: Option<map::Position>,
+    },
     /// Cancel standing orders.
     ClearOrders {
         #[serde(with = "world::stable_ref::many")]

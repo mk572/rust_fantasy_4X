@@ -166,16 +166,20 @@ fn work(
     let Some(next) = nearest_unchecked(ai, game, engineer, here, &cities) else {
         return frontier(ai, game, engineer, events);
     };
-    ai.send(
-        game,
-        Command::GoTo {
-            units: vec![engineer],
-            to: next,
-        },
-        events,
-    )
-    .ok()
-    .map(|()| next)
+    walk_to(ai, game, engineer, next, events)
+}
+
+/// Record where the engineer's work takes it and walk it there: the square, when it set out.
+fn walk_to(
+    ai: &mut Ai,
+    game: &mut Game,
+    engineer: hecs::Entity,
+    to: Position,
+    events: &mut Vec<Event>,
+) -> Option<Position> {
+    let serial = PlayerView::new(game, ai.player).serial_of(engineer);
+    ai.write(game).set_target(serial, Role::Road, Some(to));
+    ai.walk(game, vec![engineer], events).ok().map(|()| to)
 }
 
 /// The nearest of the `cities` the wizard has not looked at for roads, that the engineer can
@@ -289,16 +293,7 @@ fn frontier(
         return build(ai, game, engineer, stretch, events).then_some(end);
     }
     let to = path[first - 1];
-    ai.send(
-        game,
-        Command::GoTo {
-            units: vec![engineer],
-            to,
-        },
-        events,
-    )
-    .ok()
-    .map(|()| to)
+    walk_to(ai, game, engineer, to, events)
 }
 
 /// How many engineers the wizard wants while there is road to build: one for each

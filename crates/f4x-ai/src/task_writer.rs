@@ -147,6 +147,17 @@ impl Writer<'_> {
         self.send(Change::SetTarget { serial, role, to });
     }
 
+    /// Where a unit sent against something goes, and against what.
+    #[track_caller]
+    pub fn stage(&mut self, serial: Serial, role: Role, to: Option<Position>, objective: Position) {
+        self.send(Change::Stage {
+            serial,
+            role,
+            to,
+            objective,
+        });
+    }
+
     #[track_caller]
     pub fn set_crossing(&mut self, serial: Serial, crossing: Option<Crossing>) {
         self.send(Change::SetCrossing { serial, crossing });

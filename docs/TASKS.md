@@ -980,7 +980,9 @@ Docs: `docs/lairs.md`, `docs/ecs-structure.md`, `docs/design.md` section 8 (the 
 
 **Built (player orders):** the army ledger holds the orders (`unit/ledger.rs`), core walks them at the end of the turn, and the client's Order button offers Go to, Patrol, scout, meld, settle, build a road, escort, reinforce and Cancel orders (`docs/game-flow.md` 3.2). The computer player orders its own units itself: of these it uses only Go to and road building.
 
-**Built (stage 1, 27 and 28 November 2026):** the computer player's unit tasks, the musters and the squares of its gathering forces are in its army ledger (`unit/task.rs`). It has no copy of them: it reads the ledger and changes it with a command for each change (`Command::Task`), and the ledger records which ship carries which unit, a sea scout's party included. The turns a role and a plan began stay in the ledger; the game hands the world the current round. The base roles of all units go into the ledger in one command, and only those that changed; core runs none of its after-command checks for a task command. The unused copy of its unit handling is gone. It still moves each unit itself.
+**Built (stage 1, 27 and 28 November 2026):** the computer player's unit tasks, the musters and the squares of its gathering forces are in its army ledger (`unit/task.rs`). It has no copy of them: it reads the ledger and changes it with a command for each change (`Command::Task`), and the ledger records which ship carries which unit, a sea scout's party included. The turns a role and a plan began stay in the ledger; the game hands the world the current round. The base roles of all units go into the ledger in one command, and only those that changed; core runs none of its after-command checks for a task command. The unused copy of its unit handling is gone.
+
+**Built (stage 2, 28 November 2026):** the movement helper in core (`unit/task_walk.rs`, `unit/travel.rs`): `Command::WalkTasks` walks units to where their tasks send them, through towers and gates too, and `Command::CheckTasks` gives back the missions without a target and sends on the units that lost their walk. The computer player records each task and then calls the helper (`ai-unit-registry.md`, "Orders"). New: the role `Rest`, and a task's objective beside its square (`Raid`, `March`, `Perimeter`). It still moves its ships itself.
 
 **To be built** (the user's design, 27 November 2026; it covers the war tasks too):
 - The computer player registers its unit tasks, all of them, the war tasks and their target squares included, in the army ledger its player owns, and no longer orders each unit by itself. The tasks themselves are unchanged.
@@ -993,7 +995,14 @@ Docs: `docs/lairs.md`, `docs/ecs-structure.md`, `docs/design.md` section 8 (the 
 - The helper's logic is what the computer player does by itself today, moved as it is.
 - The players' own orders are left as they are (task 838).
 
-Built in stages with a stop after each: (1, built) the task records move into the ledger, through commands, so that replays hold, older saves load, and the unused copy goes; (2) the helper checks the targets and walks, through towers and gates too; (3) the ships.
+Decided for stage 2 (the user, 28 November 2026):
+- Every walk comes from a recorded task, written before the units set out; a task whose walk has no way is given back. The computer player calls the helper for each job's units at once, in place of twice a turn, so the order of the walks stays.
+- `Reinforce` names the city to reinforce.
+- `Raid`, `March` and `Perimeter`: the task's square is the staging square beside what is attacked, and a second field names the objective. Collecting a force away from the fighting is `Muster`. Soldiers of a campaign that stand beside the target already are `March` at once.
+- Wounded units get a task of their own, `Rest`, with the choice made: go to a healer (the unit is named, and the walk follows it), to a city, out of the enemy's range, or stay. With an enemy near they go to a healer or a city only when that is farther from the enemy, else out of range; with none near, healer first, then city, then stay. The task ends when the unit has mended.
+- An enemy is near within 3 squares, both for resting units and for the settlers and spirits that walk without an escort (both are settings of `ai_strategy.ron`).
+
+Built in stages with a stop after each: (1, built) the task records move into the ledger, through commands, so that replays hold, older saves load, and the unused copy goes; (2, built) the helper checks the targets and walks, through towers and gates too; (3) the ships.
 
 Docs: `docs/ecs-structure.md`, `docs/ai-design.md`, `docs/ai-unit-registry.md`, `docs/turn-structure.md`. *Needs:* nothing.
 

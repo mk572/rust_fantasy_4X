@@ -8,8 +8,8 @@ use crate::Ai;
 use f4x_master::Game;
 
 /// A settler has the settle role only while a site is assigned to it. Where the site stops being
-/// one (a city stands on it, it cannot be founded, no way leads to it: `dispatch.rs`
-/// `mission_valid`), the role and the site go together and the settler awaits orders again. The
+/// one (a city stands on it, it cannot be founded, no way leads to it: the helper's check,
+/// called by `dispatch::revalidate`), the role and the site go together and the settler awaits orders again. The
 /// site check (`city_site.rs`, the book is rebuilt every few turns) gives a site to each settler
 /// that has none, and at once to one that has just come into being.
 pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {

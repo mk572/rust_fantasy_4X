@@ -396,7 +396,9 @@
         // How far a wounded unit walks to a city of its own.
         rest_city_range: 8,
         // An enemy unit this near is a danger to a charge walking alone.
-        escort_enemy_near: 4,
+        escort_enemy_near: 3,
+        // An enemy unit this near is a danger to a wounded unit looking for a place to rest.
+        rest_enemy_near: 3,
         // A hero this much of the average fighter's strength needs a guard in the field.
         weak_hero: 0.5,
         // Turns a spirit may stand still on its way before the node is given up.

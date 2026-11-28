@@ -112,6 +112,15 @@ A new `Command` variant is not enough in `command.rs`, `actor.rs` and `World::ex
 - **A game that is over takes no command**, so a test that ends the game cannot look for a task
   change made after that.
 
+## Pins and reference games after a content change
+
+- `f4x-master` does not depend on `f4x-ai`: its pinned plays (`tests/pins/drift.txt`) and the
+  reference games (`tests/regression`) say nothing about a change of the computer player. After a
+  change of content they should move in the content fingerprint only.
+- `F4X_REFRESH_REGRESSION=saves` builds the reference games anew, so their targets can differ widely
+  even with no change of behaviour. When only the content fingerprint changed, replace it in the saves
+  and update the checksum of the first line (FNV-1a of the rest): the old targets then still hold.
+
 ## Orders that stop (tasks 515, 555)
 
 - **A step that fails must be reported, not dropped.** `follow_orders` used to end a `GoTo` on any refused

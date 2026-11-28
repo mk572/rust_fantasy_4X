@@ -18,7 +18,7 @@ use f4x_core::world::serial::Serial;
 use f4x_core::world::{Command, Event, World};
 use f4x_master::Game;
 
-/// Send a settler to its site, with an escort when it leaves a city that has a soldier to spare:
+/// Send a settler (or a spirit), whose task names `to`, on its way, with an escort when it leaves a city that has a soldier to spare:
 /// the two walk as one stack. Whether the order was accepted. (`expand.rs` calls this where it
 /// would send the settler alone.)
 pub fn walk(
@@ -66,7 +66,7 @@ pub fn walk(
     if units.len() == 1 && at.is_some_and(|at| enemy_near(&PlayerView::new(game, me), at)) {
         return true;
     }
-    ai.send(game, Command::GoTo { units, to }, events).is_ok()
+    ai.walk(game, units, events).is_ok()
 }
 
 /// Make the unit `escort` the guard of `charge`, if it may take the job.
@@ -219,14 +219,8 @@ pub fn guard(ai: &mut Ai, game: &mut Game, charge: hecs::Entity, events: &mut Ve
         (Some(u), _) => {
             // A square with no room for it is not asked: the escort waits till one leaves.
             if !PlayerView::new(game, me).unit_has_order(u) && Ai::room_at(game, at, 1) {
-                ai.order(
-                    game,
-                    Command::GoTo {
-                        units: vec![u],
-                        to: at,
-                    },
-                    events,
-                );
+                // A refused walk is in the refused-order log; the escort tries again later.
+                let _ = ai.walk(game, vec![u], events);
             }
             false
         }
@@ -391,6 +385,7 @@ mod tests {
             .filter(|p| p.x >= 28 && !walks.contains(p))
             .min_by_key(|p| (p.y, p.x))
             .ok_or("the swimmer reaches the east island")?;
+        let _ = ai.write(&mut w).claim(charge, Role::Settle, Some(far));
         assert!(walk(&mut ai, &mut w, settler, far, &mut Vec::new()));
         assert_eq!(
             ai.tasks(&w).roles.escort_of(charge),

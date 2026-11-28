@@ -26,6 +26,7 @@ mod c9_player;
 mod c9_rules;
 mod c9_spell;
 mod c9_task;
+mod c9_task_walk;
 mod c9_threat;
 mod c9_turn;
 mod c9_unit;
