@@ -422,6 +422,7 @@ mod tests {
                 special: 0,
                 fought_by: Vec::new(),
                 hurt: Vec::new(),
+                apparent: None,
             }),
         });
         spawn(&mut w, MONSTERS, at(5, 8), 174 /* zombies */, 2);

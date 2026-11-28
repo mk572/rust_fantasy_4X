@@ -257,8 +257,10 @@ mod tests {
     fn a_tower_the_soldiers_cannot_take_alone_is_a_goal_for_mana() -> TestResult {
         let mut w = game_rival_across(COAST_CITY, 8 /* high_men */);
         w.set_round(400); // the end of the game: not a build-up
-        spawn(&mut w, P0, at(10, 6), 113 /* high_men_paladins */, 1);
-        crate::testworld::spawn_tower(&mut w, at(33, 9), true)?;
+        let one = spawn(&mut w, P0, at(10, 6), 113 /* high_men_paladins */, 1);
+        // Guards that look two and a half soldiers strong.
+        let looks = (2.5 * crate::view::stack_strength(&PlayerView::new(&w, P0), &one)) as u32;
+        crate::testworld::spawn_tower_looking(&mut w, at(33, 9), true, Some(looks))?;
         w.reveal_map(P0);
         assert_eq!(
             mana_goal(&PlayerView::new(&w, P0), &[], w.round()),
@@ -282,16 +284,19 @@ mod tests {
     {
         let mut w = game_rival_across(COAST_CITY, 8 /* high_men */);
         let paladins = spawn(&mut w, P0, at(10, 6), 113 /* high_men_paladins */, 1);
-        crate::testworld::spawn_tower(&mut w, at(33, 9), true)?;
+        // Guards that look twice as strong as the soldier.
+        let looks = (2.0 * crate::view::stack_strength(&PlayerView::new(&w, P0), &paladins)) as u32;
+        crate::testworld::spawn_tower_looking(&mut w, at(33, 9), true, Some(looks))?;
         w.reveal_map(P0);
         learn_a_battle_spell(&mut w)?;
         set_mana(&mut w, 200)?;
         let view = PlayerView::new(&w, P0);
         let soldiers = crate::view::stack_strength(&view, &paladins);
         let with = soldiers + spell_power(&view);
-        let near = |s| crate::site::sites_near(&view, at(10, 6), s, 0.0, &[]);
-        assert!(near(soldiers).is_empty());
-        assert_eq!(near(with), vec![at(33, 9)]);
+        let needed =
+            crate::site::expected_vs(&view, at(33, 9), 0.0) * w.levers().attack.attack_force;
+        assert!(soldiers < needed);
+        assert!(with >= needed);
         Ok(())
     }
 }

@@ -917,6 +917,27 @@ impl<'a> PlayerView<'a> {
         self.explored(at) && self.world.economy().lair_at(at).is_some()
     }
 
+    /// The guarded sites the player has explored (a tower once, where it is kept; `towers` gives
+    /// the squares of a tower on each plane).
+    pub fn lair_sites(&self) -> Vec<Position> {
+        self.world
+            .economy()
+            .lairs()
+            .into_iter()
+            .map(|l| l.pos)
+            .filter(|&p| self.explored(p))
+            .collect()
+    }
+
+    /// What the site on an explored square looked to be worth when its guards came
+    /// (`feature::lair::apparent_strength`): all the player knows of guards it has not seen.
+    pub fn lair_apparent(&self, at: Position) -> Option<u32> {
+        if !self.explored(at) {
+            return None;
+        }
+        self.world.economy().lair_at(at)?.apparent
+    }
+
     /// The towers the player has seen, on the planes it has seen them on, and whether each still
     /// has its guards. A stack standing on a tower with none can change plane.
     pub fn towers(&self) -> Vec<(Position, bool)> {

@@ -127,12 +127,8 @@
     ),
     // Lairs, nodes and towers: the parties that take them.
     sites: (
-        // Squares from a city, or from a party in the field, within which a site is looked for.
-        lair_range: 10,
-        // Squares within which a party looks for a tower, the way to the other plane.
-        tower_range: 30,
-        // What the guards of an unknown site are guessed to be worth, in average soldiers of the wizard.
-        guess_guards: 2.5,
+        // Squares from a site within which soldiers are looked for to take it (lair, node or tower).
+        range: 30,
         // What a party that cannot hurt weapon-immune guards is worth against them, as a share of what it would be worth otherwise (above 0).
         immune_discount: 0.2,
         // How much stronger than the party that lost on a site a party must be to try it again.

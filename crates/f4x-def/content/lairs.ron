@@ -66,6 +66,14 @@
     special_min: 1000,
 
     // Patch 1.50 (`docs/lairs.md`), used by the settings `stronger_lairs` and `treasure_patch_150`.
+    // How strong the guards of a site look to a player that has not seen them, in percent of
+    // their true strength: one of these, each as likely. Twenty steps of a log-normal bell with its
+    // middle at 110: two thirds from about 85 to 140, 13 of 20 at least 100.
+    apparent_percent: [
+        67, 77, 83, 87, 91, 95, 98, 102, 105, 108,
+        112, 115, 119, 123, 128, 133, 139, 147, 158, 180,
+    ],
+
     patch_150: (
         // Stronger lairs. The wiki's Encounter Zone article gives the ranges (tower 700 to 3,050,
         // weak sites 30 to 600 and 900, strong sites 300 to 4,250 and 4,750); the steps are the

@@ -292,12 +292,12 @@ their `party` and the rally as `to`.
 Where a party gathers is `assembly.rs`'s (`ai-design.md`, "Gathering a force"): on the way of
 the unit that arrives last, never in a city.
 
-- `MusterKind::Raid` (`raid::gather`): free soldiers spread over the empire, none of whose squares
-  could take a site alone but the best nine with the wizard's spells could, go to the rally point
-  for the easiest site they could take (a lair, or a tower on a plane with no rival city), or to the
-  square beside it when no rally point serves. `raid::release` ends it when all stand on the rally
-  point or after `muster_turns`, and sends on a member with no order; `raid::form` then sends the
-  party from there. No new raid starts while one is mustering.
+- `MusterKind::Raid` (`raid::form`): when the free soldiers within range of a site are enough for it
+  (with the wizard's spells) but no party of them standing together is, the strongest of them go to
+  the rally point for that site, or to the square beside it when no rally point serves.
+  `raid::release` ends it when all stand on the rally point or after `muster_turns`, sends on a
+  member with no order, and sends the party that has come against the site if it is still enough.
+  No new raid muster starts while one is gathering, or while the empire is being built.
 - `MusterKind::Campaign` (`war::run`): the soldiers picked for the campaign hold `Muster` while
   they gather: on the rally point (those already beside the target hold it with the square beside
   at the landing site, or on the near side of a crossing. Soldiers that stand beside the target

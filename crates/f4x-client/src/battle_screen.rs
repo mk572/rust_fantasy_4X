@@ -708,6 +708,8 @@ impl App {
         else {
             return;
         };
+        // `KIND@N` names a view as well (`set_test_effects`).
+        let kind = kind.split_once('@').map_or(kind, |(k, _)| k);
         if !matches!(kind, "river" | "river-myrror" | "sea") {
             return;
         }
@@ -739,14 +741,38 @@ impl App {
             {
                 self.game.world_mut().cheat_set_terrain(to, t);
             }
-            // The human sails a galley and a warship and brings a Floating Island.
+            // The human sails a warship and a galley and brings a Floating Island, and its
+            // soldiers go aboard from the shore beside them. Sprites fly and lizardmen swim
+            // beside the ships.
+            let walkers = self.game.units().player_units(HUMAN);
+            let shore = f4x_core::map::Position { x: to.x - 1, ..to };
+            if let Some(t) = self.game.content().terrains.id_numbered(4)
+            /* grassland */
+            {
+                self.game.world_mut().cheat_set_terrain(shore, t);
+            }
+            for &unit in &walkers {
+                self.game.world_mut().cheat_move_unit(unit, shore);
+            }
             let rules = &self.game.content().rules;
-            let ships: Vec<_> = ["galley", "warship", "floating_island"]
-                .iter()
-                .filter_map(|id| crate::alias::id_of(&rules.units, id))
-                .collect();
+            let ships: Vec<_> = [
+                "warship",
+                "galley",
+                "floating_island",
+                "sprites",
+                "lizardman_swordsmen",
+            ]
+            .iter()
+            .filter_map(|id| crate::alias::id_of(&rules.units, id))
+            .collect();
             for id in ships {
                 self.game.world_mut().spawn_unit(HUMAN, to, id);
+            }
+            let aboard = f4x_core::world::Command::MoveStack { units: walkers, to };
+            for event in self.game.apply(HUMAN, aboard) {
+                if let f4x_core::world::Event::Rejected(why) = event {
+                    eprintln!("the soldiers cannot go aboard: {why:?}");
+                }
             }
             self.test_sea = true;
         }
@@ -2299,6 +2325,11 @@ impl App {
                     },
                 );
                 shown.push((true, at));
+            }
+            // The ship whose deck this is has no figure: the deck is its picture. Its base and
+            // health bar show on the square it is struck on.
+            if u.sails && battle.map.is_ship_deck(u.cell) {
+                continue;
             }
             let count = u.figures_start as usize;
             for (twin, at) in shown {

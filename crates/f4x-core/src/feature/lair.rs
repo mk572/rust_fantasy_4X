@@ -12,7 +12,8 @@
 //! Tests: `tests/it/c9_feature.rs`.
 
 use crate::world::rng::GameRng;
-use rand::Rng;
+use rand::{Rng, RngCore, SeedableRng};
+use rand_pcg::Pcg64Mcg;
 use serde::{Deserialize, Serialize};
 
 use crate::feature::def::FeatureKind;
@@ -108,9 +109,42 @@ pub struct Lair {
     /// did not clear the site.
     #[serde(default)]
     pub hurt: Vec<u32>,
+    /// What the guards looked to be worth when they came ([`apparent_strength`]): what a player
+    /// that has not seen them judges the site by. `None` only until the site is placed.
+    #[serde(default)]
+    pub apparent: Option<u32>,
+}
+
+/// What a new set of `guards` on `at` looks to be worth: their strength
+/// (`f4x_battle::power::def_power`) times one of the percentages of
+/// `LairRules::apparent_percent`. Which one follows from the square and the guards, so it draws
+/// from no stream of the game and the same site looks the same every time.
+pub fn apparent_strength(content: &Content, at: Position, guards: &[(UnitId, u32)]) -> u32 {
+    let rules = &content.rules;
+    let strength: f32 = guards
+        .iter()
+        .map(|&(id, n)| f4x_battle::power::def_power(rules.units.get(id), rules) * n as f32)
+        .sum();
+    let mix = guards.iter().fold(
+        (at.plane as u64) << 40 | u64::from(at.x) << 20 | u64::from(at.y),
+        |h, &(id, n)| {
+            (h ^ (u64::from(id.num()) << 8 | u64::from(n))).wrapping_mul(0x9E37_79B9_7F4A_7C15)
+        },
+    );
+    let roll = Pcg64Mcg::seed_from_u64(mix).next_u64();
+    let table = &rules.lairs.apparent_percent;
+    let percent = table
+        .get((roll % table.len().max(1) as u64) as usize)
+        .map_or(100, |&p| p);
+    (strength * percent as f32 / 100.0).round() as u32
 }
 
 impl Lair {
+    /// The guards are new on `at`: judge how strong they look.
+    pub(crate) fn look(&mut self, content: &Content, at: Position) {
+        self.apparent = Some(apparent_strength(content, at, &self.guards));
+    }
+
     /// Number of guard units.
     pub fn guard_count(&self) -> u32 {
         self.guards.iter().map(|g| g.1).sum()

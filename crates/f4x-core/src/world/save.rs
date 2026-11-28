@@ -182,6 +182,8 @@ pub struct LairSave {
     pub fought_by: Vec<PlayerId>,
     #[serde(default)]
     pub hurt: Vec<u32>,
+    #[serde(default)]
+    pub apparent: Option<u32>,
 }
 
 /// A terrain feature entity: its creation number, what it is, where it stands and what it holds.
@@ -915,6 +917,7 @@ impl World {
                         special: l.special,
                         fought_by: l.fought_by.clone(),
                         hurt: l.hurt.clone(),
+                        apparent: l.apparent,
                     });
                 let _ = &eco;
                 Some(FeatureSave {
@@ -1626,6 +1629,7 @@ impl Snapshot {
                             special: l.special,
                             fought_by: l.fought_by,
                             hurt: l.hurt,
+                            apparent: l.apparent,
                         })
                     })
                     .transpose()?;

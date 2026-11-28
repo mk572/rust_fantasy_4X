@@ -239,9 +239,13 @@ mod tests {
                 ..GenParams::default()
             };
             let lairs = generate_lairs(seed, &params, &map, &placed, &nodes, c);
-            // `hurt` (the wounds of a lair's guards, empty in a new world) came after the number
-            // was taken: leave it out so that the number still says "generation is unchanged".
-            for byte in format!("{lairs:?}").replace(", hurt: []", "").bytes() {
+            // `hurt` (the wounds of a lair's guards, empty in a new world) and `apparent` (set when
+            // the site is placed) came after the number was taken: leave them out so that the
+            // number still says "generation is unchanged".
+            let text = format!("{lairs:?}")
+                .replace(", hurt: []", "")
+                .replace(", apparent: None", "");
+            for byte in text.bytes() {
                 hash = (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3);
             }
         }

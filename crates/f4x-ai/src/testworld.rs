@@ -196,6 +196,18 @@ pub fn spawn_site(
     guards: Vec<(f4x_def::rules::UnitId, u32)>,
     fought_by: Vec<PlayerId>,
 ) -> Result<hecs::Entity, &'static str> {
+    spawn_site_looking(world, pos, guards, fought_by, None)
+}
+
+/// [`spawn_site`] with guards that look `apparent` strong to who has not seen them (`None`: as the
+/// game judges them).
+pub fn spawn_site_looking(
+    world: &mut World,
+    pos: Position,
+    guards: Vec<(f4x_def::rules::UnitId, u32)>,
+    fought_by: Vec<PlayerId>,
+    apparent: Option<u32>,
+) -> Result<hecs::Entity, &'static str> {
     let feature = world
         .content()
         .features
@@ -215,6 +227,7 @@ pub fn spawn_site(
             special: 0,
             fought_by,
             hurt: Vec::new(),
+            apparent,
         }),
     }))
 }
@@ -224,6 +237,16 @@ pub fn spawn_tower(
     world: &mut World,
     pos: Position,
     intact: bool,
+) -> Result<hecs::Entity, &'static str> {
+    spawn_tower_looking(world, pos, intact, None)
+}
+
+/// [`spawn_tower`] with guards that look `apparent` strong.
+pub fn spawn_tower_looking(
+    world: &mut World,
+    pos: Position,
+    intact: bool,
+    apparent: Option<u32>,
 ) -> Result<hecs::Entity, &'static str> {
     let feature = world
         .content()
@@ -244,6 +267,7 @@ pub fn spawn_tower(
             special: 0,
             fought_by: Vec::new(),
             hurt: Vec::new(),
+            apparent,
         }),
     }))
 }

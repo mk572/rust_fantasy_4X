@@ -692,145 +692,279 @@ pub fn ship_shape(width: i32, length: i32) -> Vec<(i32, i32)> {
 
 /// Where the ships' decks lie in a sea battle, in the rules' frame: for each ship of a side, in
 /// the order given, the squares of its deck, or `None` if it did not fit. The first ship of each
-/// side faces the other's across one square of water; the rest lie where they fit, one square of
-/// water between any two decks. `attackers` and `defenders` are the `(width, length)` of each
-/// ship; if the first two cannot face each other nothing is laid out (all `None`).
+/// side faces the other's across one square of water; the rest lie as near their side's first
+/// ship as they can, one square of water between any two decks. The ships are taken in turn from
+/// the two sides, and for each one the others are moved if that makes room for it. `attackers`
+/// and `defenders` are the `(width, length)` of each ship; if the first two cannot face each
+/// other nothing is laid out (all `None`).
 pub fn ship_decks(attackers: &[(i32, i32)], defenders: &[(i32, i32)]) -> ShipDecks {
     let mut out = ShipDecks {
         attackers: vec![None; attackers.len()],
         defenders: vec![None; defenders.len()],
     };
-    let cells_at = |size: (i32, i32), x: i32, y: i32| -> Vec<(i32, i32)> {
-        ship_shape(size.0, size.1)
-            .into_iter()
-            .map(|(dx, dy)| (x + dx, y + dy))
-            .collect()
-    };
-    let inside = |cells: &[(i32, i32)]| cells.iter().all(|&(x, y)| in_band(W - 1 - x, y));
-    let clear = |cells: &[(i32, i32)], placed: &[(i32, i32)]| {
-        cells.iter().all(|&(x, y)| {
-            placed
-                .iter()
-                .all(|&(px, py)| (px - x).abs().max((py - y).abs()) > 1)
-        })
-    };
-    let mut placed: Vec<(i32, i32)> = Vec::new();
-    // The first ships face each other across a gap column.
-    let first = match (attackers.first(), defenders.first()) {
-        (Some(&a), Some(&d)) => {
-            let mut best: Option<(i32, Cells, Cells)> = None;
-            for edge in 0..W {
-                let (xa, xd) = (edge - a.0 + 1, edge + 2);
-                if xa < 0 || xd + d.0 > W {
-                    continue;
-                }
-                for ya in 0..=(H - a.1) {
-                    let ca = cells_at(a, xa, ya);
-                    if !inside(&ca) {
-                        continue;
-                    }
-                    for yd in 0..=(H - d.1) {
-                        let cd = cells_at(d, xd, yd);
-                        if !inside(&cd) {
-                            continue;
-                        }
-                        let score = (edge - 9).abs() * 2
-                            + (ya * 2 + a.1 - H).abs()
-                            + (yd * 2 + d.1 - H).abs();
-                        if best.as_ref().is_none_or(|b| score < b.0) {
-                            best = Some((score, ca.clone(), cd));
-                        }
-                    }
-                }
-            }
-            best.map(|(_, ca, cd)| (ca, cd))
-        }
-        // One side alone: its first ship lies by the middle, on its own side.
-        (Some(&one), None) | (None, Some(&one)) => {
-            let attacker = defenders.is_empty();
-            let mut best: Option<(i32, Cells)> = None;
-            for x in 0..=(W - one.0) {
-                for y in 0..=(H - one.1) {
-                    let cells = cells_at(one, x, y);
-                    if !inside(&cells) {
-                        continue;
-                    }
-                    let edge = if attacker { x + one.0 - 1 } else { x };
-                    let score = (edge - if attacker { 9 } else { 11 }).abs() * 2
-                        + (y * 2 + one.1 - H).abs();
-                    if best.as_ref().is_none_or(|b| score < b.0) {
-                        best = Some((score, cells));
-                    }
-                }
-            }
-            best.map(|(_, c)| {
-                if attacker {
-                    (c, Vec::new())
-                } else {
-                    (Vec::new(), c)
-                }
-            })
-        }
-        _ => None,
-    };
-    let Some((ca, cd)) = first else {
-        return out;
-    };
-    placed.extend(&ca);
-    placed.extend(&cd);
-    let centre = |c: &[(i32, i32)]| {
+    let first = first_decks(attackers.first().copied(), defenders.first().copied());
+    // The middle of each side's first deck, where its other ships gather.
+    let centre = |c: &Cells| {
         let n = c.len() as i32;
         (
             c.iter().map(|p| p.0).sum::<i32>() / n,
             c.iter().map(|p| p.1).sum::<i32>() / n,
         )
     };
-    let anchors = [
-        if ca.is_empty() { (9, 11) } else { centre(&ca) },
-        if cd.is_empty() { (11, 11) } else { centre(&cd) },
-    ];
-    if !ca.is_empty() {
-        out.attackers[0] = Some(ca);
-    }
-    if !cd.is_empty() {
-        out.defenders[0] = Some(cd);
-    }
-    for (side, sizes) in [(0usize, attackers), (1, defenders)] {
-        for (n, &size) in sizes.iter().enumerate().skip(1) {
-            let mut best: Option<(i32, Vec<(i32, i32)>)> = None;
-            for x in 0..=(W - size.0) {
-                for y in 0..=(H - size.1) {
-                    let cells = cells_at(size, x, y);
-                    if !inside(&cells) || !clear(&cells, &placed) {
-                        continue;
-                    }
-                    let c = centre(&cells);
-                    let near = (c.0 - anchors[side].0)
-                        .abs()
-                        .max((c.1 - anchors[side].1).abs());
-                    // A side keeps to its own half of the field.
-                    let wrong = if side == 0 {
-                        (c.0 - 9).max(0)
-                    } else {
-                        (11 - c.0).max(0)
-                    };
-                    let score = near + wrong * 2;
-                    if best.as_ref().is_none_or(|b| score < b.0) {
-                        best = Some((score, cells));
-                    }
-                }
-            }
-            if let Some((_, cells)) = best {
-                placed.extend(&cells);
-                if side == 0 {
-                    out.attackers[n] = Some(cells);
-                } else {
-                    out.defenders[n] = Some(cells);
+    let anchors = first.first().map_or([(9, 11), (11, 11)], |pair| {
+        [
+            pair[0].as_ref().map_or((9, 11), |d| centre(&d.cells)),
+            pair[1].as_ref().map_or((11, 11), |d| centre(&d.cells)),
+        ]
+    });
+    // The ships laid out so far, as (side, number on its side), and their places.
+    let mut ships: Vec<(usize, usize)> = Vec::new();
+    let mut places: Vec<Vec<Berth>> = Vec::new();
+    let mut found: Vec<Berth> = Vec::new();
+    let fleets = [attackers, defenders];
+    for n in 1..attackers.len().max(defenders.len()) {
+        for side in 0..2 {
+            let Some(&size) = fleets[side].get(n) else {
+                continue;
+            };
+            ships.push((side, n));
+            places.push(berths(size, anchors[side], side));
+            let mut steps = SEARCH_STEPS;
+            match first
+                .iter()
+                .find_map(|pair| moor(pair, &places, &mut steps))
+            {
+                Some(laid) => found = laid,
+                None => {
+                    ships.pop();
+                    places.pop();
                 }
             }
         }
     }
+    let pair_len = first.first().map_or(0, |p| p.iter().flatten().count());
+    if found.is_empty() {
+        found = first
+            .first()
+            .map(|p| p.iter().flatten().cloned().collect())
+            .unwrap_or_default();
+    }
+    let mut decks = found.into_iter().map(|b| b.cells);
+    if let Some(pair) = first.first() {
+        if pair_len > 0 && pair[0].is_some() {
+            out.attackers[0] = decks.next();
+        }
+        if pair_len > 0 && pair[1].is_some() {
+            out.defenders[0] = decks.next();
+        }
+    }
+    for ((side, n), cells) in ships.into_iter().zip(decks) {
+        let list = if side == 0 {
+            &mut out.attackers
+        } else {
+            &mut out.defenders
+        };
+        list[n] = Some(cells);
+    }
     out
+}
+
+/// The most places tried to make room for one more ship, so a fleet too large for the field is
+/// given up on in good time.
+const SEARCH_STEPS: u32 = 20_000;
+
+/// A place a deck can lie: its squares, and those no other deck may use.
+#[derive(Debug, Clone)]
+struct Berth {
+    cells: Cells,
+    squares: Mask,
+    keep_off: Mask,
+}
+
+/// A set of squares of the field.
+type Mask = [u64; (W * H) as usize / 64 + 1];
+
+fn mark(mask: &mut Mask, (x, y): (i32, i32)) {
+    if (0..W).contains(&x) && (0..H).contains(&y) {
+        let n = (y * W + x) as usize;
+        mask[n / 64] |= 1 << (n % 64);
+    }
+}
+
+fn overlap(a: &Mask, b: &Mask) -> bool {
+    a.iter().zip(b).any(|(a, b)| a & b != 0)
+}
+
+/// The deck of a ship of `size` with its top left corner at `(x, y)`, if it is on the field.
+fn berth(size: (i32, i32), x: i32, y: i32) -> Option<Berth> {
+    let cells: Cells = ship_shape(size.0, size.1)
+        .into_iter()
+        .map(|(dx, dy)| (x + dx, y + dy))
+        .collect();
+    if !cells.iter().all(|&(x, y)| in_band(W - 1 - x, y)) {
+        return None;
+    }
+    let (mut squares, mut keep_off) = (Mask::default(), Mask::default());
+    for &(x, y) in &cells {
+        mark(&mut squares, (x, y));
+        for dx in -1..=1 {
+            for dy in -1..=1 {
+                mark(&mut keep_off, (x + dx, y + dy));
+            }
+        }
+    }
+    Some(Berth {
+        cells,
+        squares,
+        keep_off,
+    })
+}
+
+/// Every place of a further ship of `side`, the nearest to `anchor` first; a side keeps to its
+/// own half of the field where it can.
+fn berths(size: (i32, i32), anchor: (i32, i32), side: usize) -> Vec<Berth> {
+    let mut out: Vec<(i32, Berth)> = Vec::new();
+    for x in 0..=(W - size.0) {
+        for y in 0..=(H - size.1) {
+            let Some(b) = berth(size, x, y) else {
+                continue;
+            };
+            let n = b.cells.len() as i32;
+            let c = (
+                b.cells.iter().map(|p| p.0).sum::<i32>() / n,
+                b.cells.iter().map(|p| p.1).sum::<i32>() / n,
+            );
+            let near = (c.0 - anchor.0).abs().max((c.1 - anchor.1).abs());
+            let wrong = if side == 0 {
+                (c.0 - 9).max(0)
+            } else {
+                (11 - c.0).max(0)
+            };
+            out.push((near + wrong * 2, b));
+        }
+    }
+    out.sort_by_key(|p| p.0);
+    out.into_iter().map(|p| p.1).collect()
+}
+
+/// The places of the two first ships (of a side that has one), the best first: facing each other
+/// across a gap column, near the middle; a side alone lies by the middle, on its own side.
+fn first_decks(
+    attacker: Option<(i32, i32)>,
+    defender: Option<(i32, i32)>,
+) -> Vec<[Option<Berth>; 2]> {
+    let mut out: Vec<(i32, [Option<Berth>; 2])> = Vec::new();
+    match (attacker, defender) {
+        (Some(a), Some(d)) => {
+            for edge in 0..W {
+                let (xa, xd) = (edge - a.0 + 1, edge + 2);
+                if xa < 0 || xd + d.0 > W {
+                    continue;
+                }
+                for ya in 0..=(H - a.1) {
+                    let Some(ca) = berth(a, xa, ya) else {
+                        continue;
+                    };
+                    for yd in 0..=(H - d.1) {
+                        // Side by side: some square of one faces some square of the other.
+                        if ya + a.1 <= yd || yd + d.1 <= ya {
+                            continue;
+                        }
+                        let Some(cd) = berth(d, xd, yd) else {
+                            continue;
+                        };
+                        let score = (edge - 9).abs() * 2
+                            + (ya * 2 + a.1 - H).abs()
+                            + (yd * 2 + d.1 - H).abs();
+                        out.push((score, [Some(ca.clone()), Some(cd)]));
+                    }
+                }
+            }
+        }
+        (Some(one), None) | (None, Some(one)) => {
+            let attacking = attacker.is_some();
+            for x in 0..=(W - one.0) {
+                for y in 0..=(H - one.1) {
+                    let Some(b) = berth(one, x, y) else {
+                        continue;
+                    };
+                    let edge = if attacking { x + one.0 - 1 } else { x };
+                    let score = (edge - if attacking { 9 } else { 11 }).abs() * 2
+                        + (y * 2 + one.1 - H).abs();
+                    let pair = if attacking {
+                        [Some(b), None]
+                    } else {
+                        [None, Some(b)]
+                    };
+                    out.push((score, pair));
+                }
+            }
+        }
+        (None, None) => {}
+    }
+    out.sort_by_key(|p| p.0);
+    out.into_iter().map(|p| p.1).collect()
+}
+
+/// The first pair and a place for each of the further ships (whose possible places are `places`),
+/// no two decks touching: the pair's decks first, then the others in their order. Each ship takes
+/// the best of its places that leaves one for all the rest. `None` if there is no such layout, or
+/// `steps` places have been tried.
+fn moor(pair: &[Option<Berth>; 2], places: &[Vec<Berth>], steps: &mut u32) -> Option<Vec<Berth>> {
+    fn place(open: &[(usize, Vec<&Berth>)], done: &mut [Option<Berth>], steps: &mut u32) -> bool {
+        // The ship with the fewest places left goes next.
+        let Some(next) = (0..open.len()).min_by_key(|&i| (open[i].1.len(), open[i].0)) else {
+            return true;
+        };
+        let (ship, choices) = &open[next];
+        for &choice in choices {
+            if *steps == 0 {
+                return false;
+            }
+            *steps -= 1;
+            let rest: Vec<(usize, Vec<&Berth>)> = open
+                .iter()
+                .enumerate()
+                .filter(|&(i, _)| i != next)
+                .map(|(_, (s, c))| {
+                    let left = c
+                        .iter()
+                        .copied()
+                        .filter(|b| !overlap(&b.squares, &choice.keep_off))
+                        .collect();
+                    (*s, left)
+                })
+                .collect();
+            if rest.iter().all(|(_, c)| !c.is_empty()) && place(&rest, done, steps) {
+                done[*ship] = Some(choice.clone());
+                return true;
+            }
+        }
+        false
+    }
+    let first: Vec<&Berth> = pair.iter().flatten().collect();
+    let open: Vec<(usize, Vec<&Berth>)> = places
+        .iter()
+        .enumerate()
+        .map(|(n, all)| {
+            let left = all
+                .iter()
+                .filter(|b| first.iter().all(|f| !overlap(&b.squares, &f.keep_off)))
+                .collect();
+            (n, left)
+        })
+        .collect();
+    if open.iter().any(|(_, c)| c.is_empty()) {
+        return None;
+    }
+    let mut done: Vec<Option<Berth>> = vec![None; places.len()];
+    place(&open, &mut done, steps).then(|| {
+        first
+            .into_iter()
+            .cloned()
+            .chain(done.into_iter().flatten())
+            .collect()
+    })
 }
 
 /// The squares of one deck.
@@ -2076,9 +2210,17 @@ mod tests {
 
     #[test]
     fn every_pair_of_ships_faces_across_one_square_of_water() -> TestResult {
-        let sizes = [(3, 7), (4, 8), (5, 9)];
-        for a in sizes {
-            for d in sizes {
+        let sizes: Vec<(i32, i32)> = f4x_def::testdir::shipped()
+            .rules
+            .units
+            .defs()
+            .iter()
+            .filter_map(|d| d.deck)
+            .map(|(w, l)| (i32::from(w), i32::from(l)))
+            .collect();
+        assert!(!sizes.is_empty(), "no shipped unit has a deck");
+        for &a in &sizes {
+            for &d in &sizes {
                 let decks = ship_decks(&[a], &[d]);
                 let (Some(da), Some(dd)) = (&decks.attackers[0], &decks.defenders[0]) else {
                     return Err(format!("{a:?} against {d:?} did not fit").into());
@@ -2101,6 +2243,53 @@ mod tests {
             }
         }
         Ok(())
+    }
+
+    /// A ship that finds no room beside the others laid out one by one still gets a deck when
+    /// moving them makes room: a warship, a galley and a Floating Island against a warship and a
+    /// trireme.
+    #[test]
+    fn the_others_move_to_make_room_for_a_ship() -> TestResult {
+        let units = &f4x_def::testdir::shipped().rules.units;
+        let deck = |num: u16| -> Result<(i32, i32), Box<dyn std::error::Error>> {
+            let (w, l) = units
+                .get(f4x_def::rules::UnitId::new(num))
+                .deck
+                .ok_or("no deck")?;
+            Ok((i32::from(w), i32::from(l)))
+        };
+        let warship = deck(38 /* warship */)?;
+        let attackers = [
+            warship,
+            deck(36 /* galley */)?,
+            deck(190 /* floating_island */)?,
+        ];
+        let defenders = [warship, deck(35 /* trireme */)?];
+        let decks = ship_decks(&attackers, &defenders);
+        let all: Vec<_> = decks.attackers.iter().chain(&decks.defenders).collect();
+        assert!(all.iter().all(|d| d.is_some()), "{decks:?}");
+        for (i, a) in all.iter().flat_map(|d| d.iter()).enumerate() {
+            for b in all.iter().flat_map(|d| d.iter()).skip(i + 1) {
+                assert!(a.iter().all(|p| b
+                    .iter()
+                    .all(|q| (p.0 - q.0).abs().max((p.1 - q.1).abs()) >= 2)));
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_fleet_too_large_for_the_field_gets_the_decks_there_is_room_for() {
+        let fleet = [(4, 9); 9];
+        let decks = ship_decks(&fleet, &fleet);
+        let laid = decks
+            .attackers
+            .iter()
+            .chain(&decks.defenders)
+            .flatten()
+            .count();
+        assert!(decks.attackers[0].is_some() && decks.defenders[0].is_some());
+        assert!(laid < 18, "{laid}");
     }
 
     #[test]

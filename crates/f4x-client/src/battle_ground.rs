@@ -11,11 +11,12 @@
 
 use f4x_battle::battle::Battle;
 use f4x_battle::map::layout::{self, Set, Site, Structure, W};
-use f4x_battle::map::{cg_of, pos_of_cg, Pos, Wall, GRID_H};
+use f4x_battle::map::{cg_of, pos_of_cg, Pos, Wall, GRID_H, GRID_W};
 use f4x_core::map::Plane;
 use macroquad::prelude::*;
 
 use crate::battle_turn::Turn;
+use crate::ship_art;
 use crate::view::App;
 
 /// Native size of a cell.
@@ -313,22 +314,6 @@ impl App {
                         Color::new(0.2, 0.4, 0.2, 1.0),
                     ),
                 }
-                // A ship's deck: brown planks over the water, a darker plank every other square.
-                if look.is_some_and(|l| l.roads[layout::cell(cgx, cgy)] == layout::SHIP_DECK) {
-                    let plank = if (cgx + cgy) & 1 == 0 {
-                        Color::new(0.47, 0.31, 0.16, 1.0)
-                    } else {
-                        Color::new(0.41, 0.27, 0.13, 1.0)
-                    };
-                    crate::battle_screen::diamond(sx, sy, scale, plank, true);
-                    crate::battle_screen::diamond(
-                        sx,
-                        sy,
-                        scale,
-                        Color::new(0.25, 0.15, 0.07, 1.0),
-                        false,
-                    );
-                }
                 if river {
                     // Six pictures serve both planes (`river_art.rs`); Myrror's are repainted.
                     let shape = (tile - layout::RIVER_TILE as usize) % 6;
@@ -353,6 +338,8 @@ impl App {
                 }
             }
         }
+        // The ships, over all of the water: a hull hangs over the squares round its deck.
+        self.draw_ships(battle, view, turn);
         let Some(look) = look else {
             return;
         };
@@ -361,7 +348,11 @@ impl App {
         for cgy in 0..GRID_H {
             for cgx in -layout::EXTRA_X..W {
                 let flags = look.roads[layout::cell(cgx, cgy)];
-                if flags == 0 || !battle.map.is_playable(core_pos(cgx, cgy)) {
+                // A ship's deck is marked in the road layer and is no road.
+                if flags == 0
+                    || flags == layout::SHIP_DECK
+                    || !battle.map.is_playable(core_pos(cgx, cgy))
+                {
                     continue;
                 }
                 let worn = if flags & 1 != 0 { 0 } else { 7 };
@@ -438,6 +429,69 @@ impl App {
                 }
             }
             Site::Open => {}
+        }
+    }
+
+    /// The deck of each ship of a sea battle: its picture (`ship_art.rs`), the farther ships
+    /// first, or plain planks (a darker one every other square) for a size that has none.
+    fn draw_ships(&mut self, battle: &Battle, (ox, oy, scale): (f32, f32, f32), turn: Turn) {
+        let squares = (0..GRID_H)
+            .flat_map(|y| (0..GRID_W).map(move |x| (x, y)))
+            .filter(|&p| battle.map.is_ship_deck(p))
+            .collect();
+        let mut ships: Vec<(i32, ship_art::Deck)> = ship_art::decks(&squares)
+            .into_iter()
+            .map(|deck| {
+                let depth: i32 = deck
+                    .squares
+                    .iter()
+                    .map(|&(x, y)| {
+                        let (cgx, cgy) = turn.cg((W - 1 - x, y));
+                        cgx + cgy
+                    })
+                    .sum();
+                (depth / deck.squares.len().max(1) as i32, deck)
+            })
+            .collect();
+        ships.sort_by_key(|(depth, _)| *depth);
+        for (_, deck) in ships {
+            let drawn = ship_art::picture(&deck, turn).is_some_and(|picture| {
+                let (x, y) = turned_origin(picture.cell.0, picture.cell.1);
+                let at = (
+                    ox + (x + picture.offset.0) * scale,
+                    oy + (y + picture.offset.1) * scale,
+                );
+                let Some(tex) = self.art.embedded(picture.key, picture.png) else {
+                    return false;
+                };
+                draw_texture_ex(
+                    tex,
+                    at.0,
+                    at.1,
+                    WHITE,
+                    DrawTextureParams {
+                        dest_size: Some(crate::resolution::logical_size(tex) * scale),
+                        ..Default::default()
+                    },
+                );
+                true
+            });
+            if drawn {
+                continue;
+            }
+            for &(x, y) in &deck.squares {
+                let (cgx, cgy) = (W - 1 - x, y);
+                let (px, py) = origin(turn, cgx, cgy);
+                let (sx, sy) = (ox + px * scale, oy + py * scale);
+                let plank = if (cgx + cgy) & 1 == 0 {
+                    Color::new(0.47, 0.31, 0.16, 1.0)
+                } else {
+                    Color::new(0.41, 0.27, 0.13, 1.0)
+                };
+                crate::battle_screen::diamond(sx, sy, scale, plank, true);
+                let seam = Color::new(0.25, 0.15, 0.07, 1.0);
+                crate::battle_screen::diamond(sx, sy, scale, seam, false);
+            }
         }
     }
 

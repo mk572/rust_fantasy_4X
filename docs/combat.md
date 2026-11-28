@@ -332,21 +332,29 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
   enter it, ships sail it (1 move a square), swimmers take the cheaper way, fliers cross it.
   **Ships are decks** (our own rule; the original has no such thing: it keeps the land units out
   of a sea fight unless a Floating Island or Wind Walking carries them). Each ship of a side that
-  has a deck (`deck` in `units.ron`, width by length: trireme 3 by 7, galley 4 by 8, warship 5 by 9,
-  Floating Island 5 by 5) is laid out by `layout::ship_decks` as brown ground with pointed ends:
-  the first ships of the two sides face each other across one square of water, further ships lie
-  where they fit with a square of water between decks. The field is a diamond of about 200 squares,
-  so the decks are far smaller than the 5 by 15 and 10 by 30 first asked for; two facing decks
-  need `width + width + 1 + length <= 20` (tested for every pair of the content's ships). A ship
-  that does not fit sails as a unit. The ship (and the island, which is a ship here) is a fighter
-  that stays at its bow and cannot sail off; the land units it carries stand on the rest of the
-  deck and fight. A walker on a deck may **jump** the single square of water to another deck
-  (diagonals too) for two moves, always possible with any move left, as with rough
-  ground (`BattleMap::reachable_as`, `movement.jump`). A ship in a city or on land (a fight that is not on the sea) sits out unless it has Flight or
-  Wraith Form (1.50 note 458). Land units not aboard a ship that has a deck
-  sit the fight out and go down with their side if it loses (`ActiveBattle::left_out`); Wind
-  Walking still carries a stack through the air. The decks are drawn as brown diamonds
-  (`battle_ground.rs`) until a ship picture is used. Summoning onto the sea is not possible.
+  has a deck (`deck` in `units.ron`, width by length: trireme 2 by 7, galley 3 by 8, warship 4 by 9,
+  Floating Island 5 by 5) is laid out by `layout::ship_decks` as a deck with pointed ends:
+  the first ships of the two sides face each other across one square of water, further ships are
+  taken in turn from the two sides and lie as near their side's first ship as they can, with a
+  square of water between decks; the others move where that makes room for one more. The field is
+  a diamond of about 200 squares, so the decks are far smaller than the 5 by 15 and 10 by 30 first
+  asked for, and a large fleet does not fit (any five ships of the shipped sizes do; six may not).
+  A ship that finds no room sails as a unit, and the units it carries stand on another deck of
+  their side. Everyone who can be in a sea fight is in it: a unit on no deck (a flier, a swimmer, a
+  water walker, a ship without a deck) always gets a square, and deploys clear of the ships: not on
+  a deck, not in the water at its narrow ends (`hull_cells`) and not beside either, as a hull's
+  picture reaches over those squares; beside a ship only when no clear square is left. Only the
+  deployment keeps off, a unit may move there in the battle. The ship (and the island, which is a
+  ship here) is a fighter that stays at its bow and cannot sail off (the client draws no figure for
+  it on its deck, only its owner's base and its health bar); the land units it carries stand on the
+  rest of the deck and fight. A walker on a deck may **jump** the single square of water to another
+  deck (diagonals too) for two moves, always possible with any move left, as with rough ground
+  (`BattleMap::reachable_as`, `movement.jump`). A ship in a city or on land (a fight that is not on
+  the sea) sits out unless it has Flight or Wraith Form (1.50 note 458). Land units not aboard a
+  ship sit the fight out and go down with their side if it loses (`ActiveBattle::left_out`); Wind
+  Walking still carries a stack through the air. The client draws a deck as a hull and planks, the
+  Floating Island's as an island (`ship_art.rs`, pictures made by `scripts/make_ship_art.py`; a size
+  without pictures is drawn as brown diamonds). Summoning onto the sea is not possible.
   **Who can attack where** (`World::can_attack_onto`): an attack is a move onto the defenders'
   square, as in the original (see ReMoM `Make_Move_Path`, `Army_Movement_Modes`). A sea square
   is attacked only by a stack that can go there as a whole: every unit flies, swims, sails, walks

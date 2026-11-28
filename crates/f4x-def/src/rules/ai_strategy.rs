@@ -96,9 +96,7 @@ levers!(
 levers!(
     /// Lairs, nodes and towers: the parties that take them.
     SiteHuntLevers {
-        lair_range: i32,
-        tower_range: u32,
-        guess_guards: f32,
+        range: u32,
         immune_discount: f32,
         retry_edge: f32,
         site_party: usize,

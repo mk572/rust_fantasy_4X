@@ -1181,3 +1181,64 @@ fn the_squares_of_the_sites_are_those_of_every_node_and_lair() {
         }
     }
 }
+
+/// What a new lair looks to be worth is its guards' strength times one of the percentages of
+/// `lairs.ron`: always one of them, the same one for the same guards on the same square, and
+/// different ones over many sites. A save keeps the number.
+#[test]
+fn a_lair_looks_as_strong_as_its_guards_times_one_of_the_listed_percentages() {
+    let mut seen: BTreeSet<u32> = BTreeSet::new();
+    for skip in 0..sample(60, 20) {
+        let mut s = scene_at(skip);
+        let feature = encounter(&s.w);
+        let lair = put_lair(&mut s.w, s.site, feature, true);
+        let rules = &s.w.content().rules;
+        let strength: f32 = lair
+            .guards
+            .iter()
+            .map(|&(u, n)| f4x_battle::power::def_power(rules.units.get(u), rules) * n as f32)
+            .sum();
+        let looks = lair.apparent.expect("a placed lair was judged");
+        let listed: Vec<u32> = rules
+            .lairs
+            .apparent_percent
+            .iter()
+            .copied()
+            .filter(|&p| (strength * p as f32 / 100.0).round() as u32 == looks)
+            .collect();
+        assert!(
+            !listed.is_empty(),
+            "{}: guards worth {strength} look like {looks}",
+            s.name
+        );
+        assert_eq!(
+            looks,
+            f4x_core::feature::lair::apparent_strength(s.w.content(), s.site, &lair.guards),
+            "{}",
+            s.name
+        );
+        if strength > 0.0 {
+            seen.insert(listed[0]);
+        }
+        assert_eq!(
+            f4x_core::player::view::PlayerView::new(&s.w, s.p).lair_apparent(s.site),
+            None,
+            "{}",
+            s.name
+        );
+        s.w.explore(s.p, s.site, f4x_def::half_int::HalfInt::from_int(1));
+        assert_eq!(
+            f4x_core::player::view::PlayerView::new(&s.w, s.p).lair_apparent(s.site),
+            Some(looks),
+            "{}",
+            s.name
+        );
+        let loaded =
+            s.w.snapshot()
+                .restore(crate::support::content())
+                .expect("the save loads");
+        let again = loaded.economy().lair_at(s.site).expect("the lair");
+        assert_eq!(again.apparent, Some(looks), "{}", s.name);
+    }
+    assert!(seen.len() > 3, "the sites look alike: {seen:?}");
+}

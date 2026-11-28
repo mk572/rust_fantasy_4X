@@ -164,6 +164,9 @@ pub struct LairRules {
     pub special_min: i32,
     /// What patch 1.50 changes, used by the settings `stronger_lairs` and `treasure_patch_150`.
     pub patch_150: Patch150Rules,
+    /// How strong guards that nobody has seen look, in percent of their true strength: one of
+    /// these, each as likely, drawn for each new set of guards.
+    pub apparent_percent: Vec<u32>,
 }
 
 impl LairRules {

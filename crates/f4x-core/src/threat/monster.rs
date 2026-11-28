@@ -110,6 +110,7 @@ impl World {
         if let Ok(mut lair) = self.ecs.get::<&mut Lair>(zone.entity) {
             lair.guards = guards;
             lair.fought_by.clear();
+            lair.look(&self.content, zone.pos);
         }
         vec![Event::MonstersSettled {
             pos: zone.pos,
@@ -193,6 +194,7 @@ impl World {
             lair.prisoner = false;
             lair.special = 0;
             lair.fought_by.clear();
+            lair.look(&self.content, to);
         }
         vec![Event::MonstersSettled {
             pos: to,
@@ -323,6 +325,7 @@ impl World {
                 special: 0,
                 fought_by: Vec::new(),
                 hurt: Vec::new(),
+                apparent: None,
             }),
         });
         events.push(Event::CityRampaged {

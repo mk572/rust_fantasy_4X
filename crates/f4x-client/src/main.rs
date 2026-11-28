@@ -106,6 +106,7 @@ mod road_plan;
 mod scroll;
 mod sell_prompt;
 mod settings_screen;
+mod ship_art;
 mod site_prompt;
 mod spell_fx;
 mod spell_sight;

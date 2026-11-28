@@ -719,12 +719,13 @@ mod tests {
         let mut w = game(COAST_CITY, 8 /* high_men */);
         let party = spawn(&mut w, P0, at(6, 3), 105 /* high_men_swordsmen */, 9);
         let site = at(7, 3);
-        // Guards it has never seen, far stronger than what it guesses.
-        spawn_site(
+        // Guards it has never seen, far stronger than they look.
+        crate::testworld::spawn_site_looking(
             &mut w,
             site,
             vec![(UnitId::new(164) /* great_drake */, 3)],
             Vec::new(),
+            Some(1),
         )?;
         w.reveal_map(P0);
         let mut ai = Ai::new(P0);

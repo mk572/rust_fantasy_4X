@@ -101,6 +101,8 @@ pub struct LairInfo {
     pub fought_by: Vec<PlayerId>,
     /// Hit points each guard has lost (see `Lair::hurt`).
     pub hurt: Vec<u32>,
+    /// See `Lair::apparent`.
+    pub apparent: Option<u32>,
 }
 
 impl LairInfo {
@@ -177,6 +179,7 @@ impl<'a> Economy<'a> {
             special: lair.special,
             fought_by: lair.fought_by.clone(),
             hurt: lair.hurt.clone(),
+            apparent: lair.apparent,
         })
     }
 
@@ -339,7 +342,11 @@ impl World {
         if let Some(node) = placement.node {
             self.put(e, node);
         }
-        if let Some(lair) = placement.lair {
+        if let Some(mut lair) = placement.lair {
+            // A new site, or a save from before the number was kept.
+            if lair.apparent.is_none() {
+                lair.look(&self.content, placement.at);
+            }
             self.put(e, lair);
         }
         self.index_feature(e, placement.at, kind == Some(FeatureKind::Tower));

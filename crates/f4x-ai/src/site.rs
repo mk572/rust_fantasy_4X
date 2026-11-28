@@ -8,13 +8,16 @@ use f4x_core::map::{Plane, Position};
 use f4x_core::player::view::PlayerView;
 
 use crate::assault::guard_strength;
-use crate::military::average_strength;
-use crate::view::{distance, unit_strength};
+use crate::view::unit_strength;
+
+/// What a site whose guards the wizard has not seen looks to be worth (0 where there is none).
+fn apparent(view: &PlayerView, site: Position) -> f32 {
+    view.lair_apparent(site).map_or(0.0, |s| s as f32)
+}
 
 /// What the AI expects the site's guards to be worth.
 pub(crate) fn expected(view: &PlayerView, site: Position) -> f32 {
-    guard_strength(view, site)
-        .unwrap_or_else(|| view.levers().sites.guess_guards * average_strength(view))
+    guard_strength(view, site).unwrap_or_else(|| apparent(view, site))
 }
 
 /// Did a party as strong as this one (not `retry_edge` times as strong) already lose its assault
@@ -40,7 +43,7 @@ pub(crate) fn expected_vs(view: &PlayerView, site: Position, unarmed: f32) -> f3
         Some((all, immune)) => {
             all + immune * unarmed * (1.0 / view.levers().sites.immune_discount - 1.0)
         }
-        None => view.levers().sites.guess_guards * average_strength(view),
+        None => apparent(view, site),
     }
 }
 
@@ -65,43 +68,22 @@ pub(crate) fn live(view: &PlayerView, p: Position) -> bool {
     view.has_lair(p) && view.towers().iter().all(|&(t, intact)| t != p || intact)
 }
 
-/// The explored, intact sites within `lair_range` of `from` (towers within `tower_range`) that a party of `strength` should
-/// take, nearest first.
-pub(crate) fn sites_near(
-    view: &PlayerView,
-    from: Position,
-    strength: f32,
-    unarmed: f32,
-    blocked: &[f4x_core::map::Plane],
-) -> Vec<Position> {
-    let mut found: Vec<Position> = Vec::new();
-    let (range, edge) = (
-        view.levers().sites.lair_range,
-        view.levers().attack.attack_force,
+/// The sites the player has explored that may be worth taking: lairs and nodes, and on each plane
+/// the intact towers, but for the planes `blocked`.
+pub(crate) fn known_sites(view: &PlayerView, blocked: &[f4x_core::map::Plane]) -> Vec<Position> {
+    let towers = view.towers();
+    let mut found: Vec<Position> = view
+        .lair_sites()
+        .into_iter()
+        .filter(|&p| live(view, p) && towers.iter().all(|&(t, _)| (t.x, t.y) != (p.x, p.y)))
+        .collect();
+    found.extend(
+        towers
+            .iter()
+            .filter(|&&(p, intact)| intact && !blocked.contains(&p.plane))
+            .map(|&(p, _)| p),
     );
-    for dy in -range..=range {
-        for dx in -range..=range {
-            if let Some(p) = view.shift(from, dx, dy) {
-                if live(view, p)
-                    && strength >= expected_vs(view, p, unarmed) * edge
-                    && !found.contains(&p)
-                {
-                    found.push(p);
-                }
-            }
-        }
-    }
-    for (p, intact) in view.towers() {
-        if intact
-            && !found.contains(&p)
-            && !blocked.contains(&p.plane)
-            && distance(view, from, p).is_some_and(|d| d <= view.levers().sites.tower_range)
-            && strength >= expected_vs(view, p, unarmed) * edge
-        {
-            found.push(p);
-        }
-    }
-    found.sort_by_key(|&p| (distance(view, from, p), p.y, p.x));
+    found.sort_by_key(|&p| (p.plane as u8, p.y, p.x));
     found
 }
 
@@ -133,6 +115,24 @@ mod tests {
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
+    /// Guards the wizard has not seen are judged by how strong they look; guards it has fought
+    /// by what they are.
+    #[test]
+    fn an_unseen_site_is_judged_by_how_it_looks_and_a_fought_one_by_its_guards() -> TestResult {
+        use crate::testworld::spawn_site_looking;
+        let mut w = game(COAST_CITY, 8 /* high_men */);
+        let guards = vec![(f4x_def::rules::UnitId::new(164) /* great_drake */, 2)];
+        let (unseen, fought) = (at(12, 6), at(14, 6));
+        spawn_site_looking(&mut w, unseen, guards.clone(), Vec::new(), Some(7))?;
+        spawn_site_looking(&mut w, fought, guards, vec![P0], Some(7))?;
+        w.reveal_map(P0);
+        let view = PlayerView::new(&w, P0);
+        assert_eq!(expected(&view, unseen), 7.0);
+        assert_eq!(expected_vs(&view, unseen, 1.0), 7.0);
+        assert!(expected(&view, fought) > 7.0);
+        Ok(())
+    }
+
     #[test]
     fn a_tower_is_left_alone_while_a_rival_city_that_can_be_walked_to_is_on_its_plane() -> TestResult
     {
@@ -144,17 +144,14 @@ mod tests {
         // A rival city the army can walk to holds the towers back.
         let blocked = blocked_planes(&view, &[], None);
         assert_eq!(blocked, vec![rival.plane]);
-        assert!(sites_near(&view, at(10, 6), 10_000.0, 0.0, &blocked).is_empty());
+        assert!(!known_sites(&view, &blocked).contains(&at(33, 9)));
         // One that only a ship can reach does not, unless a landing is set on it.
         assert!(blocked_planes(&view, &[rival], None).is_empty());
         assert_eq!(
             blocked_planes(&view, &[rival], Some(rival)),
             vec![rival.plane]
         );
-        assert_eq!(
-            sites_near(&view, at(10, 6), 10_000.0, 0.0, &[]),
-            vec![at(33, 9)]
-        );
+        assert!(known_sites(&view, &[]).contains(&at(33, 9)));
         Ok(())
     }
 }

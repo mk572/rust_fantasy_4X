@@ -19,7 +19,7 @@ use super::map::{city_deployment, deployment, layout, BattleMap, Pos};
 use super::{
     Battle, BattleCommand, BattleError, BattleUnit, HeroSheet, Sheet, Side, Status, WizardSheet,
 };
-use f4x_battle::battle::setup::{place_side, Placement};
+use f4x_battle::battle::setup::{hull_cells, place_side, Placement};
 use f4x_def::rules::realm::Realm;
 
 /// A battle in progress and the overland units its fighters were copied from.
@@ -53,11 +53,21 @@ impl ShipDeckPlan {
         }
     }
 
+    /// Every deck square of both sides.
     fn cells(&self) -> Vec<Pos> {
         self.attackers
             .iter()
             .chain(&self.defenders)
             .flat_map(|(_, c)| c.iter().copied())
+            .collect()
+    }
+
+    /// The squares the ships of both sides cover (`hull_cells`).
+    fn hulls(&self) -> Vec<Pos> {
+        self.attackers
+            .iter()
+            .chain(&self.defenders)
+            .flat_map(|(_, c)| hull_cells(c))
             .collect()
     }
 }
@@ -635,12 +645,15 @@ impl World {
                 .iter()
                 .copied()
                 .filter(|&u| {
-                    let on_deck = self
-                        .economy()
-                        .carrier_of(u)
-                        .is_some_and(|c| ship_decks.iter().any(|(ship, _)| *ship == c));
+                    // Aboard a ship of the side: on its deck, or on another where it has
+                    // none (`place_side`).
+                    let aboard = !ship_decks.is_empty()
+                        && self
+                            .economy()
+                            .carrier_of(u)
+                            .is_some_and(|c| group.contains(&c));
                     let keep = if ocean {
-                        carried || on_deck || self.can_fight_at_sea(u)
+                        carried || aboard || self.can_fight_at_sea(u)
                     } else {
                         // A ship that cannot move on land (Flight, Wraith Form) is no fighter
                         // in a city or on land (1.50 note 458).
@@ -691,13 +704,15 @@ impl World {
                     fighters.iter().position(|&s| s == carrier)
                 })
                 .collect();
+            let occupied: Vec<Pos> = units.iter().map(|u: &BattleUnit| u.cell).collect();
             let placed = place_side(
                 &mut bus,
                 Placement {
                     cells,
                     decks: &decks_here,
                     carried_by: &carried_by,
-                    deck_cells: &decks.cells(),
+                    hull_cells: &decks.hulls(),
+                    occupied: &occupied,
                     rules: &self.content.rules.battle.deployment,
                 },
             );

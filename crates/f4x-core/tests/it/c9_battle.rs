@@ -1596,3 +1596,166 @@ fn ships_cannot_attack_the_land() {
     }
     assert!(tried > 0, "no world had a coast with two land squares");
 }
+
+/// The corners (least and greatest x and y) of each ship's deck: no two decks touch, not even
+/// at a corner.
+fn deck_rectangles(map: &f4x_battle::map::BattleMap) -> Vec<((i32, i32), (i32, i32))> {
+    use f4x_battle::map::layout;
+    let mut left: std::collections::BTreeSet<(i32, i32)> = (0..layout::H)
+        .flat_map(|y| (0..layout::W).map(move |x| (x, y)))
+        .filter(|&c| map.is_ship_deck(c))
+        .collect();
+    let mut out = Vec::new();
+    while let Some(first) = left.pop_first() {
+        let mut ship = vec![first];
+        let mut next = 0;
+        while let Some(&(x, y)) = ship.get(next) {
+            next += 1;
+            for dx in -1..=1 {
+                for dy in -1..=1 {
+                    if left.remove(&(x + dx, y + dy)) {
+                        ship.push((x + dx, y + dy));
+                    }
+                }
+            }
+        }
+        let (mut low, mut high) = (first, first);
+        for (x, y) in ship {
+            low = (low.0.min(x), low.1.min(y));
+            high = (high.0.max(x), high.1.max(y));
+        }
+        out.push((low, high));
+    }
+    out
+}
+
+/// A full stack at sea on each side, of ships, the soldiers they carry, a flier, a swimmer and a
+/// walker that walks on water: every one of them is in the battle, the carried soldiers on a deck
+/// and the others on a square they can stand on.
+#[test]
+fn everyone_who_can_be_at_sea_enters_the_battle() {
+    use f4x_def::rules::{MovementType, UnitId};
+    let content = crate::support::content();
+    let walker = kind_moving(MovementType::Walking);
+    let flier = kind_moving(MovementType::Flying);
+    let swimmer = kind_moving(MovementType::Swimming);
+    let water_walking = content
+        .rules
+        .spells
+        .iter()
+        .find(|(_, d)| d.id == "water_walking")
+        .map(|(id, _)| id)
+        .expect("the spell");
+    let fleet = [
+        UnitId::new(38 /* warship */),
+        UnitId::new(36 /* galley */),
+        UnitId::new(35 /* trireme */),
+    ];
+    const CARRIED: usize = 3;
+    let mut tried = 0;
+    for (name, mut w) in worlds() {
+        let ids = w.wizards();
+        let (a, b) = (ids[0], ids[1]);
+        let Some((shore, first)) = beside_the_sea(&w, TerrainClass::Grassland) else {
+            continue;
+        };
+        let second = around(&w, first).into_iter().find(|&at| {
+            w.units().units_at(at).is_empty()
+                && w.economy().city_at(at).is_none()
+                && w.economy().terrain_class_at(at) == Some(TerrainClass::Ocean)
+        });
+        let Some(second) = second else { continue };
+        // Each side gathers on the first sea square; the defenders are then set on the second.
+        let mut stacks = Vec::new();
+        for owner in [b, a] {
+            let mut stack: Vec<_> = fleet
+                .iter()
+                .map(|&ship| make(&mut w, owner, first, ship))
+                .collect();
+            let soldiers: Vec<_> = (0..CARRIED)
+                .map(|_| make(&mut w, owner, shore, walker))
+                .collect();
+            let strider = make(&mut w, owner, shore, walker);
+            assert!(
+                w.cheat_enchant_unit(strider, water_walking, owner),
+                "{name}"
+            );
+            let walking: Vec<_> = soldiers.iter().copied().chain([strider]).collect();
+            for unit in walking {
+                let moved = w.apply(Command::MoveStack {
+                    units: vec![unit],
+                    to: first,
+                });
+                assert_eq!(
+                    w.units().unit_position(unit),
+                    Some(first),
+                    "{name}: {moved:?}"
+                );
+                stack.push(unit);
+            }
+            stack.push(make(&mut w, owner, first, flier));
+            stack.push(make(&mut w, owner, first, swimmer));
+            for &s in &soldiers {
+                assert!(w.economy().carrier_of(s).is_some(), "{name}: not aboard");
+            }
+            if owner == b {
+                for &u in &stack {
+                    w.cheat_move_unit(u, second);
+                }
+            }
+            stacks.push(stack);
+        }
+        let (defenders, attackers) = (stacks[0].clone(), stacks[1].clone());
+        assert_eq!(attackers.len(), w.max_battle_side(), "{name}: a full side");
+        tried += 1;
+        let events = w.apply(Command::BeginBattle {
+            attackers,
+            defenders,
+        });
+        assert_eq!(refusal(&events), None, "{name}: {events:?}");
+        let battle = w.battle().expect("a battle");
+        let mut squares = std::collections::BTreeSet::new();
+        let ships = deck_rectangles(&battle.map);
+        assert!(!ships.is_empty(), "{name}: no decks");
+        for side in [Side::Attacker, Side::Defender] {
+            let units: Vec<_> = battle.units.iter().filter(|u| u.side == side).collect();
+            let kinds: Vec<_> = units.iter().map(|u| u.unit_id).collect();
+            assert_eq!(
+                units.len(),
+                w.max_battle_side(),
+                "{name}: of {side:?} only {kinds:?} fight"
+            );
+            // The carried soldiers (the walkers that do not walk on water) stand on decks.
+            let aboard = units
+                .iter()
+                .filter(|u| {
+                    u.unit_id == Some(walker) && !u.sails && battle.map.is_ship_deck(u.cell)
+                })
+                .count();
+            assert!(aboard >= CARRIED, "{name} {side:?}: {aboard} on a deck");
+            for u in units {
+                assert!(squares.insert(u.cell), "{name}: two units on {:?}", u.cell);
+                if !battle.map.is_ship_deck(u.cell) {
+                    // Nor where a hull's picture covers the water: at its narrow ends and
+                    // along its sides.
+                    let (x, y) = u.cell;
+                    assert!(
+                        ships.iter().all(|(low, high)| {
+                            x < low.0 - 1 || x > high.0 + 1 || y < low.1 - 1 || y > high.1 + 1
+                        }),
+                        "{name} {side:?}: {:?} stands under or beside a hull at {:?}",
+                        u.unit_id,
+                        u.cell
+                    );
+                    assert!(
+                        battle.map.enter_cost_as(u.cell, u.mover()).is_some(),
+                        "{name} {side:?}: {:?} cannot stand on {:?}",
+                        u.unit_id,
+                        u.cell
+                    );
+                }
+            }
+        }
+    }
+    assert!(tried > 0, "no world had two sea squares by a shore");
+}

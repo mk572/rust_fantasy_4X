@@ -185,6 +185,17 @@ A new `Command` variant is not enough in `command.rs`, `actor.rs` and `World::ex
   820 ms a turn against 130 ms plain. Timing runs (`scripts/perf_guard.py`, `soak --every`) use
   `cool_run.sh --timing` or plain. `soak --every N` prints milliseconds per phase.
 
+## Sea battles (ship decks, 28 November 2026)
+
+- **A battle unit with no square vanishes without a word.** `place_side` says which units found one
+  and `start_battle` pushes only those: the others are neither in the battle nor in `left_out`. A
+  test of who fights counts the units of each side in the battle.
+- **A hull is drawn wider than its deck**: over the water at the narrow ends and about half a square
+  past each side. Deployment keeps a square clear of the decks' rectangles (`hull_cells`); a screenshot,
+  not the squares in a test, shows whether a unit looks aboard.
+- **A deck size lives in two places and a script**: `deck` in `units.ron`, the picture table of
+  `f4x-client/src/ship_art.rs`, and a rerun of `scripts/make_ship_art.py`.
+
 ## The original (ReMoM) did it this way
 
 - **An outpost becomes a city at 10 tens, not 100** (`Apply_City_Changes`: `Pop_10s >= 10`, keeps the

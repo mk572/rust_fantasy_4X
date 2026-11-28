@@ -508,6 +508,15 @@ fn check_lairs(r: &Rules, p: &mut Issues) {
             format!("at most max_guards ({})", l.max_guards),
         );
     }
+    if l.apparent_percent.is_empty() || l.apparent_percent.contains(&0) {
+        p.out_of_range(
+            F,
+            "",
+            "apparent_percent",
+            format!("{:?}", l.apparent_percent),
+            "a list of percentages above 0",
+        );
+    }
     if !(1..=4).contains(&l.spell_total) {
         p.out_of_range(
             F,

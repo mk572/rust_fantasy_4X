@@ -349,6 +349,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 369 | AI | The AI hardly fights and stops expanding (wars that end, marches, the city target) (done) |
 | 371 | AI | The AI plays to win: more wars, cities, casting, items and heroes, measured by the soak (done) |
 | 372 | Map | (done) Decide the overland terrain move costs: the original's hills 3, swamp 3, mountains 4, or ours (2, 2, 3) |
+| 373 | Battle | (done) Ship graphics for sea battles (isometric decks and hulls in place of plain brown squares) |
 | 374 | Map | Neutral cities reach only about 40% of the target: find out why (done) |
 | 375 | Client | Wire the five Settings switches that do nothing yet (done) |
 | 376 | World | Raiders and rampaging monsters (the original's `Make_Raiders` and `Make_Monsters`) (done) |
@@ -673,8 +674,22 @@ original task numbers. Newest work is merged in ascending order by number.
 | 842 | Core | Raiders and monsters count a player on the other plane as being on their landmass (done) |
 | 843 | Core / Lairs | A node or tower cleared by assault never counts as empty: roaming monsters cannot settle in it (done) |
 | 844 | Core / Heroes | Decide what becomes of a defeated wizard's heroes, and of heroes in a city that turns neutral (done) |
+| 848 | AI / Core | (done) Apparent strength of lairs: stored when a lair is created, judged by the computer player |
+| 849 | AI | (done) Raids start from the site: closest first, soldiers from up to 30 squares away *Needs:* 848 |
 
 ## Descriptions
+
+**373. (done) Ship graphics for sea battles.** Task 233 draws each ship's deck as plain brown diamonds
+(`battle_ground.rs`, `SHIP_DECK`) with the deck shapes from `ship_shape` (pointed ends; trireme 3 by 7,
+galley 4 by 8, warship 5 by 9, Floating Island 5 by 5, in `units.ron`). Give them real pictures: a
+hull and deck drawn for the isometric diamond grid (the field's cells are 32 by 16 pixels; a deck is
+a rectangle in cell axes, so it looks diagonal on screen), a bow and stern for the pointed ends, a
+rail where the gap is jumped, a sunk hull when a ship dies, and a picture for the Floating Island's
+deck. The LPC ship pack ("[LPC] Ship" by bluecarrot16, OGA-BY 3.0+ or CC-BY 3.0+ or GPL 2.0+, in
+`reference/lpc-ship/`, notice in `reference/CREDITS.md`) was tried and does not fit: it is flat top-down 32 by 32 tiles, not isometric. Options to
+settle: draw our own pixel art, reproject the pack's tiles to the diamond grid, or find an isometric
+set (check its licence and credit it in a `CREDITS.md` that is in the repository once art is used). Keep the deck cells as the rules' truth; only
+the drawing changes. *Needs:* nothing.
 
 **580. Trade pact and research pact (done).** Asked for by the user, 14 November 2026, with the other offers now in tasks 845 and 846; the figures were set by the user on 28 November 2026. Both are offered under `expanded_diplomacy` to partners of a wizard pact or an alliance, the trade pact to a neutral race too, and end with that treaty. The rules as built: `diplomacy.md`, "Expanded diplomacy options".
 
@@ -754,3 +769,7 @@ Done 27 November 2026: `ai_battle.ron` holds 52 levers, the constants and the tu
 **844. Heroes of a defeated wizard and of a city that turns neutral (done).** Found on 28 November 2026 by the class 9 tests of task 778; the user decides. The code does two things: `World::make_city_neutral` (`wizard/fortress.rs`, also used by the random event that turns a city neutral) removes a hero or conjured creature in the city with `Fate::Gone`, so nobody can ever hire or raise that hero again; `World::aftermath` releases the remaining heroes of a defeated wizard (`Fate::Released`: free to hire). The comments and `docs/game_end.md` call both "dismissed", and dismissal otherwise makes a hero free. `docs/ecs-structure.md` 3.5 says a defeated wizard lets its heroes go (free); `docs/divergences.md` said they are gone.
 
 **Decided** (the user, 28 November 2026): the heroes are free in both cases. `make_city_neutral` releases them; the documents and the test in `tests/it/c9_hero.rs` agree. A rebellion never reaches a hero (one in the city holds it back), so in play this is the defeat of a wizard; the items of those heroes are lost, as before.
+
+**848. (done) Apparent strength of lairs.** Asked for by the user, 28 November 2026. When a lair, tower or node is created (new game or later), the summed strength of its guards (`f4x_battle::power::def_power`, what the computer player counts for guards it has seen) is multiplied by a random factor from a bell-shaped distribution (log-normal, its numbers in `lairs.ron`: about two thirds of sites between 0.85 and 1.4 times the true strength, about 65% at least as strong as they are) and saved with the lair. The factor follows from the square and the guards and draws from no stream of the game, so a seed still gives the same guards and treasure. A save without the number gets it on load. The computer player judges a site it has not seen by it, in place of "`guess_guards` average soldiers"; guards it has seen it judges as before. Until task 851 the computer player knows something the player is not shown (design.md section 8 notes the exception). Test: the number follows the guards, the spread follows the content, and the computer player uses it.
+
+**849. (done) Raids start from the site.** Asked for by the user, 28 November 2026. The raid job (`f4x-ai/src/raid.rs`) replaces its three searches (retargeting, forming parties, gathering) with one: the known sites, closest first (measured from the nearest free soldier), each considered once a turn. For each site: the free, rested soldiers within 30 squares of it (lairs, nodes and towers alike) that have a way to a square beside it; the strongest of them up to the battle limit (at least `site_party`); a raid starts only if they and the wizard's spells reach the apparent or seen strength times `attack_force` and no similar force has lost there. Soldiers on one square march; else they muster first (one raid muster at a time), and the strength is checked again when the party sets off. Parties out keep their site while it can be reached and is worth it; else their soldiers are free and join the same pass. Test the shipped rules; compare 32 soak games before and after.

@@ -32,7 +32,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 365 | Low | Client | Crossfade the music between tracks (ours; the original cuts) |
 | 367 | Low | AI | Research by what the enemy casts (the rest of the old "overland spells never cast" list is settled or in task 641) |
 | 370 | Low | AI | Battle AI: retreat, sally, weigh a lair before attacking it |
-| 373 | Low | Battle | Ship graphics for sea battles (isometric decks and hulls in place of plain brown squares) |
 | 411 | Medium | Core | Floating Island as a plain summoning, as in the original |
 | 416 | Medium | Client | Button extras to decide: hotkey label, disabled-reason tooltip |
 | 417 | Low | Client | Align the console to the look of the UI |
@@ -175,6 +174,16 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 845 | Medium | Core | Diplomacy offer: demand surrender |
 | 846 | Medium | Core | Diplomacy offer: protection pact *Needs:* 777 |
 | 847 | Medium | AI | Improve unit routing to avoid trespassing |
+| 850 | High | AI | Raids by ship on sites across the sea *Needs:* 849 |
+| 851 | Medium | Client | Show a lair's apparent strength to the player *Needs:* 848 |
+| 852 | Low | Battle / Client | Ship battles: ships move and attack, hulls can be attacked, masts |
+| 853 | Low | Client | A picture of the wreck when a ship dies in a sea battle |
+| 854 | High | AI | Fewer cities founded since raids start from the site: find the cause |
+| 855 | Medium | AI | The pickup and bridge jobs stop sending units again to squares they cannot reach |
+| 856 | Low | Battle | Sea battles with large fleets: a deck for every ship |
+| 857 | Low | Battle / Client | Sea battles: units on the water beside a hull look as if aboard |
+| 858 | Medium | AI | Remember lost fights against enemy units and cities |
+| 859 | Medium | AI / Tools | Soak after the raid work and review it for further issues *Needs:* 850 |
 
 ## Descriptions
 
@@ -204,18 +213,6 @@ silent. A switch under Settings ("Fade Music") turns it off for those who want t
 city, and `site.rs` attacks sites by a strength guess. Add a retreat when a fight is lost, a sally when the
 attacker is weak at the gate, and a better guess of a lair's guards (what the wizard has seen of them).
 Check with `examples/situations.rs` and the mirror test. *Needs:* nothing.
-
-**373. Ship graphics for sea battles.** Task 233 draws each ship's deck as plain brown diamonds
-(`battle_ground.rs`, `SHIP_DECK`) with the deck shapes from `ship_shape` (pointed ends; trireme 3 by 7,
-galley 4 by 8, warship 5 by 9, Floating Island 5 by 5, in `units.ron`). Give them real pictures: a
-hull and deck drawn for the isometric diamond grid (the field's cells are 32 by 16 pixels; a deck is
-a rectangle in cell axes, so it looks diagonal on screen), a bow and stern for the pointed ends, a
-rail where the gap is jumped, a sunk hull when a ship dies, and a picture for the Floating Island's
-deck. The LPC ship pack ("[LPC] Ship" by bluecarrot16, OGA-BY 3.0+ or CC-BY 3.0+ or GPL 2.0+, in
-`reference/lpc-ship/`, notice in `reference/CREDITS.md`) was tried and does not fit: it is flat top-down 32 by 32 tiles, not isometric. Options to
-settle: draw our own pixel art, reproject the pack's tiles to the diamond grid, or find an isometric
-set (check its licence and credit it in a `CREDITS.md` that is in the repository once art is used). Keep the deck cells as the rules' truth; only
-the drawing changes. *Needs:* nothing.
 
 **411. Floating Island as a plain summoning, as in the original.** In the original the Floating Island spell is a summoning like the others: its spell record is category 0 (summoning) and its first parameter is the unit it creates (`SPELLDAT.LBX`; `tests/original/spells.tsv`). Ours runs a custom hook (`Effect::Custom("floating_island")`, `World::floating_island` in `spell/special.rs`) that spawns the unit `floating_island`, and the content test `every_spell_has_the_originals_...` has an exception for it. Change the spell to `Summon(unit: "floating_island", count: 1)` as War Bears is, keep the target check (a water square with no enemy and room, `check_floating_island`) where the summoning checks its target, delete the custom hook and the exception in the test, and keep the tests of the island as a ship (`unit/transport.rs`). Check in ReMoM what the original does with the target (`Cast_Floating_Island`-like code in `OverSpel.c`) so the placement rule stays the original's.
 
@@ -916,7 +913,7 @@ AI saw a situation for it (a target for Earth Lore, Nature's Cures, Disenchant, 
 knew no spell of that kind (`wanted a spell it did not know`; `Ai::unmet_spell_wants`, `wizardry::SITUATION_KINDS`): a
 situation is a target, not a need (Earth Lore and Raise Volcano nearly always have one), and the battle AI is not covered.
 
-**821. Review ship combat.** Asked for by the user, 23 November 2026: most of it is still unresolved. What is known: `start_battle` lets flying, sailing and swimming units and anything with a Transport stat fight on a sea square, lays ships out as decks (`ship_deck_plan`, `ShipDeckPlan`), and carries the land units aboard on the deck; `c9_battle` only shows that a flier and a ship fight on the sea at all (both sides get fighters). Review, with a test on the shipped rules for each finding: (1) the decks: shapes and sizes (`deck` in `units.ron`), which squares a ship and its passengers get, the Floating Island as a ship, a ship that sinks with units aboard (do they drown, and who gets the kill), a deck cell that is jumped or boarded; (2) which units fight on the sea and which sit it out (`left_out`: they share the fate of the side), Wind Walking and what it carries, land units on a ship against fliers and swimmers, ranged attacks across the water; (3) a sea battle's end: what the winner takes, ships and cargo lost or kept, fleeing at sea, the aftermath for a stack that cannot land; (4) the case where nobody on a sea square can fight (only a scenario builds it): `start_battle` opens a battle with no fighters and a settled winner that stays open until the next command; decide whether it refuses; (5) the battle AI at sea (`f4x-ai/src/battle`): it must move ships to attack and not leave the deck; (6) the original's rules for sea fights (ReMoM, wiki) against ours, and the open question of ship graphics (task 373). Measure with the soak: sea battles fought, ships lost, battles that ended by a stall. *Needs:* nothing.
+**821. Review ship combat.** Asked for by the user, 23 November 2026: most of it is still unresolved. What is known: `start_battle` lets flying, sailing and swimming units and anything with a Transport stat fight on a sea square, lays ships out as decks (`ship_deck_plan`, `ShipDeckPlan`), and carries the land units aboard on the deck; `c9_battle` only shows that a flier and a ship fight on the sea at all (both sides get fighters). Review, with a test on the shipped rules for each finding: (1) the decks: shapes and sizes (`deck` in `units.ron`), which squares a ship and its passengers get, the Floating Island as a ship, a ship that sinks with units aboard (do they drown, and who gets the kill), a deck cell that is jumped or boarded; (2) which units fight on the sea and which sit it out (`left_out`: they share the fate of the side), Wind Walking and what it carries, land units on a ship against fliers and swimmers, ranged attacks across the water; (3) a sea battle's end: what the winner takes, ships and cargo lost or kept, fleeing at sea, the aftermath for a stack that cannot land; (4) the case where nobody on a sea square can fight (only a scenario builds it): `start_battle` opens a battle with no fighters and a settled winner that stays open until the next command; decide whether it refuses; (5) the battle AI at sea (`f4x-ai/src/battle`): it must move ships to attack and not leave the deck; (6) the original's rules for sea fights (ReMoM, wiki) against ours (the ship graphics are task 373, done). Measure with the soak: sea battles fought, ships lost, battles that ended by a stall. Settled on 28 November 2026 (`docs/combat.md`, "Water battles"): the deck sizes and pictures, the other ships moving to make room for a deck, and every unit that may fight at sea getting a square (`c9_battle`), so (1) and (2) start from that. *Needs:* nothing.
 
 **823. Retire the old save converter.** Asked for by the user, 26 November 2026. Task 822 reads saves of the older layout through a converter in `f4x-master` (`docs/turn-structure.md` 10.8). When the older saves are no longer wanted, delete that module and its tests and raise `OLDEST_COMPATIBLE_VERSION` to the first version that writes the new layout. *Needs:* 822.
 
@@ -1041,3 +1038,23 @@ Docs: `docs/ecs-structure.md`, `docs/ai-design.md`, `docs/ai-unit-registry.md`, 
 - Who and where a unit trespasses is read from the same rules the core judges by, not repeated in the AI. The AI uses only what a human could see (`docs/design.md` section 8).
 - To decide with the user: what a unit does when the only way, or the target itself, lies in a partner's land.
 - Tests on the shipped rules. *Needs:* nothing.
+
+**850. Raids by ship.** Asked for by the user, 28 November 2026. The raid job (task 849) takes soldiers across the sea when those that can walk are too weak: a landing on the site's land, a gathering square near it, the soldiers shipped there by the pickup job (`Crossing::Sea`), the attack only once the party is strong enough. A sea raid needs a ship or a port that can build one and is given up after a set time (a content value); war transport gets ships first. Test the shipped rules; compare 32 soak games before and after.
+
+**851. Show a lair's apparent strength.** Follows task 848 (28 November 2026). The client shows the player the stored apparent strength of a site (the site prompt and the surveyor's description), with its words as text keys, and design.md section 8 loses the exception.
+
+**852. Ship battle improvements.** Asked for by the user, 28 November 2026. Today a ship in a sea battle has a deck that never moves; the ship itself is a fighter standing at the bow. (1) Ships can move. (2) Ships get their own attack in a sea battle. (3) A ship's hull can be attacked, as city walls can. (4) Masts: squares of a deck that are blocked. The deck and hull pictures are drawn by `scripts/make_ship_art.py`.
+
+**853. Picture of a wrecked ship.** Left over from task 373 (28 November 2026). When a ship dies in a sea battle its deck looks as before; give the wreck a picture of its own (`ship_art.rs`, `scripts/make_ship_art.py`).
+
+**854. Fewer cities founded with site-first raids.** Found by the soak after task 849 (28 November 2026): 32 games of 250 turns, the same seeds, before and after. Cities founded 1203 to 1112 (down in 19 games, up in 10; 95% range of the change per game -4.6 to -1.1), settlers lost in battle 392 to 422. The rest of the comparison: attacks lost on lairs 260 to 233 and on neutral cities 64 to 49, sites cleared 915 to 917, cities captured 491 to 477, no panics. A guess that is not yet checked: raids now take soldiers up to `sites.range` (30) away, so settlers wait for escorts. Find the cause before changing anything, then compare the same games again.
+
+**855. Pickup and bridge resend units to unreachable squares.** In the soaks of 28 November 2026 most refused orders are `GoTo`s of `pickup.rs` and `bridge.rs` that end "cut off", the same unit and square turn after turn (354 of 651 refused rows from `pickup.rs` on Myrror in one run of 32 games, in a few of the games). The job should learn that there is no way: drop or change the task, and not ask again while nothing has changed. The refused-order log of a soak shows whether it is gone.
+
+**856. A deck for every ship of a large fleet.** The sea field is a diamond of about 200 squares: any five ships of the shipped deck sizes fit, six or more may not, and a ship without a deck sails as a unit and shows as its map sprite (`layout::ship_decks`; a side may have nine ships). Tried on paper on 28 November 2026 and not decided: decks of 2 by 4, 3 by 5 and 4 by 6 held every fleet tried, up to seven mixed ships. A smaller size needs `units.ron`, the table of `ship_art.rs` and `scripts/make_ship_art.py`.
+
+**857. Water beside a hull.** A hull's picture covers the water at its narrow ends and about half a square past its sides. Deployment keeps units a square clear, but a swimmer or flier that moves there in the battle looks as if it were aboard. Decide between a slimmer picture, drawing such units over or beside the hull, and closing the squares.
+
+**858. Remember lost fights against units and cities.** The computer player remembers a lost assault on a lair or tower and comes again only much stronger (`site_losses`, `retry_edge`). A lost attack on enemy units or a city leaves no such memory, so the same force may try again.
+
+**859. Soak after the raid work.** Asked for by the user, 28 November 2026: after the raid changes (848, 849, 850), run a soak and look for further issues; report them and add them as tasks. The runs before 850 used the old ship deck sizes, so take a new baseline for comparisons with sea battles.

@@ -1,23 +1,23 @@
 turn 18
-draws 930
+draws 1074
 cities 15
-units 9
+units 8
 spells 0
 items 0
 player 0 cities 1 citizens 6 buildings 3 units 2 hits 16/16 squares x 36 y 30 spells 11 gold 266.5 mana 59.5
 player 1 cities 1 citizens 6 buildings 3 units 2 hits 14/14 squares x 90 y 40 spells 11 gold 252 mana 59.5
-player 100 cities 1 citizens 5 buildings 3 units 0 hits 0/0 squares x 0 y 0 spells 0 gold 187.5 mana 0
-player 101 cities 0 citizens 0 buildings 0 units 0 hits 0/0 squares x 0 y 0 spells 0 gold 150 mana 0
-player 102 cities 0 citizens 0 buildings 0 units 0 hits 0/0 squares x 0 y 0 spells 0 gold 150 mana 0
-player 103 cities 5 citizens 22 buildings 14 units 2 hits 12/12 squares x 65 y 59 spells 0 gold 239 mana 169
-player 104 cities 1 citizens 6 buildings 4 units 0 hits 0/0 squares x 0 y 0 spells 0 gold 271 mana 0
-player 105 cities 1 citizens 3 buildings 2 units 0 hits 0/0 squares x 0 y 0 spells 0 gold 167 mana 0
-player 106 cities 2 citizens 10 buildings 6 units 2 hits 16/16 squares x 28 y 68 spells 0 gold 221.5 mana 0
-player 107 cities 0 citizens 0 buildings 0 units 0 hits 0/0 squares x 0 y 0 spells 0 gold 150 mana 0
+player 100 cities 0 citizens 0 buildings 0 units 0 hits 0/0 squares x 0 y 0 spells 0 gold 150 mana 0
+player 101 cities 1 citizens 5 buildings 3 units 0 hits 0/0 squares x 0 y 0 spells 0 gold 187.5 mana 37.5
+player 102 cities 1 citizens 6 buildings 4 units 0 hits 0/0 squares x 0 y 0 spells 0 gold 175.5 mana 102
+player 103 cities 1 citizens 3 buildings 2 units 0 hits 0/0 squares x 0 y 0 spells 0 gold 167 mana 25.5
+player 104 cities 1 citizens 6 buildings 4 units 0 hits 0/0 squares x 0 y 0 spells 0 gold 226.5 mana 0
+player 105 cities 0 citizens 0 buildings 0 units 0 hits 0/0 squares x 0 y 0 spells 0 gold 150 mana 0
+player 106 cities 1 citizens 3 buildings 2 units 0 hits 0/0 squares x 0 y 0 spells 0 gold 158.5 mana 0
+player 107 cities 2 citizens 8 buildings 6 units 2 hits 12/12 squares x 116 y 60 spells 0 gold 175.5 mana 68
 player 108 cities 0 citizens 0 buildings 0 units 0 hits 0/0 squares x 0 y 0 spells 0 gold 150 mana 0
 player 109 cities 0 citizens 0 buildings 0 units 0 hits 0/0 squares x 0 y 0 spells 0 gold 150 mana 0
-player 110 cities 1 citizens 6 buildings 4 units 0 hits 0/0 squares x 0 y 0 spells 0 gold 176.5 mana 0
+player 110 cities 2 citizens 10 buildings 7 units 2 hits 24/24 squares x 10 y 56 spells 0 gold 192.5 mana 0
 player 111 cities 0 citizens 0 buildings 0 units 0 hits 0/0 squares x 0 y 0 spells 0 gold 150 mana 0
-player 112 cities 2 citizens 9 buildings 6 units 1 hits 6/6 squares x 10 y 30 spells 0 gold 180.5 mana 0
-player 113 cities 0 citizens 0 buildings 0 units 0 hits 0/0 squares x 0 y 0 spells 0 gold 150 mana 0
-kinds draconian_halberdiers 1, draconian_swordsmen 1, halfling_slingers 1, halfling_spearmen 1, halfling_swordsmen 2, nomad_spearmen 1, nomad_swordsmen 1, orc_engineers 1
+player 112 cities 2 citizens 8 buildings 4 units 0 hits 0/0 squares x 0 y 0 spells 0 gold 184 mana 0
+player 113 cities 2 citizens 8 buildings 6 units 0 hits 0/0 squares x 0 y 0 spells 0 gold 150 mana 0
+kinds halfling_spearmen 1, halfling_swordsmen 1, high_elf_halberdiers 2, lizardman_halberdiers 2, nomad_spearmen 1, nomad_swordsmen 1
